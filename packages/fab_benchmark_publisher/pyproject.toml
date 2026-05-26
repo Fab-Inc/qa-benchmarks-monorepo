@@ -1,0 +1,12 @@
+[project]
+name = "fab-benchmark-publisher"
+version = "0.1.0"
+description = "Shared benchmark result contracts, processing, and upload helpers"
+requires-python = ">=3.12"
+dependencies = [
+  "google-cloud-storage>=2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,29 @@
+[project]
+name = "fab-benchmarks-monorepo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0.0",
+  "ruff>=0.6.0",
+]
+
+[tool.uv.workspace]
+members = [
+  "packages/fab_benchmark_publisher",
+  "benchmarks/phonics_benchmark",
+  "benchmarks/language_knowledge_benchmark",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/scripts/*" = ["F401"]
+
