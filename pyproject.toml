@@ -13,6 +13,7 @@ dev = [
 [tool.uv.workspace]
 members = [
   "packages/fab_benchmark_publisher",
+  "packages/primerpro",
   "benchmarks/phonics_benchmark",
   "benchmarks/language_knowledge_benchmark",
 ]
@@ -26,4 +27,3 @@ select = ["E", "F", "W", "I", "N", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/scripts/*" = ["F401"]
-
