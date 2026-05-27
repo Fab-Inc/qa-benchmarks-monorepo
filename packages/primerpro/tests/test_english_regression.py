@@ -21,7 +21,7 @@ def test_english_inventory_decomposes_common_consonant_digraphs_and_vowel_teams(
     assert_word(settings, "sing", ["s", "i", "ng"])
 
 
-def test_english_inventory_prefers_longest_graphemes_when_single_letter_alternatives_exist():
+def test_english_inventory_prefers_longest_graphemes():
     settings = create_english_settings()
 
     assert_word(settings, "check", ["ch", "e", "ck"])
@@ -29,7 +29,7 @@ def test_english_inventory_prefers_longest_graphemes_when_single_letter_alternat
     assert_word(settings, "whale", ["wh", "a", "l", "e"])
 
 
-def test_english_uppercase_multigraphs_must_match_the_inventory_uppercase_form_exactly():
+def test_english_uppercase_multigraphs_are_exact():
     settings = create_english_settings()
 
     assert grapheme_symbols(Word("SHip", settings)) == ["sh", "i", "p"]
@@ -38,7 +38,7 @@ def test_english_uppercase_multigraphs_must_match_the_inventory_uppercase_form_e
 
 def test_english_punctuation_and_apostrophes_are_removed_before_decomposition():
     settings = create_english_settings()
-    word = Word("\"Sam's!\"", settings)
+    word = Word('"Sam\'s!"', settings)
 
     assert word.display_word == "sams"
     assert grapheme_symbols(word) == ["s", "a", "m", "s"]
@@ -115,7 +115,9 @@ def test_english_frequency_counts_use_decomposed_multigraph_graphemes():
         settings,
         "ship shop chain queen night beach book moon sing check.",
     )
-    counted = text_data.update_grapheme_counts(settings.grapheme_inventory, False, False)
+    counted = text_data.update_grapheme_counts(
+        settings.grapheme_inventory, False, False
+    )
 
     assert consonant_count(counted, "sh") == 2
     assert consonant_count(counted, "ch") == 3
@@ -132,7 +134,9 @@ def assert_word(settings, text, expected):
 
 
 def consonant_count(inventory, symbol):
-    return inventory.get_consonant(inventory.find_consonant_index(symbol)).count_in_text_data
+    return inventory.get_consonant(
+        inventory.find_consonant_index(symbol)
+    ).count_in_text_data
 
 
 def vowel_count(inventory, symbol):

@@ -1,7 +1,7 @@
 from primerpro import (
     Consonant,
-    GraphemeTaughtOrder,
     GraphemeInventory,
+    GraphemeTaughtOrder,
     Paragraph,
     Settings,
     SightWords,

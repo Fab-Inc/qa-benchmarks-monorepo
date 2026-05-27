@@ -38,12 +38,24 @@ def test_text_data_can_build_a_word_list_with_duplicate_display_words_removed():
 def test_frequency_counting_respects_longest_match_grapheme_decomposition():
     settings = create_bantu_like_settings()
     text_data = text_data_from_paragraphs(settings, "mbata ngoma.")
-    counted = text_data.update_grapheme_counts(settings.grapheme_inventory, False, False)
+    counted = text_data.update_grapheme_counts(
+        settings.grapheme_inventory, False, False
+    )
 
-    assert counted.get_consonant(counted.find_consonant_index("mb")).count_in_text_data == 1
-    assert counted.get_consonant(counted.find_consonant_index("m")).count_in_text_data == 1
-    assert counted.get_consonant(counted.find_consonant_index("ng")).count_in_text_data == 1
-    assert counted.get_consonant(counted.find_consonant_index("n")).count_in_text_data == 0
+    assert (
+        counted.get_consonant(counted.find_consonant_index("mb")).count_in_text_data
+        == 1
+    )
+    assert (
+        counted.get_consonant(counted.find_consonant_index("m")).count_in_text_data == 1
+    )
+    assert (
+        counted.get_consonant(counted.find_consonant_index("ng")).count_in_text_data
+        == 1
+    )
+    assert (
+        counted.get_consonant(counted.find_consonant_index("n")).count_in_text_data == 0
+    )
 
 
 def test_frequency_counting_can_ignore_configured_sight_words():
@@ -53,8 +65,13 @@ def test_frequency_counting_can_ignore_configured_sight_words():
 
     counted = text_data.update_grapheme_counts(settings.grapheme_inventory, True, False)
 
-    assert counted.get_consonant(counted.find_consonant_index("sh")).count_in_text_data == 1
-    assert counted.get_consonant(counted.find_consonant_index("p")).count_in_text_data == 1
+    assert (
+        counted.get_consonant(counted.find_consonant_index("sh")).count_in_text_data
+        == 1
+    )
+    assert (
+        counted.get_consonant(counted.find_consonant_index("p")).count_in_text_data == 1
+    )
 
 
 def test_frequency_counting_can_fold_tones_into_tone_bearing_units():

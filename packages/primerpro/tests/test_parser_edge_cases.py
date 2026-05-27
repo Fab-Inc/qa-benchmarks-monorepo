@@ -1,4 +1,4 @@
-from primerpro import TextData, Word
+from primerpro import Word
 
 from .fixtures import (
     create_english_settings,
@@ -47,7 +47,7 @@ def test_word_parser_uses_longest_match_for_overlapping_multigraphs():
     assert grapheme_symbols(Word("aaa", settings)) == ["aa", "a"]
 
 
-def test_text_data_pins_sentence_edge_cases_without_terminators_and_repeated_terminators():
+def test_text_data_pins_sentence_boundary_edge_cases():
     settings = create_english_settings()
     no_terminator = text_data_from_paragraphs(settings, "ship queen")
     repeated_terminators = text_data_from_paragraphs(settings, "ship?! queen... night")

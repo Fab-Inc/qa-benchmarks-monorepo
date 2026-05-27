@@ -42,7 +42,7 @@ def test_explicit_syllable_breaks_are_preserved_while_display_word_removes_dots(
 
 def test_punctuation_configured_as_general_or_ending_punctuation_is_removed():
     settings = create_bantu_like_settings()
-    word = Word("\"ngoma,\"", settings)
+    word = Word('"ngoma,"', settings)
 
     assert word.display_word == "ngoma"
     assert grapheme_symbols(word) == ["ng", "o", "m", "a"]

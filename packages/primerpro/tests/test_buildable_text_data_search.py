@@ -1,6 +1,11 @@
 from primerpro import BuildableWordSearchTD
 
-from .fixtures import assert_contains_highlighted, create_english_settings, taught, text_data_from_paragraphs
+from .fixtures import (
+    assert_contains_highlighted,
+    create_english_settings,
+    taught,
+    text_data_from_paragraphs,
+)
 
 
 def test_buildable_text_data_search_lists_buildable_words_from_story_text():

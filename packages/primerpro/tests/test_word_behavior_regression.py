@@ -4,7 +4,6 @@ from .fixtures import (
     assert_contains_highlighted,
     create_bantu_like_settings,
     create_english_settings,
-    grapheme_symbols,
     syllable_symbols,
     taught,
     word_list_from_words,
@@ -47,7 +46,9 @@ def test_word_highlight_helpers_wrap_whole_words_when_target_graphemes_are_prese
     graphemes = taught("th", "sh")
 
     assert_contains_highlighted("ship", word.get_word_with_highlight_grapheme("sh"))
-    assert_contains_highlighted("ship", word.get_word_with_highlight_grapheme(graphemes))
+    assert_contains_highlighted(
+        "ship", word.get_word_with_highlight_grapheme(graphemes)
+    )
     assert word.get_word_with_highlight_grapheme("th") == "ship"
 
 

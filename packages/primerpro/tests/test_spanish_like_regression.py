@@ -26,7 +26,7 @@ def test_spanish_style_inventory_prefers_qu_and_gu_over_component_letters():
     assert_word(settings, "carro", ["c", "a", "rr", "o"])
 
 
-def test_spanish_style_uppercase_multigraphs_must_match_inventory_uppercase_form_exactly():
+def test_spanish_style_uppercase_multigraphs_are_exact():
     settings = create_spanish_like_settings()
 
     assert grapheme_symbols(Word("QUEso", settings)) == ["qu", "e", "s", "o"]
@@ -100,7 +100,9 @@ def test_spanish_style_frequency_counts_use_decomposed_multigraph_graphemes():
         settings,
         "queso guitarra llama chico perro carro guia.",
     )
-    counted = text_data.update_grapheme_counts(settings.grapheme_inventory, False, False)
+    counted = text_data.update_grapheme_counts(
+        settings.grapheme_inventory, False, False
+    )
 
     assert consonant_count(counted, "qu") == 1
     assert consonant_count(counted, "gu") == 2
@@ -115,4 +117,6 @@ def assert_word(settings, text, expected):
 
 
 def consonant_count(inventory, symbol):
-    return inventory.get_consonant(inventory.find_consonant_index(symbol)).count_in_text_data
+    return inventory.get_consonant(
+        inventory.find_consonant_index(symbol)
+    ).count_in_text_data

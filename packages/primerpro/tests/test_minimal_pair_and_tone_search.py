@@ -1,6 +1,10 @@
 from primerpro import MinPairsSearch, ToneChartSearch, TonePairsSearch
 
-from .fixtures import create_english_settings, create_tone_settings, word_list_from_words
+from .fixtures import (
+    create_english_settings,
+    create_tone_settings,
+    word_list_from_words,
+)
 
 
 def test_minimal_pair_search_reports_targeted_vowel_contrasts():
