@@ -18,6 +18,11 @@ members = [
   "benchmarks/language_knowledge_benchmark",
 ]
 
+[tool.pytest.ini_options]
+addopts = [
+  "--import-mode=importlib",
+]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"
