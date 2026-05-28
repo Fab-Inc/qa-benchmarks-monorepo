@@ -2,7 +2,7 @@
 name = "phonics-benchmark"
 version = "0.1.0"
 description = "Phonics benchmark package"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
   "fab-benchmark-publisher",
   "typer>=0.12.0",
@@ -17,4 +17,3 @@ phonics-benchmark = "phonics_benchmark.cmd:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-

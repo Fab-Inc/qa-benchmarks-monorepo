@@ -2,7 +2,7 @@
 name = "primerpro"
 version = "0.1.0"
 description = "Python port of PrimerPro decodability objects and searches"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = []
 
 [build-system]
