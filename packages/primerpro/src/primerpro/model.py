@@ -1,3 +1,11 @@
+"""Object model for the Python port of PrimerPro decodability behavior.
+
+PrimerPro models text for primer development by segmenting words into a
+project-defined grapheme inventory, then checking those graphemes against a
+taught list. The classes here mirror the original C# objects closely enough to
+preserve its search, residue, frequency, tone, and minimal-pair behavior.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +16,8 @@ HIGHLIGHT_OFF = "</HL>"
 
 @dataclass
 class OptionSettings:
+    """Project parsing and display options used by PrimerPro objects."""
+
     max_size_grapheme: int = 4
     general_punct: str = " ,:;-\"'"
     ending_punct: str = ".?!"
@@ -19,11 +29,15 @@ class OptionSettings:
 
 
 class LocalizationTable:
+    """Placeholder localization table matching the original API shape."""
+
     def get_message(self, _key: str) -> str:
         return ""
 
 
 class Settings:
+    """Container for the project objects needed by PrimerPro operations."""
+
     def __init__(self) -> None:
         self.option_settings = OptionSettings()
         self.localization_table = LocalizationTable()
@@ -35,6 +49,14 @@ class Settings:
 
 
 class Grapheme:
+    """A project-defined written unit used as PrimerPro's atomic token.
+
+    A grapheme may be a single character, a multigraph such as ``sh`` or
+    ``igh``, a tone-bearing written form, or a syllograph. All decodability and
+    search behavior follows the configured inventory rather than raw Unicode
+    characters.
+    """
+
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
         self.uppercase = ""
@@ -48,9 +70,13 @@ class Grapheme:
         self.count_in_text_data = 0
 
     def is_same(self, other: Grapheme | None) -> bool:
+        """Return whether another grapheme has the same non-empty symbol."""
+
         return other is not None and self.symbol != "" and self.symbol == other.symbol
 
     def get_marker(self) -> str:
+        """Return the CV-pattern marker for this grapheme type."""
+
         if self.is_consonant:
             return "C"
         if self.is_vowel:
@@ -89,6 +115,8 @@ class Vowel(Grapheme):
 
 
 class Tone(Grapheme):
+    """Tone grapheme with a level and optional tone-bearing unit."""
+
     def __init__(self, symbol: str) -> None:
         super().__init__(symbol)
         self.is_tone = True
@@ -100,9 +128,17 @@ class Tone(Grapheme):
         return self.level == level
 
     def matches_tone_bearing_unit(self, grapheme: Grapheme) -> bool:
+        """Match PrimerPro's original tone-bearing-unit predicate.
+
+        The C# method compares the supplied grapheme to the tone grapheme itself,
+        not to ``tone_bearing_unit``. The port preserves that behavior.
+        """
+
         return self.is_same(grapheme)
 
     def get_marker(self) -> str:
+        """Return the CV marker of this tone's tone-bearing unit."""
+
         if self.tone_bearing_unit is None:
             return ""
         if self.tone_bearing_unit.is_consonant:
@@ -121,6 +157,13 @@ class Syllograph(Grapheme):
 
 
 class GraphemeInventory:
+    """Configured grapheme inventory that drives PrimerPro tokenization.
+
+    Words and syllables are segmented by longest inventory match up to
+    ``OptionSettings.max_size_grapheme``. Inventory membership therefore
+    determines whether strings such as ``ng`` or ``sh`` are one grapheme or two.
+    """
+
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings
         self.consonants: list[Consonant] = []
@@ -180,6 +223,8 @@ class GraphemeInventory:
         return self.get_grapheme(symbol) is not None
 
     def get_grapheme(self, symbol: str) -> Grapheme | None:
+        """Return any inventory grapheme matching a symbol or uppercase form."""
+
         for grapheme in self._all_graphemes():
             if symbol == grapheme.symbol or symbol == grapheme.uppercase:
                 return grapheme
@@ -201,6 +246,8 @@ def _find_index(graphemes: list[Grapheme], symbol: str) -> int:
 
 
 class Syllable:
+    """A syllable segmented into PrimerPro graphemes and a CV pattern."""
+
     def __init__(self, text: str, settings: Settings) -> None:
         self.settings = settings
         self.display_syllable = text
@@ -216,6 +263,8 @@ class Syllable:
         return None
 
     def get_grapheme_without_tone(self, index: int) -> Grapheme | None:
+        """Return a grapheme with tone substituted by its tone-bearing unit."""
+
         grapheme = self.get_grapheme(index)
         return _without_tone(grapheme, self.settings)
 
@@ -223,10 +272,14 @@ class Syllable:
         return "".join(grapheme.symbol for grapheme in self.graphemes)
 
     def is_open_syllable(self) -> bool:
+        """Return whether the syllable ends in a vowel after tone stripping."""
+
         grapheme = self.get_grapheme_without_tone(self.grapheme_count() - 1)
         return bool(grapheme and grapheme.is_vowel)
 
     def is_closed_syllable(self) -> bool:
+        """Return whether the syllable ends in a consonant after tone stripping."""
+
         grapheme = self.get_grapheme_without_tone(self.grapheme_count() - 1)
         return bool(grapheme and grapheme.is_consonant)
 
@@ -235,6 +288,12 @@ class Syllable:
         return bool(first and first.symbol == grapheme)
 
     def is_coda(self, grapheme: str) -> bool:
+        """Return whether ``grapheme`` is the final grapheme of the syllable.
+
+        Linguistic codas can be clusters. PrimerPro's original method uses the
+        simpler final-grapheme test, and the port preserves that behavior.
+        """
+
         last = self.get_grapheme(self.grapheme_count() - 1)
         return bool(last and last.symbol == grapheme)
 
@@ -242,6 +301,12 @@ class Syllable:
         return self.is_onset(grapheme)
 
     def is_syllable_medial(self, grapheme: str) -> bool:
+        """Return whether text appears between first and final graphemes.
+
+        This mirrors PrimerPro's original substring check over the medial
+        grapheme symbols, so a query can match inside a multigraph.
+        """
+
         medial = "".join(grf.symbol for grf in self.graphemes[1:-1])
         return grapheme in medial
 
@@ -249,6 +314,8 @@ class Syllable:
         return self.is_coda(grapheme)
 
     def is_in_syllable(self, grapheme: str) -> bool:
+        """Return whether ``grapheme`` occurs in the syllable after tone stripping."""
+
         return any(
             grf is not None and grf.symbol == grapheme
             for grf in (
@@ -257,6 +324,12 @@ class Syllable:
         )
 
     def is_buildable(self, graphemes_taught: list[str]) -> bool:
+        """Return whether every grapheme is allowed by the taught list.
+
+        PrimerPro supports positional taught forms: ``t_`` can satisfy syllable
+        initial ``t``, and ``_t`` can satisfy syllable-final ``t``.
+        """
+
         for index, grapheme in enumerate(self.graphemes):
             if not _matches_taught_position(
                 grapheme.symbol,
@@ -274,6 +347,14 @@ class Syllable:
 
 
 class Word:
+    """A cleaned, segmented PrimerPro word.
+
+    The word stores its original text, display text, grapheme sequence, inferred
+    or explicit syllables, CV pattern, and sort key. Its behavior follows the
+    original PrimerPro word object, including punctuation cleanup and longest
+    inventory-match segmentation.
+    """
+
     syllable_break_character = "."
 
     def __init__(self, text: str, settings: Settings) -> None:
@@ -305,10 +386,14 @@ class Word:
         return None
 
     def get_grapheme_without_tone(self, index: int) -> Grapheme | None:
+        """Return a grapheme with tone substituted by its tone-bearing unit."""
+
         grapheme = self.get_grapheme(index)
         return _without_tone(grapheme, self.settings)
 
     def get_word_without_tone(self) -> str:
+        """Return display text with tone graphemes replaced by their TBUs."""
+
         symbols = []
         for index in range(self.grapheme_count()):
             grapheme = self.get_grapheme(index)
@@ -320,12 +405,16 @@ class Word:
         return "".join(grapheme.symbol for grapheme in self.graphemes)
 
     def get_cv_shape_of_word(self) -> str:
+        """Return the consonant/vowel shape of the word's grapheme sequence."""
+
         return "".join(
             _cv_marker(self.get_grapheme_without_tone(index), self.settings)
             for index in range(self.grapheme_count())
         )
 
     def get_word_with_highlight_grapheme(self, grapheme: str | list[str]) -> str:
+        """Return the display word wrapped in highlight tags when matched."""
+
         if isinstance(grapheme, list):
             found = self.contain_in_word_list(grapheme)
         else:
@@ -388,6 +477,8 @@ class Word:
         )
 
     def is_same(self, word: Word) -> bool:
+        """Return whether two words have identical grapheme sequences."""
+
         if self.grapheme_count() != word.grapheme_count():
             return False
         return all(
@@ -396,6 +487,12 @@ class Word:
         )
 
     def is_minimal_pair(self, word: Word, ignore_tone: bool) -> int:
+        """Return the only differing grapheme index, or ``-1``.
+
+        This is PrimerPro's grapheme-level minimal-pair predicate: two words
+        must have the same grapheme count and differ at exactly one position.
+        """
+
         if self.grapheme_count() != word.grapheme_count():
             return -1
         differences = []
@@ -413,6 +510,8 @@ class Word:
         grapheme1: Grapheme,
         grapheme2: Grapheme,
     ) -> bool:
+        """Return whether the single difference is the requested grapheme contrast."""
+
         if self.grapheme_count() != word.grapheme_count():
             return False
         found = False
@@ -435,6 +534,12 @@ class Word:
         grapheme1: Grapheme,
         grapheme2: Grapheme,
     ) -> bool:
+        """Return whether all differences are the same requested substitution.
+
+        PrimerPro uses this when allowing vowel harmony: words may differ at
+        more than one position if every difference is the same vowel contrast.
+        """
+
         if self.grapheme_count() != word.grapheme_count():
             return False
         differences = []
@@ -449,6 +554,12 @@ class Word:
         )
 
     def highlight_missing_graphemes(self, graphemes_taught: list[str]) -> str:
+        """Highlight graphemes absent from the exact taught list.
+
+        This mirrors PrimerPro's residue highlighting, which does not apply the
+        positional underscore rules used by the buildability predicate.
+        """
+
         symbols = []
         for grapheme in self.graphemes:
             if grapheme.symbol in graphemes_taught:
@@ -458,6 +569,8 @@ class Word:
         return "".join(symbols)
 
     def get_key(self) -> str:
+        """Return PrimerPro's zero-padded ordinal sort key for the word."""
+
         return "".join(
             str(ord(character)).zfill(6)
             for grapheme in self.graphemes
@@ -570,6 +683,8 @@ class Paragraph:
         )
 
     def avg_number_of_word_in_sentences(self) -> int:
+        """Return the integer average words per sentence."""
+
         if not self.sentences:
             return 0
         return self.word_count() // len(self.sentences)
@@ -649,6 +764,8 @@ class Sentence:
 
 
 class TextData:
+    """Story or corpus text parsed into paragraphs, sentences, and words."""
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.file_name = ""
@@ -695,6 +812,8 @@ class TextData:
         )
 
     def avg_number_of_words_in_sentences(self) -> int:
+        """Return PrimerPro's integer average words per sentence."""
+
         if self.paragraph_count() == 0:
             return 0
         return (
@@ -706,6 +825,8 @@ class TextData:
         )
 
     def avg_number_of_syllables_in_words(self) -> int:
+        """Return PrimerPro's integer average syllables per word."""
+
         return self.syllable_count() // self.word_count() if self.word_count() else 0
 
     def build_word_list(self) -> WordList:
@@ -715,6 +836,8 @@ class TextData:
         return word_list
 
     def build_word_list_with_no_duplicates(self) -> WordList:
+        """Build a sorted word list using the first occurrence of each display word."""
+
         word_list = WordList(self.settings)
         seen = set()
         for word in self.iter_words():
@@ -729,6 +852,12 @@ class TextData:
         ignore_sight_words: bool,
         ignore_tone: bool,
     ) -> GraphemeInventory:
+        """Update inventory text counts from every parsed word.
+
+        Sight words can be skipped. When ``ignore_tone`` is true, tone graphemes
+        count toward their tone-bearing unit instead of the tone itself.
+        """
+
         inventory.reset_text_counts()
         for word in self.iter_words():
             if ignore_sight_words and word.is_sight_word():
@@ -747,11 +876,15 @@ class TextData:
 
 
 class WordList:
+    """Sorted collection of PrimerPro words keyed by grapheme ordinal strings."""
+
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings
         self._words: list[tuple[str, Word]] = []
 
     def add_word(self, word: Word) -> None:
+        """Add a word and keep the list sorted by PrimerPro key."""
+
         key = word.key
         while any(existing_key == key for existing_key, _word in self._words):
             suffix = 1
@@ -777,6 +910,8 @@ class WordList:
         return len(self._words)
 
     def is_word_in_list(self, word: str | Word) -> bool:
+        """Return whether a display word or grapheme-equivalent word is present."""
+
         if isinstance(word, Word):
             return any(existing.is_same(word) for _key, existing in self._words)
         return any(existing.display_word == word for _key, existing in self._words)
@@ -786,6 +921,8 @@ class WordList:
         index: int,
         highlights: list[str] | str | None = None,
     ) -> str:
+        """Return PrimerPro's tab-delimited display line for a word."""
+
         word = self.get_word(index)
         if highlights:
             display = word.get_word_with_highlight_grapheme(highlights)
@@ -798,6 +935,8 @@ class WordList:
 
 
 class GraphemeTaughtOrder:
+    """Ordered list of graphemes considered taught in a primer lesson."""
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._graphemes: list[str] = []
@@ -818,6 +957,8 @@ class GraphemeTaughtOrder:
         return grapheme in self._graphemes
 
     def get_missing_graphemes(self) -> str:
+        """Return taught entries whose base symbol is absent from the inventory."""
+
         missing = []
         inventory = self.settings.grapheme_inventory
         for grapheme in self._graphemes:
@@ -828,6 +969,8 @@ class GraphemeTaughtOrder:
 
 
 class SightWords:
+    """Exact-match sight-word list used as an optional residue exception."""
+
     def __init__(self, _settings: Settings) -> None:
         self._words: list[str] = []
 

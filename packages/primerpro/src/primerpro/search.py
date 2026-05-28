@@ -1,3 +1,5 @@
+"""Search helpers ported from PrimerPro's word-list and text-data searches."""
+
 from __future__ import annotations
 
 from .model import (
@@ -11,6 +13,8 @@ from .model import (
 
 
 class Search:
+    """Base result container shared by PrimerPro search objects."""
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         self.search_id = search_id
         self.settings = settings
@@ -19,6 +23,12 @@ class Search:
 
 
 class BuildableWordSearchWL(Search):
+    """Find word-list entries buildable from a taught grapheme set.
+
+    ``graphemes`` is the taught list. ``highlights`` optionally wraps matching
+    result words in PrimerPro highlight tags.
+    """
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         super().__init__(search_id, settings)
         self.graphemes: list[str] = []
@@ -36,6 +46,13 @@ class BuildableWordSearchWL(Search):
 
 
 class BuildableWordSearchTD(Search):
+    """Find buildable words in parsed text data.
+
+    ``no_duplicates`` reports only the first occurrence of each display word.
+    ``para_format`` preserves paragraph order and highlights buildable words in
+    context instead of returning a plain buildable-word list.
+    """
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         super().__init__(search_id, settings)
         self.graphemes: list[str] = []
@@ -81,6 +98,12 @@ class BuildableWordSearchTD(Search):
 
 
 class ResidueSearch(Search):
+    """Report words in text data that are not buildable from taught graphemes.
+
+    Residue output highlights exact untaught graphemes. ``ignore_sight_words``
+    applies PrimerPro's sight-word exception before residue is counted.
+    """
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         super().__init__(search_id, settings)
         self.graphemes: list[str] = []
@@ -108,6 +131,8 @@ class ResidueSearch(Search):
 
 
 class MinPairsSearch(Search):
+    """Find word-list pairs differing only by ``grapheme1`` to ``grapheme2``."""
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         super().__init__(search_id, settings)
         self.grapheme1 = ""
@@ -139,6 +164,8 @@ class MinPairsSearch(Search):
 
 
 class ToneChartSearch(Search):
+    """List configured tone graphemes with tone-bearing units and levels."""
+
     def execute_tone_chart(self, inventory: GraphemeInventory) -> None:
         rows = ["Tone\tTBU\tLevel"]
         for tone in inventory.tones:
@@ -149,6 +176,8 @@ class ToneChartSearch(Search):
 
 
 class TonePairsSearch(Search):
+    """Find tone-marked words that have a tone-stripped counterpart."""
+
     def __init__(self, search_id: int, settings: Settings) -> None:
         super().__init__(search_id, settings)
         self.grapheme = ""
