@@ -422,7 +422,10 @@ class Word:
             if not left.is_same(right):
                 if found:
                     return False
-                found = left.is_same(grapheme1) and right.is_same(grapheme2)
+                if left.is_same(grapheme1) and right.is_same(grapheme2):
+                    found = True
+                else:
+                    return False
         return found
 
     def is_minimal_pair_harmony(

@@ -1,4 +1,4 @@
-from primerpro import GraphemeTaughtOrder, SightWords, Word
+from primerpro import GraphemeTaughtOrder, SightWords, Syllable, Word
 
 from .fixtures import (
     assert_contains_highlighted,
@@ -38,6 +38,16 @@ def test_word_syllable_position_queries_report_expected_positions():
     assert word.is_syllable_init("t")
     assert word.is_syllable_medial("a")
     assert word.is_syllable_final("m")
+
+
+def test_syllable_medial_query_matches_inside_multigraphs():
+    settings = create_english_settings()
+    syllable = Syllable("asha", settings)
+
+    assert syllable.is_syllable_medial("sh")
+    # This pins PrimerPro's current behavior, but it may be incorrect: h is not a
+    # standalone medial grapheme here, only a substring of the sh grapheme.
+    assert syllable.is_syllable_medial("h")
 
 
 def test_word_highlight_helpers_wrap_whole_words_when_target_graphemes_are_present():

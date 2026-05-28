@@ -19,6 +19,20 @@ def test_text_data_parses_non_english_story_text_into_paragraphs_sentences_and_w
     assert text_data.word_count() == 6
 
 
+def test_text_data_average_words_in_sentences_averages_paragraph_averages():
+    settings = create_bantu_like_settings()
+    text_data = text_data_from_paragraphs(
+        settings,
+        "b. b b b.",
+        "b b b b b b b b b b.",
+    )
+
+    # This pins PrimerPro's current behavior, but it may be incorrect: the text
+    # average is computed from paragraph averages, not total words / sentences.
+    assert text_data.avg_number_of_words_in_sentences() == 6
+    assert text_data.word_count() // text_data.sentence_count() == 4
+
+
 def test_text_data_can_build_a_word_list_preserving_duplicate_tokens():
     settings = create_bantu_like_settings()
     text_data = text_data_from_paragraphs(settings, "mbata ngoma mbata.")

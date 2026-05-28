@@ -124,7 +124,9 @@ class MinPairsSearch(Search):
         rows = []
         words = word_list.iter_words()
         for left_index, left in enumerate(words):
-            for right in words[left_index + 1 :]:
+            for right in words:
+                if left is right:
+                    continue
                 if left.is_minimal_pair_for_graphemes(
                     right,
                     False,
