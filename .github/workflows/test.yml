@@ -31,4 +31,12 @@ jobs:
         run: uv sync --all-packages
 
       - name: Run tests
-        run: uv run pytest -v
+        run: >
+          uv run pytest -v
+          --cov=fab_benchmark_publisher
+          --cov=primerpro
+          --cov=phonics_benchmark
+          --cov=language_knowledge_benchmark
+          --cov-branch
+          --cov-report=term-missing
+          --cov-fail-under=95
