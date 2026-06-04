@@ -1,6 +1,8 @@
 .venv/
 .pytest_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 __pycache__/
 *.py[cod]
 .DS_Store
@@ -9,4 +11,3 @@ outputs/
 data/raw/
 data/interim/
 data/processed/
-

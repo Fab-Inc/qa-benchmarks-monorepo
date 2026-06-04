@@ -6,6 +6,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "pytest-cov>=5.0.0",
   "pytest>=8.0.0",
   "ruff>=0.6.0",
 ]
@@ -22,6 +23,10 @@ members = [
 addopts = [
   "--import-mode=importlib",
 ]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.ruff]
 line-length = 88
