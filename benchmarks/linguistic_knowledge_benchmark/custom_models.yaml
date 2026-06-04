@@ -1,0 +1,548 @@
+LingYiWanWu:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: LINGYIWANWU_API_KEY
+  Client_Args:
+    base_url: https://api.lingyiwanwu.com/v1
+  models:
+    yi-lightning:
+      Token_Window: 16000
+    yi-large-fc:
+      Token_Window: 32000
+      Tool_Use: True
+
+Tencent:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: TENCENT_API_KEY
+  Client_Args:
+    base_url: https://api.hunyuan.cloud.tencent.com/v1
+  models:
+    hunyuan-large:
+      Api_Model_Name: hunyuan-large
+      Token_Window: 28000
+      Token_Limit_Completion: 4000
+    hunyuan-large-longcontext:
+      Api_Model_Name: hunyuan-large-longcontext
+      Token_Window: 128000
+      Token_Limit_Completion: 6000
+    hunyuan-a13b:
+      Api_Model_Name: hunyuan-a13b
+      Token_Window: 224000
+      Token_Limit_Completion: 32000
+
+AmazonBedrock:
+  Api_Interface: Bedrock
+  Api_Key_Env_Var: BEDROCK_API_KEY
+  Client_Args:
+    region_name: us-east-1
+  Token_Window: 300000
+  Vision: True
+  models:
+    amazon-nova-pro-v1:
+      Token_Limit_Completion: 5000
+      Api_Model_Name: "amazon.nova-pro-v1:0"
+    amazon-nova-lite-v1:
+      Token_Limit_Completion: 5000
+      Api_Model_Name: "amazon.nova-lite-v1:0"
+    amazon-nova-micro-v1:
+      Vision: False
+      Token_Window: 128000
+      Token_Limit_Completion: 5000
+      Api_Model_Name: "amazon.nova-micro-v1:0"
+
+Google:
+  Api_Interface: GoogleGenAI
+  Max_Token_Arg_Name: max_output_tokens
+  Api_Key_Env_Var: GEMINI_API_KEY
+  #Client_Args:
+  #  api_type: gemini
+  models:
+    gemini-2.0-flash:
+      Api_Model_Name: models/gemini-2.0-flash
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-2.0-pro-exp:
+      Api_Model_Name: models/gemini-2.0-pro-exp-02-05
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-2.0-flash-thinking-exp:
+      Api_Model_Name: models/gemini-2.0-flash-thinking-exp-01-21
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-2.0-flash-lite:
+      Api_Model_Name: models/gemini-2.0-flash-lite
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-1.5-flash-001:
+      Api_Model_Name: models/gemini-1.5-flash
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-1.5-pro-001:
+      Api_Model_Name: models/gemini-1.5-pro
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-1.5-flash-8b:
+      Api_Model_Name: models/gemini-1.5-flash-8b
+      Vision: False
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-2.5-pro-exp-03-25:
+      Vision: True
+      Tool_Use: True
+      Token_Window: 1000000
+      Token_Limit_Completion: 64000
+    gemini-2.5-flash-preview-04-17:
+      Api_Model_Name: models/gemini-2.5-flash-preview-04-17
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-2.5-pro-preview-05-06:
+      Api_Model_Name: models/gemini-2.5-pro-preview-05-06
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-2.5-flash-preview-05-20:
+      Api_Model_Name: models/gemini-2.5-flash-preview-05-20
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemma-3n-e4b-it:
+      Api_Model_Name: models/gemma-3n-e4b-it
+      Vision: True
+      Token_Window: 131000
+      Token_Limit_Completion: 8192
+    learnlm-2.0-flash-experimental:
+      Api_Model_Name: models/learnlm-2.0-flash-experimental
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 8192
+    gemini-2.5-pro-preview-06-05:
+      Api_Model_Name: models/gemini-2.5-pro
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-2.5-flash-lite-preview-06-17:
+      Api_Model_Name: models/gemini-2.5-flash-lite-preview-06-17
+      Vision: True
+      Token_Window: 1000000
+      Token_Limit_Completion: 64000
+    gemma-3n-e2b-it:
+      Api_Model_Name: models/gemma-3n-e2b-it
+      Vision: True
+      Token_Window: 131000
+      Token_Limit_Completion: 8192
+    gemma-3-1b-it:
+      Api_Model_Name: models/gemma-3-1b-it
+      Vision: True
+      Token_Window: 131000
+      Token_Limit_Completion: 8192
+    gemini-2.5-flash-preview-09-2025:
+      Api_Model_Name: models/gemini-2.5-flash
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-2.5-flash-lite-preview-09-2025:
+      Api_Model_Name: models/gemini-2.5-flash-lite-preview-09-2025
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-3-pro-preview:
+      Api_Model_Name: models/gemini-3-pro-preview
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-3-flash-preview:
+      Api_Model_Name: models/gemini-3-flash-preview
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-3.1-pro-preview:
+      Api_Model_Name: models/gemini-3.1-pro-preview
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+    gemini-3.1-flash-lite-preview:
+      Api_Model_Name: models/gemini-3.1-flash-lite-preview
+      Vision: True
+      Token_Window: 1048576
+      Token_Limit_Completion: 65536
+
+OpenAI:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: OPENAI_API_KEY
+  Token_Window: 200000
+  Token_Limit_Completion: 100000
+  Tool_Use: True
+  Vision: True
+  models:
+    o3-mini-low:
+      Api_Model_Name: o3-mini-2025-01-31
+    o3-mini-medium:
+      Api_Model_Name: o3-mini-2025-01-31
+    o3-mini-high:
+      Api_Model_Name: o3-mini-2025-01-31
+    gpt-4.5-preview:
+      Api_Model_Name: gpt-4.5-preview-2025-02-27
+      Token_Window: 16384
+    gpt-4.1:
+      Api_Model_Name: gpt-4.1-2025-04-14
+      Token_Window: 1047576
+      Token_Limit_Completion: 32768
+    gpt-4.1-mini:
+      Api_Model_Name: gpt-4.1-mini-2025-04-14
+      Token_Window: 1047576
+      Token_Limit_Completion: 32768
+    gpt-4.1-nano:
+      Api_Model_Name: gpt-4.1-nano-2025-04-14
+      Token_Window: 1047576
+      Token_Limit_Completion: 32768
+    o4-mini-2025-04-16:
+      Api_Model_Name: o4-mini-2025-04-16
+      Token_Window: 200000
+      Token_Limit_Completion: 100000
+    o3-2025-04-16:
+      Api_Model_Name: o3-2025-04-16
+      Token_Window: 200000
+      Token_Limit_Completion: 100000
+    # GPT-5 models
+    gpt-5-2025-08-07-minimal:
+      Api_Model_Name: gpt-5-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: minimal
+    gpt-5-2025-08-07-low:
+      Api_Model_Name: gpt-5-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: low
+    gpt-5-2025-08-07-medium:
+      Api_Model_Name: gpt-5-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5-2025-08-07-high:
+      Api_Model_Name: gpt-5-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: high
+    gpt-5-mini-2025-08-07:
+      Api_Model_Name: gpt-5-mini-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+    gpt-5-mini-2025-08-07-minimal:
+      Api_Model_Name: gpt-5-mini-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: minimal
+    gpt-5-mini-2025-08-07-low:
+      Api_Model_Name: gpt-5-mini-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: low
+    gpt-5-mini-2025-08-07-medium:
+      Api_Model_Name: gpt-5-mini-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5-mini-2025-08-07-high:
+      Api_Model_Name: gpt-5-mini-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: high
+    gpt-5-nano-2025-08-07:
+      Api_Model_Name: gpt-5-nano-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+    gpt-5-nano-2025-08-07-minimal:
+      Api_Model_Name: gpt-5-nano-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: minimal
+    gpt-5-nano-2025-08-07-low:
+      Api_Model_Name: gpt-5-nano-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: low
+    gpt-5-nano-2025-08-07-medium:
+      Api_Model_Name: gpt-5-nano-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5-nano-2025-08-07-high:
+      Api_Model_Name: gpt-5-nano-2025-08-07
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: high
+    # GPT-5.1 models
+    gpt-5.1-2025-11-13-high:
+      Api_Model_Name: gpt-5.1-2025-11-13
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: high
+    gpt-5.1-2025-11-13-medium:
+      Api_Model_Name: gpt-5.1-2025-11-13
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5.1-2025-11-13-low:
+      Api_Model_Name: gpt-5.1-2025-11-13
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: low
+    gpt-5.1-2025-11-13-none:
+      Api_Model_Name: gpt-5.1-2025-11-13
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: none
+    gpt-5.2-2025-12-11-none:
+      Api_Model_Name: gpt-5.2-2025-12-11
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: none
+    gpt-5.2-2025-12-11-low:
+      Api_Model_Name: gpt-5.2-2025-12-11
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: low
+    gpt-5.2-2025-12-11-medium:
+      Api_Model_Name: gpt-5.2-2025-12-11
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5.2-2025-12-11-high:
+      Api_Model_Name: gpt-5.2-2025-12-11
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: high
+    gpt-5.2-2025-12-11-xhigh:
+      Api_Model_Name: gpt-5.2-2025-12-11
+      Token_Window: 400000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: xhigh
+    # GPT-5.4 models
+    gpt-5.4-2026-03-05:
+      Api_Model_Name: gpt-5.4-2026-03-05
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+    gpt-5.4-2026-03-05-medium:
+      Api_Model_Name: gpt-5.4-2026-03-05
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5.4-mini-2026-03-17:
+      Api_Model_Name: gpt-5.4-mini-2026-03-17
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+    gpt-5.4-mini-2026-03-17-medium:
+      Api_Model_Name: gpt-5.4-mini-2026-03-17
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+    gpt-5.4-nano-2026-03-17:
+      Api_Model_Name: gpt-5.4-nano-2026-03-17
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+    gpt-5.4-nano-2026-03-17-medium:
+      Api_Model_Name: gpt-5.4-nano-2026-03-17
+      Token_Window: 1050000
+      Token_Limit_Completion: 128000
+      Call_Args:
+        reasoning_effort: medium
+
+ByteDance:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: BYTEDANCE_API_KEY
+  Client_Args:
+    base_url: https://ark.cn-beijing.volces.com/api/v3
+  models:
+    doubao-1.5-pro-32k:
+      Api_Model_Name: ep-20250203223423-6wx9r
+      Token_Window: 32000
+      Token_Limit_Completion: 12000
+    doubao-1.5-lite-32k:
+      Api_Model_Name: ep-20250203223540-htwxr
+      Token_Window: 32000
+      Token_Limit_Completion: 12000
+    doubao-1.5-pro-256k:
+      Api_Model_Name: ep-20250203223600-vsmj5
+      Token_Window: 256000
+      Token_Limit_Completion: 12000
+
+Anthropic:
+  Api_Interface: Anthropic
+  Api_Key_Env_Var: ANTHROPIC_API_KEY
+  Max_Token_Arg_Name: max_tokens
+  Flexible_SysMsg: False
+  Token_Window: 200000
+  Tool_Use: True
+  Vision: True
+  models:
+    claude-3-7-sonnet-latest:
+      Token_Limit_Completion: 8192
+    claude-3-7-sonnet-20250219:
+      Token_Limit_Completion: 8192
+
+Anthropic_Thinking:
+  Api_Interface: AnthropicStreaming
+  Api_Key_Env_Var: ANTHROPIC_API_KEY
+  Max_Token_Arg_Name: max_tokens
+  Flexible_SysMsg: False
+  Token_Window: 200000
+  Token_Limit_Completion: 128000
+  Tool_Use: False
+  Vision: True
+  models:
+    claude-3-7-sonnet-20250219-thinking-high:
+      Api_Model_Name: claude-3-7-sonnet-20250219
+      Call_Args:
+        betas: ["output-128k-2025-02-19"]
+        thinking:
+          type: enabled
+          budget_tokens: 64000
+    claude-3-7-sonnet-20250219-thinking-medium:
+      Api_Model_Name: claude-3-7-sonnet-20250219
+      Call_Args:
+        betas: ["output-128k-2025-02-19"]
+        thinking:
+          type: enabled
+          budget_tokens: 32000
+    claude-3-7-sonnet-20250219-thinking-low:
+      Api_Model_Name: claude-3-7-sonnet-20250219
+      Call_Args:
+        betas: ["output-128k-2025-02-19"]
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+    claude-opus-4-20250514:
+      Token_Limit_Completion: 32000
+    claude-sonnet-4-20250514:
+      Token_Limit_Completion: 64000
+    claude-sonnet-4-20250514-low:
+      Api_Model_Name: claude-sonnet-4-20250514
+      Token_Limit_Completion: 64000
+      Call_Args:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+    claude-opus-4-20250514-low:
+      Api_Model_Name: claude-opus-4-20250514
+      Token_Limit_Completion: 32000
+      Call_Args:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+    claude-sonnet-4-5-20250929:
+      Api_Model_Name: claude-sonnet-4-5-20250929
+      Token_Limit_Completion: 64000
+    claude-sonnet-4-5-20250929-low:
+      Api_Model_Name: claude-sonnet-4-5-20250929
+      Token_Limit_Completion: 64000
+      Call_Args:
+        thinking:
+          type: enabled
+          budget_tokens: 16000
+    claude-sonnet-4-5-20250929-medium:
+      Api_Model_Name: claude-sonnet-4-5-20250929
+      Token_Limit_Completion: 64000
+      Call_Args:
+        thinking:
+          type: enabled
+          budget_tokens: 32000
+    claude-haiku-4-5-20251001:
+      Api_Model_Name: claude-haiku-4-5-20251001
+      Token_Limit_Completion: 64000
+    claude-opus-4-5-20251101:
+      Api_Model_Name: claude-opus-4-5-20251101
+      Token_Limit_Completion: 64000
+    claude-opus-4-6:
+      Api_Model_Name: claude-opus-4-6
+      Token_Limit_Completion: 128000
+    claude-sonnet-4-6:
+      Api_Model_Name: claude-sonnet-4-6
+      Token_Limit_Completion: 64000
+    claude-sonnet-4-6-adaptive:
+      Api_Model_Name: claude-sonnet-4-6
+      Token_Limit_Completion: 64000
+      Call_Args:
+        thinking:
+          type: adaptive
+    claude-opus-4-7:
+      Api_Model_Name: claude-opus-4-7
+      Token_Limit_Completion: 128000
+    claude-opus-4-7-adaptive:
+      Api_Model_Name: claude-opus-4-7
+      Token_Limit_Completion: 128000
+      Call_Args:
+        thinking:
+          type: adaptive
+
+Grok:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: XAI_API_KEY
+  Client_Args:
+    base_url: https://api.x.ai/v1
+  models:
+    xai-grok-4:
+      Api_Model_Name: grok-4-0709
+      Token_Window: 255000
+      Token_Limit_Completion: 255000
+      Tool_Use: True
+      Vision: True
+    grok-4.20-0309-reasoning:
+      Api_Model_Name: grok-4.20-0309-reasoning
+      Token_Window: 1950000
+      Token_Limit_Completion: 1950000
+      Tool_Use: True
+      Vision: True
+    grok-4.20-0309-non-reasoning:
+      Api_Model_Name: grok-4.20-0309-non-reasoning
+      Token_Window: 1900000
+      Token_Limit_Completion: 1900000
+      Tool_Use: True
+      Vision: True
+
+Moonshot:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: MOONSHOT_API_KEY
+  Max_Token_Arg_Name: max_tokens
+  Client_Args:
+    base_url: https://api.moonshot.ai/v1
+  models:
+    kimi-k2.5:
+      Api_Model_Name: kimi-k2.5
+      Token_Window: 262144
+      Vision: True
+      Tool_Use: True
+    kimi-k2.6:
+      Api_Model_Name: kimi-k2.6
+      Token_Window: 262000
+      Vision: True
+      Tool_Use: True

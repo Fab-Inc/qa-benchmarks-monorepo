@@ -233,3 +233,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Linguistic knowledge benchmark run artifacts
+benchmarks/linguistic_knowledge_benchmark/cache/

@@ -1,0 +1,26 @@
+[project]
+name = "linguistic-knowledge-benchmark"
+version = "0.1.0"
+description = "Linguistic knowledge benchmark package"
+requires-python = ">=3.13"
+dependencies = [
+  "fab-benchmark-publisher",
+  "fabdata-llm",
+  "pandas>=2.0.0",
+  "pydantic>=2.0.0",
+  "python-dotenv>=1.0.0",
+  "pyyaml",
+  "tqdm>=4.66.0",
+  "typer>=0.12.0",
+]
+
+[tool.uv.sources]
+fab-benchmark-publisher = { workspace = true }
+fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", tag = "v0.30.0" }
+
+[project.scripts]
+linguistic-knowledge-benchmark = "linguistic_knowledge_benchmark.cmd:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
