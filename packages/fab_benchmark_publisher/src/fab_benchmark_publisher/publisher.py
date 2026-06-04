@@ -6,6 +6,19 @@ from fab_benchmark_publisher.contracts import LeaderboardRecord
 from fab_benchmark_publisher.results import results_to_json, write_results_json
 
 
+def download_file(
+    *, bucket_name: str | None = None, file_name: str, write_path: str | Path
+):
+
+    from google.cloud.storage import Client
+
+    selected_bucket = bucket_name or os.environ["BUCKET_NAME"]
+    client = Client()
+    bucket = client.bucket(selected_bucket)
+    blob = bucket.blob(file_name)
+    blob.download_to_filename(write_path)
+
+
 def upload_json(
     data: object,
     *,
