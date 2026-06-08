@@ -76,7 +76,9 @@ def test_run_benchmark_invalid_model_raises(tmp_path):
 def test_run_benchmark_cache_hit_returns_existing(tmp_path, monkeypatch):
     out = tmp_path / "out"
     out.mkdir()
-    cached = pd.DataFrame([{"id": 1, "output": "A"}])
+    cached = pd.DataFrame(
+        [{"id": 1, "output": "A", "call_status": run_bench.CALL_STATUS_SUCCESS}]
+    )
     cached.to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
 
     def boom(_name):  # get_caller must not be reached on a cache hit
@@ -109,12 +111,14 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
 
     assert len(df) == 3
     assert list(df["output"]) == ["B", "B", "B"]
+    assert list(df["call_status"]) == [run_bench.CALL_STATUS_SUCCESS] * 3
+    assert list(df["error_type"]) == ["", "", ""]
     assert (out / f"resps_{VALID_MODEL}.csv").exists()
     # expected_answers serialized with the pipe join
     assert df.loc[0, "expected_answers"] == "B"
 
 
-def test_run_benchmark_error_branch_records_empty_output(tmp_path, monkeypatch):
+def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
     from conftest import sample_questions
 
     ds = write_dataset(tmp_path / "ds.json", sample_questions()[:1])
@@ -129,6 +133,88 @@ def test_run_benchmark_error_branch_records_empty_output(tmp_path, monkeypatch):
     )
     assert df.loc[0, "output"] == ""
     assert pd.isna(df.loc[0, "latency"])
+    assert df.loc[0, "call_status"] == run_bench.CALL_STATUS_ERROR
+    assert df.loc[0, "error_type"] == "RuntimeError"
+    assert df.loc[0, "error_message"] == "boom"
+
+
+def test_run_benchmark_cache_with_errors_returns_existing(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "id": 1,
+                "output": "",
+                "call_status": run_bench.CALL_STATUS_ERROR,
+                "error_type": "RuntimeError",
+                "error_message": "boom",
+            }
+        ]
+    ).to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
+
+    df = run_bench.run_benchmark(
+        VALID_MODEL,
+        language_name="Luganda",
+        dataset_path=tmp_path / "ds.json",
+        output_dir=out,
+    )
+    assert df.loc[0, "call_status"] == run_bench.CALL_STATUS_ERROR
+
+
+def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
+    from conftest import sample_questions
+
+    ds = write_dataset(tmp_path / "ds.json", sample_questions()[:2])
+    out = tmp_path / "out"
+    out.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "id": 1,
+                "category": "morphology",
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": "",
+                "latency": None,
+                "total_tokens": None,
+                "completion_tokens": None,
+                "reasoning_tokens": None,
+                "call_status": run_bench.CALL_STATUS_ERROR,
+                "error_type": "RuntimeError",
+                "error_message": "boom",
+            },
+            {
+                "id": 2,
+                "category": "vocabulary",
+                "answer_type": "short_form",
+                "expected_answers": "kintu",
+                "output": "old",
+                "latency": 0.1,
+                "total_tokens": 10,
+                "completion_tokens": 5,
+                "reasoning_tokens": 2,
+                "call_status": run_bench.CALL_STATUS_SUCCESS,
+                "error_type": "",
+                "error_message": "",
+            },
+        ]
+    ).to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
+    caller = FakeCaller(make_response("B"))
+    monkeypatch.setattr(run_bench, "get_caller", lambda _name: caller)
+
+    df = run_bench.run_benchmark(
+        VALID_MODEL,
+        language_name="Luganda",
+        dataset_path=ds,
+        output_dir=out,
+        retry_errors=True,
+    ).set_index("id")
+
+    assert df.loc[1, "output"] == "B"
+    assert df.loc[1, "call_status"] == run_bench.CALL_STATUS_SUCCESS
+    assert df.loc[2, "output"] == "old"
+    assert len(caller.calls) == 1
 
 
 def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
@@ -164,6 +250,31 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
     )
     expected = (
         tmp_path / "cache" / "cache_luganda" / "answers" / f"resps_{VALID_MODEL}.csv"
+    )
+    assert expected.exists()
+
+
+def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch):
+    from conftest import sample_questions
+
+    monkeypatch.setattr(run_bench, "CACHE_BASE_DIR", tmp_path / "cache")
+    ds = write_dataset(tmp_path / "ds.json", sample_questions()[:1])
+    monkeypatch.setattr(run_bench, "get_caller", lambda _name: FakeCaller())
+
+    run_bench.run_benchmark(
+        VALID_MODEL,
+        language_name="Luganda",
+        dataset_path=ds,
+        run_id="run-123",
+    )
+    expected = (
+        tmp_path
+        / "cache"
+        / "cache_luganda"
+        / "runs"
+        / "run-123"
+        / "answers"
+        / f"resps_{VALID_MODEL}.csv"
     )
     assert expected.exists()
 

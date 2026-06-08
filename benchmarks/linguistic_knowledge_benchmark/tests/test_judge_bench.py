@@ -35,11 +35,15 @@ def test_build_judge_system_prompt_includes_language():
     [("B", ["B"], True), ("A", ["B"], False)],
 )
 def test_score_multiple_choice(output, expected, result):
-    assert judge_bench.score_multiple_choice(output, expected) == (result, "")
+    assert judge_bench.score_multiple_choice(output, expected) == (
+        result,
+        "",
+        output,
+    )
 
 
 def test_score_multiple_choice_unparseable_returns_none():
-    assert judge_bench.score_multiple_choice("???", ["B"]) == (None, "")
+    assert judge_bench.score_multiple_choice("???", ["B"]) == (None, "", None)
 
 
 @pytest.mark.parametrize(
@@ -47,7 +51,8 @@ def test_score_multiple_choice_unparseable_returns_none():
     [("True", ["True"], True), ("false", ["True"], False)],
 )
 def test_score_true_false_regex_parses(output, expected, result):
-    assert judge_bench.score_true_false_regex(output, expected) == (result, "")
+    parsed = output.strip().lower().capitalize()
+    assert judge_bench.score_true_false_regex(output, expected) == (result, "", parsed)
 
 
 @pytest.mark.parametrize("bad", ["", "maybe so", float("nan")])
@@ -124,6 +129,15 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
         dict(id=4, answer_type="true_false", expected_answers="True", output="maybe"),
         dict(id=5, answer_type="multiple_choice", expected_answers="B", output=""),
         dict(id=6, answer_type="essay", expected_answers="x", output="x"),
+        dict(
+            id=7,
+            answer_type="multiple_choice",
+            expected_answers="B",
+            output="",
+            call_status="error",
+            error_type="RuntimeError",
+            error_message="boom",
+        ),
     ]
     _write_answers(answers, rows)
     ds = write_dataset(
@@ -139,12 +153,20 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     ).set_index("id")
 
     assert bool(df.loc[1, "is_correct"]) is True  # MC regex
+    assert df.loc[1, "score_method"] == judge_bench.SCORE_METHOD_REGEX
+    assert df.loc[1, "parsed_answer"] == "B"
     assert bool(df.loc[2, "is_correct"]) is True  # short_form judge
+    assert df.loc[2, "score_method"] == judge_bench.SCORE_METHOD_LLM_JUDGE
     assert bool(df.loc[3, "is_correct"]) is True  # TF regex
+    assert df.loc[3, "parsed_answer"] == "True"
     assert pd.isna(df.loc[4, "is_correct"])  # TF unparseable
+    assert df.loc[4, "score_method"] == judge_bench.SCORE_METHOD_UNSCORED
     assert pd.isna(df.loc[5, "is_correct"])  # missing output
     assert df.loc[5, "justification"] == "Missing model output"
+    assert df.loc[5, "score_method"] == judge_bench.SCORE_METHOD_UNSCORED
     assert pd.isna(df.loc[6, "is_correct"])  # unknown type
+    assert pd.isna(df.loc[7, "is_correct"])  # model call error
+    assert "Model call error: RuntimeError: boom" in df.loc[7, "justification"]
     # judged CSV written
     out = (
         tmp_path
@@ -153,6 +175,40 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
         / f"resps_{VALID_MODEL}_judged.csv"
     )
     assert out.exists()
+
+
+def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
+    monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
+    answers = tmp_path / "cache_luganda" / "runs" / "run-123" / "answers"
+    answers.mkdir(parents=True)
+    _write_answers(
+        answers,
+        [
+            {
+                "id": 1,
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": "B",
+            }
+        ],
+    )
+    ds = write_dataset(tmp_path / "ds.json", [{"id": 1, "question": "q"}])
+
+    judge_bench.judge_results(
+        VALID_MODEL,
+        language_name="Luganda",
+        dataset_path=ds,
+        run_id="run-123",
+    )
+
+    assert (
+        tmp_path
+        / "cache_luganda"
+        / "runs"
+        / "run-123"
+        / "answers_judged"
+        / f"resps_{VALID_MODEL}_judged.csv"
+    ).exists()
 
 
 def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
@@ -266,6 +322,7 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
     )
     assert bool(df.loc[0, "is_correct_fallback"]) is True
     assert df.loc[0, "justification_fallback"] == "B it is"
+    assert df.loc[0, "score_method"] == judge_bench.SCORE_METHOD_LLM_FALLBACK
 
 
 def test_fallback_judge_not_registered(tmp_path, monkeypatch):

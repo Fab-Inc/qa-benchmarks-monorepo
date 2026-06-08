@@ -21,6 +21,8 @@ from linguistic_knowledge_benchmark.shared_utils import (
 )
 
 CACHE_BASE_DIR = ROOT_DIR / "cache" / "cache_linguistic_knowledge"
+CALL_STATUS_SUCCESS = "success"
+CALL_STATUS_ERROR = "error"
 
 
 # Answer parsing patterns (the LLPK MCQ letter extractor; the only LLPK code
@@ -102,12 +104,58 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
+def _answers_dir(language_name: str, run_id: str | None = None) -> Path:
+    """Return the stage-1 answers directory for a language/run."""
+    language_dir = CACHE_BASE_DIR / f"cache_{language_name.lower()}"
+    if run_id:
+        language_dir = language_dir / "runs" / run_id
+    return language_dir / "answers"
+
+
+def _question_result_row(
+    question: dict,
+    *,
+    output: str,
+    latency,
+    total_tokens,
+    completion_tokens,
+    reasoning_tokens,
+    call_status: str,
+    error_type: str = "",
+    error_message: str = "",
+) -> dict:
+    """Build a persisted stage-1 result row."""
+    return {
+        "id": question["id"],
+        "category": question["category"],
+        "answer_type": question["answer_type"],
+        "expected_answers": "|".join(question["expected_answers"]),
+        "output": output,
+        "latency": latency,
+        "total_tokens": total_tokens,
+        "completion_tokens": completion_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "call_status": call_status,
+        "error_type": error_type,
+        "error_message": error_message,
+    }
+
+
+def _error_mask(results_df: pd.DataFrame) -> pd.Series:
+    """Return a mask for rows with persisted model-call errors."""
+    if "call_status" not in results_df.columns:
+        return pd.Series([False] * len(results_df), index=results_df.index)
+    return results_df["call_status"].eq(CALL_STATUS_ERROR)
+
+
 def run_benchmark(
     model_name: str,
     *,
     language_name: str,
     dataset_path: Path,
     force: bool = False,
+    retry_errors: bool = False,
+    run_id: str | None = None,
     output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
     """Run the Linguistic Knowledge benchmark for a given model.
@@ -118,6 +166,9 @@ def run_benchmark(
             interpolated into the system prompts.
         dataset_path: Path to the dataset JSON file.
         force: Force re-run even if cached results exist
+        retry_errors: Retry rows with persisted call_status="error" in an
+            existing cache file
+        run_id: Optional non-overwriting run ID under cache_<language>/runs/
         output_dir: Directory to save results (default:
             cache/cache_linguistic_knowledge/cache_{language_name.lower()}/answers)
     Returns:
@@ -125,7 +176,7 @@ def run_benchmark(
         output, latency, total_tokens, completion_tokens, reasoning_tokens
     """
     if output_dir is None:
-        output_dir = CACHE_BASE_DIR / f"cache_{language_name.lower()}" / "answers"
+        output_dir = _answers_dir(language_name, run_id)
     output_dir = Path(output_dir)
 
     # Validate model name
@@ -137,8 +188,29 @@ def run_benchmark(
     # Check cache
     cache_path = output_dir / f"resps_{model_name}.csv"
     if not force and cache_path.exists():
-        print(f"Results already exist for {model_name}. Use --force to re-run.")
-        return pd.read_csv(cache_path)
+        cached_df = pd.read_csv(cache_path)
+        cached_error_mask = _error_mask(cached_df)
+        error_count = int(cached_error_mask.sum())
+
+        if retry_errors and error_count == 0:
+            print(f"No cached error rows for {model_name}; returning cached results.")
+            return cached_df
+
+        if not retry_errors:
+            if error_count:
+                print(
+                    f"Cached results for {model_name} contain {error_count} "
+                    "model-call error row(s). Use --retry-errors to retry them."
+                )
+            print(f"Results already exist for {model_name}. Use --force to re-run.")
+            return cached_df
+    elif retry_errors:
+        raise FileNotFoundError(
+            f"No cached results found for {model_name}; cannot use --retry-errors."
+        )
+    else:
+        cached_df = None
+        cached_error_mask = None
 
     # Load dataset and build prompts
     questions = load_dataset(dataset_path)
@@ -153,9 +225,20 @@ def run_benchmark(
             f"registered in custom_models.yaml."
         ) from None
 
+    if retry_errors and cached_df is not None and cached_error_mask is not None:
+        error_ids = set(cached_df.loc[cached_error_mask, "id"].astype(str))
+        questions_to_run = [q for q in questions if str(q["id"]) in error_ids]
+        results_by_id = {
+            str(row["id"]): row.to_dict() for _, row in cached_df.iterrows()
+        }
+        desc = f"Retrying {model_name}"
+    else:
+        questions_to_run = questions
+        results_by_id = {}
+        desc = f"Running {model_name}"
+
     # Run benchmark
-    results = []
-    for question in tqdm(questions, desc=f"Running {model_name}"):
+    for question in tqdm(questions_to_run, desc=desc):
         system_prompt = system_prompts[question["answer_type"]]
         try:
             messages = [
@@ -163,42 +246,42 @@ def run_benchmark(
                 LLMMessage(Role="user", Message=question["question"]),
             ]
             response = caller.call(messages, max_tokens=None)
-
-            results.append(
-                {
-                    "id": question["id"],
-                    "category": question["category"],
-                    "answer_type": question["answer_type"],
-                    "expected_answers": "|".join(question["expected_answers"]),
-                    "output": response.Message,
-                    "latency": response.Latency,
-                    "total_tokens": response.TokensUsed,
-                    "completion_tokens": response.TokensUsedCompletion,
-                    "reasoning_tokens": response.TokensUsedReasoning,
-                }
+            results_by_id[str(question["id"])] = _question_result_row(
+                question,
+                output=response.Message,
+                latency=response.Latency,
+                total_tokens=response.TokensUsed,
+                completion_tokens=response.TokensUsedCompletion,
+                reasoning_tokens=response.TokensUsedReasoning,
+                call_status=CALL_STATUS_SUCCESS,
             )
         except Exception as e:
             print(f"\nERROR on question {question['id']}: {e}")
-            results.append(
-                {
-                    "id": question["id"],
-                    "category": question["category"],
-                    "answer_type": question["answer_type"],
-                    "expected_answers": "|".join(question["expected_answers"]),
-                    "output": "",
-                    "latency": None,
-                    "total_tokens": None,
-                    "completion_tokens": None,
-                    "reasoning_tokens": None,
-                }
+            results_by_id[str(question["id"])] = _question_result_row(
+                question,
+                output="",
+                latency=None,
+                total_tokens=None,
+                completion_tokens=None,
+                reasoning_tokens=None,
+                call_status=CALL_STATUS_ERROR,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
 
         if model_name in RATE_LIMITED_MODELS:
             time.sleep(5)
 
+    results = [results_by_id[str(question["id"])] for question in questions]
     results_df = pd.DataFrame(results)
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path = output_dir / f"resps_{model_name}.csv"
     results_df.to_csv(cache_path, index=False)
     print(f"Results saved to {cache_path}")
+    error_count = int(_error_mask(results_df).sum())
+    if error_count > 0:
+        print(
+            f"{model_name} had {error_count} model-call error row(s). "
+            f"Partial results were saved to {cache_path}; retry with --retry-errors."
+        )
     return results_df

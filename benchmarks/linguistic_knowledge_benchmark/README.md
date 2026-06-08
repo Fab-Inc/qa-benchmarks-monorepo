@@ -119,6 +119,9 @@ benchmarks/linguistic_knowledge_benchmark/
           resps_<model>.csv
         answers_judged/              # stage 2: scored answers, one CSV per model
           resps_<model>_judged.csv
+      runs/<run-id>/                 # optional non-overwriting run artifacts
+        answers/
+        answers_judged/
   results/                           # final per-language summaries (tracked in git)
     summary_linguistic_knowledge_<language>.csv
 ```
@@ -192,8 +195,21 @@ Options:
 - `-m, --model` — model ID (must be a key in `list_models.yaml`). Omit to run every model.
 - `-l, --language` — registered language key.
 - `-f, --force` — re-run even if cached answers exist.
+- `--retry-errors` — retry only rows with `call_status=error` from an existing answers CSV.
+- `--run-id` — write under `cache_<language>/runs/<run-id>/answers/` instead of the stable answers path.
+- `--timestamped-output` — generate a UTC timestamp run ID for a non-overwriting run.
 
 Output: `cache/cache_linguistic_knowledge/cache_<language>/answers/resps_<model>.csv`
+
+The stage-1 CSV keeps model output separate from infrastructure failures:
+
+- `output` contains only the model's raw answer text.
+- `call_status` is `success` or `error`.
+- `error_type` and `error_message` are populated when the model call fails.
+
+If a cached CSV contains any `call_status=error` rows, a later `run-bench`
+returns the cached rows and prints a warning. Use `--retry-errors` to rerun only
+those failed rows. Transient provider retries are handled by `fdllm`.
 
 ### Stage 2 — score answers (`judge-bench`)
 
@@ -210,6 +226,7 @@ Options:
 - `-l, --language` — registered language key.
 - `-j, --judge-model` — judge model for short-form answers (default `claude-sonnet-4-5-20250929`).
 - `-f, --force` — re-judge even if judged results exist.
+- `--run-id` — read/write judged artifacts under `cache_<language>/runs/<run-id>/`.
 - `--judge-fallback` — re-evaluate MC/true-false rows the regex *couldn't* parse (`is_correct` is null) with the LLM judge. Reads from `answers_judged/`, writes to `answers_judged_fallback/`.
 
 Outputs:
@@ -244,6 +261,14 @@ Accuracy is computed only over **scored** rows; missing model outputs and
 still-unparsed rows are reported as `unscored_count` rather than counted as
 wrong. When fallback results exist, the summary uses the fallback verdict where
 available and the original verdict otherwise.
+
+Judged rows include provenance fields:
+
+- `score_method` — `regex`, `llm_judge`, `llm_fallback`, or `unscored`.
+- `parsed_answer` — the parsed MCQ/true-false answer when regex parsing succeeds.
+
+This makes strict-format scores distinguishable from answers rescued by the LLM
+fallback.
 
 ## Tests
 

@@ -1,5 +1,6 @@
 """Command-line interface for linguistic_knowledge_benchmark."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -34,6 +35,12 @@ DATASETS: dict[str, dict] = {
     },
 }
 
+
+def _timestamp_run_id() -> str:
+    """Return a filesystem-safe UTC timestamp for non-overwriting runs."""
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
 app = typer.Typer(
     name="linguistic-knowledge-benchmark",
     help="Benchmark system for evaluating LLM performance on language knowledge evals",
@@ -55,6 +62,21 @@ def run_bench_cmd(
         "-f",
         help="Force re-run even if results already exist",
     ),
+    retry_errors: bool = typer.Option(
+        False,
+        "--retry-errors",
+        help="Retry only rows with call_status=error in an existing answers CSV",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Write/read answers under cache_<language>/runs/<run-id>/",
+    ),
+    timestamped_output: bool = typer.Option(
+        False,
+        "--timestamped-output",
+        help="Generate a UTC timestamp run ID for a non-overwriting run",
+    ),
     language: str = typer.Option(
         "luganda",
         "--language",
@@ -66,6 +88,10 @@ def run_bench_cmd(
 
     If --model is not provided, runs all models from list_models.yaml.
     """
+    if force and retry_errors:
+        typer.echo("ERROR: --force and --retry-errors cannot be combined.", err=True)
+        raise typer.Exit(1)
+
     if language not in DATASETS:
         typer.echo(f"ERROR: Invalid language '{language}'.", err=True)
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
@@ -83,7 +109,11 @@ def run_bench_cmd(
         models_to_run = list(EVAL_MODELS.keys())
 
     entry = DATASETS[language]
+    if timestamped_output and run_id is None:
+        run_id = _timestamp_run_id()
     typer.echo(f"\n=== Running Linguistic Knowledge Evaluation ({language}) ===")
+    if run_id:
+        typer.echo(f"Run ID: {run_id}")
 
     for current_model in models_to_run:
         try:
@@ -92,6 +122,8 @@ def run_bench_cmd(
                 language_name=entry["language_name"],
                 dataset_path=entry["path"],
                 force=force,
+                retry_errors=retry_errors,
+                run_id=run_id,
             )
         except Exception as e:
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
@@ -117,6 +149,11 @@ def judge_bench_cmd(
         "--force",
         "-f",
         help="Force re-judge even if judged results exist",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Read/write judged artifacts under cache_<language>/runs/<run-id>/",
     ),
     language: str = typer.Option(
         "luganda",
@@ -157,6 +194,8 @@ def judge_bench_cmd(
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
+    if run_id:
+        typer.echo(f"Run ID: {run_id}")
 
     if judge_fallback:
         typer.echo(f"Inspecting {len(models_to_judge)} model(s) for fallback")
@@ -172,6 +211,7 @@ def judge_bench_cmd(
                     dataset_path=entry["path"],
                     judge_model=judge_model,
                     force=force,
+                    run_id=run_id,
                 )
             else:
                 judged_df = judge_results(
@@ -180,6 +220,7 @@ def judge_bench_cmd(
                     dataset_path=entry["path"],
                     judge_model=judge_model,
                     force=force,
+                    run_id=run_id,
                 )
             summary = compute_summary(judged_df, current_model)
             summaries.append(summary)
@@ -201,7 +242,10 @@ def judge_bench_cmd(
         results_dir.mkdir(exist_ok=True)
         summary_df = pd.DataFrame(summaries)
         suffix = "_fallback" if judge_fallback else ""
-        summary_name = f"summary_linguistic_knowledge_{language}{suffix}.csv"
+        run_suffix = f"_{run_id}" if run_id else ""
+        summary_name = (
+            f"summary_linguistic_knowledge_{language}{run_suffix}{suffix}.csv"
+        )
         summary_path = results_dir / summary_name
         summary_df.to_csv(summary_path, index=False)
         typer.echo(f"\nSummary saved to {summary_path}")
