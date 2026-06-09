@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "language-knowledge-benchmark"
 version = "0.1.0"
@@ -10,7 +14,3 @@ dependencies = [
 
 [project.scripts]
 language-knowledge-benchmark = "language_knowledge_benchmark.cmd:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
