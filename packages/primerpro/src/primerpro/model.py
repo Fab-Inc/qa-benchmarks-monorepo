@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+
 HIGHLIGHT_ON = "<HL>"
 HIGHLIGHT_OFF = "</HL>"
 
@@ -48,6 +49,11 @@ class Settings:
         self.word_list: WordList | None = None
 
 
+class GPCBasedSettings:
+    """Settings that require GPC-based graphemes in the inventory."""
+    pass
+
+
 class Grapheme:
     """A project-defined written unit used as PrimerPro's atomic token.
 
@@ -59,6 +65,7 @@ class Grapheme:
 
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
+        self.phoneme : str | None = None
         self.uppercase = ""
         self.is_consonant = False
         self.is_vowel = False
@@ -156,6 +163,29 @@ class Syllograph(Grapheme):
         self.is_syllograph = True
 
 
+class ConsonantGPC(Consonant):
+    def __init__(self, grapheme: str, phoneme: str) -> None:
+        super().__init__(grapheme)
+        self.phoneme = phoneme
+
+class VowelGPC(Vowel):
+    def __init__(self, grapheme: str, phoneme: str) -> None:
+        super().__init__(grapheme)
+        self.phoneme = phoneme
+
+
+class SyllographGPC(Syllograph):
+    def __init__(self, grapheme: str, phoneme: str) -> None:
+        super().__init__(grapheme)
+        self.phoneme = phoneme
+
+
+class ToneGPC(Tone):
+    def __init__(self, grapheme: str, phoneme: str) -> None:
+        super().__init__(grapheme)
+        self.phoneme = phoneme
+
+
 class GraphemeInventory:
     """Configured grapheme inventory that drives PrimerPro tokenization.
 
@@ -172,15 +202,33 @@ class GraphemeInventory:
         self.syllographs: list[Syllograph] = []
 
     def add_consonant(self, consonant: Consonant) -> None:
+        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(consonant, ConsonantGPC):
+            raise TypeError(
+                f"GPC-enabled settings require consonants to be ConsonantGPC, but got {type(consonant)}"
+            )
+            
+        # TODO: should we add logic to handle duplicates?
         self.consonants.append(consonant)
 
     def add_vowel(self, vowel: Vowel) -> None:
+        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(vowel, VowelGPC):
+            raise TypeError(
+                f"GPC-enabled settings require vowels to be VowelGPC, but got {type(vowel)}"
+            )
         self.vowels.append(vowel)
 
     def add_tone(self, tone: Tone) -> None:
+        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(tone, ToneGPC):
+            raise TypeError(
+                f"GPC-enabled settings require tones to be ToneGPC, but got {type(tone)}"
+            )
         self.tones.append(tone)
 
     def add_syllograph(self, syllograph: Syllograph) -> None:
+        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(syllograph, SyllographGPC):
+            raise TypeError(
+                f"GPC-enabled settings require syllographs to be SyllographGPC, but got {type(syllograph)}"
+            )
         self.syllographs.append(syllograph)
 
     def consonant_count(self) -> int:
@@ -427,6 +475,20 @@ class Word:
         return ".".join(
             syllable.get_syllable_in_lower_case() for syllable in self.syllables
         )
+    
+    def get_phoneme_annotation(self) -> list[tuple[str, str | None]]:
+        """Return [(grapheme, phoneme), ...] for each segmented grapheme."""
+        if isinstance(self.settings, GPCBasedSettings):
+            raise ValueError("Phoneme annotation is only available for GPC-based settings.")
+        
+        return [(g.symbol, g.phoneme) for g in self.graphemes]
+    
+    def get_phonemic_form(self) -> str:
+        """Return the contatenated phonemes for the word's grapheme sequence."""
+        if isinstance(self.settings, GPCBasedSettings):
+            raise ValueError("Phonemic form is only available for GPC-based settings.")
+        
+        return "".join(g.phoneme for g in self.graphemes if g.phoneme is not None)
 
     def contain_in_word(self, grapheme_symbol: str) -> bool:
         return any(
