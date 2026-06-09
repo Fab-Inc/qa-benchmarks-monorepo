@@ -183,8 +183,8 @@ def create_kiswahili_gpc_settings() -> GPCBasedSettings:
     """
 
     settings = GPCBasedSettings()
-    settings.option_settings.max_size_grapheme = 2
-    settings.option_settings.general_punct = " ,:;-\"'"
+    settings.option_settings.max_size_grapheme = 3
+    settings.option_settings.general_punct = " ,:;-\""
     settings.option_settings.ending_punct = ".?!"
 
     inventory = GraphemeInventory(settings)
