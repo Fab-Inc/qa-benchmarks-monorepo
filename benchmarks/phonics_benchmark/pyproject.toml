@@ -8,9 +8,6 @@ dependencies = [
   "typer>=0.12.0",
 ]
 
-[tool.uv.sources]
-fab-benchmark-publisher = { workspace = true }
-
 [project.scripts]
 phonics-benchmark = "phonics_benchmark.cmd:main"
 

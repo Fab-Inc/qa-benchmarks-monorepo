@@ -24,6 +24,10 @@ members = [
   "benchmarks/language_knowledge_benchmark",
 ]
 
+[tool.uv.sources]
+fab-benchmark-publisher = { workspace = true }
+primerpro = { workspace = true }
+
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
