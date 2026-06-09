@@ -49,7 +49,7 @@ class Settings:
         self.word_list: WordList | None = None
 
 
-class GPCBasedSettings:
+class GPCBasedSettings(Settings):
     """Settings that require GPC-based graphemes in the inventory."""
     pass
 
@@ -478,14 +478,14 @@ class Word:
     
     def get_phoneme_annotation(self) -> list[tuple[str, str | None]]:
         """Return [(grapheme, phoneme), ...] for each segmented grapheme."""
-        if isinstance(self.settings, GPCBasedSettings):
+        if not isinstance(self.settings, GPCBasedSettings):
             raise ValueError("Phoneme annotation is only available for GPC-based settings.")
         
         return [(g.symbol, g.phoneme) for g in self.graphemes]
     
     def get_phonemic_form(self) -> str:
         """Return the contatenated phonemes for the word's grapheme sequence."""
-        if isinstance(self.settings, GPCBasedSettings):
+        if not isinstance(self.settings, GPCBasedSettings):
             raise ValueError("Phonemic form is only available for GPC-based settings.")
         
         return "".join(g.phoneme for g in self.graphemes if g.phoneme is not None)

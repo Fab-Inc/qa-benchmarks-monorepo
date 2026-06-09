@@ -13,6 +13,7 @@ from primerpro import (
     Word,
     WordList,
 )
+from primerpro.model import GPCBasedSettings
 
 
 def create_bantu_like_settings() -> Settings:
@@ -174,18 +175,17 @@ KISWAHILI_VOWEL_GPCS = [
 ]
 
 
-def create_kiswahili_gpc_settings() -> Settings:
+def create_kiswahili_gpc_settings() -> GPCBasedSettings:
     """GPC-enabled settings with a 1:1 Kiswahili grapheme-phoneme inventory.
 
     ``is_gpc_based`` is set before any grapheme is registered so the inventory's
     type guards are active throughout, matching real GPC usage.
     """
 
-    settings = Settings()
+    settings = GPCBasedSettings()
     settings.option_settings.max_size_grapheme = 2
     settings.option_settings.general_punct = " ,:;-\"'"
     settings.option_settings.ending_punct = ".?!"
-    settings.is_gpc_based = True
 
     inventory = GraphemeInventory(settings)
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:

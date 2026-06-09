@@ -156,6 +156,6 @@ def test_phoneme_methods_require_gpc_settings(method):
     settings = create_english_settings()
     word = Word("sat", settings)
 
-    with pytest.raises(ValueError, match="GPC-based settings"):
+    with pytest.raises(ValueError, match="only available for GPC-based settings"):
         getattr(word, method)()
 
