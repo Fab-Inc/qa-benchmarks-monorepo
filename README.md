@@ -107,7 +107,7 @@ Old standalone repositories can depend on the shared package via a Git subdirect
 ```toml
 [project]
 dependencies = [
-  "fab-benchmark-publisher==0.1.0",
+  "fab-benchmark-publisher",
 ]
 
 [tool.uv.sources]
@@ -116,4 +116,10 @@ fab-benchmark-publisher = {
   subdirectory = "packages/fab_benchmark_publisher",
   tag = "publisher-v0.1.0"
 }
+```
+
+To update the dependency to a newer version, update the `tag` and then run
+
+```bash
+uv sync --upgrade-package fab-benchmark-publisher
 ```

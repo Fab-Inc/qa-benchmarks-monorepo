@@ -6,10 +6,15 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "pytest-cov>=5.0.0",
   "pytest>=8.0.0",
+  "pytest-cov>=5.0.0",
   "ruff>=0.6.0",
 ]
+
+[tool.uv]
+required-version = ">=0.11.8"
+# Ignore brand new dependency versions, for cybersecurity and robustness
+exclude-newer = "7 days"
 
 [tool.uv.workspace]
 members = [
@@ -19,14 +24,19 @@ members = [
   "benchmarks/language_knowledge_benchmark",
 ]
 
-[tool.pytest.ini_options]
-addopts = [
-  "--import-mode=importlib",
-]
+[tool.uv.sources]
+fab-benchmark-publisher = { workspace = true }
+primerpro = { workspace = true }
+fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+
+[tool.pytest.ini_options]
+addopts = [
+  "--import-mode=importlib",
+]
 
 [tool.ruff]
 line-length = 88

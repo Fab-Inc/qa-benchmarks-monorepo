@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "fab-benchmark-publisher"
 version = "0.1.0"
@@ -6,7 +10,3 @@ requires-python = ">=3.13"
 dependencies = [
   "google-cloud-storage>=2",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"

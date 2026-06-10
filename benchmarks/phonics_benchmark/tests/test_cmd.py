@@ -21,4 +21,3 @@ def test_main_succeeds(runner: CliRunner) -> None:
     app_custom.command()(main)
     result = runner.invoke(app_custom)
     assert result.exit_code == 0
-
