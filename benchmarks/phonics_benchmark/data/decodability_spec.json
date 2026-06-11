@@ -1,6 +1,6 @@
 {
   "spec_version": "0.1",
-  "description": "Language-agnostic specification for the decodability evaluation. Defines, per language, what 'decodable' means, which orthographic unit categories and reason codes are legal, and (for sw) a reference inventory used by the validator's heuristic decodability cross-check. Items reference a student_id; students reference a language; this file is the contract both are validated against.",
+  "description": "Language-agnostic specification for the decodability evaluation. Defines, per language, what 'decodable' means, which orthographic unit categories and reason codes are legal, and a reference inventory of all available units. Items reference a student_id; students reference a language; this file is the contract both are validated against.",
 
   "field_definitions": {
     "student.language": "ISO code; selects which block of `languages` applies.",
@@ -15,21 +15,12 @@
     "item.undecodable_words[].word": "Surface form, lowercased.",
     "item.undecodable_words[].frequency": "Occurrences of the word in `text` (see conventions.frequency).",
     "item.undecodable_words[].offending_units": "Specific untaught unit(s) that make the word undecodable. Syllabic nasals are written with the combining mark (m followed by U+0329).",
-    "item.undecodable_words[].reason_categories": "One or more codes from languages[lang].reason_categories.",
-    "item.undecodable_words[].reason": "Human-readable explanation."
-  },
-
-  "conventions": {
-    "frequency": "Case-insensitive count of the word among whitespace-delimited tokens in `text`, after stripping surrounding punctuation. Word-internal apostrophes are preserved (so ng'ombe is one token).",
-    "tokenization": "Split on whitespace; strip the characters . , ! ? ; : \" ( ) from each end; do not strip apostrophes; lowercase.",
-    "accessibility": "A word is ACCESSIBLE (not flagged) iff it is a known sight word OR every unit in a valid segmentation is in the student's known set. Otherwise it is UNDECODABLE.",
-    "syllabification_note": "Words with contested syllable boundaries should be excluded from answer keys, or annotated, so labels stay unambiguous."
+    "item.undecodable_words[].reason_categories": "One or more codes from languages[lang].reason_categories."
   },
 
   "languages": {
     "sw": {
-      "status": "active",
-      "decodability_rule": "Kiswahili orthography is transparent and predominantly open-CV. A word is accessible to the student iff it is a known sight word, OR it can be segmented into syllables (standalone vowel V; onset+vowel where the onset is a single consonant, digraph, nasal/prenasalized cluster, or consonant+glide; or a syllabic nasal) such that every unit used is in the student's known_graphemes. There are very few irregular words, so sight_words is a small safety valve rather than a primary mechanism.",
+      "decodability_rule": "Kiswahili orthography is transparent and predominantly open-CV. A word is accessible to the student if it is a known sight word, OR it can be segmented into syllables (standalone vowel V; onset+vowel where the onset is a single consonant, digraph, nasal/prenasalized cluster, or consonant+glide; or a syllabic nasal) such that every unit used is in the student's known_graphemes.",
       "unit_categories": [
         "vowels",
         "single_consonants",
@@ -49,7 +40,7 @@
         "not_a_known_sight_word"
       ],
       "reference_inventory": {
-        "comment": "Full inventory of sw orthographic units, independent of any student. Used by the validator's heuristic segmenter to cross-check answer keys. Syllabic nasals (m, n before a consonant) are handled by rule, not listed here.",
+        "comment": "Full inventory of sw orthographic units, independent of any student. Used by the validator's heuristic segmenter to cross-check answer keys. The inventory is intentionally exhaustive, including units that would be taught in later grades, to allow for partial decodability and to support future expansion. The validator should check that every unit in an answer key's offending_units is in this reference inventory, and flag any that are not.",
         "vowels": ["a", "e", "i", "o", "u"],
         "single_consonants": ["b", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "r", "s", "t", "v", "w", "y", "z"],
         "digraphs": ["ch", "dh", "gh", "sh", "th", "ny", "ng'"],
@@ -59,8 +50,7 @@
     },
 
     "en": {
-      "status": "illustrative",
-      "decodability_rule": "English orthography is opaque, so decodability is defined over grapheme-phoneme correspondences (GPCs) and syllable types rather than syllable set-membership. A word is accessible iff it is a known sight/heart word, OR it can be segmented into known GPCs and known syllable types. Because many high-frequency words are irregular, sight_words carries far more weight than in sw.",
+      "decodability_rule": "English orthography is opaque, so decodability is defined over grapheme-phoneme correspondences (GPCs) and syllable types rather than syllable set-membership. A word is accessible if it is a known sight/heart word, OR it can be segmented into known GPCs and known syllable types.",
       "unit_categories": [
         "single_letter_gpcs",
         "consonant_digraphs",
@@ -81,7 +71,7 @@
         "irregular_not_known_as_sight_word"
       ],
       "reference_inventory": {
-        "comment": "Placeholder. No en students or items exist yet; this block documents that the sw-specific categories (syllabic_nasals, nasal_prenasalized_onsets, consonant_glide_onsets) are simply absent here, and en introduces categories sw lacks. A separate en decoder would be needed for the heuristic cross-check."
+        "comment": "Placeholder. No en students or items exist yet; this block documents that the sw-specific categories (syllabic_nasals, nasal_prenasalized_onsets, consonant_glide_onsets) are simply absent here, and en introduces categories sw lacks."
       }
     }
   }
