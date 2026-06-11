@@ -18,10 +18,6 @@ from linguistic_knowledge_benchmark.shared_utils import DATA_DIR, EVAL_MODELS
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-# Load provider API keys from the package-level .env into os.environ so fdllm
-# can find them. Existing environment variables take precedence (override=False).
-load_dotenv(PROJECT_ROOT / ".env")
-
 _MODELS_YAML = PROJECT_ROOT / "custom_models.yaml"
 register_models(str(_MODELS_YAML))
 
@@ -46,6 +42,14 @@ app = typer.Typer(
     help="Benchmark system for evaluating LLM performance on language knowledge evals",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def setup() -> None:
+    """Linguistic Knowledge Benchmark"""
+    # Load provider API keys from the package-level .env into os.environ so fdllm
+    # can find them. Existing environment variables take precedence (override=False).
+    load_dotenv(PROJECT_ROOT / ".env")
 
 
 @app.command("run-bench")

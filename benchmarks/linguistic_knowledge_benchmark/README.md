@@ -99,7 +99,7 @@ There are three `answer_type`s, each scored differently (see
 | [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py) | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw answers. Holds the answer-type system prompts and the MCQ regex parser (`parse_answer`). |
 | [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py) | **Stage 2.** Scores raw answers — regex for MC/true-false, an LLM judge for short-form — plus an optional LLM fallback for unparseable MC/TF rows, and accuracy summaries. |
 | [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py) | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry. |
-| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `DATA_DIR` / cache roots, lists rate-limited models. |
+| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `ROOT_DIR` / `DATA_DIR`, lists rate-limited models. (The cache root `CACHE_BASE_DIR` is defined in `run_bench.py`.) |
 | [`list_models.yaml`](list_models.yaml) | The set of models to evaluate (key = model ID, value = display name). |
 | [`custom_models.yaml`](custom_models.yaml) | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses. |
 | [`.env`](.env) | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI. |
@@ -119,9 +119,9 @@ benchmarks/linguistic_knowledge_benchmark/
           resps_<model>.csv
         answers_judged/              # stage 2: scored answers, one CSV per model
           resps_<model>_judged.csv
-      runs/<run-id>/                 # optional non-overwriting run artifacts
-        answers/
-        answers_judged/
+        runs/<run-id>/               # optional non-overwriting run artifacts
+          answers/
+          answers_judged/
   results/                           # final per-language summaries (tracked in git)
     summary_linguistic_knowledge_<language>.csv
 ```
