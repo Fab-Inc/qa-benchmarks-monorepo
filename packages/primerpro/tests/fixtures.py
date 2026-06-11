@@ -1,6 +1,5 @@
 from primerpro import (
     Consonant,
-    ConsonantGPC,
     GraphemeInventory,
     GraphemeTaughtOrder,
     Paragraph,
@@ -9,11 +8,10 @@ from primerpro import (
     TextData,
     Tone,
     Vowel,
-    VowelGPC,
     Word,
     WordList,
 )
-from primerpro.model import GPCBasedSettings
+from primerpro.model import GPCInventory
 
 
 def create_bantu_like_settings() -> Settings:
@@ -144,7 +142,6 @@ KISWAHILI_CONSONANT_GPCS = [
     ("f", "f"),
     ("g", "ɡ"),
     ("gh", "Ɣ"),
-    ("f", "f"),
     ("h", "h"),
     ("j", "j"),
     ("k", "k"),
@@ -162,7 +159,7 @@ KISWAHILI_CONSONANT_GPCS = [
     ("th", "θ"),
     ("v", "v"),
     ("w", "w"),
-    ("y", "j"),
+    ("y", "y"),
     ("z", "z"),
 ]
 
@@ -175,34 +172,32 @@ KISWAHILI_VOWEL_GPCS = [
 ]
 
 
-def create_kiswahili_gpc_settings() -> GPCBasedSettings:
-    """GPC-enabled settings with a 1:1 Kiswahili grapheme-phoneme inventory.
+def create_kiswahili_gpc_settings() -> tuple[Settings, GPCInventory]:
+    """Settings plus a 1:1 Kiswahili GPC inventory.
 
-    ``is_gpc_based`` is set before any grapheme is registered so the inventory's
-    type guards are active throughout, matching real GPC usage.
+    The GPC inventory is built from (grapheme, phoneme) pairs, so every grapheme
+    is guaranteed to have a phoneme. Its wrapped grapheme inventory is assigned
+    to ``settings.grapheme_inventory`` to drive segmentation. Returns both the
+    settings (for parsing) and the GPC inventory (for phoneme lookup).
     """
 
-    settings = GPCBasedSettings()
+    settings = Settings()
     settings.option_settings.max_size_grapheme = 3
     settings.option_settings.general_punct = " ,:;-\""
     settings.option_settings.ending_punct = ".?!"
 
-    inventory = GraphemeInventory(settings)
+    gpc = GPCInventory(settings)
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
-        consonant = ConsonantGPC(grapheme=grapheme, phoneme=phoneme)
-        consonant.uppercase = grapheme.upper()
-        inventory.add_consonant(consonant)
+        gpc.add_consonant(grapheme, phoneme)
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
-        vowel = VowelGPC(grapheme=grapheme, phoneme=phoneme)
-        vowel.uppercase = grapheme.upper()
-        inventory.add_vowel(vowel)
+        gpc.add_vowel(grapheme, phoneme)
 
-    settings.grapheme_inventory = inventory
+    settings.grapheme_inventory = gpc.grapheme_inventory
     settings.graphemes_taught = GraphemeTaughtOrder(settings)
     settings.sight_words = SightWords(settings)
     settings.text_data = TextData(settings)
     settings.word_list = WordList(settings)
-    return settings
+    return settings, gpc
 
 
 def taught(*graphemes: str) -> list[str]:

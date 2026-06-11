@@ -108,6 +108,45 @@ search.execute_residue_search(text_data)
 print(search.search_results)
 ```
 
+## Phoneme look-up
+
+Currently, we support associating a phoneme to each grapheme, for orthographies with 1:1 Graphme-Phoneme Correspondences (GPCs), to allow easy phoneme lookup.
+
+To use this lookup feature, use `GPCInventory` instead of `GraphemeInventory` for your set up:
+
+```python
+from primerpro import Consonant, GPCInventory, Settings, Vowel
+
+settings = Settings()
+gpc_inventory = GPCInventory(settings)
+
+for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
+    gpc_inventory.add_consonant(grapheme, phoneme)
+
+for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
+    gpc_inventory.add_vowel(grapheme, phoneme)
+
+# NOTE: you have to provide the `grapheme_inventory` to the `settings.grapheme_inventory`
+settings.grapheme_inventory = gpc_inventory.grapheme_inventory
+```
+
+Then, you can look up the phoneme representations as follows:
+
+```python
+from primerpro import (
+    get_phoneme_annotation,
+    get_phonemic_form,
+    Word
+)
+
+word = Word("Mtoto", settings)
+
+print(get_phoneme_annotation(word, gpc_inventory))
+# >>> [('m', 'm'), ('t', 't'), ('o', 'ɔ'), ('t', 't'), ('o', 'ɔ')]
+print(get_phonemic_form(word, gpc_inventory))
+# >>> mtɔtɔ
+```
+
 ## Demo Script
 
 The phonics benchmark includes a runnable short tutorial with an English

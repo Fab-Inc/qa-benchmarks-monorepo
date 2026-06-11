@@ -1,99 +1,39 @@
-"""
+"""Tests for the GPC (grapheme-phoneme correspondence) layer."""
 
-"""
-from primerpro.model import Consonant, GraphemeInventory, Settings, Syllograph, SyllographGPC, TextData, Tone, ToneGPC, Vowel, VowelGPC, Word, ConsonantGPC
+from primerpro import (
+    GPCInventory,
+    Settings,
+    Word,
+    get_phoneme_annotation,
+    get_phonemic_form,
+)
+
+from .fixtures import create_kiswahili_gpc_settings, KISWAHILI_CONSONANT_GPCS, KISWAHILI_VOWEL_GPCS
 import pytest
-from .fixtures import create_english_settings, create_kiswahili_gpc_settings
+
+def test_every_registered_grapheme_has_a_phoneme():
+    """Registering via (grapheme, phoneme) pairs guarantees completeness."""
+    settings = Settings()
+    gpc_inventory = GPCInventory(settings)
+    for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
+        gpc_inventory.add_consonant(grapheme, phoneme)
+    for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
+        gpc_inventory.add_vowel(grapheme, phoneme)
+
+    grapheme_inventory = gpc_inventory.grapheme_inventory
+
+    for grapheme in (*grapheme_inventory.consonants, *grapheme_inventory.vowels):
+        assert gpc_inventory.get_phoneme(grapheme.symbol) is not None
 
 
-@pytest.mark.parametrize(
-    "grapheme, marker", 
-    [
-        (Consonant("b"), "consonant"), 
-        (Vowel("a"), "vowel"), 
-        (Syllograph("ka"), "syllograph"), 
-        (Tone("á"), "tone")
-   ]
-)
-def test_inventory_add_raises_error_for_non_gpc_graphemes_for_gpc_based_settings(grapheme, marker):
-    """
-    GIVEN GPC-based settings
-    WHEN adding a non-GPC grapheme to the inventory
-    THEN expect a TypeError
-    """
-    settings = create_kiswahili_gpc_settings()
-    
-    with pytest.raises(TypeError, match=f"GPC-enabled settings require {marker}s to be {marker.capitalize()}GPC"):
-        getattr(settings.grapheme_inventory, f"add_{marker}")(grapheme)
+def test_gpc_inventory_drives_segmentation():
+    """The GPC's wrapped grapheme inventory segments words."""
 
+    settings, gpc = create_kiswahili_gpc_settings()
+    assert settings.grapheme_inventory is gpc.grapheme_inventory
 
-@pytest.mark.parametrize(
-    "gpc_based_grapheme, marker", 
-    [
-        (ConsonantGPC("b", "b"), "consonant"), 
-        (VowelGPC("a", "a"), "vowel"), 
-        (SyllographGPC("ka", "ka"), "syllograph"), 
-        (ToneGPC("á", "á"), "tone")
-    ]
-)
-def test_inventory_add_passes_for_gpcs_for_gpc_based_settings(gpc_based_grapheme, marker):
-    """
-    GIVEN GPC-based settings
-    WHEN adding a GPC to the inventory
-    THEN expect no error
-    """
-    settings = create_kiswahili_gpc_settings()
-    getattr(settings.grapheme_inventory, f"add_{marker}")(gpc_based_grapheme)
-
-
-@pytest.mark.parametrize(
-    "grapheme",
-    [Consonant("b"), ConsonantGPC("b", "b")],
-)
-def test_non_gpc_settings_accept_any_consonant(grapheme):
-    """
-    GIVEN non-GPC settings
-    WHEN adding either a plain or GPC grapheme
-    THEN no error is raised (backward compatibility)
-    """
-    settings = create_english_settings()
-    settings.grapheme_inventory.add_consonant(grapheme)
-
-
-def test_inventory_without_settings_does_not_crash():
-    """
-    # TODO: Find out when settings should/can be None in practice
-
-    GIVEN an inventory constructed without settings
-    WHEN adding a grapheme
-    THEN the guard is skipped instead of raising AttributeError
-    """
-    inventory = GraphemeInventory(settings=None)
-    inventory.add_consonant(Consonant("b"))
-
-    assert inventory.consonant_count() == 1
-
-
-# --- Phoneme lookup ----------------------------------------------------------
-
-
-def test_phoneme_annotation_maps_each_grapheme():
-    """
-    GIVEN GPC-based settings
-    WHEN a word is annotated
-    THEN each grapheme maps to its corresponding phoneme
-    """
-    settings = create_kiswahili_gpc_settings()
-    word = Word("mtoto", settings)
-
-    assert word.get_phoneme_annotation() == [
-        ("m", "m"),
-        ("t", "t"),
-        ("o", "ɔ"),
-        ("t", "t"),
-        ("o", "ɔ"),
-    ]
-
+    word = Word("sh", settings)
+    assert word.grapheme_count() == 1  # 'sh' is one grapheme, not 's' + 'h'
 
 
 @pytest.mark.parametrize(
@@ -107,55 +47,86 @@ def test_phoneme_annotation_maps_each_grapheme():
         ("ungana", [("u", "u"), ("ng", "ŋg"), ("a", "a"), ("n", "n"), ("a", "a")]),
     ]
 )
-def test_multigraph_is_segmented_and_annotated(word_text, expected_annotation):
-    """
-    GIVEN GPC-based Kiswahili settings
-    WHEN a word contains the multigraph 'sh'
-    THEN it is one grapheme mapped to 'ʃ', not 's' + 'h'
-    """
-    settings = create_kiswahili_gpc_settings()
+def test_phoneme_annotation_maps_each_grapheme(word_text, expected_annotation):
+    """Each segmented grapheme is paired with its phoneme."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
     word = Word(word_text, settings)
 
-    assert word.get_phoneme_annotation() == expected_annotation
+    assert get_phoneme_annotation(word, gpc) == expected_annotation
 
 
-def test_phonemic_form_concatenates_phonemes():
-    """
-    GIVEN GPC-based Kiswahili settings
-    WHEN the phonemic form is requested
-    THEN it concatenates the grapheme phonemes into a transcription
-    """
-    settings = create_kiswahili_gpc_settings()
+def test_multigraph_is_segmented_and_annotated():
+    """The multigraph 'sh' is one grapheme mapped to 'ʃ', not 's' + 'h'."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
     word = Word("ameshiba", settings)
 
-    assert word.get_phonemic_form() == "amɛʃiba"
+    assert get_phoneme_annotation(word, gpc) == [
+        ("a", "a"),
+        ("m", "m"),
+        ("e", "ɛ"),
+        ("sh", "ʃ"),
+        ("i", "i"),
+        ("b", "b"),
+        ("a", "a"),
+    ]
+
+
+def test_uppercase_initial_maps_to_phoneme():
+    """An uppercase first letter resolves via the grapheme's uppercase form."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
+    word = Word("Mtoto", settings)
+
+    assert get_phoneme_annotation(word, gpc)[0] == ("m", "m")
+
+
+@pytest.mark.parametrize(
+    "word_text, expected_phonemic_form",
+    [
+        ("ngoma", "ŋgɔma"),
+        ("shika", "ʃika"),
+        ("nyumba", "ɲumba"),
+        ("ng'oa", "ŋɔa"),
+        ("ng'ang'ania", "ŋaŋania"),
+        ("ungana", "uŋgana"),
+    ]
+)
+def test_phonemic_form_concatenates_phonemes(word_text, expected_phonemic_form):
+    """The phonemic form concatenates the grapheme phonemes."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
+    word = Word(word_text, settings)
+
+    assert get_phonemic_form(word, gpc) == expected_phonemic_form
 
 
 def test_unknown_character_annotates_with_no_phoneme():
-    """
-    GIVEN GPC-based Kiswahili settings
-    WHEN a word contains a character absent from the inventory
-    THEN it is annotated as a bare grapheme with phoneme None
-    """
-    settings = create_kiswahili_gpc_settings()
+    """A character absent from the inventory is annotated with phoneme None."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
     word = Word("aq", settings)  # 'q' is not in the Kiswahili inventory
 
-    annotation = word.get_phoneme_annotation()
+    annotation = get_phoneme_annotation(word, gpc)
     assert annotation == [("a", "a"), ("q", None)]
-    # get_phonemic_form skips the None phoneme rather than failing.
-    assert word.get_phonemic_form() == "a"
+    
+def test_unknown_character_phonemic_form_raises_error():
+    """Attempting to get a phonemic form with an unknown grapheme raises an error."""
+
+    settings, gpc = create_kiswahili_gpc_settings()
+    word = Word("aq", settings)  # 'q' is not in the Kiswahili inventory
+
+    with pytest.raises(ValueError, match="contains graphemes with missing phonemes"):
+        get_phonemic_form(word, gpc)
 
 
-@pytest.mark.parametrize("method", ["get_phoneme_annotation", "get_phonemic_form"])
-def test_phoneme_methods_require_gpc_settings(method):
-    """
-    GIVEN non-GPC settings
-    WHEN phoneme annotation or form is requested
-    THEN a ValueError is raised
-    """
-    settings = create_english_settings()
-    word = Word("sat", settings)
+def test_get_phoneme_returns_none_for_unknown_grapheme():
+    """Looking up a grapheme that was never registered returns None."""
 
-    with pytest.raises(ValueError, match="only available for GPC-based settings"):
-        getattr(word, method)()
+    settings = Settings()
+    gpc = GPCInventory(settings)
+    gpc.add_consonant("b", "b")
 
+    assert gpc.get_phoneme("b") == "b"
+    assert gpc.get_phoneme("z") is None

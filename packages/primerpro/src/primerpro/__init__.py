@@ -1,10 +1,14 @@
 """Python port of the PrimerPro decodability model."""
 
+from .utils import (
+    get_phoneme_annotation,
+    get_phonemic_form,
+)
 from .model import (
     HIGHLIGHT_OFF,
     HIGHLIGHT_ON,
     Consonant,
-    ConsonantGPC,
+    GPCInventory,
     Grapheme,
     GraphemeInventory,
     GraphemeTaughtOrder,
@@ -12,12 +16,9 @@ from .model import (
     Settings,
     SightWords,
     Syllable,
-    SyllographGPC,
     TextData,
     Tone,
-    ToneGPC,
     Vowel,
-    VowelGPC,
     Word,
     WordList,
 )
@@ -36,7 +37,7 @@ __all__ = [
     "BuildableWordSearchTD",
     "BuildableWordSearchWL",
     "Consonant",
-    "ConsonantGPC",
+    "GPCInventory",
     "Grapheme",
     "GraphemeInventory",
     "GraphemeTaughtOrder",
@@ -46,14 +47,13 @@ __all__ = [
     "Settings",
     "SightWords",
     "Syllable",
-    "SyllographGPC",
     "TextData",
     "Tone",
-    "ToneGPC",
     "ToneChartSearch",
     "TonePairsSearch",
     "Vowel",
-    "VowelGPC",
     "Word",
     "WordList",
+    "get_phoneme_annotation",
+    "get_phonemic_form",
 ]

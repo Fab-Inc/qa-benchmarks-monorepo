@@ -49,11 +49,6 @@ class Settings:
         self.word_list: WordList | None = None
 
 
-class GPCBasedSettings(Settings):
-    """Settings that require GPC-based graphemes in the inventory."""
-    pass
-
-
 class Grapheme:
     """A project-defined written unit used as PrimerPro's atomic token.
 
@@ -65,7 +60,6 @@ class Grapheme:
 
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
-        self.phoneme : str | None = None
         self.uppercase = ""
         self.is_consonant = False
         self.is_vowel = False
@@ -163,29 +157,6 @@ class Syllograph(Grapheme):
         self.is_syllograph = True
 
 
-class ConsonantGPC(Consonant):
-    def __init__(self, grapheme: str, phoneme: str) -> None:
-        super().__init__(grapheme)
-        self.phoneme = phoneme
-
-class VowelGPC(Vowel):
-    def __init__(self, grapheme: str, phoneme: str) -> None:
-        super().__init__(grapheme)
-        self.phoneme = phoneme
-
-
-class SyllographGPC(Syllograph):
-    def __init__(self, grapheme: str, phoneme: str) -> None:
-        super().__init__(grapheme)
-        self.phoneme = phoneme
-
-
-class ToneGPC(Tone):
-    def __init__(self, grapheme: str, phoneme: str) -> None:
-        super().__init__(grapheme)
-        self.phoneme = phoneme
-
-
 class GraphemeInventory:
     """Configured grapheme inventory that drives PrimerPro tokenization.
 
@@ -202,33 +173,15 @@ class GraphemeInventory:
         self.syllographs: list[Syllograph] = []
 
     def add_consonant(self, consonant: Consonant) -> None:
-        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(consonant, ConsonantGPC):
-            raise TypeError(
-                f"GPC-enabled settings require consonants to be ConsonantGPC, but got {type(consonant)}"
-            )
-            
-        # TODO: should we add logic to handle duplicates?
         self.consonants.append(consonant)
 
     def add_vowel(self, vowel: Vowel) -> None:
-        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(vowel, VowelGPC):
-            raise TypeError(
-                f"GPC-enabled settings require vowels to be VowelGPC, but got {type(vowel)}"
-            )
         self.vowels.append(vowel)
 
     def add_tone(self, tone: Tone) -> None:
-        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(tone, ToneGPC):
-            raise TypeError(
-                f"GPC-enabled settings require tones to be ToneGPC, but got {type(tone)}"
-            )
         self.tones.append(tone)
 
     def add_syllograph(self, syllograph: Syllograph) -> None:
-        if self.settings and isinstance(self.settings, GPCBasedSettings) and not isinstance(syllograph, SyllographGPC):
-            raise TypeError(
-                f"GPC-enabled settings require syllographs to be SyllographGPC, but got {type(syllograph)}"
-            )
         self.syllographs.append(syllograph)
 
     def consonant_count(self) -> int:
@@ -475,20 +428,6 @@ class Word:
         return ".".join(
             syllable.get_syllable_in_lower_case() for syllable in self.syllables
         )
-    
-    def get_phoneme_annotation(self) -> list[tuple[str, str | None]]:
-        """Return [(grapheme, phoneme), ...] for each segmented grapheme."""
-        if not isinstance(self.settings, GPCBasedSettings):
-            raise ValueError("Phoneme annotation is only available for GPC-based settings.")
-        
-        return [(g.symbol, g.phoneme) for g in self.graphemes]
-    
-    def get_phonemic_form(self) -> str:
-        """Return the contatenated phonemes for the word's grapheme sequence."""
-        if not isinstance(self.settings, GPCBasedSettings):
-            raise ValueError("Phonemic form is only available for GPC-based settings.")
-        
-        return "".join(g.phoneme for g in self.graphemes if g.phoneme is not None)
 
     def contain_in_word(self, grapheme_symbol: str) -> bool:
         return any(
@@ -1167,3 +1106,38 @@ def _increment_grapheme_count(
     syllograph_index = inventory.find_syllograph_index(grapheme.symbol)
     if syllograph_index >= 0:
         inventory.get_syllograph(syllograph_index).incr_count_in_text_data()
+
+
+class GPCInventory:
+    """A 1:1 grapheme-phoneme inventory layered over a `GraphemeInventory`.
+
+    Wraps :attr:`grapheme_inventory` for grapheme segmentation and ensures 
+    that every grapheme has a registered phoneme.
+    
+    Assign :attr:`grapheme_inventory` to `settings.grapheme_inventory`.
+    """
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.grapheme_inventory = GraphemeInventory(settings)
+        self._phoneme_by_grapheme: dict[str, str] = {}
+
+    def add_consonant(self, grapheme: str, phoneme: str) -> None:
+        """Register a consonant grapheme and its phoneme together."""
+
+        consonant = Consonant(grapheme)
+        consonant.uppercase = grapheme.upper()
+        self.grapheme_inventory.add_consonant(consonant)
+        self._phoneme_by_grapheme[grapheme] = phoneme
+
+    def add_vowel(self, grapheme: str, phoneme: str) -> None:
+        """Register a vowel grapheme and its phoneme together."""
+
+        vowel = Vowel(grapheme)
+        vowel.uppercase = grapheme.upper()
+        self.grapheme_inventory.add_vowel(vowel)
+        self._phoneme_by_grapheme[grapheme] = phoneme
+
+    def get_phoneme(self, grapheme: str) -> str | None:
+        """Return the phoneme for a grapheme symbol, or ``None`` if unknown."""
+
+        return self._phoneme_by_grapheme.get(grapheme)
