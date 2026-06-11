@@ -6,7 +6,7 @@
     "student.language": "ISO code; selects which block of `languages` applies.",
     "student.grade_level": "Free-text grade/term label.",
     "student.description": "Human-readable summary of what the student has been taught.",
-    "student.known_graphemes": "Object whose keys are unit categories. The legal keys are language-dependent (see languages[lang].unit_categories). A category present as a list (possibly empty []) means 'applies to this language; student knows these'. A category set to null means 'not applicable to this language'. Empty list != null.",
+    "student.known_graphemes": "Object whose keys are unit categories. The legal keys are language-dependent (see languages[lang].unit_categories).",
     "student.sight_words": "Whole words the student recognises on sight even if not decodable from known units. These RESCUE otherwise-undecodable words and must NOT be flagged.",
     "item.language": "Must match the referenced student's language.",
     "item.student_id": "Key into students.json.",
