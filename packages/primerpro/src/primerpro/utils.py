@@ -10,7 +10,7 @@ def get_phoneme_annotation(
     """Return ``[(grapheme, phoneme), ...]`` for each grapheme in ``word``.
     """
 
-    return [(g.symbol, gpc_inventory.get_phoneme(g.symbol)) for g in word.graphemes]
+    return [(g.symbol, gpc_inventory.get_phoneme(g)) for g in word.graphemes]
 
 
 def get_phonemic_form(word: Word, gpc_inventory: GPCInventory) -> str:
@@ -18,7 +18,7 @@ def get_phonemic_form(word: Word, gpc_inventory: GPCInventory) -> str:
     
     Raises error if any grapheme is missing a phoneme in the GPC inventory.
     """
-    phonemes = [gpc_inventory.get_phoneme(g.symbol) for g in word.graphemes]
+    phonemes = [gpc_inventory.get_phoneme(g) for g in word.graphemes]
     
     if not all(phonemes):
         raise ValueError(

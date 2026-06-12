@@ -188,9 +188,13 @@ def create_kiswahili_gpc_settings() -> tuple[Settings, GPCInventory]:
 
     gpc = GPCInventory(settings)
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
-        gpc.add_consonant(grapheme, phoneme)
+        g = Consonant(grapheme)
+        g.uppercase = grapheme.upper()
+        gpc.add_consonant(g, phoneme)
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
-        gpc.add_vowel(grapheme, phoneme)
+        v = Vowel(grapheme)
+        v.uppercase = grapheme.upper()
+        gpc.add_vowel(v, phoneme)
 
     settings.grapheme_inventory = gpc.grapheme_inventory
     settings.graphemes_taught = GraphemeTaughtOrder(settings)

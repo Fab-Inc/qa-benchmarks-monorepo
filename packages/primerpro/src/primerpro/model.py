@@ -1119,25 +1119,21 @@ class GPCInventory:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.grapheme_inventory = GraphemeInventory(settings)
-        self._phoneme_by_grapheme: dict[str, str] = {}
+        self._phoneme_by_grapheme: dict[Grapheme, str] = {}
 
-    def add_consonant(self, grapheme: str, phoneme: str) -> None:
+    def add_consonant(self, consonant: Consonant, phoneme: str) -> None:
         """Register a consonant grapheme and its phoneme together."""
 
-        consonant = Consonant(grapheme)
-        consonant.uppercase = grapheme.upper()
         self.grapheme_inventory.add_consonant(consonant)
-        self._phoneme_by_grapheme[grapheme] = phoneme
+        self._phoneme_by_grapheme[consonant] = phoneme
 
-    def add_vowel(self, grapheme: str, phoneme: str) -> None:
+    def add_vowel(self, vowel: Vowel, phoneme: str) -> None:
         """Register a vowel grapheme and its phoneme together."""
 
-        vowel = Vowel(grapheme)
-        vowel.uppercase = grapheme.upper()
         self.grapheme_inventory.add_vowel(vowel)
-        self._phoneme_by_grapheme[grapheme] = phoneme
+        self._phoneme_by_grapheme[vowel] = phoneme
 
-    def get_phoneme(self, grapheme: str) -> str | None:
-        """Return the phoneme for a grapheme symbol, or ``None`` if unknown."""
+    def get_phoneme(self, grapheme: Grapheme) -> str | None:
+        """Return the phoneme for a grapheme, or ``None`` if unknown."""
 
         return self._phoneme_by_grapheme.get(grapheme)

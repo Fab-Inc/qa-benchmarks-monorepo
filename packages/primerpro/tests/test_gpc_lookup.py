@@ -1,8 +1,10 @@
 """Tests for the GPC (grapheme-phoneme correspondence) layer."""
 
 from primerpro import (
+    Consonant,
     GPCInventory,
     Settings,
+    Vowel,
     Word,
     get_phoneme_annotation,
     get_phonemic_form,
@@ -15,15 +17,21 @@ def test_every_registered_grapheme_has_a_phoneme():
     """Registering via (grapheme, phoneme) pairs guarantees completeness."""
     settings = Settings()
     gpc_inventory = GPCInventory(settings)
+
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
-        gpc_inventory.add_consonant(grapheme, phoneme)
+        c = Consonant(grapheme)
+        c.uppercase = grapheme.upper()
+        gpc_inventory.add_consonant(c, phoneme)
+    
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
-        gpc_inventory.add_vowel(grapheme, phoneme)
+        v = Vowel(grapheme)
+        v.uppercase = grapheme.upper()
+        gpc_inventory.add_vowel(v, phoneme)
 
     grapheme_inventory = gpc_inventory.grapheme_inventory
 
     for grapheme in (*grapheme_inventory.consonants, *grapheme_inventory.vowels):
-        assert gpc_inventory.get_phoneme(grapheme.symbol) is not None
+        assert gpc_inventory.get_phoneme(grapheme) is not None
 
 
 def test_gpc_inventory_drives_segmentation():
@@ -126,7 +134,8 @@ def test_get_phoneme_returns_none_for_unknown_grapheme():
 
     settings = Settings()
     gpc = GPCInventory(settings)
-    gpc.add_consonant("b", "b")
+    c = Consonant("b")
+    gpc.add_consonant(c, "b")
 
-    assert gpc.get_phoneme("b") == "b"
-    assert gpc.get_phoneme("z") is None
+    assert gpc.get_phoneme(c) == "b"
+    assert gpc.get_phoneme(Consonant("z")) is None
