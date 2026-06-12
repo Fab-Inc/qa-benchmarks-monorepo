@@ -1108,7 +1108,7 @@ def _increment_grapheme_count(
         inventory.get_syllograph(syllograph_index).incr_count_in_text_data()
 
 
-class GPCInventory:
+class GPCMapping:
     """A 1:1 grapheme-phoneme inventory layered over a `GraphemeInventory`.
 
     Wraps :attr:`grapheme_inventory` for grapheme segmentation and ensures 
@@ -1117,23 +1117,15 @@ class GPCInventory:
     Assign :attr:`grapheme_inventory` to `settings.grapheme_inventory`.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
-        self.grapheme_inventory = GraphemeInventory(settings)
-        self._phoneme_by_grapheme: dict[Grapheme, str] = {}
+    def __init__(self) -> None:
+        self._phoneme_by_grapheme: dict[str, str] = {}
 
-    def add_consonant(self, consonant: Consonant, phoneme: str) -> None:
+    def add(self, grapheme: Grapheme, phoneme: str) -> None:
         """Register a consonant grapheme and its phoneme together."""
+        self._phoneme_by_grapheme[grapheme.symbol] = phoneme
 
-        self.grapheme_inventory.add_consonant(consonant)
-        self._phoneme_by_grapheme[consonant] = phoneme
-
-    def add_vowel(self, vowel: Vowel, phoneme: str) -> None:
-        """Register a vowel grapheme and its phoneme together."""
-
-        self.grapheme_inventory.add_vowel(vowel)
-        self._phoneme_by_grapheme[vowel] = phoneme
 
     def get_phoneme(self, grapheme: Grapheme) -> str | None:
         """Return the phoneme for a grapheme, or ``None`` if unknown."""
 
-        return self._phoneme_by_grapheme.get(grapheme)
+        return self._phoneme_by_grapheme.get(grapheme.symbol)

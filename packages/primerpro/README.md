@@ -110,28 +110,31 @@ print(search.search_results)
 
 ## Phoneme look-up
 
-Currently, we support associating a phoneme to each grapheme, for orthographies with 1:1 Graphme-Phoneme Correspondences (GPCs), to allow easy phoneme lookup.
-
-To use this lookup feature, use `GPCInventory` instead of `GraphemeInventory` for your set up:
+If you want to associate a phoneme to each grapheme to look up phonemic forms or get phoneme annotations, add your grapheme-phoneme correspondences to a `GPCMapping` object during your set up:
 
 ```python
-from primerpro import Consonant, GPCInventory, Settings, Vowel
+from primerpro import Consonant, GPCMapping, GraphemeInventory, Settings, Vowel
 
 settings = Settings()
-gpc_inventory = GPCInventory(settings)
+inventory = GraphemeInventory(settings)
+
+gpc_mapping = GPCMapping()
 
 for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
     consonant = Consonant(grapheme)
     consonant.uppercase = grapheme.upper()
-    gpc_inventory.add_consonant(consonant, phoneme)
+    inventory.add_consonant(consonant)
+
+    gpc_mapping.add(consonant, phoneme)
 
 for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
     vowel = Vowel(grapheme)
     vowel.uppercase = grapheme.upper()
-    gpc_inventory.add_vowel(vowel, phoneme)
+    inventory.add_consonant(consonant)
+    
+    gpc_mapping.add(vowel, phoneme)
 
-# NOTE: you have to provide the `grapheme_inventory` to the `settings.grapheme_inventory`
-settings.grapheme_inventory = gpc_inventory.grapheme_inventory
+settings.grapheme_inventory = inventory
 ```
 
 Then, you can look up the phoneme representations as follows:
@@ -145,9 +148,9 @@ from primerpro import (
 
 word = Word("Mtoto", settings)
 
-print(get_phoneme_annotation(word, gpc_inventory))
+print(get_phoneme_annotation(word, gpc_mapping))
 # >>> [('m', 'm'), ('t', 't'), ('o', 'ɔ'), ('t', 't'), ('o', 'ɔ')]
-print(get_phonemic_form(word, gpc_inventory))
+print(get_phonemic_form(word, gpc_mapping))
 # >>> mtɔtɔ
 ```
 

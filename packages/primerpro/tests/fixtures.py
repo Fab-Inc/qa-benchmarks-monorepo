@@ -1,5 +1,6 @@
 from primerpro import (
     Consonant,
+    GPCMapping,
     GraphemeInventory,
     GraphemeTaughtOrder,
     Paragraph,
@@ -11,7 +12,6 @@ from primerpro import (
     Word,
     WordList,
 )
-from primerpro.model import GPCInventory
 
 
 def create_bantu_like_settings() -> Settings:
@@ -172,7 +172,7 @@ KISWAHILI_VOWEL_GPCS = [
 ]
 
 
-def create_kiswahili_gpc_settings() -> tuple[Settings, GPCInventory]:
+def create_kiswahili_gpc_settings() -> tuple[Settings, GPCMapping]:
     """Settings plus a 1:1 Kiswahili GPC inventory.
 
     The GPC inventory is built from (grapheme, phoneme) pairs, so every grapheme
@@ -185,23 +185,28 @@ def create_kiswahili_gpc_settings() -> tuple[Settings, GPCInventory]:
     settings.option_settings.max_size_grapheme = 3
     settings.option_settings.general_punct = " ,:;-\""
     settings.option_settings.ending_punct = ".?!"
-
-    gpc = GPCInventory(settings)
+    
+    inventory = GraphemeInventory(settings)
+    gpc_mapping = GPCMapping()
+    
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
         g = Consonant(grapheme)
         g.uppercase = grapheme.upper()
-        gpc.add_consonant(g, phoneme)
+        inventory.add_consonant(g)
+        gpc_mapping.add(g, phoneme)
+        
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
         v = Vowel(grapheme)
         v.uppercase = grapheme.upper()
-        gpc.add_vowel(v, phoneme)
+        inventory.add_vowel(v)
+        gpc_mapping.add(v, phoneme)
 
-    settings.grapheme_inventory = gpc.grapheme_inventory
+    settings.grapheme_inventory = inventory
     settings.graphemes_taught = GraphemeTaughtOrder(settings)
     settings.sight_words = SightWords(settings)
     settings.text_data = TextData(settings)
     settings.word_list = WordList(settings)
-    return settings, gpc
+    return settings, gpc_mapping
 
 
 def taught(*graphemes: str) -> list[str]:
