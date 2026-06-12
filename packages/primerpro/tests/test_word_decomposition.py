@@ -1,7 +1,9 @@
 from primerpro import Word
+import pytest
 
 from .fixtures import (
     create_bantu_like_settings,
+    create_settings,
     grapheme_symbols,
     syllable_symbols,
 )
@@ -47,3 +49,20 @@ def test_punctuation_configured_as_general_or_ending_punctuation_is_removed():
 
     assert word.display_word == "ngoma"
     assert grapheme_symbols(word) == ["ng", "o", "m", "a"]
+
+
+@pytest.mark.parametrize(
+    "consonants, vowels, word_text, expected_display_word, expected_graphemes",
+    [
+        (["n", "ng'", "ng"], ["a", "i"], "ng'ang'ania", "ng'ang'ania", ["ng'", "a", "ng'", "a", "n", "i", "a"]),
+        (["n", "ng'", "ng"], ["a", "i"], "'ng'ang'ania.'", "ng'ang'ania", ["ng'", "a", "ng'", "a", "n", "i", "a"]),
+        (["s'h"], ["a"], "AS'HA", "as'ha", ["a", "s'h", "a"]),
+    ],
+)
+def test_general_or_ending_punctuation_is_not_removed_if_part_of_grapheme(consonants, vowels, word_text, expected_display_word, expected_graphemes):
+    settings = create_settings(consonants, vowels)
+    settings.option_settings.general_punct = " ,.?!;\"'"
+    word = Word(word_text, settings)
+
+    assert word.display_word == expected_display_word
+    assert grapheme_symbols(word) == expected_graphemes

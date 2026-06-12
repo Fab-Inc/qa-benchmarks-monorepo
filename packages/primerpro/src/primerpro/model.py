@@ -225,16 +225,16 @@ class GraphemeInventory:
     def get_grapheme(self, symbol: str) -> Grapheme | None:
         """Return any inventory grapheme matching a written form."""
 
-        for grapheme in self._all_graphemes():
+        for grapheme in self.get_all_graphemes():
             if symbol == grapheme.symbol or symbol == grapheme.uppercase:
                 return grapheme
         return None
 
     def reset_text_counts(self) -> None:
-        for grapheme in self._all_graphemes():
+        for grapheme in self.get_all_graphemes():
             grapheme.init_count_in_text_data()
 
-    def _all_graphemes(self) -> list[Grapheme]:
+    def get_all_graphemes(self) -> list[Grapheme]:
         return [*self.consonants, *self.vowels, *self.tones, *self.syllographs]
 
 
@@ -747,8 +747,10 @@ class Sentence:
     def _build_words(self, text: str) -> None:
         token = ""
         separators = set(self.settings.option_settings.general_punct)
-        for character in text:
-            if character in separators:
+        inventory = self.settings.grapheme_inventory
+        for index, character in enumerate(text):
+            is_grapheme_part = inventory and _is_in_grapheme(character, text, index, inventory)
+            if character in separators and not is_grapheme_part:
                 self._add_token(token)
                 token = ""
             else:
@@ -989,6 +991,22 @@ class SightWords:
     def is_sight_word(self, word: str) -> bool:
         return word in self._words
 
+def _is_in_grapheme(
+    char: str, 
+    text: str, 
+    char_index: int, 
+    inventory: GraphemeInventory
+) -> bool:
+    """Returns whether `char` at location `char_index` in `text` is part of a grapheme in `inventory`."""
+    for grapheme in inventory.get_all_graphemes():
+        if char in grapheme.symbol:
+            loc_in_grapheme = grapheme.symbol.find(char)
+            start = char_index - loc_in_grapheme
+            end = start + len(grapheme.symbol)
+            if start >= 0 and inventory.is_in_inventory(text[start : end]):
+                return True
+    return False
+
 
 def _clean_word(text: str, settings: Settings) -> str:
     ignored = set(settings.option_settings.import_ignore_chars)
@@ -998,10 +1016,15 @@ def _clean_word(text: str, settings: Settings) -> str:
     ending = set(settings.option_settings.ending_punct)
     ending.discard(Word.syllable_break_character)
     cleaned = []
-    for character in text:
+    
+    inventory = settings.grapheme_inventory
+
+    for index, character in enumerate(text):
         if character in "[]":
             continue
-        if character in ignored or character in general or character in ending:
+        is_punct = character in ignored or character in general or character in ending
+        is_grapheme_part = inventory and _is_in_grapheme(character, text, index, inventory)
+        if is_punct and not is_grapheme_part:
             continue
         if character == '"':
             continue
