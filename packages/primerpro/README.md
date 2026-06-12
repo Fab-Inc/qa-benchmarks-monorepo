@@ -121,10 +121,14 @@ settings = Settings()
 gpc_inventory = GPCInventory(settings)
 
 for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
-    gpc_inventory.add_consonant(grapheme, phoneme)
+    consonant = Consonant(grapheme)
+    consonant.uppercase = grapheme.upper()
+    gpc_inventory.add_consonant(consonant, phoneme)
 
 for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
-    gpc_inventory.add_vowel(grapheme, phoneme)
+    vowel = Vowel(grapheme)
+    vowel.uppercase = grapheme.upper()
+    gpc_inventory.add_vowel(vowel, phoneme)
 
 # NOTE: you have to provide the `grapheme_inventory` to the `settings.grapheme_inventory`
 settings.grapheme_inventory = gpc_inventory.grapheme_inventory
