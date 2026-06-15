@@ -108,6 +108,52 @@ search.execute_residue_search(text_data)
 print(search.search_results)
 ```
 
+## Phoneme look-up
+
+If you want to associate a phoneme to each grapheme to look up phonemic forms or get phoneme annotations, add your grapheme-phoneme correspondences to a `GPCMapping` object during your set up:
+
+```python
+from primerpro import Consonant, GPCMapping, GraphemeInventory, Settings, Vowel
+
+settings = Settings()
+inventory = GraphemeInventory(settings)
+
+gpc_mapping = GPCMapping()
+
+for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
+    consonant = Consonant(grapheme)
+    consonant.uppercase = grapheme.upper()
+    inventory.add_consonant(consonant)
+
+    gpc_mapping.add(consonant, phoneme)
+
+for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
+    vowel = Vowel(grapheme)
+    vowel.uppercase = grapheme.upper()
+    inventory.add_consonant(consonant)
+    
+    gpc_mapping.add(vowel, phoneme)
+
+settings.grapheme_inventory = inventory
+```
+
+Then, you can look up the phoneme representations as follows:
+
+```python
+from primerpro import (
+    get_phoneme_annotation,
+    get_phonemic_form,
+    Word
+)
+
+word = Word("Mtoto", settings)
+
+print(get_phoneme_annotation(word, gpc_mapping))
+# >>> [('m', 'm'), ('t', 't'), ('o', 'ɔ'), ('t', 't'), ('o', 'ɔ')]
+print(get_phonemic_form(word, gpc_mapping))
+# >>> mtɔtɔ
+```
+
 ## Demo Script
 
 The phonics benchmark includes a runnable short tutorial with an English
