@@ -15,12 +15,12 @@ from fdllm.llmtypes import LLMMessage
 from tqdm import tqdm
 
 from linguistic_knowledge_benchmark.shared_utils import (
+    BENCH_DIR,
     EVAL_MODELS,
     RATE_LIMITED_MODELS,
-    ROOT_DIR,
 )
 
-CACHE_BASE_DIR = ROOT_DIR / "cache" / "cache_linguistic_knowledge"
+CACHE_BASE_DIR = BENCH_DIR / "cache" / "cache_linguistic_knowledge"
 CALL_STATUS_SUCCESS = "success"
 CALL_STATUS_ERROR = "error"
 

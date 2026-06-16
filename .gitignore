@@ -7,6 +7,7 @@ outputs/
 data/raw/
 data/interim/
 data/processed/
+benchmarks/linguistic_knowledge_benchmark/cache/
 
 # ============================================================================
 # Python .gitignore template from
@@ -233,6 +234,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-# Linguistic knowledge benchmark run artifacts
-benchmarks/linguistic_knowledge_benchmark/cache/

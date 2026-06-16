@@ -170,7 +170,7 @@ def test_judge_bench_rejects_unknown_model(runner: CliRunner) -> None:
 
 
 def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
     _patch_summary(monkeypatch)
     result = runner.invoke(
@@ -183,7 +183,7 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
 def test_judge_bench_run_id_writes_run_specific_summary(
     runner, monkeypatch, tmp_path
 ) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     judge = MagicMock(return_value=pd.DataFrame())
     monkeypatch.setattr(cmd, "judge_results", judge)
     _patch_summary(monkeypatch)
@@ -208,7 +208,7 @@ def test_judge_bench_run_id_writes_run_specific_summary(
 
 
 def test_judge_bench_all_models(runner, monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     judge = MagicMock(return_value=pd.DataFrame())
     monkeypatch.setattr(cmd, "judge_results", judge)
     _patch_summary(monkeypatch)
@@ -218,7 +218,7 @@ def test_judge_bench_all_models(runner, monkeypatch, tmp_path) -> None:
 
 
 def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     fallback = MagicMock(return_value=pd.DataFrame())
     monkeypatch.setattr(cmd, "judge_results_fallback", fallback)
     _patch_summary(monkeypatch)
@@ -240,7 +240,7 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
 
 
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )
@@ -253,7 +253,7 @@ def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> 
 
 
 def test_judge_bench_propagates_error(runner, monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(cmd, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=RuntimeError("kaboom"))
     )

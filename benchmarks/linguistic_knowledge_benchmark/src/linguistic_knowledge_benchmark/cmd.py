@@ -1,7 +1,6 @@
 """Command-line interface for linguistic_knowledge_benchmark."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pandas as pd
 import typer
@@ -14,13 +13,12 @@ from linguistic_knowledge_benchmark.judge_bench import (
     judge_results_fallback,
 )
 from linguistic_knowledge_benchmark.run_bench import run_benchmark
-from linguistic_knowledge_benchmark.shared_utils import DATA_DIR, EVAL_MODELS
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-REPO_ROOT = PROJECT_ROOT.parent.parent
-
-_MODELS_YAML = REPO_ROOT / "custom_models.yaml"
-register_models(str(_MODELS_YAML))
+from linguistic_knowledge_benchmark.shared_utils import (
+    BENCH_DIR,
+    DATA_DIR,
+    EVAL_MODELS,
+    REPO_ROOT,
+)
 
 # Add a new language by adding an entry here and dropping its JSON in data/.
 # The medium of evaluation is English for every language: questions are written
@@ -50,7 +48,8 @@ def setup() -> None:
     """Linguistic Knowledge Benchmark"""
     # Load provider API keys from the package-level .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv(BENCH_DIR / ".env")
+    register_models(str(REPO_ROOT / "custom_models.yaml"))
 
 
 @app.command("run-bench")
@@ -243,7 +242,7 @@ def judge_bench_cmd(
             raise typer.Exit(1)
 
     if summaries:
-        results_dir = PROJECT_ROOT / "results"
+        results_dir = BENCH_DIR / "results"
         results_dir.mkdir(exist_ok=True)
         summary_df = pd.DataFrame(summaries)
         suffix = "_fallback" if judge_fallback else ""

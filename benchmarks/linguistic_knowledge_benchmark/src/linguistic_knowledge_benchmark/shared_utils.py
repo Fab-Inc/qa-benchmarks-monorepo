@@ -4,10 +4,11 @@ from pathlib import Path
 
 import yaml
 
-ROOT_DIR = Path(__file__).parent.parent.parent
-DATA_DIR = ROOT_DIR / "data"
+BENCH_DIR = Path(__file__).parent.parent.parent
+REPO_ROOT = BENCH_DIR.parent.parent
+DATA_DIR = BENCH_DIR / "data"
 
-MODELS_LIST_YAML = ROOT_DIR / "list_models.yaml"
+MODELS_LIST_YAML = BENCH_DIR / "list_models.yaml"
 with open(MODELS_LIST_YAML) as _f:
     EVAL_MODELS: dict[str, str] = yaml.safe_load(_f)
 
