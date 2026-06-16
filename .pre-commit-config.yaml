@@ -1,4 +1,3 @@
-# Check uv lock first otherwise can pollute other tests.
 repos:
   - repo: local
     hooks:
