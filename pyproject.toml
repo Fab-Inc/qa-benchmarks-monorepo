@@ -6,6 +6,8 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "pre-commit>=3.6.0",
+  "pre-commit-hooks>=4.5.0",
   "pytest>=8.0.0",
   "pytest-cov>=5.0.0",
   "ruff>=0.6.0",
@@ -20,6 +22,7 @@ exclude-newer = "7 days"
 members = [
   "packages/fab_benchmark_publisher",
   "packages/primerpro",
+  "packages/decodability",
   "benchmarks/phonics_benchmark",
   "benchmarks/language_knowledge_benchmark",
 ]
@@ -27,6 +30,7 @@ members = [
 [tool.uv.sources]
 fab-benchmark-publisher = { workspace = true }
 primerpro = { workspace = true }
+decodability = { workspace = true }
 fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
 [tool.coverage.report]

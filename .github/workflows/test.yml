@@ -35,6 +35,7 @@ jobs:
           uv run pytest -v
           --cov=fab_benchmark_publisher
           --cov=primerpro
+          --cov=decodability
           --cov=phonics_benchmark
           --cov=language_knowledge_benchmark
           --cov-branch
