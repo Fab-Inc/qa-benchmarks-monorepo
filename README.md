@@ -67,6 +67,21 @@ Install all workspace dependencies:
 uv sync --all-packages
 ```
 
+For developers contributing to this project, please run
+
+```sh
+uv run pre-commit install
+```
+
+which will set up the pre-commit hooks that enforce code quality by running automated
+checks and fixes — formatting, linting, end-of-file fixes, etc. — defined in
+`.pre-commit-config.yaml`.
+
+Note: Despite the name, this `install` step doesn't install pre-commit itself (uv did
+that during `uv sync`) — it just adds a git hook to your local `.git/`. So you need to
+run it in every new project, even if you've used pre-commit elsewhere before. Editing
+the config later doesn't require re-running — changes are picked up automatically.
+
 Run all tests:
 
 ```bash
