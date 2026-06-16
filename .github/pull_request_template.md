@@ -1,6 +1,6 @@
 Reviewer:
 
-Estimate:
+Estimated time required to review:
 
 ---
 
