@@ -6,6 +6,8 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "mdformat>=1.0.0",
+  "mdformat-gfm>=1.0.0",
   "pre-commit>=3.6.0",
   "pre-commit-hooks>=4.5.0",
   "pytest>=8.0.0",
