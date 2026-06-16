@@ -41,6 +41,7 @@ jobs:
           --cov-branch
           --cov-report=term-missing
           --cov-fail-under=95
+
       - name: Run pre-commit (non-Windows only)
         if: matrix.os != 'windows-latest'
         run: uv run --frozen pre-commit run -a
