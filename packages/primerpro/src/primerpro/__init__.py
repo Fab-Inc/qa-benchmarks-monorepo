@@ -1,9 +1,5 @@
 """Python port of the PrimerPro decodability model."""
 
-from .utils import (
-    get_phoneme_annotation,
-    get_phonemic_form,
-)
 from .model import (
     HIGHLIGHT_OFF,
     HIGHLIGHT_ON,
@@ -29,6 +25,10 @@ from .search import (
     ResidueSearch,
     ToneChartSearch,
     TonePairsSearch,
+)
+from .utils import (
+    get_phoneme_annotation,
+    get_phonemic_form,
 )
 
 __all__ = [

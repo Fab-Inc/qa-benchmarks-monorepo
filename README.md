@@ -1,14 +1,21 @@
 # Fab Benchmarks Monorepo
 
-This is a proposed monorepo layout for new benchmarks, specifically the QA facility text-based benchmarks.
+This is a proposed monorepo layout for new benchmarks, specifically the QA facility
+text-based benchmarks.
 
 It contains:
 
-- `packages/fab_benchmark_publisher`: shared result contracts, result JSON helpers, and a small GCS upload helper.
+- `packages/fab_benchmark_publisher`: shared result contracts, result JSON helpers, and
+  a small GCS upload helper.
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
-- `benchmarks/language_knowledge_benchmark`: benchmark-specific package for the language knowledge benchmark.
+- `benchmarks/language_knowledge_benchmark`: benchmark-specific package for the language
+  knowledge benchmark.
 
-The benchmark packages are currently cookiecutter-style placeholders with only a CLI module and CLI tests. The shared package is intentionally small and follows the existing `fab-benchmarks-configs` pattern: GitHub Actions authenticates to Google Cloud, sets `BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with `google.cloud.storage.Client`.
+The benchmark packages are currently cookiecutter-style placeholders with only a CLI
+module and CLI tests. The shared package is intentionally small and follows the existing
+`fab-benchmarks-configs` pattern: GitHub Actions authenticates to Google Cloud, sets
+`BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with
+`google.cloud.storage.Client`.
 
 ## Layout
 
@@ -66,7 +73,8 @@ Run all tests:
 uv run pytest
 ```
 
-The publisher package expects the upload environment to provide the same basic variables used by `fab-benchmarks-configs`:
+The publisher package expects the upload environment to provide the same basic variables
+used by `fab-benchmarks-configs`:
 
 ```bash
 export BUCKET_NAME="fab-benchmarks-485014-benchmark-results"
@@ -102,7 +110,8 @@ New benchmark packages use the shared package as a workspace dependency:
 fab-benchmark-publisher = { workspace = true }
 ```
 
-Old standalone repositories can depend on the shared package via a Git subdirectory dependency:
+Old standalone repositories can depend on the shared package via a Git subdirectory
+dependency:
 
 ```toml
 [project]
