@@ -99,7 +99,7 @@ There are three `answer_type`s, each scored differently (see
 | [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                             |
 | [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `ROOT_DIR` / `DATA_DIR`, lists rate-limited models. (The cache root `CACHE_BASE_DIR` is defined in `run_bench.py`.) |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                      |
-| [`custom_models.yaml`](custom_models.yaml)                              | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                                |
+| [`custom_models.yaml`](../../custom_models.yaml)                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                                |
 | [`.env`](.env)                                                          | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                             |
 | [`scripts/results_for_website.py`](scripts/results_for_website.py)      | Entrypoint for publishing results to the website.                                                                                                                                          |
 | [`tests/`](tests/)                                                      | Unit tests for the CLI, runner, and judge.                                                                                                                                                 |
@@ -159,7 +159,7 @@ GEMINI_API_KEY="..."             # Gemini / Gemma models
 ```
 
 Which env var a model needs is determined by its provider group in
-[`custom_models.yaml`](custom_models.yaml) (`Api_Key_Env_Var`). A real environment
+[`custom_models.yaml`](../../custom_models.yaml) (`Api_Key_Env_Var`). A real environment
 variable always takes precedence over the `.env` file.
 
 ## Running the benchmark

@@ -17,8 +17,9 @@ from linguistic_knowledge_benchmark.run_bench import run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import DATA_DIR, EVAL_MODELS
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+REPO_ROOT = PROJECT_ROOT.parent.parent
 
-_MODELS_YAML = PROJECT_ROOT / "custom_models.yaml"
+_MODELS_YAML = REPO_ROOT / "custom_models.yaml"
 register_models(str(_MODELS_YAML))
 
 # Add a new language by adding an entry here and dropping its JSON in data/.
