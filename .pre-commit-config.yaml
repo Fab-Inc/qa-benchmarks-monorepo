@@ -53,7 +53,7 @@ repos:
       - id: gitleaks
         name: Detect hardcoded secrets
         description: Detect hardcoded secrets using Gitleaks
-        entry: uv run --frozen gitleaks git --pre-commit --redact --staged --verbose
+        entry: gitleaks git --pre-commit --redact --staged --verbose
         language: golang
         pass_filenames: false
       - id: gitleaks
