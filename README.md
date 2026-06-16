@@ -1,6 +1,6 @@
 # Fab Benchmarks Monorepo
 
-This is a proposed monorepo layout for new benchmarks, specifically the QA facility
+This is a proposed monorepo layout for new benchmarks, specifically the QA Facility
 text-based benchmarks.
 
 It contains:
@@ -18,48 +18,6 @@ module and CLI tests. The shared package is intentionally small and follows the 
 `fab-benchmarks-configs` pattern: GitHub Actions authenticates to Google Cloud, sets
 `BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with
 `google.cloud.storage.Client`.
-
-## Layout
-
-```text
-fab-benchmarks-monorepo/
-  pyproject.toml
-  uv.lock
-
-  packages/
-    fab_benchmark_publisher/
-      pyproject.toml
-      src/fab_benchmark_publisher/
-        contracts.py
-        publisher.py
-        results.py
-
-  benchmarks/
-    __init__.py
-    phonics_benchmark/
-      __init__.py
-      pyproject.toml
-      src/phonics_benchmark/
-        __init__.py
-        cmd.py
-      scripts/
-        results_for_website.py
-      tests/
-        __init__.py
-        test_cmd.py
-
-    language_knowledge_benchmark/
-      __init__.py
-      pyproject.toml
-      src/language_knowledge_benchmark/
-        __init__.py
-        cmd.py
-      scripts/
-        results_for_website.py
-      tests/
-        __init__.py
-        test_cmd.py
-```
 
 ## Development
 
