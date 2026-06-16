@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 HIGHLIGHT_ON = "<HL>"
 HIGHLIGHT_OFF = "</HL>"
 
@@ -1111,9 +1110,9 @@ def _increment_grapheme_count(
 class GPCMapping:
     """A 1:1 grapheme-phoneme inventory layered over a `GraphemeInventory`.
 
-    Wraps :attr:`grapheme_inventory` for grapheme segmentation and ensures 
+    Wraps :attr:`grapheme_inventory` for grapheme segmentation and ensures
     that every grapheme has a registered phoneme.
-    
+
     Assign :attr:`grapheme_inventory` to `settings.grapheme_inventory`.
     """
 
@@ -1123,7 +1122,6 @@ class GPCMapping:
     def add(self, grapheme: Grapheme, phoneme: str) -> None:
         """Register a consonant grapheme and its phoneme together."""
         self._phoneme_by_grapheme[grapheme.symbol] = phoneme
-
 
     def get_phoneme(self, grapheme: Grapheme) -> str | None:
         """Return the phoneme for a grapheme, or ``None`` if unknown."""

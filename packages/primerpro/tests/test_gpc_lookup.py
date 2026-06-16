@@ -1,17 +1,15 @@
 """Tests for the GPC (grapheme-phoneme correspondence) layer."""
 
+import pytest
 from primerpro import (
     Consonant,
     GPCMapping,
-    Settings,
-    Vowel,
     Word,
     get_phoneme_annotation,
     get_phonemic_form,
 )
 
 from .fixtures import create_kiswahili_gpc_settings
-import pytest
 
 
 @pytest.mark.parametrize(
@@ -21,9 +19,20 @@ import pytest
         ("shika", [("sh", "ʃ"), ("i", "i"), ("k", "k"), ("a", "a")]),
         ("nyumba", [("ny", "ɲ"), ("u", "u"), ("m", "m"), ("b", "b"), ("a", "a")]),
         ("ng'oa", [("ng'", "ŋ"), ("o", "ɔ"), ("a", "a")]),
-        ("ng'ang'ania", [("ng'", "ŋ"), ("a", "a"), ("ng'", "ŋ"), ("a", "a"), ("n", "n"), ("i", "i"), ("a", "a")]),
+        (
+            "ng'ang'ania",
+            [
+                ("ng'", "ŋ"),
+                ("a", "a"),
+                ("ng'", "ŋ"),
+                ("a", "a"),
+                ("n", "n"),
+                ("i", "i"),
+                ("a", "a"),
+            ],
+        ),
         ("ungana", [("u", "u"), ("ng", "ŋg"), ("a", "a"), ("n", "n"), ("a", "a")]),
-    ]
+    ],
 )
 def test_phoneme_annotation_maps_each_grapheme(word_text, expected_annotation):
     """Each segmented grapheme is paired with its phoneme."""
@@ -69,7 +78,7 @@ def test_uppercase_initial_maps_to_phoneme():
         ("ng'oa", "ŋɔa"),
         ("ng'ang'ania", "ŋaŋania"),
         ("ungana", "uŋgana"),
-    ]
+    ],
 )
 def test_phonemic_form_concatenates_phonemes(word_text, expected_phonemic_form):
     """The phonemic form concatenates the grapheme phonemes."""
@@ -88,8 +97,8 @@ def test_unknown_character_annotates_with_no_phoneme():
 
     annotation = get_phoneme_annotation(word, gpc_mapping)
     assert annotation == [("a", "a"), ("q", None)]
-    
-    
+
+
 def test_unknown_character_phonemic_form_raises_error():
     """Attempting to get a phonemic form with an unknown grapheme raises an error."""
 

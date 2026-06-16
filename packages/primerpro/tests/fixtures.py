@@ -132,7 +132,7 @@ def create_tone_settings() -> Settings:
     return settings
 
 
-# Kiswahili grapheme-phoneme inventory as per 
+# Kiswahili grapheme-phoneme inventory as per
 # https://www.researchgate.net/profile/Anne-Laaredj-Campbell/publication/372738784_Literacy_and_Education_in_Multilingual_Algeria/links/67964204645ef274a44359e5/Literacy-and-Education-in-Multilingual-Algeria.pdf#page=350
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
@@ -183,18 +183,18 @@ def create_kiswahili_gpc_settings() -> tuple[Settings, GPCMapping]:
 
     settings = Settings()
     settings.option_settings.max_size_grapheme = 3
-    settings.option_settings.general_punct = " ,:;-\""
+    settings.option_settings.general_punct = ' ,:;-"'
     settings.option_settings.ending_punct = ".?!"
-    
+
     inventory = GraphemeInventory(settings)
     gpc_mapping = GPCMapping()
-    
+
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
         g = Consonant(grapheme)
         g.uppercase = grapheme.upper()
         inventory.add_consonant(g)
         gpc_mapping.add(g, phoneme)
-        
+
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
         v = Vowel(grapheme)
         v.uppercase = grapheme.upper()

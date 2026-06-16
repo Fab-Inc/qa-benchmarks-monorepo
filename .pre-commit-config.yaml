@@ -1,0 +1,66 @@
+repos:
+  - repo: local
+    hooks:
+      - id: uv-lock
+        name: Check uv lockfile
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types: [python]
+        require_serial: true
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check
+        language: system
+        types: [python]
+        require_serial: true
+      - id: mdformat
+        name: Format markdown files
+        entry: uv run --frozen mdformat --wrap 88
+        language: system
+        types: [markdown]
+      - id: check-added-large-files
+        name: Check for added large files
+        entry: uv run --frozen check-added-large-files
+        language: system
+      - id: check-toml
+        name: Check TOML files
+        entry: uv run --frozen check-toml
+        language: system
+        types: [toml]
+      - id: check-yaml
+        name: Check YAML files
+        entry: uv run --frozen check-yaml
+        language: system
+        types: [yaml]
+      - id: end-of-file-fixer
+        name: Fix end of files
+        entry: uv run --frozen end-of-file-fixer
+        language: system
+        types: [text]
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        entry: uv run --frozen trailing-whitespace-fixer
+        language: system
+        types: [text]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+        name: Detect hardcoded secrets
+        description: Detect hardcoded secrets using Gitleaks
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: golang
+        pass_filenames: false
+      - id: gitleaks
+        alias: gitleaks-ci
+        name: Detect hardcoded secrets in checkout
+        description: Detect hardcoded secrets using Gitleaks across the checkout
+        entry: gitleaks dir . --redact --verbose
+        language: golang
+        pass_filenames: false
+        stages: [manual]
