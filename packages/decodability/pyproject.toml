@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "decodability"
+version = "0.1.0"
+description = "Lightweight scaffolding for language-specific decodability tooling"
+requires-python = ">=3.13"
+dependencies = [
+  "pandas>=2.0.0",
+]

@@ -5,6 +5,7 @@ This is a proposed monorepo layout for new benchmarks, specifically the QA facil
 It contains:
 
 - `packages/fab_benchmark_publisher`: shared result contracts, result JSON helpers, and a small GCS upload helper.
+- `packages/decodability`: standalone scaffolding for language-specific decodability tooling.
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
 - `benchmarks/language_knowledge_benchmark`: benchmark-specific package for the language knowledge benchmark.
 
