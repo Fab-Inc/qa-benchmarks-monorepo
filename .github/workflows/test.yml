@@ -44,3 +44,7 @@ jobs:
       - name: Run pre-commit (non-Windows only)
         if: matrix.os != 'windows-latest'
         run: uv run --frozen pre-commit run -a
+
+      - name: Run gitleaks checkout scan (non-Windows only)
+        if: matrix.os != 'windows-latest'
+        run: uv run --frozen pre-commit run --hook-stage manual gitleaks-ci -a

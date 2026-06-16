@@ -57,3 +57,11 @@ repos:
         entry: uv run --frozen gitleaks git --pre-commit --redact --staged --verbose
         language: golang
         pass_filenames: false
+      - id: gitleaks
+        alias: gitleaks-ci
+        name: Detect hardcoded secrets in checkout
+        description: Detect hardcoded secrets using Gitleaks across the checkout
+        entry: gitleaks dir . --redact --verbose
+        language: golang
+        pass_filenames: false
+        stages: [manual]
