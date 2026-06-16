@@ -20,7 +20,7 @@ dependencies = [
 
 [tool.uv.sources]
 fab-benchmark-publisher = { workspace = true }
-fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", tag = "v0.30.0" }
+fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
 [project.scripts]
 linguistic-knowledge-benchmark = "linguistic_knowledge_benchmark.cmd:main"
