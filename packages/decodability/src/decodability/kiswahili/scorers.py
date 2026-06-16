@@ -7,7 +7,6 @@ from primerpro import Word, Settings, GraphemeInventory, Consonant, Vowel
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
 
-
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
     ("ch", "tʃ"),
@@ -60,10 +59,13 @@ def _get_primerpro_settings() -> Settings:
     settings.grapheme_inventory = inventory
     return settings
 
+
 settings = _get_primerpro_settings()
 
 
-def score_known_syllables(word: str, student_knowledge: KiswahiliStudentKnowledge) -> float:
+def score_known_syllables(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
     """Score a word based on the number of known syllables and the total number of syllables in the word.
 
     The score is binary: if there's any syllable that the student doesn't know, the score is 0.
@@ -72,9 +74,11 @@ def score_known_syllables(word: str, student_knowledge: KiswahiliStudentKnowledg
 
     if not taught_syllables:
         return 0.0
-    
+
     primerpro_word = Word(word, settings)
-    syllable_symbols = [syllable.display_syllable.lower() for syllable in primerpro_word.syllables]
+    syllable_symbols = [
+        syllable.display_syllable.lower() for syllable in primerpro_word.syllables
+    ]
 
     if any(syllable not in taught_syllables for syllable in syllable_symbols):
         return 0.0
@@ -89,11 +93,13 @@ def score_word_length(word: str, student_knowledge: KiswahiliStudentKnowledge) -
     """
     taught_length = student_knowledge.max_word_length
     n = len(word)
-    
+
     return min(1, taught_length / n)
 
 
-def score_syllable_pattern(word: str, student_knowledge: KiswahiliStudentKnowledge) -> float:
+def score_syllable_pattern(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
     """Score a word based on its syllable pattern and the student's knowledge.
 
     The score is calculated as the ratio of known syllable patterns to total syllables in the word.

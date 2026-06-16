@@ -14,7 +14,12 @@ from typing import Any
 
 import pandas as pd
 from decodability import annotate_words, mean_score, weighted_average
-from decodability.kiswahili import KiswahiliStudentKnowledge, score_known_syllables, score_word_length, score_syllable_pattern
+from decodability.kiswahili import (
+    KiswahiliStudentKnowledge,
+    score_known_syllables,
+    score_word_length,
+    score_syllable_pattern,
+)
 
 
 TEXT = "Juma ana baba na mama. Baba ana duka sokoni."
@@ -22,12 +27,33 @@ WORD_RE = re.compile(r"[A-Za-z']+")
 
 STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
     known_syllables={
-        "a", "e", "i", "o", "u",
-        "m_", "n_",
-        "ba", "be", "bi", "bo", "bu",
-        "ka", "ke", "ki", "ko", "ku",
-        "ma", "me", "mi", "mo", "mu",
-        "na", "ne", "ni", "no", "nu",
+        "a",
+        "e",
+        "i",
+        "o",
+        "u",
+        "m_",
+        "n_",
+        "ba",
+        "be",
+        "bi",
+        "bo",
+        "bu",
+        "ka",
+        "ke",
+        "ki",
+        "ko",
+        "ku",
+        "ma",
+        "me",
+        "mi",
+        "mo",
+        "mu",
+        "na",
+        "ne",
+        "ni",
+        "no",
+        "nu",
     },
     max_word_length=5,
     known_syllable_patterns={"CV", "CVCV", "CCV"},
@@ -41,7 +67,11 @@ def tokenize_swahili(text: str) -> list[str]:
 def build_dataframe() -> pd.DataFrame:
     return annotate_words(
         tokenize_swahili(TEXT),
-        scoring_methods=[score_known_syllables, score_word_length, score_syllable_pattern],
+        scoring_methods=[
+            score_known_syllables,
+            score_word_length,
+            score_syllable_pattern,
+        ],
         student_knowledge=STUDENT_KNOWLEDGE,
         aggregations={
             "mean_score": mean_score,
