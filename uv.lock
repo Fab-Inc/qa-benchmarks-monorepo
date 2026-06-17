@@ -520,12 +520,14 @@ source = { editable = "packages/decodability" }
 dependencies = [
     { name = "pandas" },
     { name = "primerpro" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "primerpro", editable = "packages/primerpro" },
+    { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
 [[package]]
