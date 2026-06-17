@@ -26,7 +26,7 @@ members = [
   "packages/primerpro",
   "packages/decodability",
   "benchmarks/phonics_benchmark",
-  "benchmarks/language_knowledge_benchmark",
+  "benchmarks/linguistic_knowledge_benchmark",
 ]
 
 [tool.uv.sources]

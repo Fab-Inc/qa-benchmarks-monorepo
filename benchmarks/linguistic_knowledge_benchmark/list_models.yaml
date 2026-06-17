@@ -1,0 +1,8 @@
+# Models to evaluate. Add your own by:
+#   1. Adding an entry here (key = model ID, value = display name)
+#   2. Ensuring the model is defined in custom_models.yaml
+claude-sonnet-4-6: Claude Sonnet 4.6
+claude-haiku-4-5-20251001: Claude Haiku 4.5
+gpt-4o-mini-2024-07-18: GPT-4o Mini
+gemini-2.5-flash-preview-09-2025: Gemini 2.5 Flash
+deepseek-v3-0324-fp8: Deepseek V3

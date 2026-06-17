@@ -10,8 +10,8 @@ It contains:
 - `packages/decodability`: standalone scaffolding for language-specific decodability
   tooling.
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
-- `benchmarks/language_knowledge_benchmark`: benchmark-specific package for the language
-  knowledge benchmark.
+- `benchmarks/linguistic_knowledge_benchmark`: benchmark-specific package for the
+  linguistic knowledge benchmark.
 
 The benchmark packages are currently cookiecutter-style placeholders with only a CLI
 module and CLI tests. The shared package is intentionally small and follows the existing

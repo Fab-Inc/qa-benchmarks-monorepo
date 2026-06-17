@@ -1,0 +1,3 @@
+[allowlist]
+description = "Api_Model_Name values are model identifiers, not secrets"
+regexes = ['''Api_Model_Name:\s+\S+''']
