@@ -1,7 +1,7 @@
 # Fab Benchmarks Monorepo
 
-This is a proposed monorepo layout for new benchmarks, specifically the QA Facility
-text-based benchmarks.
+This is a monorepo for new benchmarks, specifically the QA Facility text-based
+benchmarks.
 
 It contains:
 
@@ -15,17 +15,30 @@ It contains:
 
 The benchmark packages are currently cookiecutter-style placeholders with only a CLI
 module and CLI tests. The shared package is intentionally small and follows the existing
-`fab-benchmarks-configs` pattern: GitHub Actions authenticates to Google Cloud, sets
-`BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with
+`fab-benchmarks-configs` pattern: GitHub Actions authenticates to Google Cloud Storage
+(GCS), sets `BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with
 `google.cloud.storage.Client`.
 
 ## Development
 
-Install all workspace dependencies:
+This project uses [uv](https://docs.astral.sh/uv/) as its Python package and project
+manager. If you don't already have uv installed, follow the
+[uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
+This project enforces a minimum required uv version via the `[tool.uv] required-version`
+line of the root `pyproject.toml`. So please update your uv if required, and especially
+if you are experiencing any errors.
+
+To install all workspace dependencies (and whenever you change branch or edit
+`pyproject.toml`):
 
 ```bash
 uv sync --all-packages
 ```
+
+which will install this project and its dependencies, including an appropriate Python
+version. (All of this is installed into the hidden `.venv` virtual environment folder at
+the project root.)
 
 For developers contributing to this project, please run
 
@@ -42,7 +55,7 @@ that during `uv sync`) — it just adds a git hook to your local `.git/`. So you
 run it in every new project, even if you've used pre-commit elsewhere before. Editing
 the config later doesn't require re-running — changes are picked up automatically.
 
-Run all tests:
+To run all tests:
 
 ```bash
 uv run pytest
@@ -76,9 +89,35 @@ publish_records(
 
 This writes to `gs://$BUCKET_NAME/$FILE_PREFIX/PHONICS/leaderboard_data.json`.
 
+### Common development commands:
+
+```sh
+# Install dependencies (e.g. after editing pyproject.toml or switching branch)
+uv sync --all-packages
+
+# Run tests
+uv run pytest
+
+# Run tests with coverage
+uv run pytest --cov
+
+# Run pre-commit checks (staged files only)
+uv run pre-commit
+
+# Run pre-commit checks (all files)
+uv run pre-commit run -a
+
+# Format code
+uv run ruff format .
+
+# Check and fix linting issues
+uv run ruff check --fix .
+```
+
 ## Dependency Model
 
-New benchmark packages use the shared package as a workspace dependency:
+New benchmark packages use the shared packages as a workspace dependency (defined in
+root-level `pyproject.yaml`):
 
 ```toml
 [tool.uv.sources]
