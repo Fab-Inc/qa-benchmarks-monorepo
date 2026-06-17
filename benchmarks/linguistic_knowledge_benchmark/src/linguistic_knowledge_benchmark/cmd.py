@@ -46,9 +46,9 @@ app = typer.Typer(
 @app.callback()
 def setup() -> None:
     """Linguistic Knowledge Benchmark"""
-    # Load provider API keys from the package-level .env into os.environ so fdllm
+    # Load provider API keys from the repo-root .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
-    load_dotenv(BENCH_DIR / ".env")
+    load_dotenv(REPO_ROOT / ".env")
     register_models(str(REPO_ROOT / "custom_models.yaml"))
 
 
