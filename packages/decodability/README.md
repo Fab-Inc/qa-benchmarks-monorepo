@@ -3,15 +3,15 @@
 Lightweight scaffolding for language-specific decodability tooling.
 
 This package intentionally keeps the shared interface small. Each language can implement
-its own tokenization, student-knowledge representation, and internal measure logic. The
+its own tokenization, student-knowledge representation, and internal scoring logic. The
 shared expectation is just:
 
 ```python
-def measure(word: str, student_knowledge) -> float:
+def scorer(word: str, student_knowledge) -> float:
     ...
 ```
 
-Measures should return a score between `0.0` and `1.0`. Language annotators return a
+Scorers should return a score between `0.0` and `1.0`. Language annotators return a
 pandas dataframe with one row per word, one column per scoring method, and one or more
 aggregation columns. By default, the aggregation is an equal-weight row-wise mean called
 `mean_score`.
