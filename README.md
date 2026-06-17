@@ -25,9 +25,9 @@ This project uses [uv](https://docs.astral.sh/uv/) as its Python package and pro
 manager. If you don't already have uv installed, follow the
 [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
 
-This project enforces a minimum required uv version via the
-`[tool.uv] required-version` line of the root `pyproject.toml`. So please update your
-uv if required, and especially if you are experiencing any errors.
+This project enforces a minimum required uv version via the `[tool.uv] required-version`
+line of the root `pyproject.toml`. So please update your uv if required, and especially
+if you are experiencing any errors.
 
 To install all workspace dependencies (and whenever you change branch or edit
 `pyproject.toml`):
