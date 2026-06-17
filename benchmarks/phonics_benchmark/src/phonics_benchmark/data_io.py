@@ -12,7 +12,10 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 def get_data_dir(language: str) -> Path:
-    """Return the Path to data/<language>/; raises FileNotFoundError if absent."""
+    """
+    Return the Path to data/<language>/
+    Raises FileNotFoundError if absent.
+    """
     path = DATA_ROOT / language
     if not path.is_dir():
         raise FileNotFoundError(
@@ -22,7 +25,9 @@ def get_data_dir(language: str) -> Path:
 
 
 def read_items(language: str) -> list[AssessmentTextItem]:
-    """Parse items.jsonl for the given language and return AssessmentTextItem objects."""
+    """
+    Parse items.jsonl for the given language and return AssessmentTextItem objects.
+    """
     path = get_data_dir(language) / "items.jsonl"
     items = []
     with path.open(encoding="utf-8") as f:
