@@ -54,7 +54,7 @@ def _get_primerpro_settings() -> Settings:
     return settings
 
 
-settings = _get_primerpro_settings()
+settings: Settings = _get_primerpro_settings()
 
 
 def score_known_syllables(word: str, student_knowledge: KiswahiliKnowledge) -> float:

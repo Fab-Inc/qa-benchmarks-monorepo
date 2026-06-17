@@ -5,8 +5,7 @@ from decodability.kiswahili.scorers import (
     score_syllable_pattern,
     score_word_length,
 )
-
-STUDENT_KNOWLEDGE_MODEL = "decodability.kiswahili.models.KiswahiliStudentKnowledge"
+from decodability.kiswahili.tokenizer import tokenize_kiswahili
 
 SCORING_METHODS = {
     "kiswahili_score_known_syllables": score_known_syllables,
@@ -27,4 +26,5 @@ __all__ = [
     score_known_syllables,
     score_word_length,
     score_syllable_pattern,
+    tokenize_kiswahili,
 ]

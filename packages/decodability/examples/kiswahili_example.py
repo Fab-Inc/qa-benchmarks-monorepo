@@ -1,29 +1,28 @@
-"""Small runnable English example for the decodability scaffold.
+"""Small runnable Kiswahili example for the decodability scaffold.
 
 Run from the repository root with:
 
     uv run --frozen --package decodability python \
-        packages/decodability/examples/english_example.py
+        packages/decodability/examples/kiswahili_example.py
 """
 
 from __future__ import annotations
 
-import re
 from functools import partial
 
 import pandas as pd
 from decodability import annotate_words, mean_score, weighted_average
 from decodability.kiswahili import (
-    KiswahiliStudentKnowledge,
+    KiswahiliKnowledge,
     score_known_syllables,
     score_syllable_pattern,
     score_word_length,
+    tokenize_kiswahili,
 )
 
 TEXT = "Juma ana baba na mama. Baba ana duka sokoni."
-WORD_RE = re.compile(r"[A-Za-z']+")
 
-STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
+STUDENT_KNOWLEDGE = KiswahiliKnowledge(
     known_syllables={
         "a",
         "e",
@@ -52,19 +51,15 @@ STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
         "ni",
         "no",
         "nu",
-    },
+    },  # all vowels, CV syllables with b, k, m, n, and prenasalisation m_ and n_.
     max_word_length=5,
     known_syllable_patterns={"CV", "CVCV", "CCV"},
 )
 
 
-def tokenize_swahili(text: str) -> list[str]:
-    return WORD_RE.findall(text)
-
-
 def build_dataframe() -> pd.DataFrame:
     return annotate_words(
-        tokenize_swahili(TEXT),
+        tokenize_kiswahili(TEXT),
         scoring_methods=[
             score_known_syllables,
             score_word_length,
