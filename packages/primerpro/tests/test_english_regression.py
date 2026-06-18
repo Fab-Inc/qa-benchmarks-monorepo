@@ -29,11 +29,10 @@ def test_english_inventory_prefers_longest_graphemes():
     assert_word(settings, "whale", ["wh", "a", "l", "e"])
 
 
-def test_english_uppercase_multigraphs_are_exact():
+def test_english_multigraphs_match_default_title_case_form():
     settings = create_english_settings()
 
-    assert grapheme_symbols(Word("SHip", settings)) == ["sh", "i", "p"]
-    assert grapheme_symbols(Word("Ship", settings)) == ["s", "h", "i", "p"]
+    assert grapheme_symbols(Word("Ship", settings)) == ["sh", "i", "p"]
 
 
 def test_english_punctuation_and_apostrophes_are_removed_before_decomposition():

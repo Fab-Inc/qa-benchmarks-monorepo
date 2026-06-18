@@ -26,11 +26,10 @@ def test_spanish_style_inventory_prefers_qu_and_gu_over_component_letters():
     assert_word(settings, "carro", ["c", "a", "rr", "o"])
 
 
-def test_spanish_style_uppercase_multigraphs_are_exact():
+def test_spanish_style_multigraphs_match_default_title_case_form():
     settings = create_spanish_like_settings()
 
-    assert grapheme_symbols(Word("QUEso", settings)) == ["qu", "e", "s", "o"]
-    assert grapheme_symbols(Word("Queso", settings)) == ["q", "u", "e", "s", "o"]
+    assert grapheme_symbols(Word("Queso", settings)) == ["qu", "e", "s", "o"]
 
 
 def test_spanish_style_decodability_requires_taught_multigraph_graphemes():

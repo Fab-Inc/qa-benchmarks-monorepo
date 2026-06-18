@@ -76,7 +76,7 @@ def test_word_equality_compares_decomposed_grapheme_sequences():
 
     assert Word("ship", settings).is_same(Word("ship", settings))
     assert not Word("ship", settings).is_same(Word("thin", settings))
-    assert not Word("ship", settings).is_same(Word("Ship", settings))
+    assert Word("ship", settings).is_same(Word("Ship", settings))
 
 
 def test_word_minimal_pair_helpers_identify_single_and_harmony_differences():

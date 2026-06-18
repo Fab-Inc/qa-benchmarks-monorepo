@@ -191,13 +191,11 @@ def create_kiswahili_gpc_settings() -> tuple[Settings, GPCMapping]:
 
     for grapheme, phoneme in KISWAHILI_CONSONANT_GPCS:
         g = Consonant(grapheme)
-        g.uppercase = grapheme.upper()
         inventory.add_consonant(g)
         gpc_mapping.add(g, phoneme)
 
     for grapheme, phoneme in KISWAHILI_VOWEL_GPCS:
         v = Vowel(grapheme)
-        v.uppercase = grapheme.upper()
         inventory.add_vowel(v)
         gpc_mapping.add(v, phoneme)
 
@@ -254,11 +252,9 @@ def create_settings(consonants: list[str], vowels: list[str]) -> Settings:
     inventory = GraphemeInventory(settings)
     for symbol in consonants:
         consonant = Consonant(symbol)
-        consonant.uppercase = symbol.upper()
         inventory.add_consonant(consonant)
     for symbol in vowels:
         vowel = Vowel(symbol)
-        vowel.uppercase = symbol.upper()
         inventory.add_vowel(vowel)
 
     settings.grapheme_inventory = inventory

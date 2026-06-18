@@ -14,7 +14,10 @@ phonics model.
 PrimerPro is driven by a project-specific grapheme inventory. A grapheme is the written
 unit PrimerPro should treat as atomic. It may be a single letter, a multigraph such as
 `sh`, `ng`, or `igh`, a tone-marked written form, or a syllograph. Words are segmented
-by the longest matching inventory entry, up to `OptionSettings.max_size_grapheme`.
+by the longest matching inventory entry, up to `OptionSettings.max_size_grapheme`. Each
+grapheme's `uppercase` form defaults to `symbol.capitalize()`, so `Ship` can match the
+`sh` grapheme without extra language-specific setup. Languages that need another written
+form, such as `SH`, can still assign `grapheme.uppercase` explicitly.
 
 Decodability is checked against a taught-grapheme list. A word is buildable when every
 syllable is buildable from that taught list. PrimerPro also supports position-marked
@@ -122,15 +125,13 @@ gpc_mapping = GPCMapping()
 
 for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
     consonant = Consonant(grapheme)
-    consonant.uppercase = grapheme.upper()
     inventory.add_consonant(consonant)
 
     gpc_mapping.add(consonant, phoneme)
 
 for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
     vowel = Vowel(grapheme)
-    vowel.uppercase = grapheme.upper()
-    inventory.add_consonant(consonant)
+    inventory.add_vowel(vowel)
 
     gpc_mapping.add(vowel, phoneme)
 
