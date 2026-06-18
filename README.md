@@ -48,7 +48,7 @@ cp .env.example .env
 ```
 
 and then fill in the API keys for any model providers you intend to use. Ask the project
-leads for the appropriate keys.
+leads for the appropriate keys if you need them.
 
 ## Development
 
