@@ -17,7 +17,7 @@ from decodability.kiswahili import (
     score_known_syllables,
     score_syllable_pattern,
     score_word_length,
-    tokenize_kiswahili,
+    tokenize,
 )
 
 TEXT = "Juma ana baba na mama. Baba ana duka sokoni."
@@ -59,7 +59,7 @@ STUDENT_KNOWLEDGE = KiswahiliKnowledge(
 
 def build_dataframe() -> pd.DataFrame:
     return annotate_words(
-        tokenize_kiswahili(TEXT),
+        tokenize(TEXT),
         scoring_methods=[
             score_known_syllables,
             score_word_length,

@@ -37,6 +37,7 @@ class TestScorers:
             ("baba", {"ba"}, 1.0),
             ("baba", {"be"}, 0.0),
             ("baba", set(), 0.0),
+            ("Baba", {"ba"}, 1.0),  # case-insensitive
         ],
     )
     def test_score_known_syllables(
@@ -73,6 +74,7 @@ class TestScorers:
             ("baba", set(), 0.0),
             ("mti", {"CV"}, 0.0),
             ("mti", {"CV", "CCV", "CVCV"}, 1.0),
+            ("Mti", {"CV", "CCV"}, 1.0),  # case-insensitive
         ],
     )
     def test_score_syllable_pattern(
