@@ -29,16 +29,15 @@ This project enforces a minimum required uv version via the `[tool.uv] required-
 line of the root `pyproject.toml`. So please update your uv if required, and especially
 if you are experiencing any errors.
 
-To install all workspace dependencies (and whenever you change branch or edit
-`pyproject.toml`):
+Once uv is installed, clone this project and change into its directory, then run:
 
 ```bash
 uv sync --all-packages
 ```
 
-which will install this project and its dependencies, including an appropriate Python
-version. (All of this is installed into the hidden `.venv` virtual environment folder at
-the project root.)
+This installs the project and all dependencies (including an appropriate Python version)
+into a hidden `.venv` virtual environment folder at the project root. The
+`--all-packages` flag ensures nested workspace dependencies are included too.
 
 To run the benchmarks against real models, you will need to copy `.env.example` to
 `.env` (in the monorepo root) by running
