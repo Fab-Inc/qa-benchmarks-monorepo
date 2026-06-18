@@ -88,10 +88,10 @@ macOS/Linux) or `.venv\Scripts\python.exe` (on Windows). To do this in VS Code, 
 command palette and run **Python: Select Interpreter**, then choose the entry inside
 `.venv`.
 
-This project aims to abide by strict typing so please configure Pylance in strict mode
-(`"python.analysis.typeCheckingMode": "strict"` in VS Code settings). Or if you need to
-use a different type checker, configure the equivalent mode, e.g. `mypy --strict`. This
-is not currently CI-enforced but may be in future.
+This project aims to pass type checks at Pylance's **standard** level, so please set
+`"python.analysis.typeCheckingMode": "standard"` in your VS Code settings (or **strict**
+if you prefer). If you use a different type checker, configure a comparable level of
+strictness. This is not currently CI-enforced but may be in future.
 
 ### Publishing benchmark results
 
