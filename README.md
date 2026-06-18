@@ -52,6 +52,8 @@ leads for the appropriate keys.
 
 ## Development
 
+### Pre-commit hooks
+
 For developers contributing to this project, please run
 
 ```sh
@@ -67,11 +69,31 @@ that during `uv sync`) — it just adds a git hook to your local `.git/`. So you
 run it in every new project, even if you've used pre-commit elsewhere before. Editing
 the config later doesn't require re-running — changes are picked up automatically.
 
+### Tests
+
 To run all tests:
 
 ```bash
 uv run pytest
 ```
+
+You are encouraged to run tests before committing and especially before pushing. CI/CD
+runs the same suite, but catching failures locally is faster and cleaner.
+
+### IDE setup & type checking
+
+For full IDE support (autocomplete, type checking, code navigation, etc.), point your
+editor at the project's Python interpreter, located at `.venv/bin/python` (on
+macOS/Linux) or `.venv\Scripts\python.exe` (on Windows). To do this in VS Code, open the
+command palette and run **Python: Select Interpreter**, then choose the entry inside
+`.venv`.
+
+This project aims to abide by strict typing so please configure Pylance in strict mode
+(`"python.analysis.typeCheckingMode": "strict"` in VS Code settings). Or if you need to
+use a different type checker, configure the equivalent mode, e.g. `mypy --strict`. This
+is not currently CI-enforced but may be in future.
+
+### Publishing benchmark results
 
 The publisher package expects the upload environment to provide the same basic variables
 used by `fab-benchmarks-configs`:
