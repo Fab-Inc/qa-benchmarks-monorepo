@@ -1,16 +1,16 @@
 from decodability import mean_score, weighted_average
-from decodability.kiswahili.models import KiswahiliKnowledge
+from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
-    score_known_syllables,
-    score_syllable_pattern,
-    score_word_length,
+    score_known_syllables_kiswahili,
+    score_syllable_pattern_kiswahili,
+    score_word_length_kiswahili,
 )
-from decodability.kiswahili.tokenizer import tokenize
+from decodability.kiswahili.tokenizer import tokenize_kiswahili
 
 SCORING_METHODS = {
-    "score_known_syllables": score_known_syllables,
-    "score_word_length": score_word_length,
-    "score_syllable_pattern": score_syllable_pattern,
+    "score_known_syllables_kiswahili": score_known_syllables_kiswahili,
+    "score_word_length_kiswahili": score_word_length_kiswahili,
+    "score_syllable_pattern_kiswahili": score_syllable_pattern_kiswahili,
 }
 
 AGGREGATIONS = {
@@ -22,9 +22,9 @@ __all__ = [
     "STUDENT_KNOWLEDGE_MODEL",
     "SCORING_METHODS",
     "AGGREGATIONS",
-    "KiswahiliKnowledge",
-    "score_known_syllables",
-    "score_word_length",
+    "KiswahiliStudentKnowledge",
+    "score_known_syllables_kiswahili",
+    "score_word_length_kiswahili",
     "score_syllable_pattern",
-    "tokenize",
+    "tokenize_kiswahili",
 ]

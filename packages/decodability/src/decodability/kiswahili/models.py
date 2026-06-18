@@ -1,7 +1,7 @@
 from pydantic import BaseModel, field_validator
 
 
-class KiswahiliKnowledge(BaseModel):
+class KiswahiliStudentKnowledge(BaseModel):
     """Model for Kiswahili student knowledge representation."""
 
     known_syllables: set[str] = set()

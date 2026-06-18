@@ -1,6 +1,6 @@
 from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
 
-from decodability.kiswahili.models import KiswahiliKnowledge
+from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
@@ -61,7 +61,9 @@ def _get_primerpro_settings() -> Settings:
 settings: Settings = _get_primerpro_settings()
 
 
-def score_known_syllables(word: str, student_knowledge: KiswahiliKnowledge) -> float:
+def score_known_syllables_kiswahili(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
     """Score a word based on the number of known syllables and the total number of
     syllables in the word.
 
@@ -84,7 +86,9 @@ def score_known_syllables(word: str, student_knowledge: KiswahiliKnowledge) -> f
     return 1.0
 
 
-def score_word_length(word: str, student_knowledge: KiswahiliKnowledge) -> float:
+def score_word_length_kiswahili(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
     """Score a word based on its length and the maximum length of words the student
     can decode.
 
@@ -97,7 +101,9 @@ def score_word_length(word: str, student_knowledge: KiswahiliKnowledge) -> float
     return min(1, taught_length / n)
 
 
-def score_syllable_pattern(word: str, student_knowledge: KiswahiliKnowledge) -> float:
+def score_syllable_pattern_kiswahili(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
     """Score a word based on its syllable pattern and the student's knowledge.
 
     The score is calculated as the ratio of known syllable patterns to total syllables

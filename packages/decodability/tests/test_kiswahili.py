@@ -1,14 +1,14 @@
 import pytest
 from decodability.kiswahili import (
-    score_known_syllables,
-    score_syllable_pattern,
-    score_word_length,
-    tokenize,
+    score_known_syllables_kiswahili,
+    score_syllable_pattern_kiswahili,
+    score_word_length_kiswahili,
+    tokenize_kiswahili,
 )
-from decodability.kiswahili.models import KiswahiliKnowledge
+from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
 
-class TestKiswahiliKnowledgeValidator:
+class TestKiswahiliStudentKnowledgeValidator:
     @pytest.mark.parametrize(
         "known_syllable_patterns, expected",
         [
@@ -17,17 +17,19 @@ class TestKiswahiliKnowledgeValidator:
             ({"CV", "ABC"}, False),
         ],
     )
-    def test_kiswahili_knowledge_syllable_pattern_checks_for_valid_cv_patterns(
+    def test_kiswahili_student_knowledge_syllable_pattern_checks_for_valid_cv_patterns(
         self, known_syllable_patterns: set[str], expected: bool
     ):
         """Test that the KiswahiliKnowledge model raises a ValueError when invalid CV
         patterns are provided.
         """
         if expected:
-            KiswahiliKnowledge(known_syllable_patterns=known_syllable_patterns)
+            KiswahiliStudentKnowledge(known_syllable_patterns=known_syllable_patterns)
         else:
             with pytest.raises(ValueError):
-                KiswahiliKnowledge(known_syllable_patterns=known_syllable_patterns)
+                KiswahiliStudentKnowledge(
+                    known_syllable_patterns=known_syllable_patterns
+                )
 
 
 class TestScorers:
@@ -43,9 +45,9 @@ class TestScorers:
     def test_score_known_syllables(
         self, word: str, known_syllables: set[str], expected: float
     ):
-        """Test the sw_score_known_syllables function."""
-        student_knowledge = KiswahiliKnowledge(known_syllables=known_syllables)
-        score = score_known_syllables(word, student_knowledge)
+        """Test the score_known_syllables_kiswahili function."""
+        student_knowledge = KiswahiliStudentKnowledge(known_syllables=known_syllables)
+        score = score_known_syllables_kiswahili(word, student_knowledge)
         assert score == expected, f"Expected {expected} but got {score}"
 
     @pytest.mark.parametrize(
@@ -60,9 +62,9 @@ class TestScorers:
         ],
     )
     def test_score_word_length(self, word: str, max_word_length: int, expected: float):
-        """Test the score_word_length function."""
-        student_knowledge = KiswahiliKnowledge(max_word_length=max_word_length)
-        score = score_word_length(word, student_knowledge)
+        """Test the score_word_length_kiswahili function."""
+        student_knowledge = KiswahiliStudentKnowledge(max_word_length=max_word_length)
+        score = score_word_length_kiswahili(word, student_knowledge)
         assert score == pytest.approx(expected), f"Expected {expected} but got {score}"
 
     @pytest.mark.parametrize(
@@ -80,11 +82,11 @@ class TestScorers:
     def test_score_syllable_pattern(
         self, word: str, known_syllable_patterns: set[str], expected: float
     ):
-        """Test the score_syllable_pattern function."""
-        student_knowledge = KiswahiliKnowledge(
+        """Test the score_syllable_pattern_kiswahili function."""
+        student_knowledge = KiswahiliStudentKnowledge(
             known_syllable_patterns=known_syllable_patterns
         )
-        score = score_syllable_pattern(word, student_knowledge)
+        score = score_syllable_pattern_kiswahili(word, student_knowledge)
         assert score == expected, f"Expected {expected} but got {score}"
 
 
@@ -98,6 +100,6 @@ class TestKiswahiliTokenizer:
             ("Ng'ang'ania.", ["Ng'ang'ania"]),
         ],
     )
-    def test_tokenize_swahili(self, text: str, expected: list[str]):
+    def test_tokenize_kiswahili(self, text: str, expected: list[str]):
         """Test the tokenize function."""
-        assert tokenize(text) == expected
+        assert tokenize_kiswahili(text) == expected
