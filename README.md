@@ -19,7 +19,7 @@ module and CLI tests. The shared package is intentionally small and follows the 
 (GCS), sets `BUCKET_NAME` and `FILE_PREFIX`, and Python uploads JSON to GCS with
 `google.cloud.storage.Client`.
 
-## Development
+## Installation
 
 This project uses [uv](https://docs.astral.sh/uv/) as its Python package and project
 manager. If you don't already have uv installed, follow the
@@ -39,6 +39,18 @@ uv sync --all-packages
 which will install this project and its dependencies, including an appropriate Python
 version. (All of this is installed into the hidden `.venv` virtual environment folder at
 the project root.)
+
+To run the benchmarks against real models, you will need to copy `.env.example` to
+`.env` (in the monorepo root) by running
+
+```sh
+cp .env.example .env
+```
+
+and then fill in the API keys for any model providers you intend to use. Ask the project
+leads for the appropriate keys.
+
+## Development
 
 For developers contributing to this project, please run
 
