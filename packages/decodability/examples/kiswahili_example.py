@@ -13,16 +13,16 @@ from functools import partial
 import pandas as pd
 from decodability import annotate_words, mean_score, weighted_average
 from decodability.kiswahili import (
-    KiswahiliKnowledge,
-    score_known_syllables,
-    score_syllable_pattern,
-    score_word_length,
-    tokenize,
+    KiswahiliStudentKnowledge,
+    score_known_syllables_kiswahili,
+    score_syllable_pattern_kiswahili,
+    score_word_length_kiswahili,
+    tokenize_kiswahili,
 )
 
 TEXT = "Juma ana baba na mama. Baba ana duka sokoni."
 
-STUDENT_KNOWLEDGE = KiswahiliKnowledge(
+STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
     known_syllables={
         "a",
         "e",
@@ -59,11 +59,11 @@ STUDENT_KNOWLEDGE = KiswahiliKnowledge(
 
 def build_dataframe() -> pd.DataFrame:
     return annotate_words(
-        tokenize(TEXT),
+        tokenize_kiswahili(TEXT),
         scoring_methods=[
-            score_known_syllables,
-            score_word_length,
-            score_syllable_pattern,
+            score_known_syllables_kiswahili,
+            score_word_length_kiswahili,
+            score_syllable_pattern_kiswahili,
         ],
         student_knowledge=STUDENT_KNOWLEDGE,
         aggregations={
@@ -71,9 +71,9 @@ def build_dataframe() -> pd.DataFrame:
             "weighted_score": partial(
                 weighted_average,
                 weights={
-                    "score_known_syllables": 0.5,
-                    "score_word_length": 0.3,
-                    "score_syllable_pattern": 0.2,
+                    "score_known_syllables_kiswahili": 0.5,
+                    "score_word_length_kiswahili": 0.3,
+                    "score_syllable_pattern_kiswahili": 0.2,
                 },
             ),
         },

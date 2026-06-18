@@ -19,12 +19,11 @@ AGGREGATIONS = {
 }
 
 __all__ = [
-    "STUDENT_KNOWLEDGE_MODEL",
     "SCORING_METHODS",
     "AGGREGATIONS",
     "KiswahiliStudentKnowledge",
     "score_known_syllables_kiswahili",
     "score_word_length_kiswahili",
-    "score_syllable_pattern",
+    "score_syllable_pattern_kiswahili",
     "tokenize_kiswahili",
 ]

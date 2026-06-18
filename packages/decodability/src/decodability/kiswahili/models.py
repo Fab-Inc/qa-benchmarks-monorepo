@@ -9,7 +9,7 @@ class KiswahiliStudentKnowledge(BaseModel):
     known_syllable_patterns: set[str] = set()
 
     @field_validator("known_syllable_patterns")
-    def check_cv_pattern(cls, patterns: set[str]) -> bool:  # noqa: N805
+    def check_cv_pattern(cls, patterns: set[str]) -> bool | set[str]:  # noqa: N805
         """Check if a given pattern is a valid CV pattern."""
         invalid_patterns = []
         for pattern in patterns:
