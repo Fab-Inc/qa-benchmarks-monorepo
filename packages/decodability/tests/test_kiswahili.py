@@ -3,7 +3,7 @@ from decodability.kiswahili import (
     score_known_syllables,
     score_syllable_pattern,
     score_word_length,
-    tokenize_kiswahili,
+    tokenize,
 )
 from decodability.kiswahili.models import KiswahiliKnowledge
 
@@ -42,7 +42,7 @@ class TestScorers:
     def test_score_known_syllables(
         self, word: str, known_syllables: set[str], expected: float
     ):
-        """Test the score_known_syllables function."""
+        """Test the sw_score_known_syllables function."""
         student_knowledge = KiswahiliKnowledge(known_syllables=known_syllables)
         score = score_known_syllables(word, student_knowledge)
         assert score == expected, f"Expected {expected} but got {score}"
@@ -97,5 +97,5 @@ class TestKiswahiliTokenizer:
         ],
     )
     def test_tokenize_swahili(self, text: str, expected: list[str]):
-        """Test the tokenize_swahili function."""
-        assert tokenize_kiswahili(text) == expected
+        """Test the tokenize function."""
+        assert tokenize(text) == expected
