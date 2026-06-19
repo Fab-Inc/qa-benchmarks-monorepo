@@ -169,7 +169,6 @@ def _patch_summary(monkeypatch):
             "accuracy": 80.0,
             "accuracy_mc": 90.0,
             "accuracy_short_form": 70.0,
-            "accuracy_true_false": 100.0,
         },
     )
 
@@ -207,15 +206,20 @@ def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
 
 def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
     monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
     _patch_summary(monkeypatch)
     result = runner.invoke(
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
     )
     assert result.exit_code == 0
-    assert (
+    summary_path = (
         tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
-    ).exists()
+    )
+    assert summary_path.exists()
+    df = pd.read_csv(summary_path)
+    assert "answers_timestamp-utc" in df.columns
+    assert "answers_judged_git-hash" in df.columns
 
 
 def test_judge_bench_run_id_writes_run_specific_summary(

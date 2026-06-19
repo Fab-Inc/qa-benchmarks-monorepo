@@ -7,6 +7,7 @@ or LLM judge (short_form/true_false).
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -17,8 +18,10 @@ from tqdm import tqdm
 
 from linguistic_knowledge_benchmark.run_bench import (
     CACHE_BASE_DIR,
+    git_hash,
     load_dataset,
     parse_answer,
+    update_log,
 )
 
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-5-20250929"
@@ -327,6 +330,14 @@ def judge_results(
     # Save judged results
     output_path.parent.mkdir(parents=True, exist_ok=True)
     results_df.to_csv(output_path, index=False)
+    update_log(
+        language_dir,
+        model_name,
+        {
+            "answers_judged_timestamp-utc": datetime.now(UTC).isoformat(),
+            "answers_judged_git-hash": git_hash(),
+        },
+    )
     print(f"Judged results saved to {output_path}")
 
     return results_df
@@ -397,6 +408,14 @@ def judge_results_fallback(
         df["justification_fallback"] = justification_fallback
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
+        update_log(
+            language_dir,
+            model_name,
+            {
+                "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
+                "answers_judged_fallback_git-hash": git_hash(),
+            },
+        )
         return df
 
     # Create judge caller
@@ -438,11 +457,19 @@ def judge_results_fallback(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
+    update_log(
+        language_dir,
+        model_name,
+        {
+            "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
+            "answers_judged_fallback_git-hash": git_hash(),
+        },
+    )
     print(f"Fallback results saved to {output_path}")
     return df
 
 
-def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict:
+def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, object]:
     """Compute summary statistics from judged results.
 
     When ``is_correct_fallback`` is present (from ``--judge-fallback``),
@@ -486,5 +513,4 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict:
         "unscored_count": int((~scored_mask).sum()),
         "accuracy_mc": by_type.get("multiple_choice", 0.0),
         "accuracy_short_form": by_type.get("short_form", 0.0),
-        "accuracy_true_false": by_type.get("true_false", 0.0),
     }

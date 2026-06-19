@@ -1,2 +1,0 @@
-model,accuracy,scored_count,unscored_count,accuracy_mc,accuracy_short_form,accuracy_true_false
-claude-haiku-4-5-20251001,84.0,125,0,92.11,71.43,0.0

@@ -1,5 +1,6 @@
 """Command-line interface for linguistic_knowledge_benchmark."""
 
+import json
 import re
 from datetime import UTC, datetime
 
@@ -13,7 +14,7 @@ from linguistic_knowledge_benchmark.judge_bench import (
     judge_results,
     judge_results_fallback,
 )
-from linguistic_knowledge_benchmark.run_bench import run_benchmark
+from linguistic_knowledge_benchmark.run_bench import CACHE_BASE_DIR, run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
     DATA_DIR,
@@ -229,10 +230,11 @@ def judge_bench_cmd(
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
+    typer.echo(f"Judge model: {judge_model}")
     if run_id:
         typer.echo(f"Run ID: {run_id}")
 
-    summaries = []
+    summaries: list[dict[str, object]] = []
 
     for current_model in models_to_judge:
         try:
@@ -261,7 +263,6 @@ def judge_bench_cmd(
             typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
             typer.echo(f"  MC accuracy: {summary['accuracy_mc']}%")
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
-            typer.echo(f"  True/false accuracy: {summary['accuracy_true_false']}%")
 
         except FileNotFoundError:
             pass
@@ -272,8 +273,29 @@ def judge_bench_cmd(
     if summaries:
         results_dir = BENCH_DIR / "results"
         results_dir.mkdir(exist_ok=True)
-        summary_df = pd.DataFrame(summaries)
         effective_run_id = run_id or "default"
+        log_path = (
+            CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / "log.json"
+        )
+        log_data: dict[str, dict[str, str | None]] = {}
+        if log_path.exists():
+            with open(log_path, encoding="utf-8") as _f:
+                log_data = json.load(_f)
+        log_fields = [
+            "answers_timestamp-utc",
+            "answers_git-hash",
+            "answers_retry_timestamp-utc",
+            "answers_retry_git-hash",
+            "answers_judged_timestamp-utc",
+            "answers_judged_git-hash",
+            "answers_judged_fallback_timestamp-utc",
+            "answers_judged_fallback_git-hash",
+        ]
+        for s in summaries:
+            entry: dict[str, str | None] = log_data.get(str(s.get("model", "")), {})
+            for field in log_fields:
+                s[field] = entry.get(field)
+        summary_df = pd.DataFrame(summaries)
         fallback_suffix = "_fallback" if judge_fallback else ""
         summary_name = (
             f"summary_linguistic-knowledge_{language}"

@@ -1,0 +1,6 @@
+model,accuracy,scored_count,unscored_count,accuracy_mc,accuracy_short_form,answers_timestamp-utc,answers_git-hash,answers_retry_timestamp-utc,answers_retry_git-hash,answers_judged_timestamp-utc,answers_judged_git-hash,answers_judged_fallback_timestamp-utc,answers_judged_fallback_git-hash
+claude-sonnet-4-6,83.33,126,0,95.59,68.97,2026-06-19T21:54:33.218312+00:00,1a01bf9,,,2026-06-19T22:09:23.692132+00:00,1a01bf9,,
+claude-haiku-4-5-20251001,69.35,124,2,86.36,50.0,2026-06-19T21:50:45.064640+00:00,1a01bf9,,,2026-06-19T21:55:18.751555+00:00,1a01bf9,2026-06-19T21:57:46.203832+00:00,1a01bf9
+gemini-3.1-flash-lite-preview,84.13,126,0,94.12,72.41,2026-06-19T21:55:53.538271+00:00,1a01bf9,,,2026-06-19T22:12:19.169348+00:00,1a01bf9,,
+gpt-4.1,87.3,126,0,94.12,79.31,2026-06-19T21:57:24.993974+00:00,1a01bf9,,,2026-06-19T22:15:10.174331+00:00,1a01bf9,,
+gpt-5.4-nano-2026-03-17,54.76,126,0,63.24,44.83,2026-06-19T21:58:49.874878+00:00,1a01bf9,,,2026-06-19T22:18:11.337045+00:00,1a01bf9,,

@@ -177,6 +177,8 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
 
+    monkeypatch.setattr(judge_bench, "git_hash", lambda: "judge123")
+
     df = judge_bench.judge_results(
         VALID_MODEL, language_name="Luganda", dataset_path=ds
     ).set_index("question_id")
@@ -206,6 +208,13 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
         / f"resps_{VALID_MODEL}_judged.csv"
     )
     assert out.exists()
+    # log.json written at run dir level
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    assert log_path.exists()
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert "answers_judged_timestamp-utc" in entry
+    assert entry["answers_judged_git-hash"] == "judge123"
+    assert "answers_judged_fallback_timestamp-utc" not in entry
 
 
 def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
@@ -302,6 +311,7 @@ def test_fallback_cache_hit(tmp_path, monkeypatch):
 
 def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(judge_bench, "git_hash", lambda: "fb123")
     judged = _judged_dir(tmp_path)
     pd.DataFrame(
         [
@@ -328,6 +338,10 @@ def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
         / f"resps_{VALID_MODEL}_judged.csv"
     )
     assert out.exists()
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert "answers_judged_fallback_timestamp-utc" in entry
+    assert entry["answers_judged_fallback_git-hash"] == "fb123"
 
 
 def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
@@ -402,7 +416,7 @@ def test_compute_summary_basic():
     assert summary["unscored_count"] == 1
     assert summary["accuracy"] == round(2 / 3 * 100, 2)
     assert summary["accuracy_mc"] == 50.0
-    assert summary["accuracy_true_false"] == 0.0  # all unscored
+    assert "accuracy_true_false" not in summary
 
 
 def test_compute_summary_uses_fallback_when_present():

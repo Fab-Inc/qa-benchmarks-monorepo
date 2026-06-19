@@ -1,5 +1,7 @@
 """Tests for run_bench: parsing, prompt building, dataset loading, run loop."""
 
+import json
+
 import pandas as pd
 import pytest
 from conftest import VALID_MODEL, FakeCaller, make_response, write_dataset
@@ -107,6 +109,7 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
     out = tmp_path / "out"
     caller = FakeCaller(make_response("B"))
     monkeypatch.setattr(run_bench, "get_caller", lambda _name: caller)
+    monkeypatch.setattr(run_bench, "git_hash", lambda: "abc1234")
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
@@ -124,6 +127,13 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
     assert df.loc[0, "expected_answers"] == "B"
     # fresh run: no retries
     assert list(df["retry_nb"]) == [0, 0, 0]
+    # log.json written at run dir level (parent of answers/)
+    log_path = out.parent / "log.json"
+    assert log_path.exists()
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert "answers_timestamp-utc" in entry
+    assert entry["answers_git-hash"] == "abc1234"
+    assert "answers_retry_timestamp-utc" not in entry
 
 
 def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
@@ -210,6 +220,7 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
     ).to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
     caller = FakeCaller(make_response("B"))
     monkeypatch.setattr(run_bench, "get_caller", lambda _name: caller)
+    monkeypatch.setattr(run_bench, "git_hash", lambda: "retry456")
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
@@ -225,6 +236,11 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
     assert df.loc[2, "output"] == "old"
     assert df.loc[2, "retry_nb"] == 0  # was already successful, untouched
     assert len(caller.calls) == 1
+    # retry run writes answers_retry_* fields, not answers_*
+    log_entry = json.loads((out.parent / "log.json").read_text())[VALID_MODEL]
+    assert "answers_retry_timestamp-utc" in log_entry
+    assert log_entry["answers_retry_git-hash"] == "retry456"
+    assert "answers_timestamp-utc" not in log_entry
 
 
 def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):

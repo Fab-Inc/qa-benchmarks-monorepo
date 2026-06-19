@@ -6,7 +6,9 @@ Supports multiple_choice, short_form, and true_false answer types.
 
 import json
 import re
+import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -116,18 +118,46 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
+def _run_dir(language_name: str, run_id: str | None = None) -> Path:
+    """Return the run directory for a language/run."""
+    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
+
+
 def _answers_dir(language_name: str, run_id: str | None = None) -> Path:
     """Return the answers directory for a language/run.
 
     Always writes under runs/; omitting run_id uses the 'default' run.
     """
-    return (
-        CACHE_BASE_DIR
-        / language_name.lower()
-        / "runs"
-        / (run_id or "default")
-        / "answers"
-    )
+    return _run_dir(language_name, run_id) / "answers"
+
+
+def git_hash() -> str | None:
+    """Return the short git hash of HEAD, or None (with a warning) if unavailable."""
+    import subprocess
+
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(BENCH_DIR),
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception as e:
+        print(f"WARNING: could not read git hash: {e}", file=sys.stderr)
+        return None
+
+
+def update_log(run_dir: Path, model_name: str, fields: dict[str, str | None]) -> None:
+    """Merge-write model provenance fields into log.json; skip None values."""
+    log_path = run_dir / "log.json"
+    log_data: dict = {}
+    if log_path.exists():
+        with open(log_path, encoding="utf-8") as _f:
+            log_data = json.load(_f)
+    entry = log_data.setdefault(model_name, {})
+    entry.update({k: v for k, v in fields.items() if v is not None})
+    with open(log_path, "w", encoding="utf-8") as _f:
+        json.dump(log_data, _f, indent=2)
 
 
 def _question_result_row(
@@ -199,6 +229,7 @@ def run_benchmark(
     if output_dir is None:
         output_dir = _answers_dir(language_name, run_id)
     output_dir = Path(output_dir)
+    run_dir = output_dir.parent
 
     # Validate model name
     if model_name not in EVAL_MODELS:
@@ -307,6 +338,15 @@ def run_benchmark(
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path = output_dir / f"resps_{model_name}.csv"
     results_df.to_csv(cache_path, index=False)
+    prefix = "answers_retry" if retry_errors else "answers"
+    update_log(
+        run_dir,
+        model_name,
+        {
+            f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),
+            f"{prefix}_git-hash": git_hash(),
+        },
+    )
     print(f"Results saved to {cache_path}")
     error_count = int(_error_mask(results_df).sum())
     if error_count > 0:

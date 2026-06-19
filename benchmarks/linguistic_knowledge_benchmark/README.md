@@ -37,12 +37,12 @@ The shared framework (domain + difficulty-level mapping) is language-agnostic. E
 language supplies its own components, all evaluated through the same English-medium
 prompts. Fill in a column as each language's components are finalized.
 
-| Component                              | Luganda                                  | Swahili                                  | English |
-| -------------------------------------- | ---------------------------------------- | ---------------------------------------- | ------- |
-| **Language key** (CLI `-l`)            | `luganda`                                | `swahili`                                | _TBD_   |
-| **Dataset file** (`data/`)             | `linguistic_knowledge_eval_luganda.json` | `linguistic_knowledge_eval_swahili.json` | _TBD_   |
-| **Question formats** (MCQ / TF / open) | _TBD_                                    | _TBD_                                    | _TBD_   |
-| **Status**                             | Active                                   | Active                                   | Planned |
+| Component                         | Luganda                                  | Swahili                                  | English |
+| --------------------------------- | ---------------------------------------- | ---------------------------------------- | ------- |
+| **Language key** (CLI `-l`)       | `luganda`                                | `swahili`                                | _TBD_   |
+| **Dataset file** (`data/`)        | `linguistic_knowledge_eval_luganda.json` | `linguistic_knowledge_eval_swahili.json` | _TBD_   |
+| **Question formats** (MCQ / open) | _TBD_                                    | _TBD_                                    | _TBD_   |
+| **Status**                        | Active                                   | Active                                   | Planned |
 
 Questions are written in English for every language (see above), so there is no
 per-language "question language" column.
@@ -86,17 +86,16 @@ the following structure:
 Short-form and true/false questions omit `options`. The `expected_answers` field is
 always a list (multiple acceptable answers are supported for `short_form`).
 
-There are two `answer_type`s, each scored differently (see
+There are two `answer_type`s in current datasets, each scored differently (see
 [Scoring](#how-answers-are-scored)):
 
 - `multiple_choice` (MCQ) — answer is a single letter `A`–`D`.
 - `short_form` (open) — answer is 1–3 words.
 
-> **Note:** this JSON schema is provisional and may change as the benchmark evolves.
-> What is fixed for now is the set of supported answer formats: the judge
-> ([`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)) currently
-> scores exactly these three — MCQ, true/false, and open (short-form). Any dataset must
-> use one of them per question.
+> **Note:** this JSON schema is provisional and may change as the benchmark evolves. The
+> judge ([`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)) supports
+> three answer formats — MCQ, true/false, and short-form — but current datasets use only
+> MCQ and short-form. Any dataset must use one of the three per question.
 
 ## Key components
 
@@ -122,6 +121,7 @@ benchmarks/linguistic_knowledge_benchmark/
     <language>/                      # e.g. luganda/, swahili/
       runs/
         default/                     # outputs when no --run-id is given
+          log.json                   # provenance: timestamp + git hash per model per stage
           answers/                   # stage 1: model answers, one CSV per model
             resps_<model>.csv
           answers_judged/            # stage 2: scored answers, one CSV per model
@@ -129,6 +129,7 @@ benchmarks/linguistic_knowledge_benchmark/
           answers_judged_fallback/   # stage 2 fallback (--judge-fallback only)
             resps_<model>_judged.csv
         <run-id>/                    # non-overwriting named or timestamped run
+          log.json
           answers/
           answers_judged/
   results/                           # final per-language summaries (tracked in git)
@@ -142,14 +143,20 @@ makes the filename machine-parseable into `{benchmark}_{language}_{run-id}[_{suf
 How outputs flow through the two stages:
 
 1. **`run-bench` → `cache/<language>/runs/<run-id>/answers/`** — each model's raw
-   answers are written to `resps_<model>.csv` (one row per question).
+   answers are written to `resps_<model>.csv` (one row per question). `log.json` is
+   updated with `answers_timestamp-utc` and `answers_git-hash` for that model (or the
+   `answers_retry_*` variants when `--retry-errors` is used).
 1. **`judge-bench` → `cache/<language>/runs/<run-id>/answers_judged/`** — those answers
    are scored and written to `resps_<model>_judged.csv` (the same rows plus `is_correct`
    / `justification`). With `--judge-fallback`, an extra `answers_judged_fallback/`
-   subfolder is produced for rescued MC/TF rows.
+   subfolder is produced for rescued MC/TF rows. `log.json` is updated with
+   `answers_judged_timestamp-utc` and `answers_judged_git-hash` (or the
+   `answers_judged_fallback_*` variants).
 1. **`judge-bench` → `results/`** — accuracy is aggregated across all judged models into
    `summary_linguistic-knowledge_<language>_<run-id>.csv`, with overall and
-   per-answer-type accuracy.
+   per-answer-type accuracy. The summary also includes all 8 provenance fields from
+   `log.json` so each row records exactly when and from which commit each model's
+   answers were produced.
 
 `cache/` holds reproducible run artifacts and is **gitignored**; `data/` and `results/`
 are tracked. Delete `cache/` any time to force a clean re-run (or use `--force`).
@@ -279,8 +286,8 @@ uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark j
 | Answer type       | Scoring method                                                                                                                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `multiple_choice` | Regex extracts the `A`–`D` letter (`parse_answer`) and compares to the expected letter. Unparseable answers are left `null` (unscored) until `--judge-fallback`. |
-| `true_false`      | Regex on the first word (`true`/`false`). Unparseable answers are left `null` until `--judge-fallback`.                                                          |
 | `short_form`      | An LLM judge compares the answer to the accepted `expected_answers`, accepting only capitalization/hyphen/spacing variations — no synonyms or paraphrases.       |
+| `true_false`      | Regex on the first word (`true`/`false`). Supported by the judge but not used in current datasets.                                                               |
 
 Accuracy is computed only over **scored** rows; missing model outputs and still-unparsed
 rows are reported as `unscored_count` rather than counted as wrong. When fallback
