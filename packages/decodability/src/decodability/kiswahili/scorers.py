@@ -46,12 +46,12 @@ def _get_primerpro_settings() -> Settings:
 
     for symbol, _ in KISWAHILI_CONSONANT_GPCS:
         consonant = Consonant(symbol)
-        consonant.uppercase = symbol.upper()
+        consonant.uppercase = symbol.capitalize()
         inventory.add_consonant(consonant)
 
     for symbol, _ in KISWAHILI_VOWEL_GPCS:
         vowel = Vowel(symbol)
-        vowel.uppercase = symbol.upper()
+        vowel.uppercase = symbol.capitalize()
         inventory.add_vowel(vowel)
 
     settings.grapheme_inventory = inventory
