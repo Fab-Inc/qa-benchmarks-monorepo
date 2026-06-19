@@ -48,6 +48,23 @@ def test_run_bench_rejects_unknown_model(runner: CliRunner) -> None:
     assert "not found" in result.output
 
 
+def test_run_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
+    result = runner.invoke(
+        cmd.app,
+        [
+            "run-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "luganda",
+            "--run-id",
+            "my_run",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "invalid" in result.output.lower()
+
+
 def test_run_bench_single_model_forwards_params(runner, monkeypatch) -> None:
     mock = MagicMock()
     monkeypatch.setattr(cmd, "run_benchmark", mock)
@@ -119,6 +136,8 @@ def test_run_bench_rejects_force_with_retry_errors(runner) -> None:
             "run-bench",
             "--model",
             VALID_MODEL,
+            "--language",
+            "luganda",
             "--force",
             "--retry-errors",
         ],
@@ -169,6 +188,23 @@ def test_judge_bench_rejects_unknown_model(runner: CliRunner) -> None:
     assert "not found" in result.output
 
 
+def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "luganda",
+            "--run-id",
+            "my_run",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "invalid" in result.output.lower()
+
+
 def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
@@ -177,7 +213,9 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
     )
     assert result.exit_code == 0
-    assert (tmp_path / "results" / "summary_linguistic_knowledge_luganda.csv").exists()
+    assert (
+        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+    ).exists()
 
 
 def test_judge_bench_run_id_writes_run_specific_summary(
@@ -203,7 +241,7 @@ def test_judge_bench_run_id_writes_run_specific_summary(
     assert "Run ID: run-123" in result.output
     assert judge.call_args.kwargs["run_id"] == "run-123"
     assert (
-        tmp_path / "results" / "summary_linguistic_knowledge_luganda_run-123.csv"
+        tmp_path / "results" / "summary_linguistic-knowledge_luganda_run-123.csv"
     ).exists()
 
 
@@ -235,7 +273,7 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
     )
     assert result.exit_code == 0
     fallback.assert_called_once()
-    name = "summary_linguistic_knowledge_luganda_fallback.csv"
+    name = "summary_linguistic-knowledge_luganda_default_fallback.csv"
     assert (tmp_path / "results" / name).exists()
 
 
@@ -248,7 +286,6 @@ def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> 
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
     )
     assert result.exit_code == 0
-    assert "SKIP" in result.output
     assert not (tmp_path / "results").exists()
 
 

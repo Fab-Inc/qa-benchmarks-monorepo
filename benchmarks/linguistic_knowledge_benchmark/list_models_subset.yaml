@@ -1,0 +1,13 @@
+# Models to evaluate. Add your own by:
+#   1. Adding an entry here (key = model ID, value = display name)
+#   2. Ensuring the model is defined in custom_models.yaml
+claude-sonnet-4-6: Claude Sonnet 4.6
+claude-haiku-4-5-20251001: Claude Haiku 4.5
+gemini-3.1-flash-lite-preview: Gemini 3.1 Flash Lite
+gpt-4.1: GPT-4.1
+gpt-5.4-nano-2026-03-17: GPT-5.4 Nano
+gemma-4-31b-it: Gemma 4 31B
+gemma-3-12b-it: Gemma 3 12B
+gemini-3.1-pro-preview: Gemini 3.1 Pro Preview
+ministral-3-8b-2512: Ministral 3 8B
+mistral-small-2603: Mistral Small

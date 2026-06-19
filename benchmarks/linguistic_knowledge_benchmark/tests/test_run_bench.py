@@ -50,8 +50,8 @@ def test_build_system_prompts_prefix_gives_language_context_for_all_types():
 # load_dataset
 # --------------------------------------------------------------------------- #
 def test_load_dataset_reads_json(tmp_path):
-    path = write_dataset(tmp_path / "ds.json", [{"id": 1}])
-    assert run_bench.load_dataset(path) == [{"id": 1}]
+    path = write_dataset(tmp_path / "ds.json", [{"question_id": 1}])
+    assert run_bench.load_dataset(path) == [{"question_id": 1}]
 
 
 def test_load_dataset_missing_file_raises(tmp_path):
@@ -77,7 +77,13 @@ def test_run_benchmark_cache_hit_returns_existing(tmp_path, monkeypatch):
     out = tmp_path / "out"
     out.mkdir()
     cached = pd.DataFrame(
-        [{"id": 1, "output": "A", "call_status": run_bench.CALL_STATUS_SUCCESS}]
+        [
+            {
+                "question_id": 1,
+                "output": "A",
+                "call_status": run_bench.CALL_STATUS_SUCCESS,
+            }
+        ]
     )
     cached.to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
 
@@ -116,6 +122,8 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
     assert (out / f"resps_{VALID_MODEL}.csv").exists()
     # expected_answers serialized with the pipe join
     assert df.loc[0, "expected_answers"] == "B"
+    # fresh run: no retries
+    assert list(df["retry_nb"]) == [0, 0, 0]
 
 
 def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
@@ -144,7 +152,7 @@ def test_run_benchmark_cache_with_errors_returns_existing(tmp_path):
     pd.DataFrame(
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "output": "",
                 "call_status": run_bench.CALL_STATUS_ERROR,
                 "error_type": "RuntimeError",
@@ -171,8 +179,8 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
     pd.DataFrame(
         [
             {
-                "id": 1,
-                "category": "morphology",
+                "question_id": 1,
+                "domain": "morphology",
                 "answer_type": "multiple_choice",
                 "expected_answers": "B",
                 "output": "",
@@ -185,8 +193,8 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
                 "error_message": "boom",
             },
             {
-                "id": 2,
-                "category": "vocabulary",
+                "question_id": 2,
+                "domain": "vocabulary",
                 "answer_type": "short_form",
                 "expected_answers": "kintu",
                 "output": "old",
@@ -209,11 +217,13 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
         dataset_path=ds,
         output_dir=out,
         retry_errors=True,
-    ).set_index("id")
+    ).set_index("question_id")
 
     assert df.loc[1, "output"] == "B"
     assert df.loc[1, "call_status"] == run_bench.CALL_STATUS_SUCCESS
+    assert df.loc[1, "retry_nb"] == 1  # was an error row, now retried once
     assert df.loc[2, "output"] == "old"
+    assert df.loc[2, "retry_nb"] == 0  # was already successful, untouched
     assert len(caller.calls) == 1
 
 
@@ -236,7 +246,7 @@ def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
 
 
 def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
-    """output_dir=None derives cache/cache_{language}/answers under CACHE_BASE_DIR."""
+    """output_dir=None derives cache/<language>/runs/default/answers."""
     from conftest import sample_questions
 
     monkeypatch.setattr(run_bench, "CACHE_BASE_DIR", tmp_path / "cache")
@@ -249,7 +259,13 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
         dataset_path=ds,
     )
     expected = (
-        tmp_path / "cache" / "cache_luganda" / "answers" / f"resps_{VALID_MODEL}.csv"
+        tmp_path
+        / "cache"
+        / "luganda"
+        / "runs"
+        / "default"
+        / "answers"
+        / f"resps_{VALID_MODEL}.csv"
     )
     assert expected.exists()
 
@@ -270,7 +286,7 @@ def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch
     expected = (
         tmp_path
         / "cache"
-        / "cache_luganda"
+        / "luganda"
         / "runs"
         / "run-123"
         / "answers"

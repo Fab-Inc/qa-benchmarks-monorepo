@@ -122,11 +122,11 @@ def score_true_false_regex(
 
 
 def _language_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the cache directory for a language/run."""
-    language_dir = CACHE_BASE_DIR / f"cache_{language_name.lower()}"
-    if run_id:
-        language_dir = language_dir / "runs" / run_id
-    return language_dir
+    """Return the run directory for a language/run.
+
+    Always resolves under runs/; omitting run_id uses the 'default' run.
+    """
+    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
 
 
 def score_with_llm_judge(
@@ -194,7 +194,8 @@ def judge_results(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if judged results exist
-        run_id: Optional non-overwriting run ID under cache_<language>/runs/
+        run_id: Optional run ID; reads/writes under <language>/runs/<run_id>/.
+            Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct and justification columns
@@ -237,7 +238,7 @@ def judge_results(
 
     # Load original dataset to get question text for judge prompts
     questions = load_dataset(dataset_path)
-    question_map = {q["id"]: q["question"] for q in questions}
+    question_map = {q["question_id"]: q["question"] for q in questions}
 
     # Score each row
     is_correct_list: list[bool | None] = []
@@ -251,7 +252,7 @@ def judge_results(
         output = row["output"]
         expected_answers = str(row["expected_answers"]).split("|")
         answer_type = row["answer_type"]
-        question_id = row["id"]
+        question_id = row["question_id"]
 
         if row.get("call_status") == "error":
             error_type = row.get("error_type", "")
@@ -352,7 +353,8 @@ def judge_results_fallback(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if fallback results exist
-        run_id: Optional non-overwriting run ID under cache_<language>/runs/
+        run_id: Optional run ID; reads/writes under <language>/runs/<run_id>/.
+            Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct_fallback and justification_fallback
@@ -364,11 +366,7 @@ def judge_results_fallback(
     # Read existing judged CSV
     input_path = input_dir / f"resps_{model_name}_judged.csv"
     if not input_path.exists():
-        raise FileNotFoundError(
-            f"No judged results for {model_name} at {input_path}. "
-            f"Run 'judge-bench --model {model_name} "
-            f"--language {language_name.lower()}' first."
-        )
+        raise FileNotFoundError(f"No result to judge for {model_name}. ")
 
     output_path = fallback_dir / f"resps_{model_name}_judged.csv"
     if not force and output_path.exists():
@@ -411,7 +409,7 @@ def judge_results_fallback(
 
     # Load questions for judge prompts
     questions = load_dataset(dataset_path)
-    question_map = {q["id"]: q["question"] for q in questions}
+    question_map = {q["question_id"]: q["question"] for q in questions}
 
     # Score only null MC/TF rows
     for idx in tqdm(
@@ -419,7 +417,7 @@ def judge_results_fallback(
         desc=f"Fallback judging {model_name}",
     ):
         row = df.loc[idx]
-        question_text = question_map.get(row["id"], "")
+        question_text = question_map.get(row["question_id"], "")
         expected_answers = str(row["expected_answers"]).split("|")
         result, justification = score_with_llm_judge(
             question_text,

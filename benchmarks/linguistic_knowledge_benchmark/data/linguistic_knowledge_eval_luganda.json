@@ -1,1202 +1,3028 @@
 [
   {
-    "id": "LUG_RET_001",
-    "category": "Phonics & Orthography",
-    "question": "According to the L/R rule in Luganda spelling, the letter 'l' changes to 'r' when it follows which two vowels? (A) a and o (B) e and i (C) u and a (D) o and u",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 93]",
-    "framework_tag": "SVR: Decoding (Orthographic Rules)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_002",
-    "category": "Morphology & Concord",
-    "question": "What is the plural prefix for nouns describing human beings (e.g. 'Omuntu')?",
+    "question_id": 1,
+    "domain": "D1",
+    "subdomain": "alphabet inventory",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["ba-", "aba-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 142]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Plurals)",
-    "proficiency_level": "CEFR: A1"
+    "question": "The Luganda alphabet (Walifu y'Oluganda) leaves out two letters that English uses. Which two letters are these?",
+    "expected_answers": [
+      "Q and X",
+      "q and x",
+      "X and Q",
+      "x and q"
+    ],
+    "linguistic_feature": "Luganda alphabet composition (no Q/X; Ŋŋ and ny/nny)",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1 The Alphabet",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:p2:Walifu y'Oluganda",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_003",
-    "category": "Phonics & Orthography",
-    "question": "How is the letter 'g' always pronounced in Luganda? (A) Soft (as in 'giant') (B) Silent (C) Aspirated (D) Hard (as in 'gold')",
+    "question_id": 2,
+    "domain": "D1",
+    "subdomain": "consonant digraphs / sound-letter mapping",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["D"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 77]",
-    "framework_tag": "SVR: Decoding (Phonics)",
-    "linguistic_feature": "Spelling Patterns",
-    "proficiency_level": "CEFR: A1"
+    "question": "In Luganda the digraph 'gy' is pronounced like the first sound of which English word?",
+    "options": {
+      "A": "job",
+      "B": "child",
+      "C": "give",
+      "D": "yes"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Palatal/affricate digraphs ki, ky, c, gi, gy",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1 The Alphabet",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_004",
-    "category": "Syntax & Grammar",
-    "question": "Which prefix is used to form the 'Near Future' tense (within 24 hours)? (A) -li- (B) -na- (C) -ka- (D) -ne-",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 343]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Tenses)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_005",
-    "category": "Morphology & Concord",
-    "question": "Which statement is true regarding nouns denoting animals (like 'Ngo')? (A) They always take the prefix 'ba-' (B) They change 'n' to 'z' in the plural (C) They have the same form for singular and plural in the prefix (D) They have no plural",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 160]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Number)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_006",
-    "category": "Phonics & Orthography",
-    "question": "When the letter 'n' is followed by 'p', 'b', or 'm', what does 'n' change into?",
+    "question_id": 3,
+    "domain": "D1",
+    "subdomain": "sound-letter mapping",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["m"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 112]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
+    "question": "How many distinct sounds do the written letters L and R stand for in Luganda?",
+    "expected_answers": [
+      "one",
+      "1",
+      "a single sound",
+      "one sound"
+    ],
+    "linguistic_feature": "No phonemic L/R distinction",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_007",
-    "category": "Phonological Awareness",
-    "question": "How many syllables are in the word 'Omuntu'?",
+    "question_id": 4,
+    "domain": "D1",
+    "subdomain": "gemination spelling",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "How is a geminate (doubled) consonant, such as the one in 'kkalaamu', shown in Luganda spelling?",
+    "options": {
+      "A": "with a following h after the consonant",
+      "B": "with a doubled consonant letter",
+      "C": "with an apostrophe before the consonant",
+      "D": "with a capital consonant letter"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Geminate consonants are written double",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p286:Luganda Letter-Sound Chart",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p272:Luganda Letter-Sound Chart",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p298:Luganda Letter-Sound Chart",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 5,
+    "domain": "D1",
+    "subdomain": "vowel-length spelling",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["3", "three"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 145]",
-    "framework_tag": "SVR: Decoding (Phonological Awareness)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: A1"
+    "question": "In the spelling of 'maama', how is the long vowel represented?",
+    "expected_answers": [
+      "doubled vowel",
+      "a doubled vowel",
+      "two vowels",
+      "doubling the vowel"
+    ],
+    "linguistic_feature": "Long vowels written with a doubled vowel letter",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p282:Glossary (vowel/consonant terms)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 1 Wiiki 4:Aa/aa letter page",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_008",
-    "category": "Vocabulary & Context",
-    "question": "What meaning does the verb affix '-mu' convey? (A) On top of (B) Outside (C) Before (D) Within/Inside",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["D"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Position/Location)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_009",
-    "category": "Syntax & Grammar",
-    "question": "How does the adjective 'buli' (every/all) differ syntactically from most other adjectives? (A) It follows the noun (B) It precedes the substantive it qualifies (C) It never takes an initial vowel (D) It is only used with human nouns",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Sentence Structure",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_010",
-    "category": "Syntax & Grammar",
-    "question": "Luganda lacks separate forms for comparative adjectives. Which verb is commonly used to express comparison? (A) Genda (B) Kola (C) Singa (D) Laba",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Comparisons)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_011",
-    "category": "Morphology & Concord",
-    "question": "What specific nuance does the prefix 'Ki-' convey in the word 'Kibuzi' compared to the standard 'Mbuzi'? (A) A very small goat (B) A dead goat (C) An augmentative force (Large or Heavy) (D) A herd of goats",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 282]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance/Size)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_012",
-    "category": "Morphology & Concord",
-    "question": "While 'Lu-' usually denotes length, what specific *negative* nuance does it convey when applied to animals (e.g. 'Lubuzi')? (A) It implies the animal is tall, thin, or of poor quality (B) It implies the animal is fierce (C) It implies the animal is young (D) It implies the animal is foreign",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 304]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_013",
-    "category": "Morphology & Concord",
-    "question": "The prefix 'Gu-' (Class IX) conveys what specific combined meaning when applied to nouns like 'Guntu'? (A) Royalty and power (B) Smallness and affection (C) Awkward or ugly size (D) Plurality and diversity",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 303]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance/Size)",
-    "proficiency_level": "CEFR: B2"
-  },
-  {
-    "id": "LUG_RET_014",
-    "category": "Phonics & Orthography",
-    "question": "Which rule is correct regarding the sound combination 'n + l'? (A) It becomes 'nd' (e.g. Ndagala) (B) It always remains 'nl' (C) It becomes 'mm' (D) It becomes 'ny'",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 108]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_015",
-    "category": "Syntax & Grammar",
-    "question": "When using the Pronominal Copula ('it is') with the 3rd person singular of Class 1 (e.g. 'He is the one'), which form is correct? (A) Gwe (B) Be (C) Ye (D) Lye",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Verbs 'To Be')",
-    "proficiency_level": "CEFR: B2"
-  },
-  {
-    "id": "LUG_RET_016",
-    "category": "Vocabulary & Context",
-    "question": "What is the meaning of the word 'Kasoli'? (A) Beans (B) Banana (C) Indian corn/Maize (D) Sweet potato",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 221]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_017",
-    "category": "Morphology & Concord",
-    "question": "What is the singular prefix for nouns that take 'bi-' in the plural (e.g. 'ebintu')?",
+    "question_id": 6,
+    "domain": "D1",
+    "subdomain": "syllable segmentation (spelling)",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["ki-", "eki-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 169]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Singular/Plural)",
-    "proficiency_level": "CEFR: A1"
+    "question": "Write the word 'abaana' divided into its decoding syllables, separated by hyphens.",
+    "expected_answers": [
+      "a-baa-na"
+    ],
+    "linguistic_feature": "Words segment into CV syllables",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:Term1 Wk2-3:New Letters / Letter Formation Phrase / Beat the Words",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_018",
-    "category": "Syntax & Grammar",
-    "question": "Form the 'Far Past' tense of the verb 'genda' (to go) for the 1st person singular ('I went' - long ago).",
-    "answer_type": "short_form",
-    "expected_answers": ["nagenda"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 568]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Tenses)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_019",
-    "category": "Phonological Awareness",
-    "question": "How many syllables are in the word 'Katonda'?",
-    "answer_type": "short_form",
-    "expected_answers": ["3", "three"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 149]",
-    "framework_tag": "SVR: Decoding (Phonological Awareness)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_020",
-    "category": "Morphology & Concord",
-    "question": "Verbs used as substantives (infinitives) usually start with which prefix?",
-    "answer_type": "short_form",
-    "expected_answers": ["ku-", "ok-", "oku-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 213]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Prefixes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_021",
-    "category": "Phonics & Orthography",
-    "question": "The sound 'ch' (as in 'church') does not exist in standard Luganda. Which letter combination is used to represent it in foreign loan words?",
-    "answer_type": "short_form",
-    "expected_answers": ["ky"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 123]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Patterns (Loanwords)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_022",
-    "category": "Morphology & Concord",
-    "question": "When converting the adjective stem '-lungi' (good) to agree with a Class 3 (N- class) noun, what phonological change occurs to the 'l'? (A) It becomes 'd' (B) It becomes 'n' (C) It disappears (D) It remains 'l'",
+    "question_id": 7,
+    "domain": "D1",
+    "subdomain": "consonant+glide spelling",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: B2"
+    "question": "In Luganda spelling, the sequence 'ky' in 'ekyoya' is treated as which kind of unit?",
+    "options": {
+      "A": "a long vowel",
+      "B": "two separate syllables",
+      "C": "a single onset unit",
+      "D": "a silent letter pair"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Consonant+glide units ky, mw, gw, by, bw",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 3 Wiiki 7-11:Ky/Mw/Gw/By/Bw/Mp pages",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_023",
-    "category": "Syntax & Grammar",
-    "question": "Which negative prefix combination is used to form the 'Not Yet' tense? (A) si-na- (or te-na-) (B) si-li- (C) ta-ka- (D) ne-ta-",
+    "question_id": 8,
+    "domain": "D1",
+    "subdomain": "spelling convention",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 346]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Negation)",
-    "proficiency_level": "CEFR: B1"
+    "question": "Although L and R are not separate sounds in Luganda, written R is used after which letters?",
+    "options": {
+      "A": "after a or o",
+      "B": "after the vowel u",
+      "C": "at the start of a word",
+      "D": "after i or e"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Written R is used after i or e",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_024",
-    "category": "Vocabulary & Context",
-    "question": "The word 'Vao' is derived from 'kuva' (to go out). When used as an interjection, what does it specifically imply? (A) Polite refusal (B) Contemptuous denial (Nonsense!) (C) Welcome (D) Surprise",
+    "question_id": 9,
+    "domain": "D1",
+    "subdomain": "gemination contrast (spelling)",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 7",
-    "framework_tag": "SVR: Language Comprehension (Pragmatics)",
-    "linguistic_feature": "Social Usage",
-    "proficiency_level": "CEFR: C2"
+    "question": "The word 'mubi' means 'a bad person'. With a doubled consonant, what does 'mubbi' mean?",
+    "options": {
+      "A": "thief",
+      "B": "smoke",
+      "C": "wife of",
+      "D": "to kill"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Single vs double consonant spelling distinguishes words",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_025",
-    "category": "Phonological Awareness",
-    "question": "Identify the number of syllables in the word 'Kabaka'.",
+    "question_id": 10,
+    "domain": "D1",
+    "subdomain": "vowel-length contrast (spelling)",
+    "grade": "G2",
     "answer_type": "short_form",
-    "expected_answers": ["3", "three"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 148]",
-    "framework_tag": "SVR: Decoding (Phonological Awareness)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: A1"
+    "question": "In Luganda verb spelling, a doubled (long) vowel such as 'aa' or 'ee' can mark which tense?",
+    "expected_answers": [
+      "past",
+      "past tense",
+      "the past",
+      "past simple"
+    ],
+    "linguistic_feature": "Single vs double vowel spelling marks meaning/tense",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268-269:Grammar Scope and Sequence (Sentence Structures T1 Wk4; T3 Wk11)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p266-267:Grammar Scope and Sequence (Sentence Structures T1 Wk6-8)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_026",
-    "category": "Morphology & Concord",
-    "question": "According to the Handbook, how is the Passive Present stem formed for verbs ending in '-la' or '-ra' (e.g., 'Bulira')? (A) Change '-a' to '-wa' (B) Change '-la' to '-ibwa' (C) Change '-a' to '-ika' (D) Change '-ra' to '-dwa'",
+    "question_id": 11,
+    "domain": "D1",
+    "subdomain": "apostrophe / elision spelling",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "When the conjunction 'ne' is joined to a following noun that begins with a vowel, which punctuation mark replaces the dropped e?",
+    "expected_answers": [
+      "apostrophe",
+      "an apostrophe",
+      "'"
+    ],
+    "linguistic_feature": "Apostrophe joins ne/ka to a following noun",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268-269:Grammar Scope and Sequence (Sentence Structures T1 Wk4; T3 Wk11)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p268-277:Mini-lesson Overview (#1 Capitalisation, #2 Commas, #3 End Punctuation)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 12,
+    "domain": "D1",
+    "subdomain": "nasal-spelling rule",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Passive Voice)",
-    "proficiency_level": "CEFR: B2"
+    "question": "The written form 'nnyiize' comes from the prefix n- plus a nasal-initial stem. In it, the prefix n- is written as:",
+    "options": {
+      "A": "m-",
+      "B": "nn-",
+      "C": "ng-",
+      "D": "ny-"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "n→nn / n→m place spelling before stems",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 1 Week 5 Day 2:n-/tu- prefixing",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_027",
-    "category": "Morphology & Concord",
-    "question": "The verb 'Manya' (know) has an irregular Perfect stem. What is it? (A) Manyide (B) Manyi (C) Manye (D) Manze",
+    "question_id": 13,
+    "domain": "D1",
+    "subdomain": "nasal place assimilation spelling (plural)",
+    "grade": "G3",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Irregular Verbs)",
-    "proficiency_level": "CEFR: B2"
+    "question": "The plural of 'lupapula' is written 'mpapula' (with m, not n) because the following sound is:",
+    "options": {
+      "A": "a",
+      "B": "l",
+      "C": "p",
+      "D": "u"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "lu-→n-/m- plural prefix spelling with place assimilation",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:lu-/n- plural tables",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_028",
-    "category": "Syntax & Grammar",
-    "question": "Translate 'He has not gone' (Perfect Negative, referring to a person).",
-    "answer_type": "short_form",
-    "expected_answers": ["tagenze"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 434]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Negation)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_029",
-    "category": "Morphology & Concord",
-    "question": "What is the singular prefix for nouns like 'Lusozi' (hill)?",
-    "answer_type": "short_form",
-    "expected_answers": ["lu-", "olu-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 177]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Prefixes)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_030",
-    "category": "Morphology & Concord",
-    "question": "Nouns in the 'Gu-' class often express clumsiness or largeness. What is their corresponding plural prefix? (A) Ba- (B) Gi- (C) Ga- (D) Zi-",
+    "question_id": 14,
+    "domain": "D1",
+    "subdomain": "capitalisation",
+    "grade": "G3",
     "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 199]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance/Size)",
-    "proficiency_level": "CEFR: B2"
+    "question": "In written Luganda, which words must begin with a capital letter?",
+    "options": {
+      "A": "every noun and every adjective used",
+      "B": "any word that follows a full stop",
+      "C": "the final word of every written line",
+      "D": "the first word of a sentence and proper nouns"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Capitalise sentence starts and proper nouns",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p268-277:Mini-lesson Overview (#1 Capitalisation, #2 Commas, #3 End Punctuation)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_031",
-    "category": "Morphology & Concord",
-    "question": "What is the plural prefix for diminutive nouns starting with 'ka-' (e.g., 'Kambe')?",
+    "question_id": 15,
+    "domain": "D1",
+    "subdomain": "punctuation: comma",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["bu-", "obu-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 185]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Diminutives)",
-    "proficiency_level": "CEFR: A2"
+    "question": "In Luganda writing, a comma separates items in a list of at least how many items?",
+    "expected_answers": [
+      "three",
+      "3",
+      "three or more"
+    ],
+    "linguistic_feature": "Comma in a series and around quotations",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p268-277:Mini-lesson Overview (#1 Capitalisation, #2 Commas, #3 End Punctuation)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_032",
-    "category": "Morphology & Concord",
-    "question": "The obsolete Class X ('Wantu') survives only in specific adverbial forms. Which of these is a Class X pronoun meaning 'here'? (A) Kuno (B) Wano (C) Muno (D) Luno",
+    "question_id": 16,
+    "domain": "D1",
+    "subdomain": "punctuation terminology (Luganda)",
+    "grade": "G4",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 205]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Location)",
-    "proficiency_level": "CEFR: B2"
+    "question": "The Luganda term 'akabonero akabuuza' names which punctuation mark?",
+    "options": {
+      "A": "question mark",
+      "B": "comma",
+      "C": "full stop",
+      "D": "exclamation mark"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Luganda names for punctuation marks",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze y'Omuyizi (punctuation terms)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_033",
-    "category": "Morphology & Concord",
-    "question": "The 'Gu-' prefix (Class IX) implies augmentative/pejorative meaning. If you change 'Muntu' (person) to 'Guntu', what does it specifically mean? (A) A small person (B) A giant (C) A king (D) A child",
+    "question_id": 17,
+    "domain": "D1",
+    "subdomain": "syllable blending/segmentation",
+    "grade": "G4",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 203]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance/Size)",
-    "proficiency_level": "CEFR: B2"
+    "question": "How is the word 'matwakaavu' segmented into syllables?",
+    "options": {
+      "A": "mat-wa-kaa-vu",
+      "B": "ma-twa-kaa-vu",
+      "C": "ma-twaa-ka-vu",
+      "D": "ma-tw-aka-vu"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Blend and segment multi-syllable words",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:Omulamwa 1 Wiiki 1:Okuzimba n'Okugattulula",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_034",
-    "category": "Syntax & Grammar",
-    "question": "Which form represents the 'Narrative Tense' negative? (A) Tekigenda (B) Netutagenda (C) Sitagenda (D) Temugenda",
+    "question_id": 18,
+    "domain": "D1",
+    "subdomain": "alphabetical order",
+    "grade": "G4",
+    "answer_type": "short_form",
+    "question": "Words in a Luganda dictionary are arranged following the order of what?",
+    "expected_answers": [
+      "Walifu",
+      "the Walifu",
+      "alphabet",
+      "the alphabet",
+      "Luganda alphabet"
+    ],
+    "linguistic_feature": "Alphabetical order follows the Walifu sequence",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:Olusoma 2:Enkuluze esengeka ebigambo (alphabetical order)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 19,
+    "domain": "D2",
+    "subdomain": "vowel length (phonemic)",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 364]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Negation)",
-    "proficiency_level": "CEFR: B2"
+    "question": "The verb 'okusula' means 'to spend the night'. With a long vowel, 'okusuula' means:",
+    "options": {
+      "A": "to send",
+      "B": "to name",
+      "C": "to throw away",
+      "D": "to pray"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Vowel length is contrastive",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1 The Alphabet",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_035",
-    "category": "Morphology & Concord",
-    "question": "What is the initial vowel for singular nouns starting with 'mu-' (human beings)?",
+    "question_id": 20,
+    "domain": "D2",
+    "subdomain": "vowel length (phonemic)",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["o-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 233]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Initial Vowels)",
-    "proficiency_level": "CEFR: A1"
+    "question": "The words 'okutuma' (to send) and 'okutuuma' (to name) differ in only one feature. What is it?",
+    "expected_answers": [
+      "vowel length",
+      "the vowel length",
+      "vowel-length",
+      "long vowel"
+    ],
+    "linguistic_feature": "Vowel length is contrastive",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_036",
-    "category": "Pedagogical Rules",
-    "question": "According to the Handbook, the initial vowel of a word is dropped after which specific conjunction? (A) Naye (B) Era (C) Si (D) Awo",
+    "question_id": 21,
+    "domain": "D2",
+    "subdomain": "tone",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "With respect to pitch, Luganda is classified as which type of language?",
+    "expected_answers": [
+      "tonal",
+      "a tonal language",
+      "tone language",
+      "tonal language"
+    ],
+    "linguistic_feature": "Luganda is a tonal language",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1 The Alphabet",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 22,
+    "domain": "D2",
+    "subdomain": "nasal contrast",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 257]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Spelling Rules (Sound Dropping)",
-    "proficiency_level": "CEFR: B1"
+    "question": "The single nasal sound written 'ŋ' contrasts in Luganda with which of these?",
+    "options": {
+      "A": "a long vowel",
+      "B": "a doubled 'kk'",
+      "C": "the glide 'ny'",
+      "D": "the cluster spelled 'ng'"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "ŋ contrasts with the cluster ŋg",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 3 Wiiki 3:Ŋ vs ng",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_037",
-    "category": "Morphology & Concord",
-    "question": "Identify the prepositional verb form of 'Kola' (to do).",
-    "answer_type": "short_form",
-    "expected_answers": ["Kolera"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Verb Extensions)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_038",
-    "category": "Syntax & Grammar",
-    "question": "What does the 'Narrative Tense' prefix 'ne-' express? (A) A future event (B) A conditional event (C) An event happening before another (D) One event happening after another",
+    "question_id": 23,
+    "domain": "D2",
+    "subdomain": "consonant length (phonemic)",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["D"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 338]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Tenses)",
-    "proficiency_level": "CEFR: B1"
+    "question": "The verb 'okuta' means 'to release'. With a doubled consonant, 'okutta' means:",
+    "options": {
+      "A": "to kill",
+      "B": "smoke",
+      "C": "wife of",
+      "D": "to fry"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Consonant gemination is contrastive",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:General Introduction to Luganda",
+        "tier": "other"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_039",
-    "category": "Syntax & Grammar",
-    "question": "What is the 'Far Future' negative form for the first person singular ('I shall not go' - distant)? (A) Sigenda (B) Sirigenda (C) Sijja kugenda (D) Saagenda",
+    "question_id": 24,
+    "domain": "D2",
+    "subdomain": "stress",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Besides vowel and consonant length, which suprasegmental feature must fall on the correct syllable to avoid changing a word's meaning?",
+    "expected_answers": [
+      "stress",
+      "word stress",
+      "stress placement"
+    ],
+    "linguistic_feature": "Stress placement affects meaning",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p1:Lesson 1",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 25,
+    "domain": "D2",
+    "subdomain": "vowel coalescence",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "When the two vowels meet across the morpheme boundary in 'be-erabira', they merge into a long vowel. Write the resulting spelled form.",
+    "expected_answers": [
+      "beerabira"
+    ],
+    "linguistic_feature": "Vowel coalescence at morpheme junctures",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 11 Day 4:beerabira",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 26,
+    "domain": "D2",
+    "subdomain": "vowel harmony (suffix)",
+    "grade": "G3",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 647]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Tenses)",
-    "proficiency_level": "CEFR: B2"
+    "question": "The applicative suffix is -ir- in 'kumira' but -er- in 'leetera'. What decides the choice between -ir- and -er-?",
+    "options": {
+      "A": "the tense of the verb",
+      "B": "the vowel of the verb stem",
+      "C": "the noun class of the subject",
+      "D": "the number of syllables"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Applicative/stative suffix vowel harmony",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 2:applicative -ir/-er tables",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_040",
-    "category": "Syntax & Grammar",
-    "question": "How is the Subjunctive Mood formed in Luganda? (A) Change final '-a' to '-e' (B) Prefix 'ka-' + stem (C) Add suffix '-nga' (D) Prefix 'ne-'",
+    "question_id": 27,
+    "domain": "D2",
+    "subdomain": "syllable",
+    "grade": "G4",
     "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 352]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Verb Moods)",
-    "proficiency_level": "CEFR: B1"
+    "question": "The Luganda metalinguistic term 'nnyingo' denotes which phonological unit?",
+    "options": {
+      "A": "a vowel",
+      "B": "a consonant",
+      "C": "a syllable",
+      "D": "a whole word"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Syllable (nnyingo) as a phonological unit",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p207:Enkuluze (nnyingo = syllable)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_041",
-    "category": "Syntax & Grammar",
-    "question": "In reported speech, the particle 'nti' performs a specific grammatical function. How is this function described? (A) It indicates a question mark (B) It indicates the past tense (C) It acts as inverted commas (quotation marks) (D) It is a pronoun for 'he said'",
+    "question_id": 28,
+    "domain": "D2",
+    "subdomain": "tone (scholarly)",
+    "grade": "beyond_primary",
     "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 9",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Sentence Structure (Quotations)",
-    "proficiency_level": "CEFR: B1"
+    "question": "Scholarly descriptions say Luganda permits one contour tone but not its mirror image. Which pair is correct?",
+    "options": {
+      "A": "a rising LH contour, but not a falling HL contour",
+      "B": "a level mid tone, but not a high tone",
+      "C": "a downstepped high, but not a low tone",
+      "D": "a falling HL contour, but not a rising LH contour"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Contour-tone constraints (HL, no LH; two moras)",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:pp9-14:Tone criterion; HTP",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
   },
   {
-    "id": "LUG_RET_042",
-    "category": "Syntax & Grammar",
-    "question": "Translate 'We have gone' (Perfect Tense).",
-    "answer_type": "short_form",
-    "expected_answers": ["tugenze"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 440]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Agreement)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_043",
-    "category": "Syntax & Grammar",
-    "question": "Which verb mood represents an action as a thought or wish?",
-    "answer_type": "short_form",
-    "expected_answers": ["Subjunctive"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 347]",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Grammar (Verb Moods)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_044",
-    "category": "Syntax & Grammar",
-    "question": "What is the negative form of the Infinitive 'kugenda'?",
-    "answer_type": "short_form",
-    "expected_answers": ["butagenda"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3 [cite: 786]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Negation)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_045",
-    "category": "Phonics & Orthography",
-    "question": "True or False: Luganda uses double vowels (aa, ee, ii, oo, uu) in standard writing to represent long sounds.",
-    "answer_type": "true_false",
-    "expected_answers": ["True"],
-    "rubric_id": "binary_match",
-    "source_ref": "Handbook of Luganda, Ch 10",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Patterns",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_046",
-    "category": "Phonics & Orthography",
-    "question": "When 'n' is followed by 'g', it sometimes becomes which combination?",
-    "answer_type": "short_form",
-    "expected_answers": ["ng'"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 115]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_047",
-    "category": "Vocabulary & Context",
-    "question": "Translate the idiomatic expression 'okundya ebigere' (literally: to eat my feet). (A) To run very fast (B) To wash my feet (C) To tread on my heels / follow closely (D) To dance well",
+    "question_id": 29,
+    "domain": "D2",
+    "subdomain": "phonological processes (scholarly)",
+    "grade": "beyond_primary",
     "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 8",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Figurative Language",
-    "proficiency_level": "CEFR: C1"
+    "question": "The process called Final Vowel Shortening does what to a long vowel?",
+    "options": {
+      "A": "shortens it in word-final position",
+      "B": "deletes it entirely",
+      "C": "lengthens it before an enclitic",
+      "D": "nasalises it"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Final Vowel Shortening and High Tone Plateauing",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:pp6-9:Quantity criterion",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
   },
   {
-    "id": "LUG_RET_048",
-    "category": "Vocabulary & Context",
-    "question": "What is the English translation for the noun 'Kawali'?",
+    "question_id": 30,
+    "domain": "D3",
+    "subdomain": "noun class system (cl.1/2)",
+    "grade": "G1",
     "answer_type": "short_form",
-    "expected_answers": ["Small-pox"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 221]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: B1"
+    "question": "The class 1 noun 'omuntu' (person) has which plural form?",
+    "expected_answers": [
+      "abantu"
+    ],
+    "linguistic_feature": "Class 1/2 omu-/aba- (people)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp13-15:The Noun; Class I",
+        "tier": "other"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 5 Day 2:omu-/aba-",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_049",
-    "category": "Phonics & Orthography",
-    "question": "Which letter is frequently interchanged with 'L' and 'R' in pronunciation?",
-    "answer_type": "short_form",
-    "expected_answers": ["D"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 117]",
-    "framework_tag": "SVR: Decoding (Phonological Awareness)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_050",
-    "category": "Phonological Awareness",
-    "question": "Identify the smallest meaningful unit of sound in a language.",
-    "answer_type": "short_form",
-    "expected_answers": ["Phoneme"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 66]",
-    "framework_tag": "SVR: Decoding (Phonemics)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_051",
-    "category": "Phonics & Orthography",
-    "question": "When 'n' is followed by 'w', what does the combination 'nw' become?",
-    "answer_type": "short_form",
-    "expected_answers": ["mp"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 116]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_052",
-    "category": "Phonics & Orthography",
-    "question": "How is the vowel 'i' pronounced in Luganda? (A) Like 'i' in 'bit' (B) Like 'ai' in 'aisle' (C) Like 'ee' in 'spleen' (D) Like 'i' in 'ice'",
+    "question_id": 31,
+    "domain": "D3",
+    "subdomain": "noun class system (cl.1/2)",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 78]",
-    "framework_tag": "SVR: Decoding (Phonics)",
-    "linguistic_feature": "Spelling Patterns",
-    "proficiency_level": "CEFR: A1"
+    "question": "Before a vowel, the class 1 prefix 'omu-' changes form. Which word shows this, meaning 'child'?",
+    "options": {
+      "A": "obana (omu- → oba-)",
+      "B": "omwana (omu- → omw-)",
+      "C": "omiana (omu- → omi-)",
+      "D": "ekiana (omu- → eki-)"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Class 1/2 omu-/aba- (people)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp13-15:The Noun; Class I",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_053",
-    "category": "Phonics & Orthography",
-    "question": "Is Luganda spelling completely phonetic (showing every minute difference)?",
-    "answer_type": "short_form",
-    "expected_answers": ["No"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 104]",
-    "framework_tag": "SVR: Decoding",
-    "linguistic_feature": "Spelling Rules",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_054",
-    "category": "Morphology & Concord",
-    "question": "What is the plural of the noun 'Ligwa' (thorn)?",
-    "answer_type": "short_form",
-    "expected_answers": ["Magwa"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 176]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Plurals)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_055",
-    "category": "Morphology & Concord",
-    "question": "Change the noun 'Mufumbiro' (cook) into its plural form.",
-    "answer_type": "short_form",
-    "expected_answers": ["Bafumbiro"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 147]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Plurals)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_056",
-    "category": "Syntax & Grammar",
-    "question": "Translate 'my book' (using 'Ekitabo') into Luganda. Provide the full phrase.",
-    "answer_type": "short_form",
-    "expected_answers": ["Ekitabo kyange"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Possessives)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_057",
-    "category": "Syntax & Grammar",
-    "question": "Translate 'our house' (using 'Enyumba') into Luganda. Provide the full phrase.",
-    "answer_type": "short_form",
-    "expected_answers": ["Enyumba yafe"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Possessives)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_058",
-    "category": "Syntax & Grammar",
-    "question": "Which demonstrative pronoun means 'this here' for nouns referring to people (like 'Omuntu')?",
-    "answer_type": "short_form",
-    "expected_answers": ["Ono"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Demonstratives)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_059",
-    "category": "Syntax & Grammar",
-    "question": "The reduplicated demonstrative 'zizino' is used for emphasis. Which class of nouns does it refer to? (A) Class V Plural (B) Class III Plural (C) Class I Plural (D) Class VII Plural",
+    "question_id": 32,
+    "domain": "D3",
+    "subdomain": "concord (subject/numeral)",
+    "grade": "G1",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Demonstratives)",
-    "proficiency_level": "CEFR: C2"
+    "question": "Which subject-agreement (concord) prefix does the noun 'abaana' control on its verb?",
+    "options": {
+      "A": "ka-",
+      "B": "zi-",
+      "C": "ba-",
+      "D": "gi-"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Plural noun controls ba-/zi-/ka- concord",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:Beat the Words:weekly decodable words",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 1 Wiiki 2-5:reading sentences",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_060",
-    "category": "Vocabulary & Context",
-    "question": "What kind of food is 'Gonja'? (A) Sweet potato (B) A kind of banana (C) Indian corn (D) A type of yam",
+    "question_id": 33,
+    "domain": "D3",
+    "subdomain": "noun class system (cl.4/8 etc.)",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 221]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A2"
+    "question": "The class III prefix 'en-' is written 'em-' before stems beginning with which sounds?",
+    "options": {
+      "A": "k or g",
+      "B": "s or z",
+      "C": "m or n",
+      "D": "b or p"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Class IV eki-/ebi-, Class V eri-/ama-, Class III en-/em-",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp16-22:Classes II-X",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_061",
-    "category": "Syntax & Grammar",
-    "question": "What is the variable preposition for singular nouns like 'Ente' (meaning 'of')?",
+    "question_id": 34,
+    "domain": "D3",
+    "subdomain": "pluralisation by prefix change",
+    "grade": "G2",
     "answer_type": "short_form",
-    "expected_answers": ["ya"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Prepositions)",
-    "proficiency_level": "CEFR: A2"
+    "question": "Forming the plural by changing ki- to bi-, the plural of 'kikopo' is:",
+    "expected_answers": [
+      "bikopo"
+    ],
+    "linguistic_feature": "Class 7/8 ki-→bi- plural",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268:Grammar Scope and Sequence - Word Structures",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:Term1 Wk1 Day5:Word Structure Review Answers (kikoola/bikoola, kikopo/bikopo)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:Term1 Wk1 Day5:Word Structure Assessment Test (kyalo->byalo, kyayi->byayi)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_062",
-    "category": "Pedagogical Rules",
-    "question": "In Luganda orthography, when a word ends in '-mu' (e.g. 'omulimu'), how is the final 'u' typically pronounced? (A) As a long vowel (B) It is pronounced 'w' (C) It is generally silent (not pronounced) (D) It is stressed",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 10",
-    "framework_tag": "SVR: Decoding (Pronunciation)",
-    "linguistic_feature": "Spelling Rules (Pronunciation)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_063",
-    "category": "Vocabulary & Context",
-    "question": "Which specific term is used for 'profuse thanks', typically addressed to the King or a judge while kneeling? (A) Kale (B) Kulika (C) Webale (D) Neyanze",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["D"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 7",
-    "framework_tag": "SVR: Language Comprehension (Pragmatics)",
-    "linguistic_feature": "Social Usage",
-    "proficiency_level": "CEFR: C2"
-  },
-  {
-    "id": "LUG_RET_064",
-    "category": "Syntax & Grammar",
-    "question": "What is the specific meaning of the 'Companion Class' pronoun 'Kinakyo'? (A) Its owner (B) Its companion (e.g. a book) (C) That thing over there (D) A small thing",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Grammar (Pronouns)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_065",
-    "category": "Syntax & Grammar",
-    "question": "Translate the distributive numeral phrase 'Kiña babirye'. (A) Two by two (Two at a time) (B) Twenty-two (C) Second (D) Two people",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 5",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Numerals)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_066",
-    "category": "Vocabulary & Context",
-    "question": "The term 'Lukwata' refers to a specific cultural entity. What is it? (A) A cooking pot (B) A royal drum (C) A type of sweet potato (D) A lake monster / spirit",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["D"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 144]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning (Cultural)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_067",
-    "category": "Vocabulary & Context",
-    "question": "What are the common Luganda words for 'No'? (A) Ye (B) Kale (C) Aa or Neda (D) Vao",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 7",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_068",
-    "category": "Morphology & Concord",
-    "question": "In derived verbs, which suffix is used to form the Reciprocal voice (expressing 'doing to one another', e.g. 'love one another')? (A) -ibwa (B) -ana or -agana (C) -ira (D) -sa",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Verb Extensions)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_069",
-    "category": "Morphology & Concord",
-    "question": "How is the Causative form of verbs ending in '-ka' (e.g., 'Fuka') usually formed? (A) -sa (B) -za (C) -ra (D) -ia",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Verb Extensions)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_070",
-    "category": "Vocabulary & Context",
-    "question": "What is the English translation for the time adverb 'Enkya'? (A) Tomorrow (B) Yesterday (C) Now (D) Later",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 7",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary (Time)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_071",
-    "category": "Vocabulary & Context",
-    "question": "What is the English translation for the time adverb 'Lero'? (A) Today (B) Tomorrow (C) Yesterday (D) Soon",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 7",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary (Time)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_072",
-    "category": "Phonics & Orthography",
-    "question": "In Luganda, consonants can be doubled to change meaning. What is the difference between 'mubi' and 'mubbi'? (A) mubi = thief, mubbi = bad person (B) mubi = bad person, mubbi = thief (C) Both mean the same thing (D) mubi = teacher, mubbi = student",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "A Luganda Grammar 2017, Chapter 3 (Orthography)",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules (Consonant Doubling)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_073",
-    "category": "Morphology & Concord",
-    "question": "What is the singular form of the augmentative noun 'Amantu' (giant)?",
+    "question_id": 35,
+    "domain": "D3",
+    "subdomain": "pluralisation by prefix change",
+    "grade": "G2",
     "answer_type": "short_form",
-    "expected_answers": ["Lintu"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 305]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Irregular)",
-    "proficiency_level": "CEFR: B1"
+    "question": "A class of nouns forms its plural by adding 'ma-' to the root. By this rule, what is the plural of 'ggi' (egg)?",
+    "expected_answers": [
+      "magi"
+    ],
+    "linguistic_feature": "Class 5/6 ø/ma- plural",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268:Grammar Scope and Sequence - Word Structures",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 1 Week 10 Day 2:ma-",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_074",
-    "category": "Syntax & Grammar",
-    "question": "Which adjective is used for 'self' when referring to singular persons (e.g. 'Nze ____')?",
-    "answer_type": "short_form",
-    "expected_answers": ["Mwene"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Grammar (Reflexive)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_075",
-    "category": "Syntax & Grammar",
-    "question": "What is the interrogative adjective stem for 'How many'?",
-    "answer_type": "short_form",
-    "expected_answers": ["-meka"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Questions)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_076",
-    "category": "Syntax & Grammar",
-    "question": "What is the interrogative pronoun/adjective for 'Who'?",
-    "answer_type": "short_form",
-    "expected_answers": ["Ani"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 4",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Grammar (Questions)",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_077",
-    "category": "Morphology & Concord",
-    "question": "What is the plural prefix for diminutive nouns starting with 'ka-' (e.g. 'Kambe')?",
-    "answer_type": "short_form",
-    "expected_answers": ["bu-", "obu-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 185]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Diminutives)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_078",
-    "category": "Morphology & Concord",
-    "question": "What is the prefix for nouns like 'Tulo' (sleep) or 'Tunyo' (little salt)?",
-    "answer_type": "short_form",
-    "expected_answers": ["tu-", "otu-"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 194]",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Nouns)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_079",
-    "category": "Phonological Awareness",
-    "question": "Does the word 'munda' (inside) contain a long or short vowel sound in its first syllable?",
-    "answer_type": "short_form",
-    "expected_answers": ["long"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 10 [cite: 108]",
-    "framework_tag": "SVR: Decoding (Phonological Awareness)",
-    "linguistic_feature": "Phonological Awareness",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_080",
-    "category": "Vocabulary & Context",
-    "question": "What does the word 'Tulo' mean?",
-    "answer_type": "short_form",
-    "expected_answers": ["Sleep"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 197]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_081",
-    "category": "Vocabulary & Context",
-    "question": "What does the word 'Kabaka' mean?",
-    "answer_type": "short_form",
-    "expected_answers": ["King"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 148]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_082",
-    "category": "Vocabulary & Context",
-    "question": "What does the word 'Katonda' mean?",
-    "answer_type": "short_form",
-    "expected_answers": ["God"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 149]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A1"
-  },
-  {
-    "id": "LUG_RET_083",
-    "category": "Vocabulary & Context",
-    "question": "What does the word 'Lubale' mean?",
-    "answer_type": "short_form",
-    "expected_answers": ["Demon"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 144]",
-    "framework_tag": "SVR: Language Comprehension (Vocabulary)",
-    "linguistic_feature": "Vocabulary Meaning",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_084",
-    "category": "Pedagogical Rules",
-    "question": "Does the initial vowel of a noun drop after the preposition 'mu' (in)? (A) No (B) Yes, always (C) Only for plurals (D) Only in negative sentences",
+    "question_id": 36,
+    "domain": "D3",
+    "subdomain": "augmentative/diminutive ka-/bu-",
+    "grade": "G2",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 257]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Spelling Rules (Sound Dropping)",
-    "proficiency_level": "CEFR: B1"
+    "question": "For 'small things', the diminutive singular prefix 'ka-' pairs with which plural prefix?",
+    "options": {
+      "A": "bu-",
+      "B": "ba-",
+      "C": "ma-",
+      "D": "mi-"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Augmentative/diminutive ka-/bu- pair",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 9 Day 2:ka-/bu-",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_085",
-    "category": "Pedagogical Rules",
-    "question": "Does the initial vowel drop after the adjective 'buli' (every)? (A) No (B) Yes (C) Only for proper nouns (D) Only for singular nouns",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 2 [cite: 257]",
-    "framework_tag": "SVR: Language Comprehension (Syntax)",
-    "linguistic_feature": "Spelling Rules (Sound Dropping)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_086",
-    "category": "Morphology & Concord",
-    "question": "What is the Perfect Tense stem of the verb 'kola' (do)?",
+    "question_id": 37,
+    "domain": "D3",
+    "subdomain": "associative concord",
+    "grade": "G2",
     "answer_type": "short_form",
-    "expected_answers": ["koze"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Verb Forms)",
-    "proficiency_level": "CEFR: A2"
+    "question": "The associative ('of') word agrees with its head noun. For 'kkiro' the singular associative is 'ya'; what is the plural associative form?",
+    "expected_answers": [
+      "za"
+    ],
+    "linguistic_feature": "Associative -a concord ya/za",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 8 Day 2:ya/za associative",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_087",
-    "category": "Morphology & Concord",
-    "question": "What is the Perfect Tense stem of the verb 'mala' (finish)?",
+    "question_id": 38,
+    "domain": "D3",
+    "subdomain": "adjective concord",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["maze"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Grammar (Verb Forms)",
-    "proficiency_level": "CEFR: A2"
+    "question": "The adjective root -nene ('big') is 'munene' with 'omusajja'. What is its form with 'ennyumba' (house)?",
+    "expected_answers": [
+      "enene"
+    ],
+    "linguistic_feature": "Adjective prefix varies by noun class",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp29-32:Adjectives",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_088",
-    "category": "Morphology & Concord",
-    "question": "What is the Passive stem of the verb 'Laba' (see)?",
+    "question_id": 39,
+    "domain": "D3",
+    "subdomain": "possessive concord",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["Labibwa"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Passive Voice)",
-    "proficiency_level": "CEFR: B1"
+    "question": "'my book' is 'ekitabo kyange'. How is 'my children' formed from 'abaana' plus the possessive 'my'?",
+    "expected_answers": [
+      "abaana bange",
+      "bange"
+    ],
+    "linguistic_feature": "Possessive -ange agrees by class",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp23-28:The Possessive",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_089",
-    "category": "Pedagogical Rules",
-    "question": "When a verb ends in '-ra' or '-la', which suffix is commonly used to form an adjective indicating a 'state of being' (e.g., 'nyikira' -> 'nyikivu')?",
+    "question_id": 40,
+    "domain": "D3",
+    "subdomain": "demonstrative formation",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["-vu"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Adjectives)",
-    "proficiency_level": "CEFR: B1"
+    "question": "A 'this/these' demonstrative is the class adjective-prefix added to '-no'. Give the class 8 (ebi-) form.",
+    "expected_answers": [
+      "bino"
+    ],
+    "linguistic_feature": "Demonstrative = class adjective-prefix + -no",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp61-62:Demonstrative Pronouns",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_090",
-    "category": "Phonics & Orthography",
-    "question": "According to the L/R rule in Luganda, the letter 'r' is used instead of 'l' only when it follows which two vowels? (A) a and u (B) e and i (C) o and a (D) u and i",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 93]",
-    "framework_tag": "SVR: Decoding (Orthographic Rules)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: A2"
-  },
-  {
-    "id": "LUG_RET_091",
-    "category": "Phonological Awareness",
-    "question": "Which of the following words changes meaning depending on whether the tone is high or low? (A) Kabaka (B) Kula (C) Kampala (D) Muntu",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["A"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 10 [cite: 2757]",
-    "framework_tag": "SVR: Language Comprehension (Phonology)",
-    "linguistic_feature": "Lexical Tone",
-    "proficiency_level": "CEFR: B2"
-  },
-  {
-    "id": "LUG_RET_092",
-    "category": "Phonological Awareness",
-    "question": "In the sentence 'Tugenda mu kibuga', how does the tone of 'Tugenda' change if it is a question? (A) The first syllable becomes low (B) The last vowel is dropped (C) The pitch rises on the final syllable (D) The pitch remains exactly the same",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["C"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 10 [cite: 2792]",
-    "framework_tag": "SVR: Language Comprehension (Prosody)",
-    "linguistic_feature": "Intonation (Questions)",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_093",
-    "category": "Phonics & Orthography",
-    "question": "True or False: In the Handbook's orthography, the letters 'i' and 'u' are never doubled (e.g. 'ii', 'uu') to represent long sounds, but only to represent two distinct syllables.",
-    "answer_type": "true_false",
-    "expected_answers": ["False"],
-    "rubric_id": "binary_match",
-    "source_ref": "Handbook of Luganda, Ch 10",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Rules",
-    "proficiency_level": "CEFR: C1"
-  },
-  {
-    "id": "LUG_RET_094",
-    "category": "Phonics & Orthography",
-    "question": "How is the foreign sound 'th' (as found in Swahili loanwords like 'Fetha' or 'Thahabu') represented when adopted into Luganda?",
+    "question_id": 41,
+    "domain": "D3",
+    "subdomain": "pluralisation by prefix change",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["z"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 129]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Loanword Spelling",
-    "proficiency_level": "CEFR: A2"
+    "question": "Changing the prefix mu- to mi-, the plural of 'muti' (tree) is:",
+    "expected_answers": [
+      "miti",
+      "emiti"
+    ],
+    "linguistic_feature": "Class 3/4 mu-→mi- plural",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:mu-/mi- table",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268:Grammar Scope and Sequence - Word Structures",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_095",
-    "category": "Phonics & Orthography",
-    "question": "When the prefix 'n' is followed by 'gy' (e.g. Ngyaze), what does the combination become? (A) mp (B) nj (C) ny (D) nz",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 114]",
-    "framework_tag": "SVR: Decoding (Orthographic Rules)",
-    "linguistic_feature": "Spelling Rules (Sound Changes)",
-    "proficiency_level": "CEFR: B1"
-  },
-  {
-    "id": "LUG_RET_096",
-    "category": "Phonics & Orthography",
-    "question": "Which letter combination is used to represent the 'ch' sound (as in 'Chai') in Luganda loanwords?",
+    "question_id": 42,
+    "domain": "D3",
+    "subdomain": "pluralisation by prefix change",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["ky"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 123]",
-    "framework_tag": "SVR: Decoding (Orthography)",
-    "linguistic_feature": "Spelling Patterns (Loanwords)",
-    "proficiency_level": "CEFR: A2"
+    "question": "Forming the class 11→10 plural by changing lu- to n-, the plural of 'lugoye' is:",
+    "expected_answers": [
+      "ngoye"
+    ],
+    "linguistic_feature": "Class 11/10 lu-→n-/m- plural",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:lu-/n- table",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_097",
-    "category": "Phonics & Orthography",
-    "question": "Luganda syllables must end in a vowel. How is the name 'Peter' written to accommodate this rule?",
+    "question_id": 43,
+    "domain": "D3",
+    "subdomain": "pluralisation by prefix change",
+    "grade": "G3",
     "answer_type": "short_form",
-    "expected_answers": ["Petero"],
-    "rubric_id": "exact_match",
-    "source_ref": "Handbook of Luganda, Ch 1 [cite: 135]",
-    "framework_tag": "SVR: Decoding (Syllable Structure)",
-    "linguistic_feature": "Sound Structure",
-    "proficiency_level": "CEFR: A2"
+    "question": "Class 9/10 animal nouns mark the plural by changing the singular prefix 'e-' to which prefix?",
+    "expected_answers": [
+      "zi-",
+      "zi"
+    ],
+    "linguistic_feature": "Class 9/10 e-→zi- concord/plural",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:lu-/n- table",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:Term1 Wk1 Day5:Word Structure Assessment Test (kyalo->byalo, kyayi->byayi)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_098",
-    "category": "Morphology & Concord",
-    "question": "Identify the 'Passive Voice' suffix used for verbs where the penultimate vowel is 'e' or 'o' (e.g. Leta). (A) -ibwa (B) -ebwa (C) -ira (D) -ika",
-    "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Grammar)",
-    "linguistic_feature": "Word Formation (Passive Voice)",
-    "proficiency_level": "CEFR: B2"
+    "question_id": 44,
+    "domain": "D3",
+    "subdomain": "diminutive derivation",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "A diminutive replaces a noun's class prefix with 'aka-'. What is the diminutive of 'ekiyungu'?",
+    "expected_answers": [
+      "akayungu"
+    ],
+    "linguistic_feature": "Diminutive derivation e-/eki-→aka-",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:e-/aka- diminutive table",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
   },
   {
-    "id": "LUG_RET_099",
-    "category": "Morphology & Concord",
-    "question": "What is the primary function of the 'Prepositional Verb' form (ending in -ira or -era)? (A) To do a thing intensely (B) To supply a verb with a prepositional meaning (for/to someone) (C) To cause a thing to be done (D) To do a thing reciprocally",
+    "question_id": 45,
+    "domain": "D3",
+    "subdomain": "possessive (impersonal 'of')",
+    "grade": "G4",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Word Formation (Verb Extensions)",
-    "proficiency_level": "CEFR: B2"
+    "question": "How is 'the man's child' (child of the man) expressed in Luganda?",
+    "options": {
+      "A": "omusajja w'omwana",
+      "B": "omwana w'omusajja",
+      "C": "omwana ye omusajja",
+      "D": "omwana omusajja"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Impersonal possessive -a 'of' with elision",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp24-26:strong possessive; impersonal possessive",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
   },
   {
-    "id": "LUG_RET_100",
-    "category": "Morphology & Concord",
-    "question": "The verb affix '-ko' (as in 'Ny'wako') is described as having what specific type of sense? (A) A completive sense (B) A partitive sense (C) A repetitive sense (D) A negative sense",
+    "question_id": 46,
+    "domain": "D3",
+    "subdomain": "grammatical terminology (noun/adjective)",
+    "grade": "G4",
     "answer_type": "multiple_choice",
-    "expected_answers": ["B"],
-    "rubric_id": "multiple_choice",
-    "source_ref": "Handbook of Luganda, Ch 3",
-    "framework_tag": "SVR: Language Comprehension (Semantics)",
-    "linguistic_feature": "Vocabulary (Nuance)",
-    "proficiency_level": "CEFR: C2"
+    "question": "In Luganda grammatical terminology, which term means 'noun'?",
+    "options": {
+      "A": "kikolwa",
+      "B": "nnakongezalinnya",
+      "C": "linnya",
+      "D": "nnyingo"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Noun = linnya; adjective = nnakongezalinnya",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p207-208:Enkuluze (linnya=noun, nnakongezalinnya=adjective)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 47,
+    "domain": "D3",
+    "subdomain": "numerals",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "The number 21 is 'Abiri mu emu' (twenty in one). By the same 'x mu x' pattern, 22 is:",
+    "options": {
+      "A": "Abiri na biri",
+      "B": "Biri mu abiri",
+      "C": "Kumi mu biri",
+      "D": "Abiri mu biri"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Higher tens 'x mu x'; numerals 1-5 inflect by class",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp70-72:Counting",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 48,
+    "domain": "D4",
+    "subdomain": "negation",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In the negative, the 1st-person-singular present prefix n- changes to which form, as in 'Simanyi' ('I don't know')?",
+    "options": {
+      "A": "si-",
+      "B": "ta-",
+      "C": "te-",
+      "D": "to-"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Negative subject prefix si- (1sg) and ta-/te-",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp4-5:Lessons 4-5",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 49,
+    "domain": "D4",
+    "subdomain": "imperative",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The singular command 'go!' (from okugenda) is which single word?",
+    "expected_answers": [
+      "Genda",
+      "genda"
+    ],
+    "linguistic_feature": "Imperative singular is the bare stem",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp4-5:Lessons 4-5",
+        "tier": "student_material"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p7:Lesson 7",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 50,
+    "domain": "D4",
+    "subdomain": "subject marking",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which prefix marks a third-person plural subject in the present, as in 'basoma' (they read)?",
+    "options": {
+      "A": "a-",
+      "B": "ba-",
+      "C": "tu-",
+      "D": "mu-"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "3sg a- / 3pl ba- subject markers",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 2 Wiiki 4:past-tense story",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 2 Wiiki 3:talina nsawo",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 51,
+    "domain": "D4",
+    "subdomain": "negation (imperative)",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "In the prohibitive 'Tompa' ('don't give me'), which prefix makes the command negative?",
+    "expected_answers": [
+      "to-",
+      "to",
+      "te-"
+    ],
+    "linguistic_feature": "Negative imperative te-/to- (prohibitive)",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p5:Lesson 5",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 52,
+    "domain": "D4",
+    "subdomain": "aspect (perfect vs present)",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "'Sitegeera' means 'I don't understand'. Which form means 'I have not understood'?",
+    "options": {
+      "A": "Ntegeera",
+      "B": "Sitegeera",
+      "C": "Sitegedde",
+      "D": "Tetegeera"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Modified-stem perfect vs simple present",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p5:Lesson 5",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 53,
+    "domain": "D4",
+    "subdomain": "subjunctive",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "The subjunctive changes the verb's final vowel from -a to -e. Write the subjunctive of 'batambula'.",
+    "expected_answers": [
+      "batambule"
+    ],
+    "linguistic_feature": "Subjunctive suffix -e",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 1 Week 7 Day 2:subjunctive -e",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 54,
+    "domain": "D4",
+    "subdomain": "tense (past)",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Marking the past by inserting a long 'aa', the verb 'bazannya' (they play) becomes:",
+    "expected_answers": [
+      "baazannya"
+    ],
+    "linguistic_feature": "Past tense with -a-/-aa- (and ya-)",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 1 Week 3 Day 2:a-/ba-",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 55,
+    "domain": "D4",
+    "subdomain": "tense (future)",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Besides the infix -li-, Luganda commonly marks the future with auxiliary verbs. Which set are these?",
+    "options": {
+      "A": "nze, ggwe, ye, ffe",
+      "B": "si-, ta-, te-, to-",
+      "C": "-ira, -era, -za, -ula",
+      "D": "nja, ojja, ajja, tujja"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Future with -li- and with auxiliaries (n)ja",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 6 Day 2:future -li-",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 56,
+    "domain": "D4",
+    "subdomain": "valency: passive",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "The passive of 'zaala', made by adding -ibwa to the root, is:",
+    "expected_answers": [
+      "zaalibwa"
+    ],
+    "linguistic_feature": "Passive extension -ibwa",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 11 Day 2:passive -ibwa",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 57,
+    "domain": "D4",
+    "subdomain": "valency: applicative",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Add the applicative/directional suffix -ira to 'babuuka' and write the resulting verb.",
+    "expected_answers": [
+      "babuukira"
+    ],
+    "linguistic_feature": "Applicative/direction suffix -ira/-ra",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 11 Day 2:applicative -ira",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 58,
+    "domain": "D4",
+    "subdomain": "deverbal noun: agentive",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "The agent noun 'singer', formed from the verb 'sing' with the mu-…-i pattern, is:",
+    "expected_answers": [
+      "muyimbi",
+      "omuyimbi"
+    ],
+    "linguistic_feature": "Agentive noun mu-…-i",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 10 Day 2:agentive mu-…-i",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 59,
+    "domain": "D4",
+    "subdomain": "valency: applicative/prepositional",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "By vowel harmony a stem with 'e' or 'o' takes -er- rather than -ir-. Write the prepositional/applicative form of 'leeta' (bring).",
+    "expected_answers": [
+      "leetera"
+    ],
+    "linguistic_feature": "Applicative/prepositional -ir-/-er- + final -a",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p266:Grammar Scope and Sequence - Word Structures",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 2:applicative table",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 60,
+    "domain": "D4",
+    "subdomain": "aspect: reduplication",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Reduplicating the root of 'buuka' to mean an action done repeatedly is which form?",
+    "expected_answers": [
+      "buukabuuka"
+    ],
+    "linguistic_feature": "Verb-root reduplication for repeated/attenuated action",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 2:reduplication table",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 61,
+    "domain": "D4",
+    "subdomain": "valency: stative/neuter",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Using the stative/neuter infix -ek-, write the stative form of 'kikola'.",
+    "expected_answers": [
+      "kikoleka"
+    ],
+    "linguistic_feature": "Stative/potential -ek-/-ik- forming adjectivals",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 3:stative -ek/-ik tables",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 62,
+    "domain": "D4",
+    "subdomain": "negation (past)",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the negative past of 'yagula' ('he bought').",
+    "expected_answers": [
+      "teyagula"
+    ],
+    "linguistic_feature": "Negative past te-ya- and prohibitive to-",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 2:te-ya- table",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 63,
+    "domain": "D4",
+    "subdomain": "tense (past) / imperative",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "The plural command 'go!' (to more than one person) is built from the 2nd-plural subjunctive of okugenda. Write it.",
+    "expected_answers": [
+      "Mugende",
+      "mugende"
+    ],
+    "linguistic_feature": "Distant past -a-; imperative singular/plural",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp56-58:The Imperative",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 64,
+    "domain": "D4",
+    "subdomain": "derivation: causative/reciprocal/reversive",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "The reversive changes final -a to -ula and reverses the meaning. Write the reversive of 'ggala' (to shut), meaning 'to open'.",
+    "expected_answers": [
+      "ggula",
+      "okuggula"
+    ],
+    "linguistic_feature": "Causative -za, reciprocal -gana, reversive -ula",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp58-66:Reversive; Causative",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 65,
+    "domain": "D4",
+    "subdomain": "morphophonemics / conditional",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "In the first-person singular, a nasalised stem-initial 'l' changes to which consonant, as in 'laba' → 'ndaba'?",
+    "options": {
+      "A": "d",
+      "B": "b",
+      "C": "z",
+      "D": "g"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Irregular 1sg (l→d, w→mp) and the conditional -andi-",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp10-12:Irregular first person singular",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 66,
+    "domain": "D5",
+    "subdomain": "word order (SVO)",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In 'Abaana basoma ebitabo' ('the children read books'), the basic word order is:",
+    "options": {
+      "A": "Verb–Subject–Object",
+      "B": "Subject–Verb–Object",
+      "C": "Object–Verb–Subject",
+      "D": "Subject–Object–Verb"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Basic SVO order and imperative clause",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:Term1 Wk2:Sentence Assessment / Thematic Question",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 1 Wiiki 2-3:reading sentences",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 67,
+    "domain": "D5",
+    "subdomain": "copular/verbless clause",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "'Kino kitabo' means 'This is a book' but has no word for 'is'. Such an equational clause lacks an overt what?",
+    "expected_answers": [
+      "copula",
+      "a copula",
+      "verb to be",
+      "the copula"
+    ],
+    "linguistic_feature": "Verbless copular sentence",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 1 Wiiki 2-3:reading sentences",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 68,
+    "domain": "D5",
+    "subdomain": "locative phrases",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which two prepositions express basic location ('in'/'on'), as in 'mu nnyumba' and 'ku kitabo'?",
+    "options": {
+      "A": "ne and na",
+      "B": "wa and wo",
+      "C": "mu and ku",
+      "D": "ya and za"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Locatives with mu/ku",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Pupil_Book_Print_Ready_File_Oct_24.pdf:Olusoma 1 Wiiki 2-3:reading sentences",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 69,
+    "domain": "D5",
+    "subdomain": "interrogatives (wh-words)",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "The Luganda question word 'lwaki' asks for which of the following?",
+    "options": {
+      "A": "a place ('where')",
+      "B": "a time ('when')",
+      "C": "a thing ('what')",
+      "D": "a reason ('why')"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Wh-words wa, ki, ddi, lwaki",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp7-8,10:Lessons 7,10",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 70,
+    "domain": "D5",
+    "subdomain": "yes/no questions",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "How does a Luganda yes/no question differ from the matching statement, e.g. 'Asamba mupiira' → 'Asamba mupiira?'",
+    "options": {
+      "A": "by moving the verb to the front of the clause",
+      "B": "by adding a special question word at the end",
+      "C": "only by its intonation when it is spoken",
+      "D": "by changing the subject prefix on the verb"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Yes/no question by intonation only",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p41:Questions",
+        "tier": "other"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 1 Week 1 Day 4:statement/question",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 71,
+    "domain": "D5",
+    "subdomain": "object placement",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "In 'Omusajja alaba omukazi' ('the man sees the woman'), where does the full-noun object 'omukazi' stand relative to the verb?",
+    "expected_answers": [
+      "after the verb",
+      "after",
+      "following the verb",
+      "after it"
+    ],
+    "linguistic_feature": "Specifically-mentioned object follows the verb",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p39:Objects",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 72,
+    "domain": "D5",
+    "subdomain": "sentence-type transformation",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which word turns a statement into an exclamation, as in 'Nga mulungi!' ('How handsome!')?",
+    "options": {
+      "A": "ki",
+      "B": "nga",
+      "C": "wa",
+      "D": "nti"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Declarative → exclamative with nga…!",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 3 Day 4:exclamative nga…!",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 73,
+    "domain": "D5",
+    "subdomain": "agreement / addressee number",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "'Olina' means 'you (singular) have'. What is the form for 'you (plural) have'?",
+    "expected_answers": [
+      "Mulina",
+      "mulina"
+    ],
+    "linguistic_feature": "2sg vs 2pl addressee (Olina vs Mulina)",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 4 Day 4:Olina/Mulina",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p269:Grammar Scope and Sequence - Sentence Structures",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 74,
+    "domain": "D5",
+    "subdomain": "conditional clauses",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which word introduces a conditional ('if') clause in Luganda?",
+    "options": {
+      "A": "Naye",
+      "B": "Kubanga",
+      "C": "Ssinga",
+      "D": "Nti"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Conditional with Ssinga and Bw'o-",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 5 Day 4:Ssinga conditional",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 75,
+    "domain": "D5",
+    "subdomain": "clause coordination/subordination",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "The conjunction 'kubanga' joins clauses to express which relationship?",
+    "options": {
+      "A": "but (contrast)",
+      "B": "and (addition)",
+      "C": "if (condition)",
+      "D": "because (reason)"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Conjunctions ne, naye, kubanga; conditionals",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p267:Grammar Scope and Sequence - Sentence Structures",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 76,
+    "domain": "D5",
+    "subdomain": "reported speech",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Which word introduces a quotation (direct/reported speech) in Luganda?",
+    "expected_answers": [
+      "nti"
+    ],
+    "linguistic_feature": "Direct speech with nti + quotation marks",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p267:Grammar Scope and Sequence - Sentence Structures",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 8 Day 4:nti vs quotation",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 77,
+    "domain": "D5",
+    "subdomain": "comparison",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Comparison ('more than') is built on which verb, literally meaning 'to exceed'?",
+    "options": {
+      "A": "okusinga",
+      "B": "okulaba",
+      "C": "okugenda",
+      "D": "okukola"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Comparison with the verb okusinga",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp33-37:Comparison",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 78,
+    "domain": "D5",
+    "subdomain": "relative clauses",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In 'Omusajja gwe anyamba ennyo agenze' ('the man who helps me a lot left'), which word is the relative marker ('who')?",
+    "options": {
+      "A": "nti",
+      "B": "gwe",
+      "C": "nga",
+      "D": "oba"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Relative clause by clause-continuation or gwe",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp44-46:Relative pronouns",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 79,
+    "domain": "D5",
+    "subdomain": "object incorporation",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In 'Ndaba omusajja, omulaba?' ('I see the man, do you see him?'), how is 'him' expressed?",
+    "options": {
+      "A": "as a separate word after the verb",
+      "B": "by repeating the full noun",
+      "C": "as a prefix inside the verb (omulaba)",
+      "D": "by intonation alone"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Anaphoric object becomes a verb prefix",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp39-41:anaphoric object",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 80,
+    "domain": "D5",
+    "subdomain": "relative clauses (past)",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "A past-tense relative clause adds an extra vowel before the verb. The plain past 'yafumba' becomes which relative form?",
+    "expected_answers": [
+      "eyafumba"
+    ],
+    "linguistic_feature": "Past relative adds an extra pre-verb vowel",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p45:Past tense relative",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 81,
+    "domain": "D5",
+    "subdomain": "subjunctive / complementation",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which word is the complementiser 'whether', as in 'I don't know whether he is coming'?",
+    "options": {
+      "A": "nti",
+      "B": "nga",
+      "C": "gwe",
+      "D": "oba"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Permission subjunctive ka- and 'whether' oba",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p46:whether 'oba'",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 82,
+    "domain": "D6",
+    "subdomain": "core vocabulary by domain",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "What does the Luganda word 'weebale' mean?",
+    "options": {
+      "A": "thank you",
+      "B": "goodbye",
+      "C": "sorry",
+      "D": "welcome"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Greeting, food/drink and travel vocabulary",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp5-7:Lessons 5-7",
+        "tier": "student_material"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp7-8,12:Lessons 7-8,12",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 83,
+    "domain": "D6",
+    "subdomain": "noun vocabulary (glossed)",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "What does the noun 'enkoko' mean?",
+    "options": {
+      "A": "cow",
+      "B": "chicken",
+      "C": "goat",
+      "D": "egg"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Glossed nouns by class (people, kin, food, body)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp14-22:noun lists by class",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 84,
+    "domain": "D6",
+    "subdomain": "noun vocabulary (glossed)",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The noun 'omutwe' refers to which body part?",
+    "expected_answers": [
+      "head",
+      "the head"
+    ],
+    "linguistic_feature": "Glossed nouns by class (people, kin, food, body)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp14-22:noun lists by class",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 85,
+    "domain": "D6",
+    "subdomain": "thematic vocabulary",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The Luganda technical literacy term 'ennukuta' means:",
+    "options": {
+      "A": "a letter of the alphabet",
+      "B": "a syllable of a word",
+      "C": "a single spoken word",
+      "D": "a full sentence"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Themed key words and technical literacy terms",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p286:Letter-Sound Chart glosses",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p74:Luganda Technical Literacy Terms",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 86,
+    "domain": "D6",
+    "subdomain": "adverbs/intensifiers",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Which Luganda word means 'very' and intensifies an adjective or verb?",
+    "expected_answers": [
+      "nnyo"
+    ],
+    "linguistic_feature": "Adverb bulungi and intensifier nnyo",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p269:Grammar Scope and Sequence (bulungi, nnyo)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 87,
+    "domain": "D6",
+    "subdomain": "adjectives expressed as verbs",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "The property 'delicious' ('okuwooma') is expressed in Luganda by which kind of word?",
+    "options": {
+      "A": "a noun",
+      "B": "a preposition",
+      "C": "a conjunction",
+      "D": "a verb"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Many English adjectives are Luganda verbs",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p30:adjectives as verbs",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 88,
+    "domain": "D6",
+    "subdomain": "adjectives expressed as verbs",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "The word 'amaalo' (backwardness) derives from which noun meaning 'village'?",
+    "expected_answers": [
+      "ekyaalo",
+      "kyaalo"
+    ],
+    "linguistic_feature": "Many English adjectives are Luganda verbs",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p4:cultural lexicon",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 89,
+    "domain": "D6",
+    "subdomain": "monolingual definition / polysemy",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "The Luganda word 'maserengeta' refers to which compass direction?",
+    "options": {
+      "A": "south",
+      "B": "north",
+      "C": "east",
+      "D": "west"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Definitions, polysemy and domain lexis",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 1 Wiiki 1:Okunnyonnyola ebigambo ebiggya",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 1 Wiiki 2:Okunnyonnyola (oluyombo polysemy)",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 1 Wiiki 4:Okunnyonnyola (landa, omubazzi)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 90,
+    "domain": "D6",
+    "subdomain": "sense relations / 'to be of'",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "The phrase 'kya bbeeyi' (literally 'of price') is used to mean:",
+    "options": {
+      "A": "special",
+      "B": "expensive",
+      "C": "important",
+      "D": "cheap"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "'To be of' adjectival phrases (kya …)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp31-32:'To be of'",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 91,
+    "domain": "D6",
+    "subdomain": "sense relations / 'to be of'",
+    "grade": "G4",
+    "answer_type": "short_form",
+    "question": "The phrase 'kya makulu' (literally 'of significance') expresses which property?",
+    "expected_answers": [
+      "important"
+    ],
+    "linguistic_feature": "'To be of' adjectival phrases (kya …)",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp31-32:'To be of'",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 92,
+    "domain": "D6",
+    "subdomain": "sense relations / figurative",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In the P4 metalanguage, 'kugeraageranya' names which figure of speech?",
+    "options": {
+      "A": "synonym",
+      "B": "antonym",
+      "C": "simile",
+      "D": "metaphor"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Synonyms, antonyms, simile, context clues",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze (synonyms, antonyms, simile)",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze y'Omuyizi ey'Ennimi Ebbiri",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 93,
+    "domain": "D6",
+    "subdomain": "lexicon (scholarly)",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "The compound 'mulya-matooke' is built from a verb plus a noun and means:",
+    "options": {
+      "A": "a kind of tree",
+      "B": "a small head",
+      "C": "a delinquent debtor",
+      "D": "plantain-eater"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Compounds and proverb-derived names",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:pp4-5:(16)-(17)",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 94,
+    "domain": "D7",
+    "subdomain": "greeting routines",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The greeting 'Gyebaleko' (thanks for your work) is typically answered with:",
+    "options": {
+      "A": "Kale naawe gyebale",
+      "B": "Gyendi",
+      "C": "Weeraba",
+      "D": "Nedda"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Greeting-response adjacency pairs and thanking-for-work",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp2-3:Lessons 2-3",
+        "tier": "student_material"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p3:Informal Greetings",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 95,
+    "domain": "D7",
+    "subdomain": "greeting routines",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The informal greeting 'Oli otya?' is answered with which one-word reply meaning 'I am fine'?",
+    "expected_answers": [
+      "Gyendi",
+      "gyendi"
+    ],
+    "linguistic_feature": "Greeting-response adjacency pairs and thanking-for-work",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp2-3:Lessons 2-3",
+        "tier": "student_material"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p3:Informal Greetings",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 96,
+    "domain": "D7",
+    "subdomain": "narrative structure",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The Luganda term 'omutwe gw'emboozi' refers to which part of a folktale?",
+    "expected_answers": [
+      "title",
+      "the title"
+    ],
+    "linguistic_feature": "Folktale title and plot parts; retelling",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:Oral Literature weekly:Story Outline/Ekinyusi",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p282:Glossary (title, action/plot, retelling)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 97,
+    "domain": "D7",
+    "subdomain": "discourse / comprehension",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Comprehension questions are split into 'in-the-text' and 'in-my-mind' types. An 'in-my-mind' question is one whose answer:",
+    "options": {
+      "A": "is copied word-for-word from the text",
+      "B": "is inferred and not stated directly in the text",
+      "C": "asks for the story's title",
+      "D": "requires translating the text"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "In-the-text vs in-my-mind questions; retell/predict",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:weekly Oral Literature:Story Outline / In the Text & In My Mind Questions",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 98,
+    "domain": "D7",
+    "subdomain": "reported vs direct speech",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which device marks reported (indirect) speech rather than a direct quotation?",
+    "options": {
+      "A": "a pair of quotation marks",
+      "B": "a comma",
+      "C": "the word nti",
+      "D": "an exclamation mark"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Reported speech with nti vs direct quotation",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p269:Sentence Structures (quotation marks, comma)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 8 Day 4:nti vs quotation",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 99,
+    "domain": "D7",
+    "subdomain": "reference / discourse deixis",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "When the preposition 'ku' precedes the subject/object, the demonstrative 'kuliko' replaces which word?",
+    "expected_answers": [
+      "ziri"
+    ],
+    "linguistic_feature": "Demonstratives track and contrast referents; kuliko shift",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p267:Sentence Structures (demonstratives, kuliko/ziri, nti)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 100,
+    "domain": "D7",
+    "subdomain": "pronoun-dropping / deixis",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "The demonstrative 'ono' refers to a near/present person. Which form refers to a distant or absent person?",
+    "options": {
+      "A": "bano",
+      "B": "kino",
+      "C": "ono",
+      "D": "oyo"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Independent pronouns for emphasis; ono vs oyo deixis",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p61:Demonstrative Pronouns",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 101,
+    "domain": "D7",
+    "subdomain": "pronoun-dropping / deixis",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Independent personal pronouns (nze, ggwe, ye) are usually dropped and kept mainly for what purpose?",
+    "expected_answers": [
+      "emphasis",
+      "for emphasis",
+      "emphasising",
+      "stress",
+      "emphasis/stress"
+    ],
+    "linguistic_feature": "Independent pronouns for emphasis; ono vs oyo deixis",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p6:Independent personal pronouns",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 102,
+    "domain": "D7",
+    "subdomain": "text-structure terminology",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In the P4 discourse terminology, 'nsibuko n'ebivaamu' names which relationship?",
+    "options": {
+      "A": "cause and effect",
+      "B": "main idea",
+      "C": "topic",
+      "D": "prediction"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Genre/plot/discourse terms and story planning",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze (alipoota, mulamwa, kinyusi, ntambula, nsibuko)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 103,
+    "domain": "D7",
+    "subdomain": "anaphora / locative reference",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "A previously-mentioned object becomes a verb prefix that changes with the referent's class. For 'ekitabo' (class 7), write the form for 'do you see it?'",
+    "expected_answers": [
+      "okiraba",
+      "okiraba?"
+    ],
+    "linguistic_feature": "Object incorporation and locative 'where' relatives",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp39-40:anaphoric object",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 104,
+    "domain": "D7",
+    "subdomain": "information structure (scholarly)",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "In 'mbwa yo' ('as for the dog'), the element 'yo' functions as which marker?",
+    "options": {
+      "A": "a plural marker",
+      "B": "a topic marker",
+      "C": "a past-tense marker",
+      "D": "a negation marker"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Topic marker -o and cleft focus",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:p7:(23c) topic marker",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 105,
+    "domain": "D8",
+    "subdomain": "address terms / register",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which respectful term of address is used when speaking to a woman?",
+    "options": {
+      "A": "ssebo",
+      "B": "mukwano",
+      "C": "nnyabo",
+      "D": "kale"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Respectful address ssebo/nnyabo; formal vs informal greetings",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp2-3:Lessons 2-3",
+        "tier": "student_material"
+      },
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p8:Lesson 9 Apologizing",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 106,
+    "domain": "D8",
+    "subdomain": "address terms / register",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The exclamation 'Nga kitalo!' is restricted to which kind of situation?",
+    "expected_answers": [
+      "condolence",
+      "sympathy",
+      "mourning",
+      "condolences",
+      "a condolence"
+    ],
+    "linguistic_feature": "Respectful address ssebo/nnyabo; formal vs informal greetings",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:p8:Lesson 9 Apologizing",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 107,
+    "domain": "D8",
+    "subdomain": "leave-taking / apology register",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "The leave-taking 'Sula bulungi' is appropriate at which time of day?",
+    "options": {
+      "A": "in the early morning",
+      "B": "at midday",
+      "C": "on first arrival",
+      "D": "at night (goodnight)"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Situation-specific leave-takings and apologies",
+    "sources": [
+      {
+        "locator": "US_Peace_Corps_Luganda_Language_Lessons.pdf:pp8-9:Lessons 9,11",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 108,
+    "domain": "D8",
+    "subdomain": "oral-literature genres",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "The traditional oral-text genre called 'ekitontome' is which kind of text?",
+    "expected_answers": [
+      "poem",
+      "a poem"
+    ],
+    "linguistic_feature": "Authentic poems (ekitontome), proverbs, riddles",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:Term1 Wk1:Traditional Text (Ekitontome)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 109,
+    "domain": "D8",
+    "subdomain": "politeness norms",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "The noun 'ekitiibwa', central to politeness teaching, means:",
+    "options": {
+      "A": "respect",
+      "B": "anger",
+      "C": "wealth",
+      "D": "silence"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Showing respect to people (politeness framing)",
+    "sources": [
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Term 3 Week 3 Day 4:Okuzimba emboozi",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 110,
+    "domain": "D8",
+    "subdomain": "kinship register",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "The kinship word 'kitange' means:",
+    "options": {
+      "A": "my mother",
+      "B": "my father",
+      "C": "his/her mother",
+      "D": "my sibling"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Kin terms embed the possessive",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p14:Class I people",
+        "tier": "other"
+      },
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp27-28:kin possessives",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 111,
+    "domain": "D8",
+    "subdomain": "kinship register",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "The single kin word 'nnyina', which embeds the possessive, means:",
+    "expected_answers": [
+      "his mother",
+      "her mother",
+      "his/her mother"
+    ],
+    "linguistic_feature": "Kin terms embed the possessive",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp27-28:kin possessives",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 112,
+    "domain": "D8",
+    "subdomain": "possessive register",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "The possessive 'wange' means 'my'. Which form means 'our'?",
+    "expected_answers": [
+      "waffe"
+    ],
+    "linguistic_feature": "Possessive register wange/waffe (sg vs pl ownership)",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p267:Sentence Structures (wange/waffe, olina/mulina)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 113,
+    "domain": "D8",
+    "subdomain": "naming convention / honorific register",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "In folktales using the Wa-/Wan- naming convention, which animal is 'Wambwa'?",
+    "expected_answers": [
+      "dog",
+      "a dog"
+    ],
+    "linguistic_feature": "Wa-/Wan- folktale names; royal/honorific register",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Pupil_Book_Print_Ready_File_Nov_4.pdf:Olusoma 1 Wiiki 1:Wambwa/Wankoko naming",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 114,
+    "domain": "D8",
+    "subdomain": "register / cultural lexicon",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In Luganda money slang, which amount does 'Ziike' denote?",
+    "options": {
+      "A": "100",
+      "B": "500",
+      "C": "50000",
+      "D": "1000"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Proverb register and culture-bound slang",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p71:Slang numbers",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 115,
+    "domain": "D8",
+    "subdomain": "genre register / letter structure",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In the P4 terminology, 'lunyiriri' refers to which part of a poem?",
+    "options": {
+      "A": "the title",
+      "B": "the poet",
+      "C": "the rhyme",
+      "D": "a verse (line)"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Poetry terms, formal-letter register, folktale naming",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p207-208:Enkuluze (kikwate=poem, lunyiriri=verse, recite)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 116,
+    "domain": "D8",
+    "subdomain": "onomastics (scholarly)",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "The proper name 'Tulina-omubeezi' illustrates which Luganda naming pattern?",
+    "options": {
+      "A": "a name derived from a proverb or sentence",
+      "B": "a name borrowed from English",
+      "C": "a diminutive of a common noun",
+      "D": "a name that marks noun class"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Proper names derived from proverbs",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:p5:(17b)",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 117,
+    "domain": "D9",
+    "subdomain": "metalinguistic terms (phonics)",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The activity 'okuyunga ennyingo' (joining syllables/letters) names which reading skill?",
+    "options": {
+      "A": "segmenting",
+      "B": "blending",
+      "C": "rhyming",
+      "D": "spelling aloud"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Terms: syllable, blending, segmenting; alphabet as object",
+    "sources": [
+      {
+        "locator": "P1_Luganda_Teacher_s_Guide_Final.pdf:p282:Glossary of Luganda Literacy Terms",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 118,
+    "domain": "D9",
+    "subdomain": "rule induction (morphology)",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In the P2 grammar lessons, a 'morpheme' is defined as:",
+    "options": {
+      "A": "the smallest meaningful unit of a word",
+      "B": "any single written letter of a word",
+      "C": "a complete grammatical sentence",
+      "D": "a spoken syllable of two sounds"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Morpheme defined; explicit pluralisation/negation rules",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268-269:Grammar Scope and Sequence",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:How to Teach Literacy 1:'explore morphemes... rules of grammar'",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 119,
+    "domain": "D9",
+    "subdomain": "rule induction (morphology)",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "In the analysis 'ki-pande', what is the element 'ki-' called relative to the stem?",
+    "expected_answers": [
+      "prefix",
+      "a prefix"
+    ],
+    "linguistic_feature": "Morpheme defined; explicit pluralisation/negation rules",
+    "sources": [
+      {
+        "locator": "P2_Luganda_teacher_guide_Uganda.pdf:p268-269:Grammar Scope and Sequence",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Luganda_P2_Pupil_Book_Print_Ready_File_October_30.pdf:Okuzimba ebigambo:all weeks",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 120,
+    "domain": "D9",
+    "subdomain": "rule induction / affix analysis",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In the contrast '-ibw- versus ta-', the passive marker -ibw- is which kind of affix?",
+    "options": {
+      "A": "a prefix (before the stem)",
+      "B": "a suffix (a separate word)",
+      "C": "a clitic",
+      "D": "an infix (inside the stem)"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Infix vs prefix vs suffix; vowel-harmony rule",
+    "sources": [
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p266-267:Grammar Scope and Sequence",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "P3_Luganda_Teacher_s_Guide.pdf:p268-277:Mini-lesson Overview (I do/We do/You do rule application)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 121,
+    "domain": "D9",
+    "subdomain": "grammatical metalanguage",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In the consolidated P4 metalanguage, 'akakulembera' is the term for which morpheme type?",
+    "options": {
+      "A": "a prefix",
+      "B": "a suffix",
+      "C": "a root",
+      "D": "an infix"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Luganda grammatical terminology system",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze y'Omuyizi ey'Ennimi Ebbiri",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P4_Luganda_PB.pdf:Olusoma 2-3:Enkuluze esengeka (root/alphabetical-order tasks)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 122,
+    "domain": "D9",
+    "subdomain": "grammatical metalanguage",
+    "grade": "G4",
+    "answer_type": "short_form",
+    "question": "The Luganda grammatical term 'ekikolebwa' (what the subject does) names which clause part?",
+    "expected_answers": [
+      "predicate",
+      "the predicate"
+    ],
+    "linguistic_feature": "Luganda grammatical terminology system",
+    "sources": [
+      {
+        "locator": "P4_Luganda_PB.pdf:p206-208:Enkuluze y'Omuyizi ey'Ennimi Ebbiri",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P4_Luganda_PB.pdf:various Omulamwa:Ggulama boxes",
+        "tier": "student_material"
+      },
+      {
+        "locator": "P4_Luganda_PB.pdf:Olusoma 2-3:Enkuluze esengeka (root/alphabetical-order tasks)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 123,
+    "domain": "D9",
+    "subdomain": "morphophonemic reasoning",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "By the stated rule, a verb stem ending in -ba, -ma, -pa or -na forms its near-past by changing the final -a to:",
+    "options": {
+      "A": "-ze",
+      "B": "-ye",
+      "C": "-ira",
+      "D": "-ula"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Stated rules for past, causative and applicative stems",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp49-51:modified stems",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 124,
+    "domain": "D9",
+    "subdomain": "morphophonemic reasoning",
+    "grade": "G4",
+    "answer_type": "short_form",
+    "question": "By the stated rule, the causative changes a stem-final -la, -da, -ga or -ja to which syllable, e.g. 'jukira' → 'jukiza'?",
+    "expected_answers": [
+      "-za",
+      "za"
+    ],
+    "linguistic_feature": "Stated rules for past, causative and applicative stems",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:pp63-66:Prepositional; Causative",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 125,
+    "domain": "D9",
+    "subdomain": "typological reasoning",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "The single word 'Tanatutwalayo' translates as 'he has not taken us there yet'. This packing of much information into one word shows that Luganda is:",
+    "options": {
+      "A": "strictly isolating",
+      "B": "tonally simple",
+      "C": "highly agglutinative",
+      "D": "non-inflecting"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Agglutination and pervasive class agreement",
+    "sources": [
+      {
+        "locator": "A_Luganda_Grammar_2015.pdf:p5:agglutination",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 126,
+    "domain": "D9",
+    "subdomain": "theory of the word (scholarly)",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Scholarly work on the Luganda 'word' concludes that at most one HL pitch drop occurs per:",
+    "options": {
+      "A": "lexical word",
+      "B": "syllable",
+      "C": "noun class",
+      "D": "tone group"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Distinct senses of 'word'; intersecting domains",
+    "sources": [
+      {
+        "locator": "The_word_in_Luganda.pdf:pp13-16:intersection; conclusion",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
   }
 ]
