@@ -9,4 +9,9 @@ description = "Lightweight scaffolding for language-specific decodability toolin
 requires-python = ">=3.13"
 dependencies = [
   "pandas>=2.0.0",
+  "primerpro",
+  "pydantic>=2.13.4",
 ]
+
+[tool.uv.sources]
+primerpro = { workspace = true }
