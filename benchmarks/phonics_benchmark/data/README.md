@@ -56,15 +56,11 @@ decodable for that student.
 > Student knowledge representation is currently evolving and fields in the taught
 > knowledge object are subject to change.
 
-| Field                       | Type     | Description                                                    |
-| --------------------------- | -------- | -------------------------------------------------------------- |
-| `vowels`                    | string[] | Vowel graphemes taught (e.g. `["a", "e", "i", "o", "u"]`)      |
-| `single_consonants`         | string[] | Single-letter consonants taught                                |
-| `digraphs`                  | string[] | Two-letter consonant combinations taught (e.g. `["ch", "sh"]`) |
-| `syllabic_nasals`           | string[] | Nasals that form their own syllable                            |
-| `nasal_prenasalized_onsets` | string[] | Nasal-consonant onset clusters taught                          |
-| `consonant_glide_onsets`    | string[] | Consonant-glide onset clusters taught                          |
-| `sight_words`               | string[] | Words taught as whole units, regardless of decodability        |
+| Field                     | Type     | Description                                                   |
+| ------------------------- | -------- | ------------------------------------------------------------- |
+| `known_syllables`         | string[] | Syllables the student has been taught (vowels and CV/CCV etc) |
+| `known_syllable_patterns` | string[] | Syllable structure patterns the student can decode            |
+| `max_word_length`         | number   | Maximum word length (in characters) the student can decode    |
 
 **Example**
 
@@ -73,13 +69,10 @@ decodable for that student.
   "student_knowledge_id": "stu-sw-002",
   "language_iso_code": "sw",
   "taught_knowledge": {
-    "vowels": ["a", "e", "i", "o", "u"],
-    "single_consonants": ["b", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "r", "s", "t", "v", "w", "y", "z"],
-    "digraphs": ["ch", "sh"],
-    "syllabic_nasals": [],
-    "nasal_prenasalized_onsets": [],
-    "consonant_glide_onsets": [],
-    "sight_words": ["mtu", "ng'ombe"]
+    "known_syllables": ["a", "e", "i", "o", "u", "ba", "be", "bi", "bo", "bu",
+                        "ma", "me", "mi", "mo", "mu", "m_", "n_", "st"],
+    "known_syllable_patterns": ["CV", "CVCV", "CCV"],
+    "max_word_length": 7
   }
 }
 ```

@@ -38,8 +38,8 @@ def test_read_students_first_profile() -> None:
     students = read_students("kiswahili")
     first = students[0]
     assert first.student_knowledge_id == "stu-sw-001"
-    assert "vowels" in first.taught_knowledge
-    assert first.taught_knowledge["sight_words"] == []
+    assert "known_syllables" in first.taught_knowledge
+    assert first.taught_knowledge["max_word_length"] == 4
 
 
 def test_read_students_missing_file() -> None:

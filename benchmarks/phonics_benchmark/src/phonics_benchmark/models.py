@@ -12,7 +12,7 @@ class StudentKnowledgeProfile(BaseModel):
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
     # Schema is intentionally open — taught_knowledge is still evolving.
-    taught_knowledge: dict[str, list[str]]
+    taught_knowledge: dict[str, list[str] | int]
 
 
 class DecodableText(BaseModel):
