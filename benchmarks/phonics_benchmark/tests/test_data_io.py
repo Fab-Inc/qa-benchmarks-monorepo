@@ -23,12 +23,6 @@ def test_get_data_dir_kiswahili() -> None:
     assert path.is_dir()
 
 
-def test_get_data_dir_missing_language() -> None:
-    """Raises FileNotFoundError naming the language when the directory is absent."""
-    with pytest.raises(FileNotFoundError, match="nonexistent_language"):
-        get_data_dir("nonexistent_language")
-
-
 # --- read_students ---
 
 

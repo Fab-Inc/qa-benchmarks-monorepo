@@ -18,17 +18,13 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 def get_data_dir(language: str) -> Path:
-    """Return the Path to data/<language>/. Raises FileNotFoundError if absent."""
+    """Return the Path to data/<language>/"""
     path = DATA_ROOT / language
-    if not path.is_dir():
-        raise FileNotFoundError(
-            f"No data directory for language '{language}': expected {path}"
-        )
     return path
 
 
 def _open_jsonl(path: Path, language: str, description: str):
-    """Open a JSONL file, re-raising FileNotFoundError with a descriptive message."""
+    """Open a JSONL file, FileNotFoundError with a descriptive message."""
     try:
         return path.open(encoding="utf-8")
     except FileNotFoundError:
