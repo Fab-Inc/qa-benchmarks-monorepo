@@ -1,24 +1,29 @@
 """Data models for phonics_benchmark."""
 
-from __future__ import annotations
+from typing import Annotated
 
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field
 
-
-@dataclass(frozen=True)
-class StudentProfile:
-    student_id: str
-    language: str
-    grade_level: str
-    description: str
-    known_graphemes: dict[str, list[str]]
-    sight_words: list[str]
+NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
-@dataclass(frozen=True)
-class AssessmentTextItem:
-    item_id: str
-    language: str
-    student_id: str
-    text: str
-    undecodable_words: list[dict]
+class StudentKnowledgeProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_knowledge_id: NonEmptyStr
+    language_iso_code: NonEmptyStr
+    # Schema is intentionally open — taught_knowledge is still evolving.
+    taught_knowledge: dict[str, list[str]]
+
+
+class DecodableText(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text_id: NonEmptyStr
+    language_iso_code: NonEmptyStr
+    content: NonEmptyStr
+
+
+class BenchmarkItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    benchmark_item_id: NonEmptyStr
+    text_id: NonEmptyStr
+    student_knowledge_id: NonEmptyStr
