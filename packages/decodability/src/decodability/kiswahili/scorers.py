@@ -45,14 +45,10 @@ def _get_primerpro_settings() -> Settings:
     inventory = GraphemeInventory()
 
     for symbol, _ in KISWAHILI_CONSONANT_GPCS:
-        consonant = Consonant(symbol)
-        consonant.uppercase = symbol.capitalize()
-        inventory.add_consonant(consonant)
+        inventory.add_consonant(Consonant(symbol))
 
     for symbol, _ in KISWAHILI_VOWEL_GPCS:
-        vowel = Vowel(symbol)
-        vowel.uppercase = symbol.capitalize()
-        inventory.add_vowel(vowel)
+        inventory.add_vowel(Vowel(symbol))
 
     settings.grapheme_inventory = inventory
     return settings
