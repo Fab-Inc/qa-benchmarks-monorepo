@@ -22,12 +22,13 @@ def test_word_uses_longest_match_grapheme_decomposition_for_long_vowels():
     assert grapheme_symbols(word) == ["k", "aa", "n", "a"]
 
 
-def test_word_canonicalizes_uppercase_inventory_matches_to_inventory_symbols():
+def test_word_canonicalizes_default_title_case_inventory_matches_to_inventory_symbols():
     settings = create_bantu_like_settings()
-    word = Word("MBata", settings)
 
-    assert word.display_word == "mbata"
-    assert grapheme_symbols(word) == ["mb", "a", "t", "a"]
+    title_case = Word("Mbata", settings)
+
+    assert title_case.display_word == "mbata"
+    assert grapheme_symbols(title_case) == ["mb", "a", "t", "a"]
 
 
 def test_explicit_syllable_breaks_are_preserved_while_display_word_removes_dots():

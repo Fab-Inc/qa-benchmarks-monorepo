@@ -59,7 +59,7 @@ class Grapheme:
 
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
-        self.uppercase = ""
+        self.uppercase = symbol.capitalize()
         self.is_consonant = False
         self.is_vowel = False
         self.is_tone = False
@@ -223,7 +223,7 @@ class GraphemeInventory:
         return self.get_grapheme(symbol) is not None
 
     def get_grapheme(self, symbol: str) -> Grapheme | None:
-        """Return any inventory grapheme matching a symbol or uppercase form."""
+        """Return any inventory grapheme matching a written form."""
 
         for grapheme in self._all_graphemes():
             if symbol == grapheme.symbol or symbol == grapheme.uppercase:
