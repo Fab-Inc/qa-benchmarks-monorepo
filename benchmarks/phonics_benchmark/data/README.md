@@ -89,8 +89,8 @@ ______________________________________________________________________
 ## `benchmark_items.jsonl`
 
 One JSON object per line. Each record pairs a decodable text with a student knowledge
-profile, forming a single benchmark evaluation unit. The full set of items for a
-language is the cross-product of all texts and all student profiles.
+profile (text, student_knowledge), forming a single benchmark evaluation unit. The full
+set of items for a language is the cross-product of all texts and all student profiles.
 
 | Field                  | Type   | Description                                                               |
 | ---------------------- | ------ | ------------------------------------------------------------------------- |
