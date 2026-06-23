@@ -10,10 +10,9 @@ from phonics_benchmark.config import ConfigError, load_run_config
 def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
     """Config paths are resolved relative to the config file."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     env_path = tmp_path / ".env"
     env_path.write_text("OPENAI_API_KEY=test", encoding="utf-8")
+    data_root = tmp_path / "data"
     config_path = tmp_path / "configs" / "run.json"
     config_path.parent.mkdir()
     config_path.write_text(
@@ -22,7 +21,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
                 "run_id": "experiment-a",
                 "language": "english",
                 "task": "decodability",
-                "items_path": "../items.json",
+                "data_root": "../data",
                 "output_dir": "../outputs",
                 "env_path": "../.env",
                 "chunk_size": 50,
@@ -41,7 +40,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
 
     assert config.run_id == "experiment-a"
     assert config.language == "english"
-    assert config.items_path == items_path.resolve()
+    assert config.data_root == data_root.resolve()
     assert config.output_dir == (tmp_path / "outputs").resolve()
     assert config.env_path == env_path.resolve()
     assert config.chunk_size == 50
@@ -58,7 +57,6 @@ def test_load_run_config_requires_non_empty_models(tmp_path: Path) -> None:
             {
                 "run_id": "experiment-a",
                 "language": "english",
-                "items_path": "items.json",
                 "models": [],
             }
         ),
@@ -66,7 +64,7 @@ def test_load_run_config_requires_non_empty_models(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="models"):
-        load_run_config(config_path)
+        load_run_config(config_path, default_data_root=tmp_path / "data")
 
 
 def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
@@ -77,6 +75,45 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
         json.dumps(
             {
                 "language": "english",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_run_config(config_path, default_data_root=tmp_path / "data")
+
+    assert config.run_id == "default"
+    assert config.data_root == (tmp_path / "data").resolve()
+    assert config.chunk_size == 100
+
+
+def test_load_run_config_requires_data_root_without_default(tmp_path: Path) -> None:
+    """A config without data_root needs a caller-provided default."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "english",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="data_root"):
+        load_run_config(config_path)
+
+
+def test_load_run_config_rejects_items_path(tmp_path: Path) -> None:
+    """Benchmark data is selected by language, not by config path."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "kiswahili",
                 "items_path": "items.json",
                 "models": ["model-a"],
             }
@@ -84,10 +121,8 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    config = load_run_config(config_path)
-
-    assert config.run_id == "default"
-    assert config.chunk_size == 100
+    with pytest.raises(ConfigError, match="items_path"):
+        load_run_config(config_path, default_data_root=tmp_path / "data")
 
 
 def test_load_run_config_allows_save_at_end_chunk_size(tmp_path: Path) -> None:
@@ -98,7 +133,6 @@ def test_load_run_config_allows_save_at_end_chunk_size(tmp_path: Path) -> None:
         json.dumps(
             {
                 "language": "english",
-                "items_path": "items.json",
                 "models": ["model-a"],
                 "chunk_size": None,
             }
@@ -106,7 +140,7 @@ def test_load_run_config_allows_save_at_end_chunk_size(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    config = load_run_config(config_path)
+    config = load_run_config(config_path, default_data_root=tmp_path / "data")
 
     assert config.chunk_size is None
 
@@ -119,7 +153,6 @@ def test_load_run_config_rejects_invalid_chunk_size(tmp_path: Path) -> None:
         json.dumps(
             {
                 "language": "english",
-                "items_path": "items.json",
                 "models": ["model-a"],
                 "chunk_size": 0,
             }
@@ -128,7 +161,7 @@ def test_load_run_config_rejects_invalid_chunk_size(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="chunk_size"):
-        load_run_config(config_path)
+        load_run_config(config_path, default_data_root=tmp_path / "data")
 
 
 def test_load_run_config_rejects_invalid_run_id(tmp_path: Path) -> None:
@@ -140,7 +173,6 @@ def test_load_run_config_rejects_invalid_run_id(tmp_path: Path) -> None:
             {
                 "run_id": "bad_run",
                 "language": "english",
-                "items_path": "items.json",
                 "models": ["model-a"],
             }
         ),
@@ -148,7 +180,7 @@ def test_load_run_config_rejects_invalid_run_id(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="run_id"):
-        load_run_config(config_path)
+        load_run_config(config_path, default_data_root=tmp_path / "data")
 
 
 def test_load_run_config_rejects_model_objects(tmp_path: Path) -> None:
@@ -160,7 +192,6 @@ def test_load_run_config_rejects_model_objects(tmp_path: Path) -> None:
             {
                 "run_id": "experiment-a",
                 "language": "english",
-                "items_path": "items.json",
                 "models": [{"name": "model-a", "parameters": {"temperature": 0}}],
             }
         ),
@@ -168,4 +199,4 @@ def test_load_run_config_rejects_model_objects(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="custom_models.yaml"):
-        load_run_config(config_path)
+        load_run_config(config_path, default_data_root=tmp_path / "data")

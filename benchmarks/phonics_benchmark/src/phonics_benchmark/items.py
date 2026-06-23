@@ -1,8 +1,7 @@
-"""Benchmark item loading for phonics runs."""
+"""Benchmark item assembly for phonics runs."""
 
 from __future__ import annotations
 
-import json
 import math
 from pathlib import Path
 from typing import Any
@@ -10,85 +9,61 @@ from typing import Any
 import pandas as pd
 
 from phonics_benchmark.config import ConfigError
-
-REQUIRED_ITEM_COLUMNS = {"item_id", "text"}
-
-
-def load_benchmark_items(language: str, items_path: str | Path) -> pd.DataFrame:
-    """Load benchmark items for a language from an opaque source path.
-
-    This is the placeholder abstraction for future language-specific item
-    routing. The runner deliberately calls this function instead of assuming
-    a dataset layout.
-    """
-
-    path = Path(items_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Benchmark items file not found: {path}")
-
-    if path.suffix == ".jsonl":
-        raw_items = [
-            json.loads(line)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-    else:
-        raw_data = json.loads(path.read_text(encoding="utf-8"))
-        raw_items = raw_data.get("items") if isinstance(raw_data, dict) else raw_data
-
-    if not isinstance(raw_items, list) or not raw_items:
-        raise ConfigError(
-            f"No benchmark items were loaded for language {language!r} from {path}"
-        )
-
-    items = pd.DataFrame(raw_items)
-    return validate_benchmark_items(items, language=language, source=path)
+from phonics_benchmark.data_io import (
+    read_benchmark_items,
+    read_decodable_texts,
+    read_student_knowledge_profiles,
+)
 
 
-def validate_benchmark_items(
-    items: pd.DataFrame,
-    *,
-    language: str,
-    source: str | Path | None = None,
-) -> pd.DataFrame:
-    """Validate and normalize loaded benchmark items."""
+def load_benchmark_items(language: str, data_root: str | Path) -> pd.DataFrame:
+    """Load joined benchmark items for a language."""
 
-    if items.empty:
+    root = Path(data_root)
+    try:
+        texts = {text.text_id: text for text in read_decodable_texts(language, root)}
+        students = {
+            student.student_knowledge_id: student
+            for student in read_student_knowledge_profiles(language, root)
+        }
+        items = read_benchmark_items(language, root)
+    except ValueError as e:
+        raise ConfigError(str(e)) from e
+
+    if not items:
         raise ConfigError(f"No benchmark items were loaded for language {language!r}")
 
-    normalized = items.copy()
-    if "item_id" not in normalized.columns and "id" in normalized.columns:
-        normalized = normalized.rename(columns={"id": "item_id"})
+    records: list[dict[str, Any]] = []
+    for item in items:
+        text = texts.get(item.text_id)
+        if text is None:
+            raise ConfigError(
+                f"benchmark_items references unknown text_id '{item.text_id}'"
+            )
+        student = students.get(item.student_knowledge_id)
+        if student is None:
+            raise ConfigError(
+                "benchmark_items references unknown "
+                f"student_knowledge_id '{item.student_knowledge_id}'"
+            )
 
-    missing_columns = REQUIRED_ITEM_COLUMNS - set(normalized.columns)
-    if missing_columns:
-        location = f" from {source}" if source else ""
-        raise ConfigError(
-            f"Benchmark items{location} are missing columns: {sorted(missing_columns)}"
+        records.append(
+            {
+                "item_id": item.benchmark_item_id,
+                "benchmark_item_id": item.benchmark_item_id,
+                "text_id": item.text_id,
+                "student_knowledge_id": item.student_knowledge_id,
+                "text": text.content,
+                "student_knowledge": student.taught_knowledge,
+                "metadata": {
+                    "decodable_text": text.model_dump(),
+                    "student_knowledge_profile": student.model_dump(),
+                },
+            }
         )
 
-    _ensure_non_empty_string_column(normalized, "item_id")
-    _ensure_non_empty_string_column(normalized, "text")
-
-    if normalized["item_id"].duplicated().any():
-        duplicates = sorted(
-            normalized.loc[normalized["item_id"].duplicated(), "item_id"].unique()
-        )
-        raise ConfigError(f"Duplicate benchmark item IDs: {duplicates}")
-
-    if "metadata" in normalized.columns:
-        invalid_metadata = normalized["metadata"].apply(
-            lambda value: not (_is_missing(value) or isinstance(value, dict))
-        )
-        if invalid_metadata.any():
-            raise ConfigError("Benchmark item metadata must be objects when provided")
-
-    if "student_knowledge" not in normalized.columns:
-        normalized["student_knowledge"] = None
-    if "metadata" not in normalized.columns:
-        normalized["metadata"] = [{} for _ in range(len(normalized))]
-
-    return normalized.astype(object).where(pd.notna(normalized), None)
+    frame = pd.DataFrame(records)
+    return frame.astype(object).where(pd.notna(frame), None)
 
 
 def item_to_dict(item: dict[str, Any] | pd.Series) -> dict[str, Any]:
@@ -96,14 +71,6 @@ def item_to_dict(item: dict[str, Any] | pd.Series) -> dict[str, Any]:
 
     values = item.to_dict() if isinstance(item, pd.Series) else dict(item)
     return {key: value for key, value in values.items() if not _is_missing(value)}
-
-
-def _ensure_non_empty_string_column(items: pd.DataFrame, column: str) -> None:
-    invalid = items[column].apply(
-        lambda value: not isinstance(value, str) or not value.strip()
-    )
-    if invalid.any():
-        raise ConfigError(f"Benchmark item column {column!r} must be non-empty strings")
 
 
 def _is_missing(value: Any) -> bool:

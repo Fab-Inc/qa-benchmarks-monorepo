@@ -24,7 +24,7 @@ class BenchmarkRunConfig:
     run_id: str
     language: str
     task: str
-    items_path: Path
+    data_root: Path
     output_dir: Path
     models: list[str]
     env_path: Path | None = None
@@ -45,7 +45,7 @@ class BenchmarkRunConfig:
             "run_id": self.run_id,
             "language": self.language,
             "task": self.task,
-            "items_path": str(self.items_path),
+            "data_root": str(self.data_root),
             "output_dir": str(self.output_dir),
             "models": self.models,
             "env_path": str(self.env_path) if self.env_path else None,
@@ -78,7 +78,11 @@ def config_object_sha256(config: BenchmarkRunConfig) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def load_run_config(config_path: str | Path) -> BenchmarkRunConfig:
+def load_run_config(
+    config_path: str | Path,
+    *,
+    default_data_root: str | Path | None = None,
+) -> BenchmarkRunConfig:
     """Load and validate a phonics benchmark run config from JSON."""
 
     path = Path(config_path).expanduser().resolve()
@@ -91,14 +95,24 @@ def load_run_config(config_path: str | Path) -> BenchmarkRunConfig:
         raise ConfigError("Run config must be a JSON object")
 
     base_dir = path.parent
-    return _parse_run_config(raw_config, base_dir=base_dir, config_path=path)
+    resolved_default_data_root = (
+        Path(default_data_root).expanduser().resolve()
+        if default_data_root is not None
+        else None
+    )
+    return _parse_run_config(
+        raw_config,
+        base_dir=base_dir,
+        config_path=path,
+        default_data_root=resolved_default_data_root,
+    )
 
 
 def build_run_config(
     *,
     run_id: str | None,
     language: str,
-    items_path: str | Path,
+    data_root: str | Path,
     output_dir: str | Path,
     models: list[str],
     base_dir: Path,
@@ -117,7 +131,7 @@ def build_run_config(
         "run_id": run_id,
         "language": language,
         "task": task,
-        "items_path": str(items_path),
+        "data_root": str(data_root),
         "output_dir": str(output_dir),
         "models": models,
         "env_path": str(env_path) if env_path else None,
@@ -132,11 +146,16 @@ def build_run_config(
         raw_config,
         base_dir=base_dir.resolve(),
         config_path=None,
+        default_data_root=None,
     )
 
 
 def _parse_run_config(
-    raw_config: dict[str, Any], *, base_dir: Path, config_path: Path | None
+    raw_config: dict[str, Any],
+    *,
+    base_dir: Path,
+    config_path: Path | None,
+    default_data_root: str | Path | None,
 ) -> BenchmarkRunConfig:
     run_id = _parse_run_id(raw_config.get("run_id"))
 
@@ -148,9 +167,17 @@ def _parse_run_config(
     if not isinstance(task, str) or not task.strip():
         raise ConfigError("'task' must be a non-empty string")
 
-    items_path = raw_config.get("items_path")
-    if not isinstance(items_path, str) or not items_path.strip():
-        raise ConfigError("Config must include a non-empty 'items_path'")
+    if "items_path" in raw_config:
+        raise ConfigError(
+            "'items_path' is no longer supported; benchmark data is selected by "
+            "'language'"
+        )
+
+    data_root = raw_config.get("data_root")
+    if data_root is None:
+        data_root = str(default_data_root) if default_data_root is not None else None
+    if not isinstance(data_root, str) or not data_root.strip():
+        raise ConfigError("Config must include a non-empty 'data_root'")
 
     output_dir = raw_config.get("output_dir", "results")
     if not isinstance(output_dir, str) or not output_dir.strip():
@@ -195,7 +222,7 @@ def _parse_run_config(
         "run_id",
         "language",
         "task",
-        "items_path",
+        "data_root",
         "output_dir",
         "models",
         "env_path",
@@ -212,7 +239,7 @@ def _parse_run_config(
         run_id=run_id,
         language=language,
         task=task,
-        items_path=_resolve_path(items_path, base_dir),
+        data_root=_resolve_path(data_root, base_dir),
         output_dir=_resolve_path(output_dir, base_dir),
         models=models,
         env_path=_resolve_path(env_path, base_dir) if env_path else None,

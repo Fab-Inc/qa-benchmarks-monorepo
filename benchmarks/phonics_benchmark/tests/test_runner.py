@@ -8,6 +8,8 @@ from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
+    PLACEHOLDER_LLM_TEXT,
+    evaluate_item_with_fdllm,
     run_benchmark,
     run_from_config_file,
     snapshot_model_configs,
@@ -16,30 +18,28 @@ from phonics_benchmark.runner import (
 _CHUNK_SIZE_UNSET = object()
 
 
-def test_load_benchmark_items_supports_wrapped_json(tmp_path: Path) -> None:
-    """Item files can use an {'items': [...]} wrapper."""
+def test_load_benchmark_items_joins_data_files(tmp_path: Path) -> None:
+    """The item adapter joins text and student profile records."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text(
-        json.dumps(
+    data_dir = tmp_path / "data" / "english"
+    _write_dataset(
+        data_dir,
+        [
             {
-                "items": [
-                    {
-                        "id": "item-1",
-                        "text": "A cat sat.",
-                        "student_knowledge": {"gpcs": ["a", "t"]},
-                    }
-                ]
+                "id": "item-1",
+                "text": "A cat sat.",
+                "student_knowledge": {"gpcs": ["a", "t"]},
             }
-        ),
-        encoding="utf-8",
+        ],
     )
 
-    items = load_benchmark_items("english", items_path)
+    items = load_benchmark_items("english", tmp_path / "data")
 
     assert len(items) == 1
     assert items.loc[0, "item_id"] == "item-1"
+    assert items.loc[0, "text"] == "A cat sat."
     assert items.loc[0, "student_knowledge"] == {"gpcs": ["a", "t"]}
+    assert items.loc[0, "metadata"]["decodable_text"]["text_id"] == "text-1"
 
 
 def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
@@ -63,7 +63,11 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
         }
 
     with patch("phonics_benchmark.runner.git_hash", return_value="abc123"):
-        output = run_from_config_file(config_path, evaluator=fake_evaluator)
+        output = run_from_config_file(
+            config_path,
+            default_data_root=tmp_path / "data",
+            evaluator=fake_evaluator,
+        )
 
     rows = _read_all_results(output["results_paths"])
     assert output["total_expected_results"] == 4
@@ -90,15 +94,16 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert rows[0]["call_status"] == "success"
     assert "answers_timestamp-utc" not in rows[0]
     assert "answers_git-hash" not in rows[0]
-    assert "A cat sat." in rows[0]["prompt"]
-    assert '"gpcs": ["a", "t"]' in rows[0]["prompt"]
+    assert rows[0]["prompt"] == PLACEHOLDER_LLM_TEXT
+    assert rows[0]["seen_prompt"] == PLACEHOLDER_LLM_TEXT
 
     snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
     assert snapshot["config_id"] == output["config_id"]
     assert snapshot["code_git_hash"] == "abc123"
     assert snapshot["raw_config"]["run_id"] == "experiment-a"
-    assert snapshot["resolved_config"]["items_path"] == str(
-        (tmp_path / "items.json").resolve()
+    assert "items_path" not in snapshot["resolved_config"]
+    assert snapshot["resolved_config"]["data_root"] == str(
+        (tmp_path / "data").resolve()
     )
     assert isinstance(snapshot["model_configs"], dict)
 
@@ -122,6 +127,7 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
 
     output = run_from_config_file(
         config_path,
+        default_data_root=tmp_path / "data",
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
 
@@ -133,7 +139,11 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
     ) -> dict:
         raise AssertionError("successful rows should be skipped")
 
-    second_output = run_from_config_file(config_path, evaluator=fail_if_called)
+    second_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=fail_if_called,
+    )
 
     rows = _read_jsonl(output["results_paths"]["model-a"])
     assert second_output["executed_count"] == 0
@@ -153,7 +163,7 @@ def test_run_benchmark_writes_supplied_model_configs(tmp_path: Path) -> None:
         custom_models_path=custom_models_path,
     )
 
-    config = load_run_config(config_path)
+    config = load_run_config(config_path, default_data_root=tmp_path / "data")
     output = run_benchmark(
         config,
         config_id="config-123",
@@ -212,6 +222,28 @@ def test_snapshot_model_configs_reads_registered_fdllm_models() -> None:
     }
 
 
+def test_default_evaluator_returns_placeholder(tmp_path: Path) -> None:
+    """The temporary default evaluator does not build prompts or call FDLLM."""
+
+    config = BenchmarkRunConfig(
+        run_id="experiment-a",
+        language="english",
+        task="decodability",
+        data_root=tmp_path / "data",
+        output_dir=tmp_path / "outputs",
+        models=["model-a"],
+    )
+
+    payload = evaluate_item_with_fdllm(
+        config,
+        "model-a",
+        {"item_id": "item-1", "text": "A cat sat."},
+        PLACEHOLDER_LLM_TEXT,
+    )
+
+    assert payload == {"output": PLACEHOLDER_LLM_TEXT}
+
+
 def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> None:
     """The runner passes config metadata to the result persistence seam."""
 
@@ -227,6 +259,7 @@ def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> N
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
         run_from_config_file(
             config_path,
+            default_data_root=tmp_path / "data",
             evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
         )
 
@@ -255,6 +288,7 @@ def test_run_from_config_file_checkpoints_after_each_chunk(tmp_path: Path) -> No
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
         output = run_from_config_file(
             config_path,
+            default_data_root=tmp_path / "data",
             evaluator=lambda _config, _model, item, _prompt: {
                 "output": item["item_id"]
             },
@@ -284,6 +318,7 @@ def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
         output = run_from_config_file(
             config_path,
+            default_data_root=tmp_path / "data",
             evaluator=lambda _config, _model, item, _prompt: {
                 "output": item["item_id"]
             },
@@ -318,14 +353,13 @@ def _write_config(
             },
         ]
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text(json.dumps({"items": items}), encoding="utf-8")
+    data_dir = tmp_path / "data" / "english"
+    _write_dataset(data_dir, items)
     config_path = tmp_path / "run.json"
     config = {
         "run_id": "experiment-a",
         "language": "english",
         "task": "decodability",
-        "items_path": "items.json",
         "output_dir": "outputs",
         "models": models,
     }
@@ -338,6 +372,48 @@ def _write_config(
         encoding="utf-8",
     )
     return config_path
+
+
+def _write_dataset(data_dir: Path, items: list[dict]) -> None:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    texts = []
+    students = []
+    benchmark_items = []
+    for index, item in enumerate(items, start=1):
+        text_id = f"text-{index}"
+        student_id = f"student-{index}"
+        texts.append(
+            {
+                "text_id": text_id,
+                "language_iso_code": "en",
+                "content": item["text"],
+            }
+        )
+        students.append(
+            {
+                "student_knowledge_id": student_id,
+                "language_iso_code": "en",
+                "taught_knowledge": item.get("student_knowledge", {}),
+            }
+        )
+        benchmark_items.append(
+            {
+                "benchmark_item_id": item["id"],
+                "text_id": text_id,
+                "student_knowledge_id": student_id,
+            }
+        )
+
+    _write_jsonl(data_dir / "decodable_texts.jsonl", texts)
+    _write_jsonl(data_dir / "student_knowledge_profiles.jsonl", students)
+    _write_jsonl(data_dir / "benchmark_items.jsonl", benchmark_items)
+
+
+def _write_jsonl(path: Path, records: list[dict]) -> None:
+    path.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _read_jsonl(path: Path) -> list[dict]:

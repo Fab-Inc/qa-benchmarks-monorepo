@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from phonics_benchmark.cmd import app
+from phonics_benchmark.cmd import DEFAULT_DATA_ROOT, app
 from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
 
@@ -27,15 +27,12 @@ def test_main_succeeds(runner: CliRunner) -> None:
 def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
     """The run command delegates to the config-driven runner."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     config_path = tmp_path / "run.json"
     config_path.write_text(
         json.dumps(
             {
                 "run_id": "experiment-a",
                 "language": "english",
-                "items_path": str(items_path),
                 "models": ["model-a"],
             }
         ),
@@ -59,6 +56,7 @@ def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
     run.assert_called_once()
     run_config = run.call_args.args[0]
     assert run_config.models == ["model-a"]
+    assert run_config.data_root == DEFAULT_DATA_ROOT.resolve()
     assert "fdllm_context" not in run.call_args.kwargs
     assert run.call_args.kwargs["model_configs"] == {
         "model-a": {"Api_Interface": "OpenAI"}
@@ -70,9 +68,9 @@ def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
 def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
     """The run command can be driven directly by command-line options."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     output_dir = tmp_path / "outputs"
+    data_root = tmp_path / "data"
+    data_root.mkdir()
     custom_models_path = tmp_path / "custom_models.yaml"
     custom_models_path.write_text("models: []", encoding="utf-8")
     env_path = tmp_path / ".env"
@@ -95,10 +93,10 @@ def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
                 "experiment-a",
                 "--language",
                 "english",
-                "--items-path",
-                str(items_path),
                 "--models",
                 "model-a,model-b",
+                "--data-root",
+                str(data_root),
                 "--output-dir",
                 str(output_dir),
                 "--task",
@@ -122,7 +120,7 @@ def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
     run_config = run.call_args.args[0]
     assert run_config.run_id == "experiment-a"
     assert run_config.language == "english"
-    assert run_config.items_path == items_path.resolve()
+    assert run_config.data_root == data_root.resolve()
     assert run_config.output_dir == output_dir.resolve()
     assert run_config.models == ["model-a", "model-b"]
     assert run_config.task == "decodability"
@@ -147,8 +145,6 @@ def test_run_command_requires_cli_args_without_config(runner: CliRunner) -> None
 def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
     """Direct CLI runs can omit --run-id."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     output = _run_output(tmp_path / "results", "default", total=1)
 
     with (
@@ -162,8 +158,6 @@ def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
                 "run",
                 "--language",
                 "english",
-                "--items-path",
-                str(items_path),
                 "--models",
                 "model-a",
             ],
@@ -172,6 +166,7 @@ def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
     assert result.exit_code == 0
     run_config = run.call_args.args[0]
     assert run_config.run_id == "default"
+    assert run_config.data_root == DEFAULT_DATA_ROOT.resolve()
 
 
 def test_run_command_timestamped_output_generates_run_id(
@@ -179,8 +174,6 @@ def test_run_command_timestamped_output_generates_run_id(
 ) -> None:
     """--timestamped-output fills run_id when one is not supplied."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     output = _run_output(tmp_path / "results", "20260622T120000Z", total=1)
 
     with (
@@ -195,8 +188,6 @@ def test_run_command_timestamped_output_generates_run_id(
                 "run",
                 "--language",
                 "english",
-                "--items-path",
-                str(items_path),
                 "--models",
                 "model-a",
                 "--timestamped-output",
@@ -213,8 +204,6 @@ def test_run_command_accepts_models_json_list(
 ) -> None:
     """The --models option also accepts a JSON list string."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     output = _run_output(tmp_path / "outputs", "experiment-a", total=2)
 
     with (
@@ -230,8 +219,6 @@ def test_run_command_accepts_models_json_list(
                 "experiment-a",
                 "--language",
                 "english",
-                "--items-path",
-                str(items_path),
                 "--models",
                 '["model-a", "model-b"]',
             ],
@@ -247,8 +234,6 @@ def test_run_command_preflights_registered_models(
 ) -> None:
     """Model registration errors are reported before the runner starts."""
 
-    items_path = tmp_path / "items.json"
-    items_path.write_text("[]", encoding="utf-8")
     with (
         patch(
             "phonics_benchmark.cmd.prepare_fdllm_for_run",
@@ -262,8 +247,6 @@ def test_run_command_preflights_registered_models(
                 "run",
                 "--language",
                 "english",
-                "--items-path",
-                str(items_path),
                 "--models",
                 "model-a",
             ],

@@ -21,11 +21,11 @@ from phonics_benchmark.config import (
     load_run_config,
 )
 from phonics_benchmark.items import item_to_dict, load_benchmark_items
-from phonics_benchmark.prompts import build_prompt, build_system_prompt
 from phonics_benchmark.results import load_results, save_results
 
 CALL_STATUS_ERROR = "error"
 CALL_STATUS_SUCCESS = "success"
+PLACEHOLDER_LLM_TEXT = "placeholder"
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 DEFAULT_CUSTOM_MODELS_PATH = REPO_ROOT / "custom_models.yaml"
@@ -37,6 +37,7 @@ RunOutput = dict[str, Any]
 def run_from_config_file(
     config_path: str | Path,
     *,
+    default_data_root: str | Path | None = None,
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
@@ -44,7 +45,7 @@ def run_from_config_file(
 ) -> RunOutput:
     """Load a run config file and execute the configured benchmark."""
 
-    config = load_run_config(config_path)
+    config = load_run_config(config_path, default_data_root=default_data_root)
     config_id = config_sha256(Path(config_path).expanduser().resolve())
     model_configs = None
     if evaluator is None:
@@ -82,7 +83,7 @@ def run_benchmark(
     resolved_config = config.to_resolved_dict()
     resolved_config["custom_models_path"] = str(custom_models_path)
     code_git_hash = git_hash()
-    items = load_benchmark_items(config.language, config.items_path)
+    items = load_benchmark_items(config.language, config.data_root)
     run_dir = config.output_dir / config.run_id
     results_dir = run_dir / "answers"
     config_snapshot_path = run_dir / "config.json"
@@ -148,18 +149,13 @@ def run_benchmark(
             for pending in chunk:
                 item = pending["item"]
                 result_id = pending["result_id"]
-                prompt = build_prompt(
-                    task=config.task,
-                    language=config.language,
-                    item=item,
-                )
                 row = _evaluate_item(
                     config=config,
                     config_id=config_id,
                     config_snapshot_path=config_snapshot_path,
                     model_name=model_name,
                     item=item,
-                    prompt=prompt,
+                    prompt=PLACEHOLDER_LLM_TEXT,
                     result_id=result_id,
                     evaluator=evaluator,
                 )
@@ -243,27 +239,22 @@ def evaluate_item_with_fdllm(
     item: Mapping[str, Any],
     prompt: str,
 ) -> dict[str, Any]:
-    """Call FDLLM for one model/item pair and normalize response metadata."""
-
-    from fdllm import get_caller
-    from fdllm.llmtypes import LLMMessage
-
-    messages = []
-    system_prompt = build_system_prompt(task=config.task, language=config.language)
-    if system_prompt:
-        messages.append(LLMMessage(Role="system", Message=system_prompt))
-    messages.append(LLMMessage(Role="user", Message=prompt))
-
-    caller = get_caller(model_name)
-    response = caller.call(messages, max_tokens=config.max_tokens)
+    """Return the temporary model response payload for one model/item pair."""
 
     return {
-        "output": response.Message,
-        "latency": getattr(response, "Latency", None),
-        "total_tokens": getattr(response, "TokensUsed", None),
-        "completion_tokens": getattr(response, "TokensUsedCompletion", None),
-        "reasoning_tokens": getattr(response, "TokensUsedReasoning", None),
+        "output": call_fdllm(config, model_name, item, prompt),
     }
+
+
+def call_fdllm(
+    config: BenchmarkRunConfig,
+    model_name: str,
+    item: Mapping[str, Any],
+    prompt: str,
+) -> str:
+    """Temporary placeholder for prompt loading and the eventual FDLLM call."""
+
+    return PLACEHOLDER_LLM_TEXT
 
 
 def _evaluate_item(
