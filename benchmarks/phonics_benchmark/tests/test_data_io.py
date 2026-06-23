@@ -55,6 +55,8 @@ def testlang_dir(patched_data_root):
 
 
 class TestGetDataDir:
+    """Test for get_data_dir() function."""
+
     def test_resolves_existing_language(self) -> None:
         """Resolves the kiswahili data directory to an existing path."""
         path = get_data_dir("kiswahili")
@@ -62,6 +64,8 @@ class TestGetDataDir:
 
 
 class TestReadStudents:
+    """Test for read_students() function."""
+
     def test_returns_profiles(self) -> None:
         """Returns the correct number of StudentKnowledgeProfile objects."""
         students = read_students("kiswahili")
@@ -138,6 +142,8 @@ class TestReadStudents:
 
 
 class TestReadDecodableTexts:
+    """Test for read_decodable_texts() function."""
+
     def test_returns_items(self) -> None:
         """Returns at least one DecodableText object for kiswahili."""
         items = read_decodable_texts("kiswahili")
@@ -214,6 +220,8 @@ class TestReadDecodableTexts:
 
 
 class TestReadBenchmarkItems:
+    """Test for read_benchmark_items() function."""
+
     def test_returns_items(self) -> None:
         """Returns all four BenchmarkItem objects for kiswahili."""
         items = read_benchmark_items("kiswahili")
@@ -290,6 +298,8 @@ class TestReadBenchmarkItems:
 
 
 class TestValidateBenchmarkDataset:
+    """Test for validate_benchmark_dataset() function."""
+
     def test_passes_for_valid_data(self) -> None:
         """Passes without error when all benchmark item references are valid."""
         validate_benchmark_dataset("kiswahili")
