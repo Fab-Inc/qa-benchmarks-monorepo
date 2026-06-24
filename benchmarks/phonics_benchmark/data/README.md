@@ -85,6 +85,11 @@ One JSON object per line. Each record pairs a decodable text with a student know
 profile (text, student_knowledge), forming a single benchmark evaluation unit. The full
 set of items for a language is the cross-product of all texts and all student profiles.
 
+> [!WARNING]\
+> This file will ideally be programmatically created from an outer join of decodable
+> texts and student knowledge profiles. The current benchmark_items.jsonl file serves
+> demonstration purposes of what that would look like!
+
 | Field                  | Type   | Description                                                               |
 | ---------------------- | ------ | ------------------------------------------------------------------------- |
 | `benchmark_item_id`    | string | Unique identifier for the item (e.g. `"bi-sw-001-stu-sw-001"`)            |
