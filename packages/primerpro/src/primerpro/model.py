@@ -587,7 +587,7 @@ class Word:
     def _build_word(self) -> None:
         syllable_text = ""
         explicit_syllables = False
-        for grapheme, matched, _ in _scan(self.orig_word, self.settings):
+        for grapheme, matched, _ in _scan_for_grapheme(self.orig_word, self.settings):
             symbol = grapheme.symbol
             if not matched:
                 if symbol == self.syllable_break_character:
@@ -744,7 +744,7 @@ class Sentence:
     def _build_words(self, text: str) -> None:
         token = ""
         separators = set(self.settings.option_settings.general_punct)
-        for _, matched, raw in _scan(text, self.settings):
+        for _, matched, raw in _scan_for_grapheme(text, self.settings):
             if matched:
                 token += raw
             elif raw in separators:
@@ -1040,7 +1040,9 @@ def _next_grapheme(
     return Grapheme(text[index]), index, False
 
 
-def _scan(text: str, settings: Settings) -> Iterator[tuple[Grapheme, bool, str]]:
+def _scan_for_grapheme(
+    text: str, settings: Settings
+) -> Iterator[tuple[Grapheme, bool, str]]:
     """Walk ``text`` left to right, yielding one segment per grapheme.
 
     Each segment is ``(grapheme, matched, raw)`` where ``matched`` is True when an
