@@ -1,7 +1,7 @@
 """
-Script focused on generating realistic responses (to benchmark items) from LLMs and
-parsing each response into a word list that can later be scored (outside scope though
-implemented crudely here as demonstration of concept).
+Script focused on generating responses to benchmark items from LLMs and
+parsing each response into a word list that can later be scored (outside of scope
+but implemented crudely here as demonstration of concept).
 
 Some of the boilerplate here will be replaced/rewritten once itegrated into src/,
 especially the IO parts, and anything that overlaps with other code.
@@ -60,6 +60,7 @@ BENCH_ITEMS_PATH = (
 # warning: this Excel currently has the headers on row 4; could change
 benchmark_items = pd.read_excel(BENCH_ITEMS_PATH, header=3)
 
+# this env setup will be handled by a CLI callback when running the benchmark properly
 load_dotenv(REPO_ROOT / ".env")
 register_models(REPO_ROOT / "custom_models.yaml")
 
@@ -77,7 +78,7 @@ max_rows = 5
 
 language = "kiswahili"  # hardcoded for now, will be replaced with CLI-supplied value
 
-timestamp: str = datetime.now(UTC).strftime("%Y%m%d_%H%M%SZ")
+timestamp: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 results_path = OUTPUTS_DIR / f"{timestamp}_results_trial.jsonl"
 
 
@@ -96,13 +97,12 @@ def strip_non_alpha(word: str) -> str:
 
 
 def parse_word_list_from_response(response: str) -> list[str]:
-    """Split response word list by commas, then remove all remaining whitespace
-    and special characters to leave pure alphabetic words.
-    """
+    """Parse a model response to a benchmark item into a pure list of words."""
     # TODO: we probably want to handle this more scientifically in longer term
     # by evaluating and logging whether the response met the expected schema,
     # so that invalid responses get flagged and not just ignored / marked wrong.
-    # For now just brute forcing everything into a list of words.
+
+    response = response.strip()
 
     if response == "[]" or response == "":
         return []
@@ -113,7 +113,28 @@ def parse_word_list_from_response(response: str) -> list[str]:
             "erroneously trying to say 'all words decodable' or similar"
         )
 
-    words_raw = [word.strip() for word in response.split(",")]
+    # Parse forgivingly to try remove superfluous material the model may have added.
+    # Find the final closing square bracket of the response, then the opening bracket
+    #   that matches it, then extract all text in between them.
+    # If no matching set of square brackets is found, then just keep response in full.
+    response_trimmed = response
+    close_idx = response.rfind("]")
+    if close_idx != -1:
+        # walk backwards from the final "]" to find its matching "[",
+        # accounting for any nested brackets in between.
+        depth = 0
+        for i in range(close_idx, -1, -1):
+            if response[i] == "]":
+                depth += 1
+            elif response[i] == "[":
+                depth -= 1
+                if depth == 0:
+                    response_trimmed = response[i + 1 : close_idx]
+                    break
+
+    words_raw = [word.strip() for word in response_trimmed.split(",")]
+
+    # Now deal with any delimiters that may be surrounding each word
 
     # WARNING: this will fail if the word is legitimately supposed to begin
     # or end with punctuation, e.g. apostrophe could be problematic
@@ -174,6 +195,7 @@ for model in models:
 
         # Perfect one-to-one correspondence ignoring order (duplicates must match too)
         perfect_match = Counter(response_parsed) == Counter(correct_answer_parsed)
+        # TODO: consider converting everything to lowercase before comparison
 
         # TODO: log all LLM API config params (even defaults) if possible, e.g. "effort"
         result = {

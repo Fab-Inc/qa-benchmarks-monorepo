@@ -42,7 +42,7 @@ def call_llm(
 
     response_text = outmsg.Message
 
-    timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%fZ")
+    timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
 
     result = {
         "model": model,
