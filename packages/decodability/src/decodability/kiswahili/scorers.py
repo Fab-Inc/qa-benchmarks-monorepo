@@ -43,7 +43,9 @@ KISWAHILI_VOWEL_GPCS = [
 def _get_primerpro_settings() -> Settings:
     settings = Settings()
     settings.option_settings.max_size_grapheme = 3
-    settings.option_settings.general_punct = ' ,:;-"'
+    # Keep the default general_punct (which includes the apostrophe): primerpro's
+    # grapheme-aware scan preserves "ng'" while still stripping stray quotes, so
+    # the earlier workaround of dropping the apostrophe is no longer needed.
 
     inventory = GraphemeInventory()
 
