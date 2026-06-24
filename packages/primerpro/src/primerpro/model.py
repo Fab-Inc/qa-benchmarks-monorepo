@@ -226,16 +226,16 @@ class GraphemeInventory:
     def get_grapheme(self, symbol: str) -> Grapheme | None:
         """Return any inventory grapheme matching a written form."""
 
-        for grapheme in self.get_all_graphemes():
+        for grapheme in self._get_all_graphemes():
             if symbol == grapheme.symbol or symbol == grapheme.uppercase:
                 return grapheme
         return None
 
     def reset_text_counts(self) -> None:
-        for grapheme in self.get_all_graphemes():
+        for grapheme in self._get_all_graphemes():
             grapheme.init_count_in_text_data()
 
-    def get_all_graphemes(self) -> list[Grapheme]:
+    def _get_all_graphemes(self) -> list[Grapheme]:
         return [*self.consonants, *self.vowels, *self.tones, *self.syllographs]
 
 
