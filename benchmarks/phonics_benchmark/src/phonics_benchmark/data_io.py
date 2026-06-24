@@ -13,14 +13,10 @@ from phonics_benchmark.models import (
     StudentKnowledgeProfile,
 )
 
-# Anchored to the benchmark project root (3 levels up from this file).
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 
-
-def get_data_dir(language: str) -> Path:
-    """Return the Path to data/<language>/"""
-    path = DATA_ROOT / language
-    return path
+def get_data_dir(language: str, data_root: Path) -> Path:
+    """Return the Path to data_root/<language>/"""
+    return data_root / language
 
 
 def _open_jsonl(path: Path, language: str, description: str):
@@ -33,12 +29,12 @@ def _open_jsonl(path: Path, language: str, description: str):
         ) from None
 
 
-def read_decodable_texts(language: str) -> list[DecodableText]:
+def read_decodable_texts(language: str, data_root: Path) -> list[DecodableText]:
     """Parse decodable_texts.jsonl for the given language.
 
     Returns a list of DecodableText objects.
     """
-    path = get_data_dir(language) / "decodable_texts.jsonl"
+    path = get_data_dir(language, data_root) / "decodable_texts.jsonl"
     texts: list[DecodableText] = []
     seen_ids: set[str] = set()
     with _open_jsonl(path, language, "decodable_texts.jsonl") as f:
@@ -62,12 +58,14 @@ def read_decodable_texts(language: str) -> list[DecodableText]:
     return texts
 
 
-def read_student_knowledge_profiles(language: str) -> list[StudentKnowledgeProfile]:
+def read_student_knowledge_profiles(
+    language: str, data_root: Path
+) -> list[StudentKnowledgeProfile]:
     """Parse student_knowledge_profiles.jsonl for the given language.
 
     Returns a list of StudentKnowledgeProfile objects.
     """
-    path = get_data_dir(language) / "student_knowledge_profiles.jsonl"
+    path = get_data_dir(language, data_root) / "student_knowledge_profiles.jsonl"
     profiles: list[StudentKnowledgeProfile] = []
     seen_ids: set[str] = set()
     with _open_jsonl(path, language, "student_knowledge_profiles.jsonl") as f:
@@ -92,7 +90,7 @@ def read_student_knowledge_profiles(language: str) -> list[StudentKnowledgeProfi
     return profiles
 
 
-def read_benchmark_items(language: str) -> list[BenchmarkItem]:
+def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
     """Parse benchmark_items.jsonl for the given language.
 
     Returns a list of BenchmarkItem objects. Cross-reference validation
@@ -100,7 +98,7 @@ def read_benchmark_items(language: str) -> list[BenchmarkItem]:
     data files) is not performed here — call validate_benchmark_dataset()
     separately if referential integrity is required.
     """
-    path = get_data_dir(language) / "benchmark_items.jsonl"
+    path = get_data_dir(language, data_root) / "benchmark_items.jsonl"
     items: list[BenchmarkItem] = []
     seen_ids: set[str] = set()
     with _open_jsonl(path, language, "benchmark_items.jsonl") as f:
@@ -125,15 +123,15 @@ def read_benchmark_items(language: str) -> list[BenchmarkItem]:
     return items
 
 
-def validate_benchmark_dataset(language: str) -> None:
+def validate_benchmark_dataset(language: str, data_root: Path) -> None:
     """Check referential integrity across all three data files for a language.
 
     Raises ValueError if any benchmark_item references a text_id or
     student_knowledge_id that does not exist in the corresponding data file.
     """
-    texts = read_decodable_texts(language)
-    student_knowledge_profiles = read_student_knowledge_profiles(language)
-    items = read_benchmark_items(language)
+    texts = read_decodable_texts(language, data_root)
+    student_knowledge_profiles = read_student_knowledge_profiles(language, data_root)
+    items = read_benchmark_items(language, data_root)
 
     text_ids = {t.text_id for t in texts}
     student_ids = {s.student_knowledge_id for s in student_knowledge_profiles}
