@@ -1,0 +1,21 @@
+# Prompt templates for the decodability benchmark.
+# Templates use str.format() named placeholders.
+
+decodability_evaluation: >-
+  I want you to assess the decodability of a text in {language} for a student with a particular knowledge profile.
+
+
+  The student knowledge profile is:
+
+  {taught_knowledge}
+
+
+  The text to evaluate is:
+
+  {text}
+
+
+  Your task is to reply ONLY with the non-decodable words, as a list in the format `[word1, word2, ...]`.
+  If all words are decodable, reply with an empty list like `[]`
+
+  No explanation, no filler, no extra text whatsoever. Only square brackets, commas, and the non-decodable words.
