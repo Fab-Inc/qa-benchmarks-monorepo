@@ -62,7 +62,7 @@ def read_decodable_texts(language: str) -> list[DecodableText]:
     return texts
 
 
-def read_students(language: str) -> list[StudentKnowledgeProfile]:
+def read_student_knowledge_profiles(language: str) -> list[StudentKnowledgeProfile]:
     """Parse student_knowledge_profiles.jsonl for the given language.
 
     Returns a list of StudentKnowledgeProfile objects.
@@ -132,11 +132,11 @@ def validate_benchmark_dataset(language: str) -> None:
     student_knowledge_id that does not exist in the corresponding data file.
     """
     texts = read_decodable_texts(language)
-    students = read_students(language)
+    student_knowledge_profiles = read_student_knowledge_profiles(language)
     items = read_benchmark_items(language)
 
     text_ids = {t.text_id for t in texts}
-    student_ids = {s.student_knowledge_id for s in students}
+    student_ids = {s.student_knowledge_id for s in student_knowledge_profiles}
 
     for item in items:
         if item.text_id not in text_ids:

@@ -8,7 +8,7 @@ from phonics_benchmark.data_io import (
     get_data_dir,
     read_benchmark_items,
     read_decodable_texts,
-    read_students,
+    read_student_knowledge_profiles,
     validate_benchmark_dataset,
 )
 from phonics_benchmark.models import (
@@ -19,7 +19,7 @@ from phonics_benchmark.models import (
 
 
 @pytest.fixture
-def student_record():
+def student_profile_record():
     """Minimal valid student knowledge profile record."""
     return {
         "student_knowledge_id": "stu-001",
@@ -55,7 +55,7 @@ def patched_data_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def testlang_dir(patched_data_root, text_record, student_record, item_record):
+def testlang_dir(patched_data_root, text_record, student_profile_record, item_record):
     """A testlang/ directory pre-populated with one valid record per data file."""
     d = patched_data_root / "testlang"
     d.mkdir()
@@ -63,7 +63,7 @@ def testlang_dir(patched_data_root, text_record, student_record, item_record):
         json.dumps(text_record) + "\n", encoding="utf-8"
     )
     (d / "student_knowledge_profiles.jsonl").write_text(
-        json.dumps(student_record) + "\n", encoding="utf-8"
+        json.dumps(student_profile_record) + "\n", encoding="utf-8"
     )
     (d / "benchmark_items.jsonl").write_text(
         json.dumps(item_record) + "\n", encoding="utf-8"
@@ -80,19 +80,19 @@ class TestGetDataDir:
         assert path.is_dir()
 
 
-class TestReadStudents:
-    """Test for read_students() function."""
+class TestReadStudentKnowledgeProfiles:
+    """Test for read_student_knowledge_profiles() function."""
 
     def test_returns_profiles(self) -> None:
         """Returns the correct number of StudentKnowledgeProfile objects."""
-        students = read_students("kiswahili")
-        assert len(students) == 2
-        assert all(isinstance(s, StudentKnowledgeProfile) for s in students)
+        profiles = read_student_knowledge_profiles("kiswahili")
+        assert len(profiles) == 2
+        assert all(isinstance(p, StudentKnowledgeProfile) for p in profiles)
 
     def test_first_profile(self) -> None:
         """First profile has the expected ID, known_syllables, and max_word_length."""
-        students = read_students("kiswahili")
-        first = students[0]
+        profiles = read_student_knowledge_profiles("kiswahili")
+        first = profiles[0]
         assert first.student_knowledge_id == "stu-sw-001"
         assert "known_syllables" in first.taught_knowledge
         assert first.taught_knowledge["max_word_length"] == 4
@@ -100,64 +100,74 @@ class TestReadStudents:
     def test_missing_file_raises(self) -> None:
         """Raises FileNotFoundError naming the file when no profiles JSONL exists."""
         with pytest.raises(FileNotFoundError, match="student_knowledge_profiles.jsonl"):
-            read_students("english")
+            read_student_knowledge_profiles("english")
 
-    def test_duplicate_id_raises(self, patched_data_root, student_record) -> None:
+    def test_duplicate_id_raises(
+        self, patched_data_root, student_profile_record
+    ) -> None:
         """Raises ValueError when two records share the same student_knowledge_id."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps(student_record) + "\n" + json.dumps(student_record) + "\n",
+            json.dumps(student_profile_record)
+            + "\n"
+            + json.dumps(student_profile_record)
+            + "\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match="duplicate student_knowledge_id"):
-            read_students("testlang")
+            read_student_knowledge_profiles("testlang")
 
     def test_bad_line_reports_line_number(
-        self, patched_data_root, student_record
+        self, patched_data_root, student_profile_record
     ) -> None:
         """Error message includes the 1-based line number of the invalid record."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps(student_record) + "\n" + "not valid json\n",
+            json.dumps(student_profile_record) + "\n" + "not valid json\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match=":2:"):
-            read_students("testlang")
+            read_student_knowledge_profiles("testlang")
 
-    def test_rejects_extra_field(self, patched_data_root, student_record) -> None:
+    def test_rejects_extra_field(
+        self, patched_data_root, student_profile_record
+    ) -> None:
         """Raises ValueError when a record contains an unexpected field."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps({**student_record, "unexpected_field": "value"}) + "\n",
+            json.dumps({**student_profile_record, "unexpected_field": "value"}) + "\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match=":1:"):
-            read_students("testlang")
+            read_student_knowledge_profiles("testlang")
 
-    def test_rejects_wrong_field_type(self, patched_data_root, student_record) -> None:
+    def test_rejects_wrong_field_type(
+        self, patched_data_root, student_profile_record
+    ) -> None:
         """Raises ValueError when taught_knowledge is not a dict."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps({**student_record, "taught_knowledge": "not-a-dict"}) + "\n",
+            json.dumps({**student_profile_record, "taught_knowledge": "not-a-dict"})
+            + "\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match=":1:"):
-            read_students("testlang")
+            read_student_knowledge_profiles("testlang")
 
-    def test_rejects_empty_id(self, patched_data_root, student_record) -> None:
+    def test_rejects_empty_id(self, patched_data_root, student_profile_record) -> None:
         """Raises ValueError when student_knowledge_id is an empty string."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps({**student_record, "student_knowledge_id": ""}) + "\n",
+            json.dumps({**student_profile_record, "student_knowledge_id": ""}) + "\n",
             encoding="utf-8",
         )
         with pytest.raises(ValueError, match=":1:"):
-            read_students("testlang")
+            read_student_knowledge_profiles("testlang")
 
 
 class TestReadDecodableTexts:
