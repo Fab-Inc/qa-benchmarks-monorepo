@@ -26,10 +26,13 @@ def call_llm(
         return {"response_text": "BYPASS"}
 
     caller = get_caller(model)
-    message = LLMMessage(Role="user", Message=prompt)
+    messages: list[LLMMessage] = []
+    if system_prompt:
+        messages.append(LLMMessage(Role="system", Message=system_prompt))
+    messages.append(LLMMessage(Role="user", Message=prompt))
     t0 = time.monotonic()
     outmsg: LLMMessage = caller.call(
-        message,
+        messages,
         max_tokens=max_tokens,
         response_schema=response_schema,
     )
@@ -44,7 +47,7 @@ def call_llm(
 
     timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
 
-    result = {
+    record = {
         "model": model,
         "system_prompt": system_prompt,
         "prompt": prompt,
@@ -59,9 +62,9 @@ def call_llm(
     }
 
     if should_log and log_base_dir:
-        _log_llm_response(log_base_dir, result, timestamp_utc, tag)
+        _log_llm_response(log_base_dir, record, timestamp_utc, tag)
 
-    return result
+    return record
 
 
 def _check_if_llm_response_truncated(
