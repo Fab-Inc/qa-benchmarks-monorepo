@@ -1,12 +1,33 @@
 from pydantic import BaseModel, field_validator
 
+from decodability.kiswahili.config import VALID_GRAPHEMES
+
 
 class KiswahiliStudentKnowledge(BaseModel):
     """Model for Kiswahili student knowledge representation."""
 
+    known_graphemes: set[str] = set()
+    sight_words: set[str] = set()
     known_syllables: set[str] = set()
-    max_word_length: int = 1
+    max_word_length: int = 5
     known_syllable_patterns: set[str] = set()
+
+    @field_validator("known_graphemes")
+    def check_known_graphemes(cls, graphemes: set[str]) -> set[str]:  # noqa: N805
+        """Check that every grapheme is a valid Kiswahili grapheme."""
+        invalid_graphemes = [
+            grapheme
+            for grapheme in graphemes
+            if grapheme.lower() not in VALID_GRAPHEMES
+        ]
+
+        if invalid_graphemes:
+            raise ValueError(
+                f"Invalid graphemes: {invalid_graphemes}. "
+                "Only valid Kiswahili graphemes are allowed."
+            )
+
+        return graphemes
 
     @field_validator("known_syllable_patterns")
     def check_cv_pattern(cls, patterns: set[str]) -> bool | set[str]:  # noqa: N805

@@ -1,10 +1,10 @@
 import pytest
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
+    primerpro_settings,
     score_known_syllables_kiswahili,
     score_syllable_pattern_kiswahili,
     score_word_length_kiswahili,
-    settings,
 )
 from decodability.kiswahili.tokenizer import tokenize_kiswahili
 from primerpro import Word
@@ -51,7 +51,7 @@ class TestScorers:
         """Test the score_known_syllables_kiswahili function."""
         student_knowledge = KiswahiliStudentKnowledge(known_syllables=known_syllables)
         score = score_known_syllables_kiswahili(word, student_knowledge)
-        primerpro_word = Word(word, settings)
+        primerpro_word = Word(word, primerpro_settings)
         syllable_symbols = [
             syllable.display_syllable.lower() for syllable in primerpro_word.syllables
         ]

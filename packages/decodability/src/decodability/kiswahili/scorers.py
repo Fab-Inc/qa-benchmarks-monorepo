@@ -1,63 +1,54 @@
-from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
+from primerpro import Word
 
+from decodability.kiswahili.config import primerpro_settings
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
-KISWAHILI_CONSONANT_GPCS = [
-    ("b", "b"),
-    ("ch", "tʃ"),
-    ("d", "d"),
-    ("dh", "ð"),
-    ("f", "f"),
-    ("g", "ɡ"),
-    ("gh", "Ɣ"),
-    ("h", "h"),
-    ("j", "j"),
-    ("k", "k"),
-    ("l", "l"),
-    ("m", "m"),
-    ("n", "n"),
-    ("ng", "ŋg"),
-    ("ng'", "ŋ"),
-    ("ny", "ɲ"),
-    ("p", "p"),
-    ("r", "r"),
-    ("s", "s"),
-    ("sh", "ʃ"),
-    ("t", "t"),
-    ("th", "θ"),
-    ("v", "v"),
-    ("w", "w"),
-    ("y", "y"),
-    ("z", "z"),
-]
 
-KISWAHILI_VOWEL_GPCS = [
-    ("a", "a"),
-    ("e", "ɛ"),
-    ("i", "i"),
-    ("o", "ɔ"),
-    ("u", "u"),
-]
+def score_known_graphemes_kiswahili(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
+    """Score a word based on whether the student knows all the graphemes in the word.
+
+    The score is binary: if there's any grapheme that the student doesn't know, the
+    score is 0.
+    """
+    taught_graphemes = student_knowledge.known_graphemes
+
+    if not taught_graphemes:
+        return 0.0
+
+    primerpro_word = Word(word, primerpro_settings)
+    grapheme_symbols = [
+        primerpro_word.get_grapheme(index).symbol.lower()
+        for index in range(primerpro_word.grapheme_count())
+    ]
+
+    if any(grapheme not in taught_graphemes for grapheme in grapheme_symbols):
+        return 0.0
+
+    return 1.0
 
 
-def _get_primerpro_settings() -> Settings:
-    settings = Settings()
-    settings.option_settings.max_size_grapheme = 3
-    settings.option_settings.general_punct = ' ,:;-"'
+def score_sight_words_kiswahili(
+    word: str, student_knowledge: KiswahiliStudentKnowledge
+) -> float:
+    """Score a word based on whether the student knows it as a sight word.
 
-    inventory = GraphemeInventory()
+    The score is binary: if the student knows the word as a sight word, the score is 1.
+    Otherwise, the score is 0.
+    """
+    taught_sight_words = student_knowledge.sight_words
 
-    for symbol, _ in KISWAHILI_CONSONANT_GPCS:
-        inventory.add_consonant(Consonant(symbol))
+    if not taught_sight_words:
+        return 0.0
 
-    for symbol, _ in KISWAHILI_VOWEL_GPCS:
-        inventory.add_vowel(Vowel(symbol))
+    primerpro_word = Word(word, primerpro_settings)
+    display_word = primerpro_word.display_word.lower()
 
-    settings.grapheme_inventory = inventory
-    return settings
+    if display_word in taught_sight_words:
+        return 1.0
 
-
-settings: Settings = _get_primerpro_settings()
+    return 0.0
 
 
 def score_known_syllables_kiswahili(
@@ -74,7 +65,7 @@ def score_known_syllables_kiswahili(
     if not taught_syllables:
         return 0.0
 
-    primerpro_word = Word(word, settings)
+    primerpro_word = Word(word, primerpro_settings)
     syllable_symbols = [
         syllable.display_syllable.lower() for syllable in primerpro_word.syllables
     ]
@@ -110,7 +101,7 @@ def score_syllable_pattern_kiswahili(
     """
     taught_patterns = student_knowledge.known_syllable_patterns
 
-    primerpro_word = Word(word, settings)
+    primerpro_word = Word(word, primerpro_settings)
     syllable_pattern = primerpro_word.cv_pattern
 
     if not taught_patterns:

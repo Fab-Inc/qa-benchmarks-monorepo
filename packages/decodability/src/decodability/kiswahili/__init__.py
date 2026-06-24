@@ -1,4 +1,4 @@
-from decodability import mean_score, weighted_average
+from decodability.kiswahili.aggregators import kiswahili_kenya_tusome_aggregator
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_syllables_kiswahili,
@@ -14,13 +14,13 @@ SCORING_METHODS = {
 }
 
 AGGREGATIONS = {
-    "mean_score": mean_score,
-    "weighted_average": weighted_average,
+    "kiswahili_kenya_tusome_aggregator": kiswahili_kenya_tusome_aggregator,
 }
 
 __all__ = [
     "SCORING_METHODS",
     "AGGREGATIONS",
+    "kiswahili_kenya_tusome_aggregator",
     "KiswahiliStudentKnowledge",
     "score_known_syllables_kiswahili",
     "score_word_length_kiswahili",
