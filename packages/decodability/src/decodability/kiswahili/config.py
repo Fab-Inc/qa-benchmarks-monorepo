@@ -1,7 +1,7 @@
+"""Shared congifurations for Kiswahili decodability scoring."""
+
 from primerpro import Consonant, GraphemeInventory, Settings, Vowel
 
-# Grapheme-to-phoneme correspondences (GPCs) for Kiswahili. Each tuple is
-# (orthographic grapheme, IPA phoneme).
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
     ("ch", "tʃ"),

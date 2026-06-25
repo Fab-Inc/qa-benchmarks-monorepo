@@ -51,31 +51,6 @@ def score_whole_words_kiswahili(
     return 0.0
 
 
-def score_known_syllables_kiswahili(
-    word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> float:
-    """Score a word based on the number of known syllables and the total number of
-    syllables in the word.
-
-    The score is binary: if there's any syllable that the student doesn't know, the
-    score is 0.
-    """
-    taught_syllables = student_knowledge.syllables
-
-    if not taught_syllables:
-        return 0.0
-
-    primerpro_word = Word(word, primerpro_settings)
-    syllable_symbols = [
-        syllable.display_syllable.lower() for syllable in primerpro_word.syllables
-    ]
-
-    if any(syllable not in taught_syllables for syllable in syllable_symbols):
-        return 0.0
-
-    return 1.0
-
-
 def score_word_length_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
 ) -> float:

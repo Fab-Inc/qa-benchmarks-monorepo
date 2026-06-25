@@ -8,7 +8,6 @@ class KiswahiliStudentKnowledge(BaseModel):
 
     graphemes: set[str] = set()
     whole_words: set[str] = set()
-    syllables: set[str] = set()
     max_word_length: int = 5
     syllable_patterns: set[str] = set()
 

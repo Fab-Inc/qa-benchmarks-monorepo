@@ -7,15 +7,12 @@ from decodability.kiswahili.aggregators import (
 )
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
-    primerpro_settings,
     score_known_graphemes_kiswahili,
-    score_known_syllables_kiswahili,
     score_syllable_pattern_kiswahili,
     score_whole_words_kiswahili,
     score_word_length_kiswahili,
 )
 from decodability.kiswahili.tokenizer import tokenize_kiswahili
-from primerpro import Word
 
 
 class TestKiswahiliStudentKnowledgeValidator:
@@ -66,30 +63,6 @@ class TestScorers:
         assert score_whole_words_kiswahili("baba", student_knowledge) == 1.0
         assert score_whole_words_kiswahili("mama", student_knowledge) == 1.0
         assert score_whole_words_kiswahili("babu", student_knowledge) == 0.0
-
-    @pytest.mark.parametrize(
-        "word, known_syllables, expected",
-        [
-            ("baba", {"ba"}, 1.0),
-            ("baba", {"be"}, 0.0),
-            ("baba", set(), 0.0),
-            ("Baba", {"ba"}, 1.0),  # case-insensitive
-            # ("NG'OMBE", {"ng'o", "m", "be"}, 1.0),  # case-insensitive with apostrophe
-        ],
-    )
-    def test_score_known_syllables_kiswahili(
-        self, word: str, known_syllables: set[str], expected: float
-    ):
-        """Test the score_known_syllables_kiswahili function."""
-        student_knowledge = KiswahiliStudentKnowledge(syllables=known_syllables)
-        score = score_known_syllables_kiswahili(word, student_knowledge)
-        primerpro_word = Word(word, primerpro_settings)
-        syllable_symbols = [
-            syllable.display_syllable.lower() for syllable in primerpro_word.syllables
-        ]
-        assert score == expected, (
-            f"Expected {expected} but got {score} (syllables: {syllable_symbols})"
-        )
 
     @pytest.mark.parametrize(
         "word, max_word_length, expected",
