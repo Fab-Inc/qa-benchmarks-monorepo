@@ -2,7 +2,8 @@
 # Templates use str.format() named placeholders.
 
 decodability_evaluation: >-
-  I want you to assess the decodability of a text in {language} for a student with a particular knowledge profile.
+  I want you to assess the decodability of a text in {language} for a student with a
+  particular knowledge profile.
 
 
   The student knowledge profile is:
@@ -15,7 +16,13 @@ decodability_evaluation: >-
   {text}
 
 
-  Your task is to reply ONLY with the non-decodable words, as a list in the format `[word1, word2, ...]`.
-  If all words are decodable, reply with an empty list like `[]`
+  Consider what has been taught to the student, as well as considerations that might
+  make a word more difficult to decode for a student in general.
 
-  No explanation, no filler, no extra text whatsoever. Only square brackets, commas, and the non-decodable words.
+
+  Your task is to reply ONLY with the non-decodable words, as a list in the format
+  `[word1, word2, ...]`. If all words are decodable, reply with an empty list like `[]`.
+
+
+  No explanation, no filler, no extra text whatsoever. Only square brackets, commas, and
+  the non-decodable words.
