@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
+import pytest
+from phonics_benchmark.config import BenchmarkRunConfig, ConfigError, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
@@ -149,6 +150,120 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
     assert second_output["executed_count"] == 0
     assert second_output["skipped_count"] == 1
     assert rows[0]["output"] == "first"
+
+
+def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None:
+    """Changing retry_errors does not change result IDs for cached rows."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[
+            {"id": "item-1", "text": "A cat sat."},
+            {"id": "item-2", "text": "The dog ran."},
+        ],
+    )
+
+    def first_evaluator(
+        _config: BenchmarkRunConfig,
+        _model_name: str,
+        item: dict,
+        _prompt: str,
+    ) -> dict:
+        if item["item_id"] == "item-1":
+            raise RuntimeError("transient")
+        return {"output": "success"}
+
+    first_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=first_evaluator,
+    )
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["retry_errors"] = True
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    retried_items = []
+
+    def retry_evaluator(
+        _config: BenchmarkRunConfig,
+        _model_name: str,
+        item: dict,
+        _prompt: str,
+    ) -> dict:
+        retried_items.append(item["item_id"])
+        return {"output": "retried"}
+
+    second_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=retry_evaluator,
+    )
+
+    rows = _read_jsonl(second_output["results_paths"]["model-a"])
+    assert first_output["config_id"] == second_output["config_id"]
+    assert retried_items == ["item-1"]
+    assert second_output["executed_count"] == 1
+    assert second_output["skipped_count"] == 1
+    assert [row["output"] for row in rows] == ["retried", "success"]
+
+
+def test_run_from_config_file_rejects_existing_results_for_different_config(
+    tmp_path: Path,
+) -> None:
+    """A reused run_id cannot mix cached rows from another config."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+    run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
+    )
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["task"] = "phonics_annotation"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    def fail_if_called(
+        _config: BenchmarkRunConfig,
+        _model_name: str,
+        _item: dict,
+        _prompt: str,
+    ) -> dict:
+        raise AssertionError("mixed-config runs should fail before evaluating")
+
+    with pytest.raises(ConfigError, match="different config_id"):
+        run_from_config_file(
+            config_path,
+            default_data_root=tmp_path / "data",
+            evaluator=fail_if_called,
+        )
+
+
+def test_run_from_config_file_uses_safe_model_result_filename(tmp_path: Path) -> None:
+    """Model names with path separators stay inside the answers directory."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["provider/model"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
+    )
+
+    results_path = output["results_paths"]["provider/model"]
+    assert results_path.parent == output["results_dir"]
+    assert results_path.name.startswith("resps_provider_model-")
+    assert results_path.name.endswith(".jsonl")
+    assert results_path.exists()
 
 
 def test_run_benchmark_writes_supplied_model_configs(tmp_path: Path) -> None:

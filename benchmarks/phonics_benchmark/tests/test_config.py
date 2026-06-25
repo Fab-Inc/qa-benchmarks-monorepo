@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
-from phonics_benchmark.config import ConfigError, load_run_config
+from phonics_benchmark.config import (
+    ConfigError,
+    config_identity_sha256,
+    load_run_config,
+)
 
 
 def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
@@ -86,6 +90,59 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
     assert config.run_id == "default"
     assert config.data_root == (tmp_path / "data").resolve()
     assert config.chunk_size == 100
+
+
+def test_config_identity_includes_default_data_root(tmp_path: Path) -> None:
+    """A caller-provided default data root is part of result identity."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "english",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    first = load_run_config(config_path, default_data_root=tmp_path / "data-a")
+    second = load_run_config(config_path, default_data_root=tmp_path / "data-b")
+
+    assert config_identity_sha256(first) != config_identity_sha256(second)
+
+
+def test_config_identity_excludes_retry_controls(tmp_path: Path) -> None:
+    """Retry and checkpoint controls do not change cached row identity."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "english",
+                "models": ["model-a"],
+                "chunk_size": 100,
+                "retry_errors": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    original = load_run_config(config_path, default_data_root=tmp_path / "data")
+
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "english",
+                "models": ["model-a"],
+                "chunk_size": 1,
+                "retry_errors": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    retry = load_run_config(config_path, default_data_root=tmp_path / "data")
+
+    assert config_identity_sha256(original) == config_identity_sha256(retry)
 
 
 def test_load_run_config_requires_data_root_without_default(tmp_path: Path) -> None:

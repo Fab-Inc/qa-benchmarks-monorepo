@@ -60,6 +60,14 @@ class BenchmarkRunConfig:
             "extra": self.extra,
         }
 
+    def to_identity_dict(self) -> dict[str, Any]:
+        """Return the semantic run inputs used to identify result rows."""
+
+        resolved = self.to_resolved_dict()
+        for operational_key in ("chunk_size", "force", "retry_errors"):
+            resolved.pop(operational_key, None)
+        return resolved
+
 
 def config_sha256(config_path: Path) -> str:
     """Return a sha256 hash of the exact config file bytes."""
@@ -72,6 +80,17 @@ def config_object_sha256(config: BenchmarkRunConfig) -> str:
 
     payload = json.dumps(
         config.to_resolved_dict(),
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def config_identity_sha256(config: BenchmarkRunConfig) -> str:
+    """Return a stable hash for the semantic inputs of a benchmark run."""
+
+    payload = json.dumps(
+        config.to_identity_dict(),
         ensure_ascii=False,
         sort_keys=True,
     ).encode("utf-8")

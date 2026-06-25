@@ -10,8 +10,7 @@ import typer
 from phonics_benchmark.config import (
     ConfigError,
     build_run_config,
-    config_object_sha256,
-    config_sha256,
+    config_identity_sha256,
     load_run_config,
 )
 from phonics_benchmark.runner import (
@@ -148,7 +147,7 @@ def run_cmd(
             model_configs = snapshot_model_configs(run_config.models)
             output = run_benchmark(
                 run_config,
-                config_id=config_sha256(config),
+                config_id=config_identity_sha256(run_config),
                 model_configs=model_configs,
             )
         else:
@@ -179,7 +178,7 @@ def run_cmd(
             model_configs = snapshot_model_configs(run_config.models)
             output = run_benchmark(
                 run_config,
-                config_id=config_object_sha256(run_config),
+                config_id=config_identity_sha256(run_config),
                 model_configs=model_configs,
             )
     except (ConfigError, FileNotFoundError) as e:

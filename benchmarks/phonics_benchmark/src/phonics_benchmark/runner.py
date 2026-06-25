@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import time
@@ -17,7 +18,7 @@ import pandas as pd
 from phonics_benchmark.config import (
     BenchmarkRunConfig,
     ConfigError,
-    config_sha256,
+    config_identity_sha256,
     load_run_config,
 )
 from phonics_benchmark.items import item_to_dict, load_benchmark_items
@@ -46,7 +47,7 @@ def run_from_config_file(
     """Load a run config file and execute the configured benchmark."""
 
     config = load_run_config(config_path, default_data_root=default_data_root)
-    config_id = config_sha256(Path(config_path).expanduser().resolve())
+    config_id = config_identity_sha256(config)
     model_configs = None
     if evaluator is None:
         prepare_fdllm_for_run(config)
@@ -119,6 +120,11 @@ def run_benchmark(
                 f"No cached results found for {model_name}; cannot use --retry-errors."
             )
         existing_results = load_results(results_path, force=config.force)
+        _validate_existing_results_config_id(
+            existing_results,
+            results_path=results_path,
+            config_id=config_id,
+        )
         rows_by_id = _results_by_id(existing_results)
         ordered_ids = _ordered_result_ids(existing_results)
         pending_items: list[dict[str, Any]] = []
@@ -374,6 +380,37 @@ def _results_by_id(results: pd.DataFrame) -> dict[str, dict[str, Any]]:
     return {str(row["result_id"]): row for row in results.to_dict(orient="records")}
 
 
+def _validate_existing_results_config_id(
+    results: pd.DataFrame,
+    *,
+    results_path: Path,
+    config_id: str,
+) -> None:
+    if results.empty:
+        return
+    if "config_id" not in results.columns:
+        raise ConfigError(
+            f"Existing results at {results_path} lack config_id; use --force to rerun."
+        )
+    if results["config_id"].isna().any():
+        raise ConfigError(
+            f"Existing results at {results_path} contain rows without config_id; "
+            "use --force to rerun."
+        )
+
+    existing_config_ids = {
+        str(existing_config_id)
+        for existing_config_id in results["config_id"].dropna().unique().tolist()
+    }
+    if existing_config_ids == {config_id}:
+        return
+
+    raise ConfigError(
+        f"Existing results at {results_path} were produced with a different "
+        "config_id; choose a new run_id or use --force to rerun."
+    )
+
+
 def _ordered_result_ids(results: pd.DataFrame) -> list[str]:
     if results.empty:
         return []
@@ -407,7 +444,17 @@ def _chunked(
 
 
 def _model_results_path(results_dir: Path, model_name: str) -> Path:
-    return results_dir / f"resps_{model_name}.jsonl"
+    return results_dir / f"resps_{_model_filename_key(model_name)}.jsonl"
+
+
+def _model_filename_key(model_name: str) -> str:
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", model_name).strip("._-")
+    if not safe_name:
+        safe_name = "model"
+    if safe_name == model_name:
+        return safe_name
+    suffix = sha256(model_name.encode("utf-8")).hexdigest()[:8]
+    return f"{safe_name}-{suffix}"
 
 
 def _sanitize_model_config(value: Any) -> Any:
