@@ -41,8 +41,8 @@ def annotate_words(
 def rowwise(row_func: RowAggregation) -> Aggregation:
     """Turn a ``scores -> float`` decision function into an `Aggregation`.
 
-    Convenient for conditional aggregators whose logic reads more clearly as a
-    per-row ``if``/``elif`` over named scores than as vectorized Series operations.
+    Using row-wise functions will be slower than vectorized functions, but
+    they make the aggregation logic easier to understand.
     """
 
     def aggregation(df: pd.DataFrame, score_columns: Sequence[str]) -> pd.Series:
