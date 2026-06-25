@@ -42,10 +42,7 @@ def score_whole_words_kiswahili(
     if not taught_whole_words:
         return 0.0
 
-    primerpro_word = Word(word, primerpro_settings)
-    display_word = primerpro_word.display_word.lower()
-
-    if display_word in taught_whole_words:
+    if word.lower() in taught_whole_words:
         return 1.0
 
     return 0.0

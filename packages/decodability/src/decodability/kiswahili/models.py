@@ -28,6 +28,11 @@ class KiswahiliStudentKnowledge(BaseModel):
 
         return graphemes
 
+    @field_validator("whole_words")
+    def lowercase_whole_words(cls, whole_words: set[str]) -> set[str]:  # noqa: N805
+        """Lowercase all whole words to ensure consistency."""
+        return {word.lower() for word in whole_words}
+
     @field_validator("syllable_patterns")
     def check_cv_pattern(cls, patterns: set[str]) -> bool | set[str]:  # noqa: N805
         """Check if a given pattern is a valid CV pattern."""
