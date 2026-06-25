@@ -5,45 +5,44 @@ decoding rules (e.g. gating on grapheme knowledge) and reference specific scorer
 name.
 """
 
-from collections.abc import Sequence
-
-import pandas as pd
+from collections.abc import Mapping
 
 from decodability.kiswahili.scorers import (
     score_known_graphemes_kiswahili,
-    score_sight_words_kiswahili,
     score_syllable_pattern_kiswahili,
+    score_whole_words_kiswahili,
     score_word_length_kiswahili,
 )
 
-SIGHT_WORD_GATE_COLUMN = score_sight_words_kiswahili.__name__
-GRAPHEME_GATE_COLUMN = score_known_graphemes_kiswahili.__name__
-SYLLABLE_PATTERN_COLUMN = score_syllable_pattern_kiswahili.__name__
-WORD_LENGTH_COLUMN = score_word_length_kiswahili.__name__
+WHOLE_WORD = score_whole_words_kiswahili.__name__
+GRAPHEMES = score_known_graphemes_kiswahili.__name__
+SYLLABLE_PATTERNS = score_syllable_pattern_kiswahili.__name__
+WORD_LENGTH = score_word_length_kiswahili.__name__
 
 
-def kiswahili_kenya_tusome_aggregator(
-    df: pd.DataFrame, score_columns: Sequence[str]
-) -> pd.Series:
-    """decision tree for kiswahili score based on the Tusome Kenya curriculum."""
-    final_scores = df[SIGHT_WORD_GATE_COLUMN]
-    final_scores = final_scores.where(final_scores == 0, df[GRAPHEME_GATE_COLUMN])
-    return final_scores
+def aggregate_scores_kenya_tusome(scores: Mapping[str, float]) -> float:
+    """Decision tree for a Kiswahili score based on the Kenya Tusome curriculum.
+
+    If the student knows the whole word as a sight word, it's fully decodable (1.0).
+    Otherwise the score falls back to whether the student knows all its graphemes.
+    """
+    if scores[WHOLE_WORD] == 1.0:
+        return 1.0
+    return scores[GRAPHEMES]
 
 
-def kiswahili_complex_aggregator(
-    df: pd.DataFrame, score_columns: Sequence[str]
-) -> pd.Series:
-    """decision tree for kiswahili score based on the Tusome Kenya curriculum."""
+def aggregate_scores_kiswahili_complex(scores: Mapping[str, float]) -> float:
+    """An example decision tree that incorporates word length and syllable pattern
+    knowledge with Kenya Tusome decodability rules.
 
-    def func(row: pd.Series) -> float:
-        if row[SIGHT_WORD_GATE_COLUMN] == 1.0:
-            return 1.0
-        elif row[GRAPHEME_GATE_COLUMN] == 0.0:
-            return 0.0
-        elif row[SYLLABLE_PATTERN_COLUMN] == 0.0:
-            return 0.0
-        else:
-            return row[WORD_LENGTH_COLUMN]
-
-    return df.apply(func, axis=1)
+    A known sight word is fully decodable (1.0). Otherwise the word is undecodable
+    (0.0) if the student doesn't know all its graphemes or its syllable pattern;
+    when both of those hold, the score is the word-length score.
+    """
+    if scores[WHOLE_WORD] == 1.0:
+        return 1.0
+    if scores[GRAPHEMES] == 0.0:
+        return 0.0
+    if scores[SYLLABLE_PATTERNS] == 0.0:
+        return 0.0
+    return scores[WORD_LENGTH]

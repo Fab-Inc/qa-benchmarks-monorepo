@@ -12,7 +12,7 @@ def score_known_graphemes_kiswahili(
     The score is binary: if there's any grapheme that the student doesn't know, the
     score is 0.
     """
-    taught_graphemes = student_knowledge.known_graphemes
+    taught_graphemes = student_knowledge.graphemes
 
     if not taught_graphemes:
         return 0.0
@@ -29,23 +29,23 @@ def score_known_graphemes_kiswahili(
     return 1.0
 
 
-def score_sight_words_kiswahili(
+def score_whole_words_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
 ) -> float:
-    """Score a word based on whether the student knows it as a sight word.
+    """Score a word based on whether the student knows it as a whole word.
 
-    The score is binary: if the student knows the word as a sight word, the score is 1.
+    The score is binary: if the student knows the word as a whole word, the score is 1.
     Otherwise, the score is 0.
     """
-    taught_sight_words = student_knowledge.sight_words
+    taught_whole_words = student_knowledge.whole_words
 
-    if not taught_sight_words:
+    if not taught_whole_words:
         return 0.0
 
     primerpro_word = Word(word, primerpro_settings)
     display_word = primerpro_word.display_word.lower()
 
-    if display_word in taught_sight_words:
+    if display_word in taught_whole_words:
         return 1.0
 
     return 0.0
@@ -60,7 +60,7 @@ def score_known_syllables_kiswahili(
     The score is binary: if there's any syllable that the student doesn't know, the
     score is 0.
     """
-    taught_syllables = student_knowledge.known_syllables
+    taught_syllables = student_knowledge.syllables
 
     if not taught_syllables:
         return 0.0
@@ -99,7 +99,7 @@ def score_syllable_pattern_kiswahili(
     The score is calculated as the ratio of known syllable patterns to total syllables
     in the word.
     """
-    taught_patterns = student_knowledge.known_syllable_patterns
+    taught_patterns = student_knowledge.syllable_patterns
 
     primerpro_word = Word(word, primerpro_settings)
     syllable_pattern = primerpro_word.cv_pattern

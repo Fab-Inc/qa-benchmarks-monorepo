@@ -6,13 +6,13 @@ from decodability.kiswahili.config import VALID_GRAPHEMES
 class KiswahiliStudentKnowledge(BaseModel):
     """Model for Kiswahili student knowledge representation."""
 
-    known_graphemes: set[str] = set()
-    sight_words: set[str] = set()
-    known_syllables: set[str] = set()
+    graphemes: set[str] = set()
+    whole_words: set[str] = set()
+    syllables: set[str] = set()
     max_word_length: int = 5
-    known_syllable_patterns: set[str] = set()
+    syllable_patterns: set[str] = set()
 
-    @field_validator("known_graphemes")
+    @field_validator("graphemes")
     def check_known_graphemes(cls, graphemes: set[str]) -> set[str]:  # noqa: N805
         """Check that every grapheme is a valid Kiswahili grapheme."""
         invalid_graphemes = [
@@ -29,7 +29,7 @@ class KiswahiliStudentKnowledge(BaseModel):
 
         return graphemes
 
-    @field_validator("known_syllable_patterns")
+    @field_validator("syllable_patterns")
     def check_cv_pattern(cls, patterns: set[str]) -> bool | set[str]:  # noqa: N805
         """Check if a given pattern is a valid CV pattern."""
         invalid_patterns = []
