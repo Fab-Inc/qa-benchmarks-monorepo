@@ -8,15 +8,12 @@ Run from the repository root with:
 
 from __future__ import annotations
 
-from functools import partial
-
 import pandas as pd
-from decodability import annotate_words, mean_score, rowwise, weighted_average
+from decodability import annotate_words
 from decodability.kiswahili import (
+    AGGREGATIONS,
+    SCORING_METHODS,
     KiswahiliStudentKnowledge,
-    aggregate_scores_kenya_tusome,
-    score_known_graphemes_kiswahili,
-    score_whole_words_kiswahili,
     tokenize_kiswahili,
 )
 
@@ -49,25 +46,40 @@ STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
 )
 
 
+JSON_DATA = {
+    "language": "example_kiswahili",
+    "scoring_methods": [
+        "score_known_graphemes_kiswahili",
+        "score_whole_words_kiswahili",
+    ],
+    "aggregations": {
+        "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
+        "mean_score": {"name": "mean_score"},
+        "weighted_score": {
+            "name": "weighted_average",
+            "params": {
+                "weights": {
+                    "score_known_graphemes_kiswahili": 0.5,
+                    "score_whole_words_kiswahili": 0.5,
+                }
+            },
+        },
+    },
+}
+
+
 def build_dataframe() -> pd.DataFrame:
+    scoring_method_names = JSON_DATA["scoring_methods"]
+    aggregations = {
+        name: AGGREGATIONS[agg["name"]]
+        for name, agg in JSON_DATA["aggregations"].items()
+    }
+
     return annotate_words(
         tokenize_kiswahili(TEXT),
-        scoring_methods=[
-            score_known_graphemes_kiswahili,
-            score_whole_words_kiswahili,
-        ],
+        scoring_methods=[SCORING_METHODS[name] for name in scoring_method_names],
         student_knowledge=STUDENT_KNOWLEDGE,
-        aggregations={
-            "mean_score": mean_score,
-            "weighted_score": partial(
-                weighted_average,
-                weights={
-                    score_known_graphemes_kiswahili.__name__: 0.2,
-                    score_whole_words_kiswahili.__name__: 0.8,
-                },
-            ),
-            "kenya_tusome": rowwise(aggregate_scores_kenya_tusome),
-        },
+        aggregations=aggregations,
     )
 
 

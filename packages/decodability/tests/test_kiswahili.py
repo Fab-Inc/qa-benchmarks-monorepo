@@ -3,38 +3,37 @@ import pytest
 from decodability import rowwise
 from decodability.kiswahili.aggregators import (
     aggregate_scores_kenya_tusome,
-    aggregate_scores_kiswahili_complex,
 )
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_graphemes_kiswahili,
-    score_syllable_pattern_kiswahili,
     score_whole_words_kiswahili,
-    score_word_length_kiswahili,
 )
 from decodability.kiswahili.tokenizer import tokenize_kiswahili
 
 
 class TestKiswahiliStudentKnowledgeValidator:
     @pytest.mark.parametrize(
-        "known_syllable_patterns, expected",
+        "known_graphemes, should_pass",
         [
-            ({"CV", "CVCV", "CCV"}, True),
+            ({"q"}, False),
+            ({"Q"}, False),
             (set(), True),
-            ({"CV", "ABC"}, False),
+            ({"m", "a", "c"}, False),
+            ({"m", "ng'"}, True),
         ],
     )
-    def test_kiswahili_student_knowledge_syllable_pattern_checks_for_valid_cv_patterns(
-        self, known_syllable_patterns: set[str], expected: bool
+    def test_kiswahili_student_knowledge_grapheme_checks_for_valid_graphemes(
+        self, known_graphemes: set[str], should_pass: bool
     ):
-        """Test that the KiswahiliKnowledge model raises a ValueError when invalid CV
-        patterns are provided.
+        """Test that the KiswahiliKnowledge model raises a ValueError when invalid
+        graphemes are provided
         """
-        if expected:
-            KiswahiliStudentKnowledge(syllable_patterns=known_syllable_patterns)
+        if should_pass:
+            KiswahiliStudentKnowledge(graphemes=known_graphemes)
         else:
             with pytest.raises(ValueError):
-                KiswahiliStudentKnowledge(syllable_patterns=known_syllable_patterns)
+                KiswahiliStudentKnowledge(graphemes=known_graphemes)
 
 
 class TestScorers:
@@ -63,47 +62,6 @@ class TestScorers:
         assert score_whole_words_kiswahili("baba", student_knowledge) == 1.0
         assert score_whole_words_kiswahili("mama", student_knowledge) == 1.0
         assert score_whole_words_kiswahili("babu", student_knowledge) == 0.0
-
-    @pytest.mark.parametrize(
-        "word, max_word_length, expected",
-        [
-            ("baba", 2, 0.5),
-            ("baba", 4, 1.0),
-            ("baba", 5, 1.0),
-            ("mti", 3, 1.0),
-            ("mti", 2, 0.6666666666666666),
-            ("mti", 0, 0.0),
-        ],
-    )
-    def test_score_word_length_kiswahili(
-        self, word: str, max_word_length: int, expected: float
-    ):
-        """Test the score_word_length_kiswahili function."""
-        student_knowledge = KiswahiliStudentKnowledge(max_word_length=max_word_length)
-        score = score_word_length_kiswahili(word, student_knowledge)
-        assert score == pytest.approx(expected), f"Expected {expected} but got {score}"
-
-    @pytest.mark.parametrize(
-        "word, known_syllable_patterns, expected",
-        [
-            ("baba", {"CV"}, 0.0),
-            ("baba", {"CVCV"}, 1.0),
-            ("baba", {"CCV"}, 0.0),
-            ("baba", set(), 0.0),
-            ("mti", {"CV"}, 0.0),
-            ("mti", {"CV", "CCV", "CVCV"}, 1.0),
-            ("Mti", {"CV", "CCV"}, 1.0),  # case-insensitive
-        ],
-    )
-    def test_score_syllable_pattern_kiswahili(
-        self, word: str, known_syllable_patterns: set[str], expected: float
-    ):
-        """Test the score_syllable_pattern_kiswahili function."""
-        student_knowledge = KiswahiliStudentKnowledge(
-            syllable_patterns=known_syllable_patterns
-        )
-        score = score_syllable_pattern_kiswahili(word, student_knowledge)
-        assert score == expected, f"Expected {expected} but got {score}"
 
 
 class TestKiswahiliTokenizer:
@@ -150,50 +108,3 @@ class TestKiswahiliAggregators:
         final_scores = rowwise(aggregate_scores_kenya_tusome)(df, score_columns)
 
         pd.testing.assert_series_equal(final_scores, pd.Series([1.0, 0.0, 1.0]))
-
-    @pytest.mark.parametrize(
-        "scores, expected_final_score",
-        [
-            (
-                {
-                    "score_whole_words_kiswahili": 1.0,
-                    "score_known_graphemes_kiswahili": 1.0,
-                    "score_syllable_pattern_kiswahili": 1.0,
-                    "score_word_length_kiswahili": 0.6,
-                },
-                1.0,
-            ),
-            (
-                {
-                    "score_whole_words_kiswahili": 0.0,
-                    "score_known_graphemes_kiswahili": 0.0,
-                    "score_syllable_pattern_kiswahili": 1.0,
-                    "score_word_length_kiswahili": 0.6,
-                },
-                0.0,
-            ),
-            (
-                {
-                    "score_whole_words_kiswahili": 0.0,
-                    "score_known_graphemes_kiswahili": 1.0,
-                    "score_syllable_pattern_kiswahili": 0.0,
-                    "score_word_length_kiswahili": 0.6,
-                },
-                0.0,
-            ),
-            (
-                {
-                    "score_whole_words_kiswahili": 0.0,
-                    "score_known_graphemes_kiswahili": 1.0,
-                    "score_syllable_pattern_kiswahili": 1.0,
-                    "score_word_length_kiswahili": 0.6,
-                },
-                0.6,
-            ),
-        ],
-    )
-    def test_complex_aggregator_decision_tree(self, scores, expected_final_score):
-        """Whole word -> 1.0; else gated on graphemes and syllable pattern, then
-        falls through to the word-length score."""
-
-        assert aggregate_scores_kiswahili_complex(scores) == expected_final_score

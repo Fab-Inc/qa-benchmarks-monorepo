@@ -2,79 +2,63 @@
 
 Lightweight scaffolding for language-specific decodability tooling.
 
-This package intentionally keeps the shared interface small. Each language can implement
-its own tokenization, student-knowledge representation, and internal scoring logic. The
-shared expectation is just:
+## Architecture
 
-```python
-def scorer(word: str, student_knowledge) -> float:
-    ...
+This package intentionally keeps the shared interface small. Each language can implement
+its own tokenization, student-knowledge representation, and internal scoring logic.
+
+The package splits into two layers: a small, language-agnostic **core** and one
+**subpackage per language**.
+
+### Shared core
+
+`annotate.py` holds everything that is reusable across languages and knows nothing about
+any specific language's rules:
+
+- `annotate_words(...)`: the main entry point. Scores each word with every scoring
+  method, then applies each aggregation, returning the dataframe described above.
+- DataFrame-level aggregators with call signature `pd.DataFrame -> pd.Series`, which can
+  be
+  - generic vectorized aggregations (`mean_score`, `weighted_average`), or
+  - custom, via `rowwise(row_func)`, where `row_func` is the
+    language/curriculum-specific row-wise aggregation function over various scores.
+
+### Per-language subpackage
+
+Language-specific modules go under `decodability/<language>/`.
+
+| Module           | Responsibility                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `config.py`      | Language constants and any external decoding-tool setup                                                                 |
+| `models.py`      | The student-knowledge pydantic model                                                                                    |
+| `scorers.py`     | Per-word scoring functions mapping `(word, student_knowledge)` to a score in range [0.0, 1.0]                           |
+| `aggregators.py` | Functions that combine a word's per-measure scores into one final score.                                                |
+| `tokenizer.py`   | Language-specific word tokenizer.                                                                                       |
+| `__init__.py`    | Exposes the `SCORING_METHODS` and `AGGREGATIONS` registries (see [Config Shape](#config-shape)) and the public exports. |
+
+The dependency structure is as follows:
+
+```mermaid
+flowchart
+  models.py --for data validation--> config.py
+  scorers.py --for scoring logic--> config.py
+  tokenizer.py --for data validation*--> config.py
+  aggregators.py --> scorers.py
 ```
 
-Scorers should return a score between `0.0` and `1.0`. Language annotators return a
-pandas dataframe with one row per word, one column per scoring method, and one or more
-aggregation columns. By default, the aggregation is an equal-weight row-wise mean called
-`mean_score`.
+_\*This linkage currently doesn't exist for Kiswahili but theoretically we may use a
+language-wide config to extract valid tokens._
 
-## English Example
+## Kiswahili Example
 
-There is a runnable toy example at `packages/decodability/examples/english_example.py`.
-It uses arbitrary English scoring functions only to demonstrate the scaffold.
+There is a runnable example at `packages/decodability/examples/kiswhaili_example.py`. It
+uses decodability scoring based on Kenya's Tusome curriculum.
 
 Run it from the repository root:
 
 ```bash
 uv run --frozen --package decodability python \
-  packages/decodability/examples/english_example.py
-```
-
-```python
-import re
-from functools import partial
-
-from decodability import annotate_words, mean_score, weighted_average
-
-text = "The cat sat on a thin mat."
-student_knowledge = {"known_letters": set("acmnorst"), "max_easy_length": 4}
-
-
-def known_letters_score(word, student_knowledge):
-    letters = [character for character in word.casefold() if character.isalpha()]
-    known_letters = student_knowledge["known_letters"]
-    return sum(letter in known_letters for letter in letters) / len(letters)
-
-
-def short_word_score(word, student_knowledge):
-    if len(word) <= student_knowledge["max_easy_length"]:
-        return 1.0
-    return 0.5
-
-
-words = re.findall(r"[A-Za-z]+", text)
-
-df = annotate_words(
-    words,
-    scoring_methods=[known_letters_score, short_word_score],
-    student_knowledge=student_knowledge,
-)
-
-print(df)
-print(df["mean_score"].mean())
-
-weighted_df = annotate_words(
-    words,
-    scoring_methods=[known_letters_score, short_word_score],
-    student_knowledge=student_knowledge,
-    aggregations={
-        "weighted_score": partial(
-            weighted_average,
-            weights={
-                "known_letters_score": 0.7,
-                "short_word_score": 0.3,
-            },
-        ),
-    },
-)
+  packages/decodability/examples/kiswahili_example.py
 ```
 
 ## Config Shape
@@ -86,12 +70,15 @@ Example JSON-like config:
 
 ```json
 {
-  "language": "example_english",
+  "language": "example_kiswahili",
   "scoring_methods": [
-    "known_letters_score",
-    "short_word_score"
+    "score_known_graphemes_kiswahili",
+    "score_whole_words_kiswahili"
   ],
   "aggregations": {
+    "kenya_tusome_score": {
+      "name": "kiswahili_kenya_tusome_aggregator"
+    },
     "mean_score": {
       "name": "mean_score"
     },
@@ -99,27 +86,11 @@ Example JSON-like config:
       "name": "weighted_average",
       "params": {
         "weights": {
-          "known_letters_score": 0.7,
-          "short_word_score": 0.3
+          "score_known_graphemes_kiswahili": 0.5,
+          "score_whole_words_kiswahili": 0.5
         }
       }
     }
   }
-}
-```
-
-A language package is expected to expose registries like this:
-
-```python
-from decodability import mean_score, weighted_average
-
-SCORING_METHODS = {
-    "known_letters_score": known_letters_score,
-    "short_word_score": short_word_score,
-}
-
-AGGREGATIONS = {
-    "mean_score": mean_score,
-    "weighted_average": weighted_average,
 }
 ```

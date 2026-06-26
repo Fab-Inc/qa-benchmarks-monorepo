@@ -46,39 +46,3 @@ def score_whole_words_kiswahili(
         return 1.0
 
     return 0.0
-
-
-def score_word_length_kiswahili(
-    word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> float:
-    """Score a word based on its length and the maximum length of words the student
-    can decode.
-
-    The score is calculated as the maximum word length the student can decode divided
-    by the length of the word, capped at 1.
-    """
-    taught_length = student_knowledge.max_word_length
-    n = len(word)
-
-    return min(1, taught_length / n)
-
-
-def score_syllable_pattern_kiswahili(
-    word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> float:
-    """Score a word based on its syllable pattern and the student's knowledge.
-
-    The score is calculated as the ratio of known syllable patterns to total syllables
-    in the word.
-    """
-    taught_patterns = student_knowledge.syllable_patterns
-
-    primerpro_word = Word(word, primerpro_settings)
-    syllable_pattern = primerpro_word.cv_pattern
-
-    if not taught_patterns:
-        return 0.0
-
-    is_known_pattern = syllable_pattern in taught_patterns
-
-    return 1.0 if is_known_pattern else 0.0

@@ -6,4 +6,9 @@ WORD_RE = re.compile(r"(?:[Nn][Gg]'|[A-Za-z])+")
 
 
 def tokenize_kiswahili(text: str) -> list[str]:
+    """Lenient Kiswahili word tokenizer. We intentionally don't limit to only valid
+    Kiswahili graphemes, as we want to be able to tokenize any text. However, we
+    explicitly include "ng'" as a valid character sequence so that the apostrophe
+    in this case won't split up a word.
+    """
     return WORD_RE.findall(text)
