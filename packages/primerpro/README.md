@@ -6,8 +6,10 @@ questions such as which words are buildable from the graphemes already taught, w
 story words still contain untaught residue, and which grapheme contrasts form minimal
 pairs.
 
-The port preserves the original application's behavior rather than redefining a new
-phonics model.
+Ths port largely preserves the original application's behavior rather than redefining a
+new phonics model. For any behaviours that are additional to or different from the
+original package, see [Phoneme Look-up](#phoneme-look-up) and
+[Punctuations in Graphemes](#punctuations-in-graphemes).
 
 ## Core Concepts
 
@@ -109,7 +111,9 @@ search.execute_residue_search(text_data)
 print(search.search_results)
 ```
 
-## Phoneme look-up
+## Phoneme Look-up
+
+> [NOTE!] This feature does not exist in the original PrimerPro package.
 
 If you want to associate a phoneme to each grapheme to look up phonemic forms or get
 phoneme annotations, add your grapheme-phoneme correspondences to a `GPCMapping` object
@@ -155,6 +159,18 @@ print(get_phonemic_form(word, gpc_mapping))
 # >>> mtɔtɔ
 ```
 
+## Punctuations in Graphemes
+
+> [NOTE!] Punctuations inside graphemes are handled differently in this python port than
+> the original PrimerPro.
+
+In this python port of PrimerPro, an inventory grapheme such as `ng'` is never split on
+its internal punctuation that is also included in
+`settings.option_settings.general_punct`.
+
+This does not apply to `settings.option_settings.ending_punct`. A `Paragraph` will
+always be split on the `ending_punct` into `Sentences`.
+
 ## Demo Script
 
 The phonics benchmark includes a runnable short tutorial with an English inventory,
@@ -181,8 +197,8 @@ uv run ruff check packages/primerpro/src/primerpro
 
 ## Notes On Scope
 
-This is not a statistical readability model. It is a faithful port of PrimerPro's
-rule-based behavior:
+This is not a statistical readability model. It is a (largely) faithful port of
+PrimerPro's rule-based behavior:
 
 - Text is cleaned and segmented into configured graphemes.
 - Buildability is binary at the word level.
