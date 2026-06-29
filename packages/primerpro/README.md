@@ -7,9 +7,7 @@ story words still contain untaught residue, and which grapheme contrasts form mi
 pairs.
 
 Ths port largely preserves the original application's behavior rather than redefining a
-new phonics model. For any behaviours that are additional to or different from the
-original package, see [Phoneme Look-up](#phoneme-look-up) and
-[Punctuations in Graphemes](#punctuations-in-graphemes).
+new phonics model.
 
 ## Core Concepts
 
@@ -113,7 +111,7 @@ print(search.search_results)
 
 ## Phoneme Look-up
 
-> [NOTE!] This feature does not exist in the original PrimerPro package.
+> [!NOTE] This feature is additional to the original PrimerPro application.
 
 If you want to associate a phoneme to each grapheme to look up phonemic forms or get
 phoneme annotations, add your grapheme-phoneme correspondences to a `GPCMapping` object
@@ -161,8 +159,7 @@ print(get_phonemic_form(word, gpc_mapping))
 
 ## Punctuations in Graphemes
 
-> [NOTE!] Punctuations inside graphemes are handled differently in this python port than
-> the original PrimerPro.
+> [!NOTE] This behavior is different from the original PrimerPro application.
 
 In this python port of PrimerPro, an inventory grapheme such as `ng'` is never split on
 its internal punctuation that is also included in
