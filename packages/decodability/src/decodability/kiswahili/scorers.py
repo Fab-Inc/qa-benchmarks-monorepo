@@ -43,7 +43,6 @@ KISWAHILI_VOWEL_GPCS = [
 def _get_primerpro_settings() -> Settings:
     settings = Settings()
     settings.option_settings.max_size_grapheme = 3
-    settings.option_settings.general_punct = ' ,:;-"'
 
     inventory = GraphemeInventory()
 

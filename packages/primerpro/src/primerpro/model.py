@@ -8,6 +8,7 @@ preserve its search, residue, frequency, tone, and minimal-pair behavior.
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 HIGHLIGHT_ON = "<HL>"
@@ -225,20 +226,20 @@ class GraphemeInventory:
     def get_grapheme(self, symbol: str) -> Grapheme | None:
         """Return any inventory grapheme matching a written form."""
 
-        for grapheme in self._all_graphemes():
+        for grapheme in self._get_all_graphemes():
             if symbol == grapheme.symbol or symbol == grapheme.uppercase:
                 return grapheme
         return None
 
     def reset_text_counts(self) -> None:
-        for grapheme in self._all_graphemes():
+        for grapheme in self._get_all_graphemes():
             grapheme.init_count_in_text_data()
 
-    def _all_graphemes(self) -> list[Grapheme]:
+    def _get_all_graphemes(self) -> list[Grapheme]:
         return [*self.consonants, *self.vowels, *self.tones, *self.syllographs]
 
 
-def _find_index(graphemes: list[Grapheme], symbol: str) -> int:
+def _find_index(graphemes: Sequence[Grapheme], symbol: str) -> int:
     for index, grapheme in enumerate(graphemes):
         if symbol == grapheme.symbol or symbol == grapheme.uppercase:
             return index
@@ -584,25 +585,21 @@ class Word:
         return self.get_grapheme(index)
 
     def _build_word(self) -> None:
-        cleaned = _clean_word(self.orig_word, self.settings)
         syllable_text = ""
         explicit_syllables = False
-        character_index = 0
-        while character_index < len(cleaned):
-            character = cleaned[character_index]
-            if character == self.syllable_break_character:
-                self.syllables.append(Syllable(syllable_text, self.settings))
-                syllable_text = ""
-                explicit_syllables = True
-                character_index += 1
-                continue
-            grapheme, end_index = _next_grapheme(
-                cleaned, character_index, self.settings
-            )
+        for grapheme, matched, _ in _scan_for_grapheme(self.orig_word, self.settings):
+            symbol = grapheme.symbol
+            if not matched:
+                if symbol == self.syllable_break_character:
+                    self.syllables.append(Syllable(syllable_text, self.settings))
+                    syllable_text = ""
+                    explicit_syllables = True
+                    continue
+                if _is_strippable_punct(symbol, self.settings):
+                    continue
             self.graphemes.append(grapheme)
-            self.display_word += grapheme.symbol
-            syllable_text += grapheme.symbol
-            character_index = end_index + 1
+            self.display_word += symbol
+            syllable_text += symbol
 
         if explicit_syllables:
             self.syllables.append(Syllable(syllable_text, self.settings))
@@ -747,12 +744,14 @@ class Sentence:
     def _build_words(self, text: str) -> None:
         token = ""
         separators = set(self.settings.option_settings.general_punct)
-        for character in text:
-            if character in separators:
+        for _, matched, raw in _scan_for_grapheme(text, self.settings):
+            if matched:
+                token += raw
+            elif raw in separators:
                 self._add_token(token)
                 token = ""
             else:
-                token += character
+                token += raw
         self._add_token(token)
 
     def _add_token(self, token: str) -> None:
@@ -990,36 +989,45 @@ class SightWords:
         return word in self._words
 
 
-def _clean_word(text: str, settings: Settings) -> str:
-    ignored = set(settings.option_settings.import_ignore_chars)
-    general = set(settings.option_settings.general_punct)
-    general.discard(Word.syllable_break_character)
-    general.discard(" ")
-    ending = set(settings.option_settings.ending_punct)
-    ending.discard(Word.syllable_break_character)
-    cleaned = []
-    for character in text:
-        if character in "[]":
-            continue
-        if character in ignored or character in general or character in ending:
-            continue
-        if character == '"':
-            continue
-        cleaned.append(character)
-    return "".join(cleaned)
+def _is_strippable_punct(symbol: str, settings: Settings) -> bool:
+    """Return whether a single fallback character should be dropped from a word.
+
+    Only applied to characters that did not match an inventory grapheme; a
+    punctuation mark that is part of a grapheme (e.g. the apostrophe in ``ng'``)
+    is never seen here because the scanner already consumed it inside the
+    grapheme. The syllable-break character and spaces are preserved so the word
+    builder can act on them.
+    """
+    if symbol in '[]"':
+        return True
+    if symbol == Word.syllable_break_character or symbol == " ":
+        return False
+    options = settings.option_settings
+    return (
+        symbol in options.import_ignore_chars
+        or symbol in options.general_punct
+        or symbol in options.ending_punct
+    )
 
 
 def _decompose(text: str, settings: Settings) -> list[Grapheme]:
     graphemes = []
     index = 0
     while index < len(text):
-        grapheme, end_index = _next_grapheme(text, index, settings)
+        grapheme, end_index, _matched = _next_grapheme(text, index, settings)
         graphemes.append(grapheme)
         index = end_index + 1
     return graphemes
 
 
-def _next_grapheme(text: str, index: int, settings: Settings) -> tuple[Grapheme, int]:
+def _next_grapheme(
+    text: str, index: int, settings: Settings
+) -> tuple[Grapheme, int, bool]:
+    """Return the next grapheme by greedy longest match against the inventory.
+
+    The third element reports whether the inventory matched (``True``) or the
+    result is the single-character fallback (``False``).
+    """
     inventory = settings.grapheme_inventory
     max_size = settings.option_settings.max_size_grapheme
     lookahead = min(max_size, len(text) - index)
@@ -1028,8 +1036,26 @@ def _next_grapheme(text: str, index: int, settings: Settings) -> tuple[Grapheme,
         if inventory is not None:
             grapheme = inventory.get_grapheme(candidate)
             if grapheme is not None:
-                return grapheme, index + size - 1
-    return Grapheme(text[index]), index
+                return grapheme, index + size - 1, True
+    return Grapheme(text[index]), index, False
+
+
+def _scan_for_grapheme(
+    text: str, settings: Settings
+) -> Iterator[tuple[Grapheme, bool, str]]:
+    """Walk ``text`` left to right, yielding one segment per grapheme.
+
+    Each segment is ``(grapheme, matched, raw)`` where ``matched`` is True when an
+    inventory grapheme was found and ``raw`` is the original (un-canonicalized)
+    substring it covered. This is the single segmentation that both tokenization
+    and word cleaning consume, so an inventory grapheme such as ``ng'`` is never
+    split on its internal punctuation.
+    """
+    index = 0
+    while index < len(text):
+        grapheme, end_index, matched = _next_grapheme(text, index, settings)
+        yield grapheme, matched, text[index : end_index + 1]
+        index = end_index + 1
 
 
 def _without_tone(grapheme: Grapheme | None, settings: Settings) -> Grapheme | None:
