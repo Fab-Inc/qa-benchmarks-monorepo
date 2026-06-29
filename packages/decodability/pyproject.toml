@@ -12,6 +12,3 @@ dependencies = [
   "primerpro",
   "pydantic>=2.13.4",
 ]
-
-[tool.uv.sources]
-primerpro = { workspace = true }
