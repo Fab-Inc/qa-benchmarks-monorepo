@@ -94,19 +94,15 @@ def run_benchmark(
     }
 
     run_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(
-        config_snapshot_path,
-        {
-            "config_id": config_id,
-            "source_config_path": (
-                str(config.config_path) if config.config_path else None
-            ),
-            "raw_config": config.raw_config,
-            "resolved_config": resolved_config,
-            "code_git_hash": code_git_hash,
-            "model_configs": _sanitize_model_config(dict(model_configs or {})),
-        },
-    )
+    config_snapshot = {
+        "config_id": config_id,
+        "source_config_path": str(config.config_path) if config.config_path else None,
+        "raw_config": config.raw_config,
+        "resolved_config": resolved_config,
+        "code_git_hash": code_git_hash,
+        "model_configs": _sanitize_model_config(dict(model_configs or {})),
+    }
+    _write_json(config_snapshot_path, config_snapshot)
 
     executed_count = 0
     skipped_count = 0
@@ -120,23 +116,32 @@ def run_benchmark(
                 f"No cached results found for {model_name}; cannot use --retry-errors."
             )
         existing_results = load_results(results_path, force=config.force)
-        _validate_existing_results_config_id(
-            existing_results,
-            results_path=results_path,
-            config_id=config_id,
+        existing_rows_by_id = _results_by_id(existing_results)
+        current_model_config = _sanitize_model_config(
+            (model_configs or {}).get(model_name, {})
         )
-        rows_by_id = _results_by_id(existing_results)
-        ordered_ids = _ordered_result_ids(existing_results)
+        planned_items = _planned_model_items(
+            config=config,
+            model_name=model_name,
+            model_config=current_model_config,
+            items=items.to_dict(orient="records"),
+        )
+        expected_result_ids = [
+            str(planned_item["result_id"]) for planned_item in planned_items
+        ]
+        expected_result_id_set = set(expected_result_ids)
+        stale_result_count = len(
+            set(existing_rows_by_id).difference(expected_result_id_set)
+        )
+        rows_by_id = {
+            result_id: existing_rows_by_id[result_id]
+            for result_id in expected_result_ids
+            if result_id in existing_rows_by_id
+        }
         pending_items: list[dict[str, Any]] = []
 
-        for item in items.to_dict(orient="records"):
-            item_id = str(item["item_id"])
-            result_id = _result_id(
-                config_id=config_id,
-                run_id=config.run_id,
-                model_name=model_name,
-                item_id=item_id,
-            )
+        for planned_item in planned_items:
+            result_id = str(planned_item["result_id"])
             existing = rows_by_id.get(result_id)
             if existing and _should_skip_existing(
                 existing, retry_errors=config.retry_errors
@@ -146,7 +151,9 @@ def run_benchmark(
 
             pending_items.append(
                 {
-                    "item": item,
+                    "item": planned_item["item"],
+                    "model_call_id": planned_item["model_call_id"],
+                    "prompt": planned_item["prompt"],
                     "result_id": result_id,
                 }
             )
@@ -161,17 +168,16 @@ def run_benchmark(
                     config_snapshot_path=config_snapshot_path,
                     model_name=model_name,
                     item=item,
-                    prompt=PLACEHOLDER_LLM_TEXT,
+                    model_call_id=pending["model_call_id"],
+                    prompt=pending["prompt"],
                     result_id=result_id,
                     evaluator=evaluator,
                 )
-                if result_id not in rows_by_id:
-                    ordered_ids.append(result_id)
                 rows_by_id[result_id] = row
                 executed_count += 1
                 executed_models.add(model_name)
 
-            results = _ordered_results(rows_by_id, ordered_ids)
+            results = _ordered_results(rows_by_id, expected_result_ids)
             _save_results(
                 results_path,
                 results,
@@ -179,7 +185,16 @@ def run_benchmark(
                 resolved_config=resolved_config,
                 custom_models_path=custom_models_path,
             )
-        error_count += _error_count(_ordered_results(rows_by_id, ordered_ids))
+        if stale_result_count and not pending_items:
+            results = _ordered_results(rows_by_id, expected_result_ids)
+            _save_results(
+                results_path,
+                results,
+                config=config,
+                resolved_config=resolved_config,
+                custom_models_path=custom_models_path,
+            )
+        error_count += _error_count(_ordered_results(rows_by_id, expected_result_ids))
 
     output: RunOutput = {
         "run_id": config.run_id,
@@ -263,6 +278,34 @@ def call_fdllm(
     return PLACEHOLDER_LLM_TEXT
 
 
+def _planned_model_items(
+    *,
+    config: BenchmarkRunConfig,
+    model_name: str,
+    model_config: Mapping[str, Any],
+    items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    planned_items = []
+    for item in items:
+        prompt = PLACEHOLDER_LLM_TEXT
+        model_call_id = _model_call_id(
+            config=config,
+            model_name=model_name,
+            model_config=model_config,
+            item=item,
+            prompt=prompt,
+        )
+        planned_items.append(
+            {
+                "item": item,
+                "model_call_id": model_call_id,
+                "prompt": prompt,
+                "result_id": _result_id(model_call_id=model_call_id),
+            }
+        )
+    return planned_items
+
+
 def _evaluate_item(
     *,
     config: BenchmarkRunConfig,
@@ -270,6 +313,7 @@ def _evaluate_item(
     config_snapshot_path: Path,
     model_name: str,
     item: Mapping[str, Any],
+    model_call_id: str,
     prompt: str,
     result_id: str,
     evaluator: Callable[
@@ -287,6 +331,7 @@ def _evaluate_item(
         "language": config.language,
         "task": config.task,
         "model": model_name,
+        "model_call_id": model_call_id,
         "item_id": item["item_id"],
         "item": item_to_dict(item),
         "prompt": prompt,
@@ -380,48 +425,13 @@ def _results_by_id(results: pd.DataFrame) -> dict[str, dict[str, Any]]:
     return {str(row["result_id"]): row for row in results.to_dict(orient="records")}
 
 
-def _validate_existing_results_config_id(
-    results: pd.DataFrame,
-    *,
-    results_path: Path,
-    config_id: str,
-) -> None:
-    if results.empty:
-        return
-    if "config_id" not in results.columns:
-        raise ConfigError(
-            f"Existing results at {results_path} lack config_id; use --force to rerun."
-        )
-    if results["config_id"].isna().any():
-        raise ConfigError(
-            f"Existing results at {results_path} contain rows without config_id; "
-            "use --force to rerun."
-        )
-
-    existing_config_ids = {
-        str(existing_config_id)
-        for existing_config_id in results["config_id"].dropna().unique().tolist()
-    }
-    if existing_config_ids == {config_id}:
-        return
-
-    raise ConfigError(
-        f"Existing results at {results_path} were produced with a different "
-        "config_id; choose a new run_id or use --force to rerun."
-    )
-
-
-def _ordered_result_ids(results: pd.DataFrame) -> list[str]:
-    if results.empty:
-        return []
-    return [str(result_id) for result_id in results["result_id"].tolist()]
-
-
 def _ordered_results(
     rows_by_id: dict[str, dict[str, Any]],
     ordered_ids: list[str],
 ) -> pd.DataFrame:
-    return pd.DataFrame([rows_by_id[row_id] for row_id in ordered_ids])
+    return pd.DataFrame(
+        [rows_by_id[row_id] for row_id in ordered_ids if row_id in rows_by_id]
+    )
 
 
 def _error_count(results: pd.DataFrame) -> int:
@@ -531,16 +541,38 @@ def git_hash() -> str | None:
         return None
 
 
-def _result_id(*, config_id: str, run_id: str, model_name: str, item_id: str) -> str:
-    payload = _json_dumps(
+def _model_call_id(
+    *,
+    config: BenchmarkRunConfig,
+    model_name: str,
+    model_config: Mapping[str, Any],
+    item: Mapping[str, Any],
+    prompt: str,
+) -> str:
+    return _sha256_json(
         {
-            "config_id": config_id,
-            "run_id": run_id,
+            "extra": config.extra,
+            "item": item_to_dict(item),
+            "language": config.language,
+            "max_tokens": config.max_tokens,
             "model": model_name,
-            "item_id": item_id,
+            "model_config": model_config,
+            "prompt": prompt,
+            "task": config.task,
         }
     )
-    return sha256(payload.encode("utf-8")).hexdigest()[:24]
+
+
+def _result_id(*, model_call_id: str) -> str:
+    return _sha256_json(
+        {
+            "model_call_id": model_call_id,
+        }
+    )[:24]
+
+
+def _sha256_json(value: Any) -> str:
+    return sha256(_json_dumps(value).encode("utf-8")).hexdigest()
 
 
 def _write_json(path: Path, payload: Any) -> None:

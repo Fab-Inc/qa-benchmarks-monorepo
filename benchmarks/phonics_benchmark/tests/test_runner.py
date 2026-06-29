@@ -4,8 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-from phonics_benchmark.config import BenchmarkRunConfig, ConfigError, load_run_config
+from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
@@ -84,7 +83,9 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     ]
 
     result_ids = {row["result_id"] for row in rows}
+    model_call_ids = {row["model_call_id"] for row in rows}
     assert len(result_ids) == 4
+    assert len(model_call_ids) == 4
     assert {row["config_id"] for row in rows} == {output["config_id"]}
     assert {row["config_snapshot_path"] for row in rows} == {
         str(output["config_snapshot_path"])
@@ -152,6 +153,96 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
     assert rows[0]["output"] == "first"
 
 
+def test_run_from_config_file_adding_model_keeps_existing_model_cache(
+    tmp_path: Path,
+) -> None:
+    """Adding a model does not invalidate already-cached calls for other models."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    first_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
+    )
+    first_rows = _read_jsonl(first_output["results_paths"]["model-a"])
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["models"] = ["model-a", "model-b"]
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    called_models = []
+
+    def evaluator(
+        _config: BenchmarkRunConfig,
+        model_name: str,
+        _item: dict,
+        _prompt: str,
+    ) -> dict:
+        called_models.append(model_name)
+        return {"output": f"{model_name}:second"}
+
+    second_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=evaluator,
+    )
+
+    assert first_output["config_id"] != second_output["config_id"]
+    assert second_output["executed_count"] == 1
+    assert second_output["skipped_count"] == 1
+    assert called_models == ["model-b"]
+    assert _read_jsonl(second_output["results_paths"]["model-a"]) == first_rows
+    assert _read_jsonl(second_output["results_paths"]["model-b"])[0]["output"] == (
+        "model-b:second"
+    )
+
+
+def test_run_from_config_file_metadata_change_keeps_model_cache(
+    tmp_path: Path,
+) -> None:
+    """Provenance-only config changes do not force model calls to rerun."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    first_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
+    )
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["metadata"] = {"owner": "benchmarks"}
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    def fail_if_called(
+        _config: BenchmarkRunConfig,
+        _model_name: str,
+        _item: dict,
+        _prompt: str,
+    ) -> dict:
+        raise AssertionError("metadata-only changes should use cached rows")
+
+    second_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=fail_if_called,
+    )
+
+    rows = _read_jsonl(second_output["results_paths"]["model-a"])
+    assert first_output["config_id"] != second_output["config_id"]
+    assert second_output["executed_count"] == 0
+    assert second_output["skipped_count"] == 1
+    assert rows[0]["output"] == "first"
+
+
 def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None:
     """Changing retry_errors does not change result IDs for cached rows."""
 
@@ -208,40 +299,52 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
     assert [row["output"] for row in rows] == ["retried", "success"]
 
 
-def test_run_from_config_file_rejects_existing_results_for_different_config(
+def test_run_from_config_file_recomputes_when_model_call_inputs_change(
     tmp_path: Path,
 ) -> None:
-    """A reused run_id cannot mix cached rows from another config."""
+    """Model-call input changes create new rows instead of reusing cached rows."""
 
     config_path = _write_config(
         tmp_path,
         models=["model-a"],
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
-    run_from_config_file(
+    first_output = run_from_config_file(
         config_path,
         default_data_root=tmp_path / "data",
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
+    first_rows = _read_jsonl(first_output["results_paths"]["model-a"])
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     config["task"] = "phonics_annotation"
     config_path.write_text(json.dumps(config), encoding="utf-8")
+    calls = []
 
-    def fail_if_called(
-        _config: BenchmarkRunConfig,
+    def evaluator(
+        config: BenchmarkRunConfig,
         _model_name: str,
-        _item: dict,
+        item: dict,
         _prompt: str,
     ) -> dict:
-        raise AssertionError("mixed-config runs should fail before evaluating")
+        calls.append((config.task, item["item_id"]))
+        return {"output": "second"}
 
-    with pytest.raises(ConfigError, match="different config_id"):
-        run_from_config_file(
-            config_path,
-            default_data_root=tmp_path / "data",
-            evaluator=fail_if_called,
-        )
+    second_output = run_from_config_file(
+        config_path,
+        default_data_root=tmp_path / "data",
+        evaluator=evaluator,
+    )
+
+    rows = _read_jsonl(second_output["results_paths"]["model-a"])
+    assert first_output["config_id"] != second_output["config_id"]
+    assert calls == [("phonics_annotation", "item-1")]
+    assert second_output["executed_count"] == 1
+    assert second_output["skipped_count"] == 0
+    assert len(rows) == 1
+    assert rows[0]["output"] == "second"
+    assert rows[0]["result_id"] != first_rows[0]["result_id"]
+    assert rows[0]["model_call_id"] != first_rows[0]["model_call_id"]
 
 
 def test_run_from_config_file_uses_safe_model_result_filename(tmp_path: Path) -> None:
@@ -303,6 +406,45 @@ def test_run_benchmark_writes_supplied_model_configs(tmp_path: Path) -> None:
     rows = _read_jsonl(output["results_paths"]["model-a"])
     assert rows[0]["model"] == "model-a"
     assert "model_configs" not in rows[0]
+
+
+def test_run_benchmark_recomputes_when_model_config_changes(tmp_path: Path) -> None:
+    """Model config changes are part of the per-call cache identity."""
+
+    custom_models_path = tmp_path / "custom_models.yaml"
+    custom_models_path.write_text("models: []", encoding="utf-8")
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+        custom_models_path=custom_models_path,
+    )
+    config = load_run_config(config_path, default_data_root=tmp_path / "data")
+
+    first_output = run_benchmark(
+        config,
+        config_id="config-123",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
+        model_configs={"model-a": {"Token_Window": 100}},
+    )
+    first_rows = _read_jsonl(first_output["results_paths"]["model-a"])
+
+    second_output = run_benchmark(
+        config,
+        config_id="config-123",
+        evaluator=lambda _config, _model, _item, _prompt: {"output": "second"},
+        model_configs={"model-a": {"Token_Window": 200}},
+    )
+
+    rows = _read_jsonl(second_output["results_paths"]["model-a"])
+    assert first_output["config_id"] == second_output["config_id"]
+    assert first_output["config_snapshot_path"] == second_output["config_snapshot_path"]
+    assert second_output["executed_count"] == 1
+    assert second_output["skipped_count"] == 0
+    assert len(rows) == 1
+    assert rows[0]["output"] == "second"
+    assert rows[0]["result_id"] != first_rows[0]["result_id"]
+    assert rows[0]["model_call_id"] != first_rows[0]["model_call_id"]
 
 
 def test_snapshot_model_configs_reads_registered_fdllm_models() -> None:

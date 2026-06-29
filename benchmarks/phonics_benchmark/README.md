@@ -28,9 +28,11 @@ when supplied, it must use only alphanumeric characters and hyphens. Use
 `--timestamped-output` to generate a UTC timestamp run ID for a non-overwriting run.
 
 Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
-set `"chunk_size": null` in a config file to save once after each model. Reusing a
-`run_id` with a different resolved config fails instead of mixing result rows from
-different configs; choose a new `run_id` or pass `--force` to rerun.
+set `"chunk_size": null` in a config file to save once after each model. Cached rows are
+reused when the model-call inputs are unchanged, even if provenance-only config fields
+or the model list change. Changing model-call inputs such as the task, item payload,
+prompt, model name, model config, max tokens, or unknown future config fields creates
+new result rows for those calls.
 
 Before a run starts, the CLI loads provider keys from the repo-root `.env` when present,
 registers models from the repo-root `custom_models.yaml` when present, and verifies that
@@ -66,16 +68,19 @@ the temporary model-call placeholder.
 
 Each run writes:
 
-- `results/<run_id>/config.json`: exact raw config, resolved paths, run-level code git
-  hash, and sanitized model configs from FDLLM's registered model state.
+- `results/<run_id>/config.json`: latest config snapshot with the exact raw config,
+  resolved paths, run-level code git hash, and sanitized model configs from FDLLM's
+  registered model state.
 - `results/<run_id>/answers/resps_<model-file-id>.jsonl`: one result per item for each
   model. The file ID is the model name when it is already filename-safe, or a sanitized
   hash-suffixed form otherwise.
 - `results/<run_id>/log.json`: per-model execution provenance such as timestamp and git
   hash.
 
-Each result row includes `result_id`, `run_id`, `config_id`, `config_path`,
-`config_snapshot_path`, `model`, `item_id`, `prompt`, raw `output`, and call status
-fields. Until the prompt/call implementation lands, the default prompt and output are
-both recorded as `placeholder`. Result rows identify the model by configured model name;
-the corresponding model config is saved once in `config.json`, keyed by that name.
+Each result row includes `result_id`, `run_id`, `config_id`, `model_call_id`,
+`config_path`, `config_snapshot_path`, `model`, `item_id`, `prompt`, raw `output`, and
+call status fields. `model_call_id` is the cache identity for the response. Cached rows
+may keep an older `config_id` when reused across provenance-only config changes. Until
+the prompt/call implementation lands, the default prompt and output are both recorded as
+`placeholder`. Result rows identify the model by configured model name; the
+corresponding model config is saved in the latest config snapshot, keyed by that name.
