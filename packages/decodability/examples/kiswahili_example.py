@@ -8,13 +8,16 @@ Run from the repository root with:
 
 from __future__ import annotations
 
+from functools import partial
+
 import pandas as pd
 from decodability import annotate_words
+from decodability.annotate import Aggregation
 from decodability.kiswahili import (
     AGGREGATIONS,
     SCORING_METHODS,
     KiswahiliStudentKnowledge,
-    tokenize_kiswahili,
+    extract_kiswahili_words,
 )
 
 TEXT = """Tulisikia mayowe tukiwa sebuleni. Sote tukatoka.
@@ -70,13 +73,17 @@ JSON_DATA = {
 
 def build_dataframe() -> pd.DataFrame:
     scoring_method_names = JSON_DATA["scoring_methods"]
-    aggregations = {
-        name: AGGREGATIONS[agg["name"]]
-        for name, agg in JSON_DATA["aggregations"].items()
-    }
+    aggregations: dict[str, Aggregation] = dict()
+    for name, agg in JSON_DATA["aggregations"].items():
+        params = agg.get("params")
+        agg_func = AGGREGATIONS[agg["name"]]
+        if params:
+            aggregations[name] = partial(agg_func, **params)
+        else:
+            aggregations[name] = agg_func
 
     return annotate_words(
-        tokenize_kiswahili(TEXT),
+        extract_kiswahili_words(TEXT),
         scoring_methods=[SCORING_METHODS[name] for name in scoring_method_names],
         student_knowledge=STUDENT_KNOWLEDGE,
         aggregations=aggregations,

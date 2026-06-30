@@ -27,22 +27,22 @@ any specific language's rules:
 
 Language-specific modules go under `decodability/<language>/`.
 
-| Module           | Responsibility                                                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `config.py`      | Language constants and any external decoding-tool setup                                                                 |
-| `models.py`      | The student-knowledge pydantic model                                                                                    |
-| `scorers.py`     | Per-word scoring functions mapping `(word, student_knowledge)` to a score in range [0.0, 1.0]                           |
-| `aggregators.py` | Functions that combine a word's per-measure scores into one final score.                                                |
-| `tokenizer.py`   | Language-specific word tokenizer.                                                                                       |
-| `__init__.py`    | Exposes the `SCORING_METHODS` and `AGGREGATIONS` registries (see [Config Shape](#config-shape)) and the public exports. |
+| Module             | Responsibility                                                                                                          |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `definitions.py`   | Language constants and any external decoding-tool setup                                                                 |
+| `models.py`        | The student-knowledge pydantic model                                                                                    |
+| `scorers.py`       | Per-word scoring functions mapping `(word, student_knowledge)` to a score in range [0.0, 1.0]                           |
+| `aggregators.py`   | Functions that combine a word's per-measure scores into one final score.                                                |
+| `extract_words.py` | Language-specific word extractor.                                                                                       |
+| `__init__.py`      | Exposes the `SCORING_METHODS` and `AGGREGATIONS` registries (see [Config Shape](#config-shape)) and the public exports. |
 
 The dependency structure is as follows:
 
 ```mermaid
 flowchart
-  models.py --for data validation--> config.py
-  scorers.py --for scoring logic--> config.py
-  tokenizer.py --for data validation*--> config.py
+  models.py --for data validation--> definitions.py
+  scorers.py --for scoring logic--> definitions.py
+  tokenizer.py --for data validation*--> definitions.py
   aggregators.py --> scorers.py
 ```
 

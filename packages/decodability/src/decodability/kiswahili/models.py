@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from decodability.kiswahili.config import VALID_GRAPHEMES
+from decodability.kiswahili.definitions import VALID_GRAPHEMES
 
 
 class KiswahiliStudentKnowledge(BaseModel):

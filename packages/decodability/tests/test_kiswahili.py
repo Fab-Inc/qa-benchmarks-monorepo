@@ -4,12 +4,12 @@ from decodability import rowwise
 from decodability.kiswahili.aggregators import (
     aggregate_scores_kenya_tusome,
 )
+from decodability.kiswahili.extract_words import extract_kiswahili_words
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_graphemes_kiswahili,
     score_whole_words_kiswahili,
 )
-from decodability.kiswahili.tokenizer import tokenize_kiswahili
 
 
 class TestKiswahiliStudentKnowledgeValidator:
@@ -76,7 +76,7 @@ class TestKiswahiliTokenizer:
     )
     def test_tokenize_kiswahili(self, text: str, expected: list[str]):
         """Test the tokenize function."""
-        assert tokenize_kiswahili(text) == expected
+        assert extract_kiswahili_words(text) == expected
 
 
 class TestKiswahiliAggregators:

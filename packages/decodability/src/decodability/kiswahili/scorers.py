@@ -1,6 +1,6 @@
 from primerpro import Word
 
-from decodability.kiswahili.config import primerpro_settings
+from decodability.kiswahili.definitions import primerpro_settings
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
 
