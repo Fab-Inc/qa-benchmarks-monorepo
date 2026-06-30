@@ -57,6 +57,9 @@ JSON_DATA = {
     ],
     "aggregations": {
         "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
+        # NOTE: The following are generic aggregations that are not
+        # Kiswahili-specific, but we include them to demonstrate potential usage with
+        # multiple aggregation methods.
         "mean_score": {"name": "mean_score"},
         "weighted_score": {
             "name": "weighted_average",
