@@ -2,7 +2,7 @@ from decodability import mean_score, rowwise, weighted_average
 from decodability.kiswahili.aggregators import (
     aggregate_scores_kenya_tusome,
 )
-from decodability.kiswahili.extract_words import extract_kiswahili_words
+from decodability.kiswahili.extract_words import extract_words_kiswahili
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_graphemes_kiswahili,
@@ -30,5 +30,5 @@ __all__ = [
     "KiswahiliStudentKnowledge",
     "score_known_graphemes_kiswahili",
     "score_whole_words_kiswahili",
-    "extract_kiswahili_words",
+    "extract_words_kiswahili",
 ]

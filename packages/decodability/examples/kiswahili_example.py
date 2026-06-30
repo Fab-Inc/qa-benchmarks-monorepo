@@ -17,7 +17,7 @@ from decodability.kiswahili import (
     AGGREGATIONS,
     SCORING_METHODS,
     KiswahiliStudentKnowledge,
-    extract_kiswahili_words,
+    extract_words_kiswahili,
 )
 
 TEXT = """Tulisikia mayowe tukiwa sebuleni. Sote tukatoka.
@@ -50,7 +50,7 @@ STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
 
 
 JSON_DATA = {
-    "language": "example_kiswahili",
+    "language": "kiswahili",
     "scoring_methods": [
         "score_known_graphemes_kiswahili",
         "score_whole_words_kiswahili",
@@ -83,7 +83,7 @@ def build_dataframe() -> pd.DataFrame:
             aggregations[name] = agg_func
 
     return annotate_words(
-        extract_kiswahili_words(TEXT),
+        extract_words_kiswahili(TEXT),
         scoring_methods=[SCORING_METHODS[name] for name in scoring_method_names],
         student_knowledge=STUDENT_KNOWLEDGE,
         aggregations=aggregations,
