@@ -1,120 +1,48 @@
-from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
+from primerpro import Word
 
+from decodability.kiswahili.definitions import primerpro_settings
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
-KISWAHILI_CONSONANT_GPCS = [
-    ("b", "b"),
-    ("ch", "tʃ"),
-    ("d", "d"),
-    ("dh", "ð"),
-    ("f", "f"),
-    ("g", "ɡ"),
-    ("gh", "Ɣ"),
-    ("h", "h"),
-    ("j", "j"),
-    ("k", "k"),
-    ("l", "l"),
-    ("m", "m"),
-    ("n", "n"),
-    ("ng", "ŋg"),
-    ("ng'", "ŋ"),
-    ("ny", "ɲ"),
-    ("p", "p"),
-    ("r", "r"),
-    ("s", "s"),
-    ("sh", "ʃ"),
-    ("t", "t"),
-    ("th", "θ"),
-    ("v", "v"),
-    ("w", "w"),
-    ("y", "y"),
-    ("z", "z"),
-]
 
-KISWAHILI_VOWEL_GPCS = [
-    ("a", "a"),
-    ("e", "ɛ"),
-    ("i", "i"),
-    ("o", "ɔ"),
-    ("u", "u"),
-]
-
-
-def _get_primerpro_settings() -> Settings:
-    settings = Settings()
-    settings.option_settings.max_size_grapheme = 3
-
-    inventory = GraphemeInventory()
-
-    for symbol, _ in KISWAHILI_CONSONANT_GPCS:
-        inventory.add_consonant(Consonant(symbol))
-
-    for symbol, _ in KISWAHILI_VOWEL_GPCS:
-        inventory.add_vowel(Vowel(symbol))
-
-    settings.grapheme_inventory = inventory
-    return settings
-
-
-settings: Settings = _get_primerpro_settings()
-
-
-def score_known_syllables_kiswahili(
+def score_known_graphemes_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
 ) -> float:
-    """Score a word based on the number of known syllables and the total number of
-    syllables in the word.
+    """Score a word based on whether the student knows all the graphemes in the word.
 
-    The score is binary: if there's any syllable that the student doesn't know, the
+    The score is binary: if there's any grapheme that the student doesn't know, the
     score is 0.
     """
-    taught_syllables = student_knowledge.known_syllables
+    taught_graphemes = student_knowledge.graphemes
 
-    if not taught_syllables:
+    if not taught_graphemes:
         return 0.0
 
-    primerpro_word = Word(word, settings)
-    syllable_symbols = [
-        syllable.display_syllable.lower() for syllable in primerpro_word.syllables
+    primerpro_word = Word(word, primerpro_settings)
+    grapheme_symbols = [
+        primerpro_word.get_grapheme(index).symbol.lower()
+        for index in range(primerpro_word.grapheme_count())
     ]
 
-    if any(syllable not in taught_syllables for syllable in syllable_symbols):
+    if any(grapheme not in taught_graphemes for grapheme in grapheme_symbols):
         return 0.0
 
     return 1.0
 
 
-def score_word_length_kiswahili(
+def score_whole_words_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
 ) -> float:
-    """Score a word based on its length and the maximum length of words the student
-    can decode.
+    """Score a word based on whether the student knows it as a whole word.
 
-    The score is calculated as the maximum word length the student can decode divided
-    by the length of the word, capped at 1.
+    The score is binary: if the student knows the word as a whole word, the score is 1.
+    Otherwise, the score is 0.
     """
-    taught_length = student_knowledge.max_word_length
-    n = len(word)
+    taught_whole_words = student_knowledge.whole_words
 
-    return min(1, taught_length / n)
-
-
-def score_syllable_pattern_kiswahili(
-    word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> float:
-    """Score a word based on its syllable pattern and the student's knowledge.
-
-    The score is calculated as the ratio of known syllable patterns to total syllables
-    in the word.
-    """
-    taught_patterns = student_knowledge.known_syllable_patterns
-
-    primerpro_word = Word(word, settings)
-    syllable_pattern = primerpro_word.cv_pattern
-
-    if not taught_patterns:
+    if not taught_whole_words:
         return 0.0
 
-    is_known_pattern = syllable_pattern in taught_patterns
+    if word.lower() in taught_whole_words:
+        return 1.0
 
-    return 1.0 if is_known_pattern else 0.0
+    return 0.0

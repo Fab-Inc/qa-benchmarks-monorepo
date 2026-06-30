@@ -28,10 +28,10 @@ def test_kiswahili_example_builds_dataframe():
 
     assert list(df.columns) == [
         "word",
-        "score_known_syllables_kiswahili",
-        "score_word_length_kiswahili",
-        "score_syllable_pattern_kiswahili",
+        "score_known_graphemes_kiswahili",
+        "score_whole_words_kiswahili",
+        "kenya_tusome_score",
         "mean_score",
         "weighted_score",
     ]
-    assert df.loc[0, "word"] == "Juma"
+    assert df.loc[0, "word"] == "Tulisikia"

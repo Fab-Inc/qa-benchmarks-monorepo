@@ -9,6 +9,7 @@ import pandas as pd
 
 Measure = Callable[[str, Any], float]
 Aggregation = Callable[[pd.DataFrame, Sequence[str]], pd.Series]
+RowAggregation = Callable[[Mapping[str, float]], float]
 
 
 def annotate_words(
@@ -37,6 +38,20 @@ def annotate_words(
     return df
 
 
+def rowwise(row_func: RowAggregation) -> Aggregation:
+    """Turn a ``scores -> float`` decision function into an `Aggregation`.
+
+    Using row-wise functions will be slower than vectorized functions, but
+    they make the aggregation logic easier to understand.
+    """
+
+    def aggregation(df: pd.DataFrame, score_columns: Sequence[str]) -> pd.Series:
+        columns = list(score_columns)
+        return df[columns].apply(lambda row: row_func(row.to_dict()), axis=1)
+
+    return aggregation
+
+
 def mean_score(df: pd.DataFrame, score_columns: Sequence[str]) -> pd.Series:
     """Default equal-weight row-wise mean across scoring columns."""
 
@@ -55,7 +70,10 @@ def weighted_average(
     """
 
     total_weight = sum(weights[column] for column in score_columns)
-    return sum(df[column] * weights[column] for column in score_columns) / total_weight
+    weighted_sum = pd.concat(
+        [df[column] * weights[column] for column in score_columns], axis=1
+    ).sum(axis=1)
+    return weighted_sum / total_weight
 
 
 def _function_name(function: Callable[..., Any]) -> str:
