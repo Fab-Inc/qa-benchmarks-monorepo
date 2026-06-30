@@ -70,7 +70,7 @@ Example JSON-like config:
 
 ```json
 {
-  "language": "example_kiswahili",
+  "language": "kiswahili",
   "scoring_methods": [
     "score_known_graphemes_kiswahili",
     "score_whole_words_kiswahili"
