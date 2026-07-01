@@ -6,6 +6,9 @@ but implemented crudely here as demonstration of concept).
 The idea is that the functions defined here will be integrated into src/ once
 the outer benchmark scaffolding is ready, and most of the rest of the boilerplate
 here won't be since being handled elsewhere.
+
+Run this script with:
+uv run path/to/this/script.py
 """
 
 import json
