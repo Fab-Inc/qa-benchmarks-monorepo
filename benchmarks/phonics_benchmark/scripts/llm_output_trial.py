@@ -67,6 +67,7 @@ load_dotenv(REPO_ROOT / ".env")
 register_models(REPO_ROOT / "custom_models.yaml")
 
 # temporary subset of models to experiment with
+# use same model names as in custom_models.yaml
 models = [
     "gemini-3.1-pro-preview",
     "claude-sonnet-4-6",
@@ -144,6 +145,9 @@ def parse_word_list_from_response(response: str) -> list[str]:
 
     # remove any empty strings that may have occurred (would be unusual)
     words_filtered = [w for w in words_stripped if w]
+
+    # TODO: maybe check whether all words were actually present in the original text
+    #  and if not then log a response validity flag to save with the result.
 
     return words_filtered
 
