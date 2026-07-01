@@ -1,9 +1,21 @@
 # Prompt templates for the decodability benchmark.
-# Templates use str.format() named placeholders.
+# Templates use str.format() named placeholders like {my_variable}
+
+# Prompts below use YAML folded scalars (>-): a single line break becomes a
+# space; blank lines are preserved as newlines (N blank lines -> N newlines).
+# So to get a blank line in the output, leave two blank lines in the source.
 
 decodability_evaluation: >-
-  I want you to assess the decodability of a text in {language} for a student with a
-  particular knowledge profile.
+  You are helping a teacher to determine which words in a text a particular student
+  cannot yet read aloud on their own.
+
+
+  A word is "non-decodable" for a student when the student cannot read it based on what
+  they currently know, neither by recognising it as a whole word they already know, nor
+  by sounding it out from letter-sounds (graphemes) they have been taught.
+
+
+  The text is in the language of {language}.
 
 
   The student knowledge profile is:
@@ -16,13 +28,12 @@ decodability_evaluation: >-
   {text}
 
 
-  Consider what has been taught to the student, as well as considerations that might
-  make a word more difficult to decode for a student in general.
+  Your task is to reply with a list of unique non-decodable words, formatted in JSON
+  array format exactly like this:
+
+  `["word1", "word2", "word3"]`
 
 
-  Your task is to reply ONLY with the non-decodable words, as a list in the format
-  `[word1, word2, ...]`. If all words are decodable, reply with an empty list like `[]`.
+  If all words are decodable, reply with an empty list like this:
 
-
-  No explanation, no filler, no extra text whatsoever. Only square brackets, commas, and
-  the non-decodable words.
+  `[]`
