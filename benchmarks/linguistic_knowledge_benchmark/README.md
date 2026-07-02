@@ -171,14 +171,14 @@ uv sync --package linguistic-knowledge-benchmark
 uv sync --all-packages
 ```
 
-Add the API keys for the providers you want to evaluate to [`.env`](.env) (the CLI loads
-this file automatically):
+Add the API keys for the providers you want to evaluate to [`.env`](../../.env) file in
+repo root (the CLI loads this file automatically):
 
 ```bash
-# benchmarks/linguistic_knowledge_benchmark/.env
+# .env
 ANTHROPIC_API_KEY="..."   # Claude models + default judge
-OPENAI_API_KEY="..."          # GPT models
-GEMINI_API_KEY="..."             # Gemini / Gemma models
+OPENAI_API_KEY="..."      # GPT models
+GEMINI_API_KEY="..."      # Gemini / Gemma models
 ```
 
 Which env var a model needs is determined by its provider group in
