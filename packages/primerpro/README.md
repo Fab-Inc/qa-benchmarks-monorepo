@@ -6,15 +6,18 @@ questions such as which words are buildable from the graphemes already taught, w
 story words still contain untaught residue, and which grapheme contrasts form minimal
 pairs.
 
-The port preserves the original application's behavior rather than redefining a new
-phonics model.
+Ths port largely preserves the original application's behavior rather than redefining a
+new phonics model.
 
 ## Core Concepts
 
 PrimerPro is driven by a project-specific grapheme inventory. A grapheme is the written
 unit PrimerPro should treat as atomic. It may be a single letter, a multigraph such as
 `sh`, `ng`, or `igh`, a tone-marked written form, or a syllograph. Words are segmented
-by the longest matching inventory entry, up to `OptionSettings.max_size_grapheme`.
+by the longest matching inventory entry, up to `OptionSettings.max_size_grapheme`. Each
+grapheme's `uppercase` form defaults to `symbol.capitalize()`, so `Ship` can match the
+`sh` grapheme without extra language-specific setup. Languages that need another written
+form, such as `SH`, can still assign `grapheme.uppercase` explicitly.
 
 Decodability is checked against a taught-grapheme list. A word is buildable when every
 syllable is buildable from that taught list. PrimerPro also supports position-marked
@@ -106,7 +109,9 @@ search.execute_residue_search(text_data)
 print(search.search_results)
 ```
 
-## Phoneme look-up
+## Phoneme Look-up
+
+> [!NOTE] This feature is additional to the original PrimerPro application.
 
 If you want to associate a phoneme to each grapheme to look up phonemic forms or get
 phoneme annotations, add your grapheme-phoneme correspondences to a `GPCMapping` object
@@ -122,15 +127,13 @@ gpc_mapping = GPCMapping()
 
 for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
     consonant = Consonant(grapheme)
-    consonant.uppercase = grapheme.upper()
     inventory.add_consonant(consonant)
 
     gpc_mapping.add(consonant, phoneme)
 
 for grapheme, phoneme in [("a", "a"), ("e", "ɛ"), ("i", "i"), ("o", "ɔ")]:
     vowel = Vowel(grapheme)
-    vowel.uppercase = grapheme.upper()
-    inventory.add_consonant(consonant)
+    inventory.add_vowel(vowel)
 
     gpc_mapping.add(vowel, phoneme)
 
@@ -153,6 +156,17 @@ print(get_phoneme_annotation(word, gpc_mapping))
 print(get_phonemic_form(word, gpc_mapping))
 # >>> mtɔtɔ
 ```
+
+## Punctuations in Graphemes
+
+> [!NOTE] This behavior is different from the original PrimerPro application.
+
+In this python port of PrimerPro, an inventory grapheme such as `ng'` is never split on
+its internal punctuation that is also included in
+`settings.option_settings.general_punct`.
+
+This does not apply to `settings.option_settings.ending_punct`. A `Paragraph` will
+always be split on the `ending_punct` into `Sentences`.
 
 ## Demo Script
 
@@ -180,8 +194,8 @@ uv run ruff check packages/primerpro/src/primerpro
 
 ## Notes On Scope
 
-This is not a statistical readability model. It is a faithful port of PrimerPro's
-rule-based behavior:
+This is not a statistical readability model. It is a (largely) faithful port of
+PrimerPro's rule-based behavior:
 
 - Text is cleaned and segmented into configured graphemes.
 - Buildability is binary at the word level.

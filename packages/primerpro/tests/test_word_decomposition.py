@@ -1,7 +1,9 @@
+import pytest
 from primerpro import Word
 
 from .fixtures import (
     create_bantu_like_settings,
+    create_settings,
     grapheme_symbols,
     syllable_symbols,
 )
@@ -22,12 +24,13 @@ def test_word_uses_longest_match_grapheme_decomposition_for_long_vowels():
     assert grapheme_symbols(word) == ["k", "aa", "n", "a"]
 
 
-def test_word_canonicalizes_uppercase_inventory_matches_to_inventory_symbols():
+def test_word_canonicalizes_default_title_case_inventory_matches_to_inventory_symbols():
     settings = create_bantu_like_settings()
-    word = Word("MBata", settings)
 
-    assert word.display_word == "mbata"
-    assert grapheme_symbols(word) == ["mb", "a", "t", "a"]
+    title_case = Word("Mbata", settings)
+
+    assert title_case.display_word == "mbata"
+    assert grapheme_symbols(title_case) == ["mb", "a", "t", "a"]
 
 
 def test_explicit_syllable_breaks_are_preserved_while_display_word_removes_dots():
@@ -46,3 +49,34 @@ def test_punctuation_configured_as_general_or_ending_punctuation_is_removed():
 
     assert word.display_word == "ngoma"
     assert grapheme_symbols(word) == ["ng", "o", "m", "a"]
+
+
+@pytest.mark.parametrize(
+    "consonants, vowels, word_text, expected_display_word, expected_graphemes",
+    [
+        (
+            ["n", "ng'", "ng"],
+            ["a", "i"],
+            "Ng'ang'ania",
+            "ng'ang'ania",
+            ["ng'", "a", "ng'", "a", "n", "i", "a"],
+        ),
+        (
+            ["n", "ng'", "ng"],
+            ["a", "i"],
+            "'ng'ang'ania.'",
+            "ng'ang'ania",
+            ["ng'", "a", "ng'", "a", "n", "i", "a"],
+        ),
+        (["s'h"], ["a"], "As'ha", "as'ha", ["a", "s'h", "a"]),
+    ],
+)
+def test_general_or_ending_punctuation_is_not_removed_if_part_of_grapheme(
+    consonants, vowels, word_text, expected_display_word, expected_graphemes
+):
+    settings = create_settings(consonants, vowels)
+    settings.option_settings.general_punct = " ,.?!;\"'"
+    word = Word(word_text, settings)
+
+    assert word.display_word == expected_display_word
+    assert grapheme_symbols(word) == expected_graphemes

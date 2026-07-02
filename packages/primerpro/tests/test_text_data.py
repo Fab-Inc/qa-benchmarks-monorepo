@@ -1,6 +1,7 @@
 from .fixtures import (
     create_bantu_like_settings,
     create_english_settings,
+    create_settings,
     create_tone_settings,
     text_data_from_paragraphs,
 )
@@ -17,6 +18,25 @@ def test_text_data_parses_non_english_story_text_into_paragraphs_sentences_and_w
     assert text_data.paragraph_count() == 2
     assert text_data.sentence_count() == 3
     assert text_data.word_count() == 6
+
+
+def test_tokenization_does_not_split_on_punctuation_inside_a_grapheme():
+    """
+    GIVEN text with a grapheme that contains an apostrophe ("ng'")
+    WHEN the text is parsed into words
+    THEN the punctuation inside the grapheme does not split the token
+    """
+    settings = create_settings(["n", "ng", "ng'"], ["a", "i", "o"])
+    assert "'" in settings.option_settings.general_punct
+
+    text_data = text_data_from_paragraphs(settings, "ng'ania ngoma.")
+    word_list = text_data.build_word_list()
+
+    # Two words, not three: the internal apostrophe stays inside "ng'", while the
+    # space between words still separates tokens.
+    assert word_list.word_count() == 2
+    assert word_list.get_word(0).display_word == "ng'ania"
+    assert word_list.get_word(1).display_word == "ngoma"
 
 
 def test_text_data_average_words_in_sentences_averages_paragraph_averages():
