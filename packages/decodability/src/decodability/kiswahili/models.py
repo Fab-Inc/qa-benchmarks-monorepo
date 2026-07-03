@@ -30,3 +30,9 @@ class KiswahiliStudentKnowledge(BaseModel):
     def lowercase_whole_words(cls, whole_words: set[str]) -> set[str]:  # noqa: N805
         """Lowercase all whole words to ensure consistency."""
         return {word.lower() for word in whole_words}
+
+    def __repr__(self) -> str:
+        """Return a string representation of the KiswahiliStudentKnowledge instance."""
+        graphemes = ", ".join(sorted(self.graphemes))
+        whole_words = ", ".join(sorted(self.whole_words))
+        return f"- Known graphemes: {graphemes}\n- Known whole words: {whole_words})"

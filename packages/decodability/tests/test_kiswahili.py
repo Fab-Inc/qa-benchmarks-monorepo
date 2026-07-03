@@ -12,7 +12,7 @@ from decodability.kiswahili.scorers import (
 )
 
 
-class TestKiswahiliStudentKnowledgeValidator:
+class TestKiswahiliStudentKnowledgeModel:
     @pytest.mark.parametrize(
         "known_graphemes, should_pass",
         [
@@ -34,6 +34,19 @@ class TestKiswahiliStudentKnowledgeValidator:
         else:
             with pytest.raises(ValueError):
                 KiswahiliStudentKnowledge(graphemes=known_graphemes)
+
+    def test_kiswahili_student_knowledge_lowercases_whole_words(self):
+        """Test that the KiswahiliKnowledge model lowercases whole words."""
+        knowledge = KiswahiliStudentKnowledge(whole_words={"Baba", "mama", "ANAONA"})
+        assert knowledge.whole_words == {"baba", "mama", "anaona"}
+
+    def test_kiswahili_student_knowledge_repr(self):
+        """Test the string representation of KiswahiliStudentKnowledge."""
+        knowledge = KiswahiliStudentKnowledge(
+            graphemes={"m", "a", "n"}, whole_words={"baba", "mama"}
+        )
+        expected_repr = "- Known graphemes: a, m, n\n- Known whole words: baba, mama)"
+        assert repr(knowledge) == expected_repr
 
 
 class TestScorers:
