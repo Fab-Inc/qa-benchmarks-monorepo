@@ -12,10 +12,11 @@ class KiswahiliStudentKnowledge(BaseModel):
     @field_validator("graphemes")
     def check_known_graphemes(cls, graphemes: set[str]) -> set[str]:  # noqa: N805
         """Check that every grapheme is a valid Kiswahili grapheme."""
+        lowered_graphemes = {grapheme.lower() for grapheme in graphemes}
         invalid_graphemes = [
             grapheme
-            for grapheme in graphemes
-            if grapheme.lower() not in VALID_GRAPHEMES
+            for grapheme in lowered_graphemes
+            if grapheme not in VALID_GRAPHEMES
         ]
 
         if invalid_graphemes:
@@ -24,7 +25,7 @@ class KiswahiliStudentKnowledge(BaseModel):
                 "Only valid Kiswahili graphemes are allowed."
             )
 
-        return graphemes
+        return lowered_graphemes
 
     @field_validator("whole_words")
     def lowercase_whole_words(cls, whole_words: set[str]) -> set[str]:  # noqa: N805

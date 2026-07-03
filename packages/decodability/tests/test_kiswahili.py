@@ -26,8 +26,8 @@ class TestKiswahiliStudentKnowledgeModel:
     def test_kiswahili_student_knowledge_grapheme_checks_for_valid_graphemes(
         self, known_graphemes: set[str], should_pass: bool
     ):
-        """Test that the KiswahiliKnowledge model raises a ValueError when invalid
-        graphemes are provided
+        """Test that the KiswahiliStudentKnowledge model raises a ValueError when
+        invalid graphemes are provided
         """
         if should_pass:
             KiswahiliStudentKnowledge(graphemes=known_graphemes)
@@ -36,7 +36,7 @@ class TestKiswahiliStudentKnowledgeModel:
                 KiswahiliStudentKnowledge(graphemes=known_graphemes)
 
     def test_kiswahili_student_knowledge_lowercases_whole_words(self):
-        """Test that the KiswahiliKnowledge model lowercases whole words."""
+        """Test that the KiswahiliStudentKnowledge model lowercases whole words."""
         knowledge = KiswahiliStudentKnowledge(whole_words={"Baba", "mama", "ANAONA"})
         assert knowledge.whole_words == {"baba", "mama", "anaona"}
 
