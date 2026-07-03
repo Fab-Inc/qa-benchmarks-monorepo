@@ -41,7 +41,7 @@ class TestKiswahiliStudentKnowledgeModel:
         assert knowledge.whole_words == {"baba", "mama", "anaona"}
 
     @pytest.mark.parametrize(
-        "known_graphemes, known_whole_words, expected_repr",
+        "known_graphemes, known_whole_words, expected_str",
         [
             (
                 {"m", "a", "n"},
@@ -57,14 +57,14 @@ class TestKiswahiliStudentKnowledgeModel:
             (set(), set(), "- Known graphemes: None\n- Known whole words: None"),
         ],
     )
-    def test_kiswahili_student_knowledge_repr(
-        self, known_graphemes: set[str], known_whole_words: set[str], expected_repr: str
+    def test_kiswahili_student_knowledge_str(
+        self, known_graphemes: set[str], known_whole_words: set[str], expected_str: str
     ):
         """Test the string representation of KiswahiliStudentKnowledge."""
         knowledge = KiswahiliStudentKnowledge(
             graphemes=known_graphemes, whole_words=known_whole_words
         )
-        assert repr(knowledge) == expected_repr
+        assert str(knowledge) == expected_str
 
 
 class TestScorers:
