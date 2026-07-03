@@ -65,7 +65,7 @@ decodable for that student.
 
 ```json
 {
-  "student_knowledge_id": "stu-sw-002",
+  "student_knowledge_id": "tusome-ke-stage-01",
   "language_iso_code": "sw",
   "student_knowledge": {
     "graphemes": ["a", "e", "i", "o", "u", "ba", "be", "bi", "bo", "bu",
