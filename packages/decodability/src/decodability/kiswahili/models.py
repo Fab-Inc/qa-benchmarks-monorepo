@@ -33,8 +33,8 @@ class KiswahiliStudentKnowledge(BaseModel):
 
     def __repr__(self) -> str:
         """Return a string representation of the KiswahiliStudentKnowledge instance."""
-        graphemes = ", ".join(sorted(self.graphemes))
-        whole_words = ", ".join(sorted(self.whole_words))
+        graphemes = ", ".join(f'"{g}"' for g in sorted(self.graphemes))
+        whole_words = ", ".join(f'"{w}"' for w in sorted(self.whole_words))
 
         if not self.graphemes:
             graphemes = "None"
@@ -42,4 +42,4 @@ class KiswahiliStudentKnowledge(BaseModel):
         if not self.whole_words:
             whole_words = "None"
 
-        return f"- Known graphemes: {graphemes}\n- Known whole words: {whole_words})"
+        return f"- Known graphemes: {graphemes}\n- Known whole words: {whole_words}"

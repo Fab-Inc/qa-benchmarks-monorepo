@@ -46,11 +46,15 @@ class TestKiswahiliStudentKnowledgeModel:
             (
                 {"m", "a", "n"},
                 {"baba", "mama"},
-                "- Known graphemes: a, m, n\n- Known whole words: baba, mama)",
+                '- Known graphemes: "a", "m", "n"\n- Known whole words: "baba", "mama"',
             ),
-            (set(), {"baba"}, "- Known graphemes: None\n- Known whole words: baba)"),
-            ({"m", "a"}, set(), "- Known graphemes: a, m\n- Known whole words: None)"),
-            (set(), set(), "- Known graphemes: None\n- Known whole words: None)"),
+            (set(), {"baba"}, '- Known graphemes: None\n- Known whole words: "baba"'),
+            (
+                {"m", "a"},
+                set(),
+                '- Known graphemes: "a", "m"\n- Known whole words: None',
+            ),
+            (set(), set(), "- Known graphemes: None\n- Known whole words: None"),
         ],
     )
     def test_kiswahili_student_knowledge_repr(
