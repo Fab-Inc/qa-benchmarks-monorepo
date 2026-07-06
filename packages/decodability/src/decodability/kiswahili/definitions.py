@@ -1,4 +1,4 @@
-"""Shared congifurations for Kiswahili decodability scoring."""
+"""Shared configurations for Kiswahili decodability analysis."""
 
 from primerpro import Consonant, GraphemeInventory, Settings, Vowel
 
