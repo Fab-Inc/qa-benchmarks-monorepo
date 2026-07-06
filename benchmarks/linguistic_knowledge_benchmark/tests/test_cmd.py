@@ -73,6 +73,7 @@ def test_run_bench_single_model_forwards_params(runner, monkeypatch) -> None:
     )
     assert result.exit_code == 0
     mock.assert_called_once()
+    assert "Run ID: default (no --run-id supplied)" in result.output
     kwargs = mock.call_args.kwargs
     assert kwargs["model_name"] == VALID_MODEL
     assert kwargs["language_name"] == "Luganda"
@@ -213,6 +214,7 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
     )
     assert result.exit_code == 0
+    assert "Run ID: default (no --run-id supplied)" in result.output
     summary_path = (
         tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
     )
@@ -283,6 +285,7 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
 
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )
@@ -291,6 +294,25 @@ def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> 
     )
     assert result.exit_code == 0
     assert not (tmp_path / "results").exists()
+    # When the directory is missing, show only the not-found diagnostic — the
+    # per-model "Skipped" line would be redundant noise.
+    assert "Nothing judged: expected directory not found" in result.output
+    assert "Skipped" not in result.output
+
+
+def test_judge_bench_reports_empty_directory(runner, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
+    # The answers directory exists but holds no result files for the model.
+    (tmp_path / "luganda" / "runs" / "default" / "answers").mkdir(parents=True)
+    monkeypatch.setattr(
+        cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
+    )
+    result = runner.invoke(
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+    )
+    assert result.exit_code == 0
+    assert "Nothing judged: no result files" in result.output
 
 
 def test_judge_bench_propagates_error(runner, monkeypatch, tmp_path) -> None:

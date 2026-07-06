@@ -141,9 +141,11 @@ def run_bench_cmd(
     entry = DATASETS[language]
     if timestamped_output and run_id is None:
         run_id = _timestamp_run_id()
-    typer.echo(f"\n=== Running Linguistic Knowledge Evaluation ({language}) ===")
+    typer.echo(f"\n=== Running Linguistic Knowledge Benchmark ({language}) ===")
     if run_id:
         typer.echo(f"Run ID: {run_id}")
+    else:
+        typer.echo("Run ID: default (no --run-id supplied)")
 
     for current_model in models_to_run:
         try:
@@ -229,12 +231,25 @@ def judge_bench_cmd(
 
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
+    effective_run_id = run_id or "default"
+    # Report the directory this mode actually reads from: standard judging reads
+    # the raw run-bench answers, while --judge-fallback re-scores the already-judged
+    # CSVs, so its source is answers_judged/ (produced by a prior standard pass).
+    input_subdir = "answers_judged" if judge_fallback else "answers"
+    input_dir = (
+        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / input_subdir
+    )
+
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
     typer.echo(f"Judge model: {judge_model}")
     if run_id:
-        typer.echo(f"Run ID: {run_id}")
+        typer.echo(f"Run ID: {effective_run_id}")
+    else:
+        typer.echo(f"Run ID: {effective_run_id} (no --run-id supplied)")
+    typer.echo(f"Judging answers from: {input_dir}")
 
     summaries: list[dict[str, object]] = []
+    skipped: list[str] = []
 
     for current_model in models_to_judge:
         try:
@@ -265,45 +280,66 @@ def judge_bench_cmd(
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
 
         except FileNotFoundError:
-            pass
+            skipped.append(current_model)
         except Exception as e:
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
             raise typer.Exit(1)
 
-    if summaries:
-        results_dir = BENCH_DIR / "results"
-        results_dir.mkdir(exist_ok=True)
-        effective_run_id = run_id or "default"
-        log_path = (
-            CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / "log.json"
+    # If run directory missing, show only the "directory not found" diagnostic.
+    if not summaries and not input_dir.exists():
+        typer.echo(
+            f"\nNothing judged: expected directory not found — {input_dir}\n"
+            f"No run '{effective_run_id}' exists for {language}. If you meant a "
+            "timestamped run, re-run with its --run-id; otherwise run 'run-bench' "
+            "first."
         )
-        log_data: dict[str, dict[str, str | None]] = {}
-        if log_path.exists():
-            with open(log_path, encoding="utf-8") as _f:
-                log_data = json.load(_f)
-        log_fields = [
-            "answers_timestamp-utc",
-            "answers_git-hash",
-            "answers_retry_timestamp-utc",
-            "answers_retry_git-hash",
-            "answers_judged_timestamp-utc",
-            "answers_judged_git-hash",
-            "answers_judged_fallback_timestamp-utc",
-            "answers_judged_fallback_git-hash",
-        ]
-        for s in summaries:
-            entry: dict[str, str | None] = log_data.get(str(s.get("model", "")), {})
-            for field in log_fields:
-                s[field] = entry.get(field)
-        summary_df = pd.DataFrame(summaries)
-        fallback_suffix = "_fallback" if judge_fallback else ""
-        summary_name = (
-            f"summary_linguistic-knowledge_{language}"
-            f"_{effective_run_id}{fallback_suffix}.csv"
+        return
+
+    if skipped:
+        typer.echo(
+            f"\nSkipped {len(skipped)} model(s) with no results to judge: "
+            f"{', '.join(skipped)}"
         )
-        summary_path = results_dir / summary_name
-        summary_df.to_csv(summary_path, index=False)
-        typer.echo(f"\nSummary saved to {summary_path}")
+
+    if not summaries:
+        typer.echo(
+            f"\nNothing judged: no result files in {input_dir}\n"
+            "The directory exists but is empty. Run 'run-bench' for this run-id first."
+        )
+        return
+
+    results_dir = BENCH_DIR / "results"
+    results_dir.mkdir(exist_ok=True)
+    log_path = (
+        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / "log.json"
+    )
+    log_data: dict[str, dict[str, str | None]] = {}
+    if log_path.exists():
+        with open(log_path, encoding="utf-8") as _f:
+            log_data = json.load(_f)
+    log_fields = [
+        "answers_timestamp-utc",
+        "answers_git-hash",
+        "answers_retry_timestamp-utc",
+        "answers_retry_git-hash",
+        "answers_judged_timestamp-utc",
+        "answers_judged_git-hash",
+        "answers_judged_fallback_timestamp-utc",
+        "answers_judged_fallback_git-hash",
+    ]
+    for s in summaries:
+        entry = log_data.get(str(s.get("model", "")), {})
+        for field in log_fields:
+            s[field] = entry.get(field)
+    summary_df = pd.DataFrame(summaries)
+    fallback_suffix = "_fallback" if judge_fallback else ""
+    summary_name = (
+        f"summary_linguistic-knowledge_{language}"
+        f"_{effective_run_id}{fallback_suffix}.csv"
+    )
+    summary_path = results_dir / summary_name
+    summary_df.to_csv(summary_path, index=False)
+    typer.echo(f"\nSummary saved to {summary_path}")
 
 
 def main() -> None:
