@@ -92,16 +92,17 @@ class TestReadStudentKnowledgeProfiles:
     def test_returns_profiles(self, real_data_root) -> None:
         """Returns the correct number of StudentKnowledgeProfile objects."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
-        assert len(profiles) == 2
-        assert all(isinstance(p, StudentKnowledge) for p in profiles)
+        assert len(profiles) == 76
+        assert all(isinstance(p, StudentKnowledgeProfile) for p in profiles)
 
     def test_first_profile(self, real_data_root) -> None:
         """First profile has the expected ID, graphemes, and whole_words."""
+        """First profile has the expected ID, graphemes, and whole_words."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         first = profiles[0]
-        assert first.student_knowledge_id == "stu-sw-001"
-        assert "graphemes" in first.student_knowledge
-        assert "whole_words" in first.student_knowledge
+        assert first.student_knowledge_id == "tusome-ke-stage-01"
+        assert first.taught_knowledge["graphemes"] == ["a", "m"]
+        assert "whole_words" in first.taught_knowledge
 
     def test_missing_file_raises(self, real_data_root) -> None:
         """Raises FileNotFoundError naming the file when no profiles JSONL exists."""
@@ -189,7 +190,7 @@ class TestReadDecodableTexts:
         """First item has the expected ID, language code, and non-empty content."""
         items = read_decodable_texts("kiswahili", real_data_root)
         first = items[0]
-        assert first.text_id == "sw-001"
+        assert first.text_id == "SW-KE-S2"
         assert first.language_iso_code == "sw"
         assert isinstance(first.content, str) and len(first.content) > 0
 
@@ -267,9 +268,9 @@ class TestReadBenchmarkItems:
         """First item links the expected text and student knowledge profile."""
         items = read_benchmark_items("kiswahili", real_data_root)
         first = items[0]
-        assert first.benchmark_item_id == "bi-sw-001-stu-sw-001"
-        assert first.text_id == "sw-001"
-        assert first.student_knowledge_id == "stu-sw-001"
+        assert first.benchmark_item_id == "bi-SW-KE-S2-tusome-ke-stage-01"
+        assert first.text_id == "SW-KE-S2"
+        assert first.student_knowledge_id == "tusome-ke-stage-01"
 
     def test_missing_file_raises(self, real_data_root) -> None:
         """Raises FileNotFoundError naming the file when no benchmark items JSONL."""
