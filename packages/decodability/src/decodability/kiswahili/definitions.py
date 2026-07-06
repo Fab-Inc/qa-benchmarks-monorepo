@@ -1,4 +1,4 @@
-"""Shared congifurations for Kiswahili decodability scoring."""
+"""Shared configurations for Kiswahili decodability analysis."""
 
 from primerpro import Consonant, GraphemeInventory, Settings, Vowel
 
@@ -40,7 +40,9 @@ KISWAHILI_VOWEL_GPCS = [
 ]
 
 VALID_GRAPHEMES: set[str] = {
-    symbol.lower() for symbol, _ in KISWAHILI_CONSONANT_GPCS + KISWAHILI_VOWEL_GPCS
+    # TODO: is it ok to normalize to lowercase here?
+    symbol.lower()
+    for symbol, _ in KISWAHILI_CONSONANT_GPCS + KISWAHILI_VOWEL_GPCS
 }
 
 

@@ -12,7 +12,7 @@ from decodability.kiswahili.scorers import (
 )
 
 
-class TestKiswahiliStudentKnowledgeValidator:
+class TestKiswahiliStudentKnowledgeModel:
     @pytest.mark.parametrize(
         "known_graphemes, should_pass",
         [
@@ -26,14 +26,45 @@ class TestKiswahiliStudentKnowledgeValidator:
     def test_kiswahili_student_knowledge_grapheme_checks_for_valid_graphemes(
         self, known_graphemes: set[str], should_pass: bool
     ):
-        """Test that the KiswahiliKnowledge model raises a ValueError when invalid
-        graphemes are provided
+        """Test that the KiswahiliStudentKnowledge model raises a ValueError when
+        invalid graphemes are provided
         """
         if should_pass:
             KiswahiliStudentKnowledge(graphemes=known_graphemes)
         else:
             with pytest.raises(ValueError):
                 KiswahiliStudentKnowledge(graphemes=known_graphemes)
+
+    def test_kiswahili_student_knowledge_lowercases_whole_words(self):
+        """Test that the KiswahiliStudentKnowledge model lowercases whole words."""
+        knowledge = KiswahiliStudentKnowledge(whole_words={"Baba", "mama", "ANAONA"})
+        assert knowledge.whole_words == {"baba", "mama", "anaona"}
+
+    @pytest.mark.parametrize(
+        "known_graphemes, known_whole_words, expected_str",
+        [
+            (
+                {"m", "a", "n"},
+                {"baba", "mama"},
+                '- Known graphemes: "a", "m", "n"\n- Known whole words: "baba", "mama"',
+            ),
+            (set(), {"baba"}, '- Known graphemes: None\n- Known whole words: "baba"'),
+            (
+                {"m", "a"},
+                set(),
+                '- Known graphemes: "a", "m"\n- Known whole words: None',
+            ),
+            (set(), set(), "- Known graphemes: None\n- Known whole words: None"),
+        ],
+    )
+    def test_kiswahili_student_knowledge_str(
+        self, known_graphemes: set[str], known_whole_words: set[str], expected_str: str
+    ):
+        """Test the string representation of KiswahiliStudentKnowledge."""
+        knowledge = KiswahiliStudentKnowledge(
+            graphemes=known_graphemes, whole_words=known_whole_words
+        )
+        assert str(knowledge) == expected_str
 
 
 class TestScorers:
