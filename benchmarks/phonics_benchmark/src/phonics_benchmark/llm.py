@@ -36,7 +36,7 @@ def call_llm(
         max_tokens=max_tokens,
         response_schema=response_schema,
     )
-    duration_seconds = round(time.monotonic() - t0, 3)
+    latency_seconds = round(time.monotonic() - t0, 3)
 
     if not outmsg or not outmsg.Message:
         raise ValueError(f"LLM response empty for prompt {tag}")
@@ -57,7 +57,7 @@ def call_llm(
         "tokens_used_completion": outmsg.TokensUsedCompletion,
         "tokens_used_reasoning": outmsg.TokensUsedReasoning,
         "may_be_truncated": may_be_truncated,
-        "duration_seconds": duration_seconds,
+        "latency_seconds": latency_seconds,
         "response_text": response_text,
     }
 

@@ -219,7 +219,7 @@ def process_model_response_into_result(
         "tokens_used_completion": call_record["tokens_used_completion"],
         "tokens_used_reasoning": call_record["tokens_used_reasoning"],
         "may_be_truncated": call_record["may_be_truncated"],
-        "duration_seconds": call_record["duration_seconds"],
+        "latency_seconds": call_record["latency_seconds"],
         "timestamp_utc": call_record["timestamp_utc"],
     }
 
