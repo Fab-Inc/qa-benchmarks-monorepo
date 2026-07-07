@@ -10,6 +10,7 @@ from phonics_benchmark.data_io import (
     read_decodable_texts,
     read_student_knowledge_profiles,
     validate_benchmark_dataset,
+    validate_known_graphemes,
 )
 from phonics_benchmark.models import (
     BenchmarkItem,
@@ -360,3 +361,45 @@ class TestValidateBenchmarkDataset:
         )
         with pytest.raises(ValueError, match="stu-sw-999"):
             validate_benchmark_dataset("testlang", patched_data_root)
+
+
+class TestValidateKnownGraphemes:
+    """Test for validate_known_graphemes() function."""
+
+    def test_passes_for_valid_kiswahili_graphemes(self) -> None:
+        """Passes without error for a profile with only valid Kiswahili graphemes."""
+        profile = StudentKnowledgeProfile(
+            student_knowledge_id="stu-sw-001",
+            language_iso_code="sw",
+            taught_knowledge={"graphemes": ["a", "m"], "whole_words": ["mama"]},
+        )
+        validate_known_graphemes([profile])
+
+    def test_invalid_kiswahili_grapheme_raises(self) -> None:
+        """Raises ValueError naming the profile when a grapheme isn't valid."""
+        profile = StudentKnowledgeProfile(
+            student_knowledge_id="stu-bad",
+            language_iso_code="sw",
+            taught_knowledge={"graphemes": ["a", "xyz"], "whole_words": []},
+        )
+        with pytest.raises(ValueError, match="stu-bad"):
+            validate_known_graphemes([profile])
+
+    def test_unregistered_language_is_skipped(self) -> None:
+        """Does not raise for a language with no registered grapheme validator."""
+        profile = StudentKnowledgeProfile(
+            student_knowledge_id="stu-en",
+            language_iso_code="en",
+            taught_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
+        )
+        validate_known_graphemes([profile])
+
+    def test_non_list_graphemes_raises(self) -> None:
+        """Raises ValueError naming the profile when graphemes isn't a list."""
+        profile = StudentKnowledgeProfile(
+            student_knowledge_id="stu-malformed",
+            language_iso_code="sw",
+            taught_knowledge={"graphemes": 7, "whole_words": []},
+        )
+        with pytest.raises(ValueError, match="stu-malformed"):
+            validate_known_graphemes([profile])

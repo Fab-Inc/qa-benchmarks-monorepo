@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from pydantic import ValidationError
 
 from phonics_benchmark.models import (
@@ -12,6 +13,12 @@ from phonics_benchmark.models import (
     DecodableText,
     StudentKnowledgeProfile,
 )
+
+# Per-language known-grapheme/whole-word validators. A language with no entry
+# here has no grapheme validation defined yet and is silently skipped.
+_GRAPHEME_VALIDATORS = {
+    "sw": KiswahiliStudentKnowledge,
+}
 
 
 def get_data_dir(language: str, data_root: Path) -> Path:
@@ -121,6 +128,49 @@ def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
             seen_ids.add(item.benchmark_item_id)
             items.append(item)
     return items
+
+
+def _as_str_list(
+    value: list[str] | int | None, field: str, student_knowledge_id: str
+) -> list[str]:
+    """Return value as a list[str], or raise if taught_knowledge[field] is malformed."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(
+            f"student_knowledge_id '{student_knowledge_id}': expected a list for "
+            f"taught_knowledge['{field}'], got {type(value).__name__}"
+        )
+    return value
+
+
+def validate_known_graphemes(profiles: list[StudentKnowledgeProfile]) -> None:
+    """Check that each profile's graphemes/whole_words are valid for its language.
+
+    Delegates to the language-specific model in `decodability` (e.g.
+    KiswahiliStudentKnowledge for "sw"). Profiles in a language with no
+    registered validator are skipped, not rejected.
+    """
+    for profile in profiles:
+        validator = _GRAPHEME_VALIDATORS.get(profile.language_iso_code)
+        if validator is None:
+            continue
+        graphemes = _as_str_list(
+            profile.taught_knowledge.get("graphemes"),
+            "graphemes",
+            profile.student_knowledge_id,
+        )
+        whole_words = _as_str_list(
+            profile.taught_knowledge.get("whole_words"),
+            "whole_words",
+            profile.student_knowledge_id,
+        )
+        try:
+            validator(graphemes=set(graphemes), whole_words=set(whole_words))
+        except ValidationError as exc:
+            raise ValueError(
+                f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"
+            ) from exc
 
 
 def validate_benchmark_dataset(language: str, data_root: Path) -> None:
