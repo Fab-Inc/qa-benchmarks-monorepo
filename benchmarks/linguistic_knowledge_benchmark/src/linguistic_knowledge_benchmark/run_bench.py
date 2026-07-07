@@ -171,7 +171,7 @@ def _question_result_row(
     call_status: str,
     error_type: str = "",
     error_message: str = "",
-    retry_nb: int = 0,
+    retry_count: int = 0,
 ) -> dict:
     """Build a persisted stage-1 result row."""
     return {
@@ -187,7 +187,7 @@ def _question_result_row(
         "call_status": call_status,
         "error_type": error_type,
         "error_message": error_message,
-        "retry_nb": retry_nb,
+        "retry_count": retry_count,
     }
 
 
@@ -218,10 +218,11 @@ def run_benchmark(
         force: Force re-run even if cached results exist
         retry_errors: Retry rows with persisted call_status="error" in an
             existing cache file
-        run_id: Optional run ID; writes under <language>/runs/<run_id>/answers/.
+        run_id: Optional run ID; writes under
+            cache/<language>/runs/<run_id>/answers/.
             Defaults to 'default' when not specified.
         output_dir: Directory to save results (default:
-            cache/linguistic_knowledge/<language>/runs/<run_id>/answers)
+            cache/<language>/runs/<run_id>/answers)
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
         output, latency, total_tokens, completion_tokens, reasoning_tokens
@@ -293,9 +294,11 @@ def run_benchmark(
     for question in tqdm(questions_to_run, desc=desc):
         qid = str(question["question_id"])
         system_prompt = system_prompts[question["answer_type"]]
-        _nb = results_by_id.get(qid, {}).get("retry_nb", 0)
-        next_retry_nb = (
-            ((_nb if isinstance(_nb, int) else 0) + 1) if retry_errors else 0
+        prev_retry_count = results_by_id.get(qid, {}).get("retry_count", 0)
+        next_retry_count = (
+            ((prev_retry_count if isinstance(prev_retry_count, int) else 0) + 1)
+            if retry_errors
+            else 0
         )
         try:
             messages = [
@@ -311,10 +314,10 @@ def run_benchmark(
                 completion_tokens=response.TokensUsedCompletion,
                 reasoning_tokens=response.TokensUsedReasoning,
                 call_status=CALL_STATUS_SUCCESS,
-                retry_nb=next_retry_nb,
+                retry_count=next_retry_count,
             )
         except Exception as e:
-            print(f"\nERROR on question {question['question_id']}: {e}")
+            tqdm.write(f"ERROR on question {qid}: {e}", file=sys.stderr)
             results_by_id[qid] = _question_result_row(
                 question,
                 output="",
@@ -325,7 +328,7 @@ def run_benchmark(
                 call_status=CALL_STATUS_ERROR,
                 error_type=type(e).__name__,
                 error_message=str(e),
-                retry_nb=next_retry_nb,
+                retry_count=next_retry_count,
             )
 
         if model_name in RATE_LIMITED_MODELS:
@@ -333,8 +336,7 @@ def run_benchmark(
 
     results = [results_by_id[str(question["question_id"])] for question in questions]
     results_df = pd.DataFrame(results)
-    # Backward-compat: rows carried from old CSVs that predate retry_nb get 0.
-    results_df["retry_nb"] = results_df["retry_nb"].fillna(0).astype(int)
+    results_df["retry_count"] = results_df["retry_count"].fillna(0).astype(int)
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path = output_dir / f"resps_{model_name}.csv"
     results_df.to_csv(cache_path, index=False)

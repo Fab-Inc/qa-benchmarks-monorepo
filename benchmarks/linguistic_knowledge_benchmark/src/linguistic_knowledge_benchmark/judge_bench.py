@@ -197,7 +197,8 @@ def judge_results(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if judged results exist
-        run_id: Optional run ID; reads/writes under <language>/runs/<run_id>/.
+        run_id: Optional run ID; reads/writes under
+            cache/<language>/runs/<run_id>/.
             Defaults to 'default' when not specified.
 
     Returns:
@@ -364,7 +365,8 @@ def judge_results_fallback(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if fallback results exist
-        run_id: Optional run ID; reads/writes under <language>/runs/<run_id>/.
+        run_id: Optional run ID; reads/writes under
+            cache/<language>/runs/<run_id>/.
             Defaults to 'default' when not specified.
 
     Returns:

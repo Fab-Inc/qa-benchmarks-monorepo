@@ -230,8 +230,8 @@ The stage-1 CSV keeps model output separate from infrastructure failures:
 - `output` contains only the model's raw answer text.
 - `call_status` is `success` or `error`.
 - `error_type` and `error_message` are populated when the model call fails.
-- `retry_nb` counts how many times a row was rerun with `--retry-errors` (0 on the first
-  successful run).
+- `retry_count` counts how many times a row was rerun with `--retry-errors` (0 on the
+  first successful run).
 
 If a cached CSV contains any `call_status=error` rows, a later `run-bench` returns the
 cached rows and prints a warning. Use `--retry-errors` to rerun only those failed rows.

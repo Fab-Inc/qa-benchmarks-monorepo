@@ -126,7 +126,7 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
     # expected_answers serialized with the pipe join
     assert df.loc[0, "expected_answers"] == "B"
     # fresh run: no retries
-    assert list(df["retry_nb"]) == [0, 0, 0]
+    assert list(df["retry_count"]) == [0, 0, 0]
     # log.json written at run dir level (parent of answers/)
     log_path = out.parent / "log.json"
     assert log_path.exists()
@@ -232,9 +232,9 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
 
     assert df.loc[1, "output"] == "B"
     assert df.loc[1, "call_status"] == run_bench.CALL_STATUS_SUCCESS
-    assert df.loc[1, "retry_nb"] == 1  # was an error row, now retried once
+    assert df.loc[1, "retry_count"] == 1  # was an error row, now retried once
     assert df.loc[2, "output"] == "old"
-    assert df.loc[2, "retry_nb"] == 0  # was already successful, untouched
+    assert df.loc[2, "retry_count"] == 0  # was already successful, untouched
     assert len(caller.calls) == 1
     # retry run writes answers_retry_* fields, not answers_*
     log_entry = json.loads((out.parent / "log.json").read_text())[VALID_MODEL]

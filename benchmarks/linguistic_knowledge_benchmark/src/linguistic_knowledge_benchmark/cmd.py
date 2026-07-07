@@ -96,7 +96,7 @@ def run_bench_cmd(
         None,
         "--run-id",
         help=(
-            "Write/read answers under <language>/runs/<run-id>/. "
+            "Write/read answers under cache/<language>/runs/<run-id>/. "
             "Alphanumeric and hyphens only. Defaults to 'default'."
         ),
     ),
@@ -186,7 +186,7 @@ def judge_bench_cmd(
         None,
         "--run-id",
         help=(
-            "Read/write judged artifacts under <language>/runs/<run-id>/. "
+            "Read/write judged artifacts under cache/<language>/runs/<run-id>/. "
             "Alphanumeric and hyphens only. Defaults to 'default'."
         ),
     ),
