@@ -249,7 +249,7 @@ def judge_bench_cmd(
     typer.echo(f"Judging answers from: {input_dir}")
 
     summaries: list[dict[str, object]] = []
-    skipped: list[str] = []
+    skipped_models: list[str] = []
 
     for current_model in models_to_judge:
         try:
@@ -280,7 +280,7 @@ def judge_bench_cmd(
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
 
         except FileNotFoundError:
-            skipped.append(current_model)
+            skipped_models.append(current_model)
         except Exception as e:
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
             raise typer.Exit(1)
@@ -295,10 +295,10 @@ def judge_bench_cmd(
         )
         return
 
-    if skipped:
+    if skipped_models:
         typer.echo(
-            f"\nSkipped {len(skipped)} model(s) with no results to judge: "
-            f"{', '.join(skipped)}"
+            f"\nSkipped {len(skipped_models)} model(s) with no results to judge: "
+            f"{', '.join(skipped_models)}"
         )
 
     if not summaries:
