@@ -130,25 +130,30 @@ def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
     return items
 
 
-def validate_taught_knowledge(profiles: list[StudentKnowledgeProfile]) -> None:
+def validate_taught_knowledge(
+    profiles: list[StudentKnowledgeProfile], *, strict: bool = False
+) -> None:
     """Check that each profile's taught_knowledge is valid for its language.
 
     Delegates to the language-specific model in `decodability` (e.g.
     KiswahiliStudentKnowledge for "sw"). Profiles in a language with no
-    registered validator are not rejected, but emit a warning since their
-    taught_knowledge goes unchecked.
+    registered validator emit a warning, since their taught_knowledge goes
+    unchecked — pass strict=True to raise instead (e.g. once a language is
+    expected to always have a registered validator).
     """
     for profile in profiles:
         student_knowledge_model = STUDENT_KNOWLEDGE_MODELS.get(
             profile.language_iso_code
         )
         if student_knowledge_model is None:
-            warnings.warn(
-                f"No known-grapheme validator registered for language "
+            message = (
+                f"No known taught_knowledge validator registered for language "
                 f"'{profile.language_iso_code}' (student_knowledge_id "
-                f"'{profile.student_knowledge_id}'); skipping validation.",
-                stacklevel=2,
+                f"'{profile.student_knowledge_id}')"
             )
+            if strict:
+                raise ValueError(message)
+            warnings.warn(f"{message}; skipping validation.", stacklevel=2)
             continue
         try:
             student_knowledge_model.model_validate(profile.taught_knowledge)

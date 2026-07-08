@@ -395,6 +395,16 @@ class TestValidateTaughtKnowledge:
         with pytest.warns(UserWarning, match="stu-en"):
             validate_taught_knowledge([profile])
 
+    def test_unregistered_language_raises_when_strict(self) -> None:
+        """Raises ValueError naming the profile when strict=True and no validator."""
+        profile = StudentKnowledgeProfile(
+            student_knowledge_id="stu-en",
+            language_iso_code="en",
+            taught_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
+        )
+        with pytest.raises(ValueError, match="stu-en"):
+            validate_taught_knowledge([profile], strict=True)
+
     def test_non_list_graphemes_raises(self) -> None:
         """Raises ValueError naming the profile when graphemes isn't a list."""
         profile = StudentKnowledgeProfile(
