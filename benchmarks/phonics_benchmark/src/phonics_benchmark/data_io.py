@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
@@ -14,9 +15,8 @@ from phonics_benchmark.models import (
     StudentKnowledgeProfile,
 )
 
-# Per-language known-grapheme/whole-word validators. A language with no entry
-# here has no grapheme validation defined yet and is silently skipped.
-_GRAPHEME_VALIDATORS = {
+# Per-language taught-knowledge validators.
+STUDENT_KNOWLEDGE_MODELS = {
     "sw": KiswahiliStudentKnowledge,
 }
 
@@ -130,43 +130,28 @@ def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
     return items
 
 
-def _as_str_list(
-    value: list[str] | int | None, field: str, student_knowledge_id: str
-) -> list[str]:
-    """Return value as a list[str], or raise if taught_knowledge[field] is malformed."""
-    if value is None:
-        return []
-    if not isinstance(value, list):
-        raise ValueError(
-            f"student_knowledge_id '{student_knowledge_id}': expected a list for "
-            f"taught_knowledge['{field}'], got {type(value).__name__}"
-        )
-    return value
-
-
-def validate_known_graphemes(profiles: list[StudentKnowledgeProfile]) -> None:
-    """Check that each profile's graphemes/whole_words are valid for its language.
+def validate_taught_knowledge(profiles: list[StudentKnowledgeProfile]) -> None:
+    """Check that each profile's taught_knowledge is valid for its language.
 
     Delegates to the language-specific model in `decodability` (e.g.
     KiswahiliStudentKnowledge for "sw"). Profiles in a language with no
-    registered validator are skipped, not rejected.
+    registered validator are not rejected, but emit a warning since their
+    taught_knowledge goes unchecked.
     """
     for profile in profiles:
-        validator = _GRAPHEME_VALIDATORS.get(profile.language_iso_code)
-        if validator is None:
+        student_knowledge_model = STUDENT_KNOWLEDGE_MODELS.get(
+            profile.language_iso_code
+        )
+        if student_knowledge_model is None:
+            warnings.warn(
+                f"No known-grapheme validator registered for language "
+                f"'{profile.language_iso_code}' (student_knowledge_id "
+                f"'{profile.student_knowledge_id}'); skipping validation.",
+                stacklevel=2,
+            )
             continue
-        graphemes = _as_str_list(
-            profile.taught_knowledge.get("graphemes"),
-            "graphemes",
-            profile.student_knowledge_id,
-        )
-        whole_words = _as_str_list(
-            profile.taught_knowledge.get("whole_words"),
-            "whole_words",
-            profile.student_knowledge_id,
-        )
         try:
-            validator(graphemes=set(graphemes), whole_words=set(whole_words))
+            student_knowledge_model.model_validate(profile.taught_knowledge)
         except ValidationError as exc:
             raise ValueError(
                 f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"

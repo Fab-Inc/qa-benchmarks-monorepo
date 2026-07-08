@@ -10,7 +10,7 @@ from phonics_benchmark.data_io import (
     read_decodable_texts,
     read_student_knowledge_profiles,
     validate_benchmark_dataset,
-    validate_known_graphemes,
+    validate_taught_knowledge,
 )
 from phonics_benchmark.models import (
     BenchmarkItem,
@@ -26,8 +26,8 @@ def student_profile_record():
         "student_knowledge_id": "stu-001",
         "language_iso_code": "sw",
         "taught_knowledge": {
-            "known_syllables": ["a"],
-            "known_syllable_patterns": ["CV"],
+            "graphemes": ["a"],
+            "whole_words": ["mama", "paka"],
         },
     }
 
@@ -96,12 +96,12 @@ class TestReadStudentKnowledgeProfiles:
         assert all(isinstance(p, StudentKnowledgeProfile) for p in profiles)
 
     def test_first_profile(self, real_data_root) -> None:
-        """First profile has the expected ID, known_syllables, and max_word_length."""
+        """First profile has the expected ID, graphemes, and whole_words."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         first = profiles[0]
         assert first.student_knowledge_id == "stu-sw-001"
-        assert "known_syllables" in first.taught_knowledge
-        assert first.taught_knowledge["max_word_length"] == 4
+        assert "graphemes" in first.taught_knowledge
+        assert "whole_words" in first.taught_knowledge
 
     def test_missing_file_raises(self, real_data_root) -> None:
         """Raises FileNotFoundError naming the file when no profiles JSONL exists."""
@@ -363,17 +363,17 @@ class TestValidateBenchmarkDataset:
             validate_benchmark_dataset("testlang", patched_data_root)
 
 
-class TestValidateKnownGraphemes:
-    """Test for validate_known_graphemes() function."""
+class TestValidateTaughtKnowledge:
+    """Test for validate_taught_knowledge() function."""
 
-    def test_passes_for_valid_kiswahili_graphemes(self) -> None:
-        """Passes without error for a profile with only valid Kiswahili graphemes."""
+    def test_passes_for_valid_kiswahili_taught_knowledge(self) -> None:
+        """Passes without error for a profile with valid Kiswahili taught_knowledge."""
         profile = StudentKnowledgeProfile(
             student_knowledge_id="stu-sw-001",
             language_iso_code="sw",
             taught_knowledge={"graphemes": ["a", "m"], "whole_words": ["mama"]},
         )
-        validate_known_graphemes([profile])
+        validate_taught_knowledge([profile])
 
     def test_invalid_kiswahili_grapheme_raises(self) -> None:
         """Raises ValueError naming the profile when a grapheme isn't valid."""
@@ -383,16 +383,17 @@ class TestValidateKnownGraphemes:
             taught_knowledge={"graphemes": ["a", "xyz"], "whole_words": []},
         )
         with pytest.raises(ValueError, match="stu-bad"):
-            validate_known_graphemes([profile])
+            validate_taught_knowledge([profile])
 
-    def test_unregistered_language_is_skipped(self) -> None:
-        """Does not raise for a language with no registered grapheme validator."""
+    def test_unregistered_language_warns_but_does_not_raise(self) -> None:
+        """Warns, but does not raise, for a language with no registered validator."""
         profile = StudentKnowledgeProfile(
             student_knowledge_id="stu-en",
             language_iso_code="en",
             taught_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
         )
-        validate_known_graphemes([profile])
+        with pytest.warns(UserWarning, match="stu-en"):
+            validate_taught_knowledge([profile])
 
     def test_non_list_graphemes_raises(self) -> None:
         """Raises ValueError naming the profile when graphemes isn't a list."""
@@ -402,4 +403,4 @@ class TestValidateKnownGraphemes:
             taught_knowledge={"graphemes": 7, "whole_words": []},
         )
         with pytest.raises(ValueError, match="stu-malformed"):
-            validate_known_graphemes([profile])
+            validate_taught_knowledge([profile])
