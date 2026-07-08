@@ -7,11 +7,27 @@ is a placeholder for a language not yet populated.
 ```
 data/
 ├── kiswahili/
+│   ├── templates/
+│   │   └── benchmark_data_tusome_ke.xlsx
 │   ├── decodable_texts.jsonl
 │   ├── student_knowledge_profiles.jsonl
 │   └── benchmark_items.jsonl
 └── english/                    # placeholder — no data files yet
 ```
+
+______________________________________________________________________
+
+## `templates/`
+
+Holds the Excel data-entry workbook(s) that language experts fill in for a language.
+Each workbook has a `Student Profiles` tab and a `Texts` tab, plus a `README` tab
+documenting which columns are machine-read versus free-form expert context.
+
+> [!NOTE]\
+> `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` are programmatically
+> generated from a `templates/` workbook using
+> `scripts/ingest_benchmark_data_template.py` — don't hand-edit those two files
+> directly, re-run the ingestion script against the workbook instead.
 
 ______________________________________________________________________
 
@@ -112,8 +128,11 @@ ______________________________________________________________________
 ## Adding a new language
 
 1. Create a subfolder using the full language name in lowercase (e.g. `data/english/`).
-1. Add `decodable_texts.jsonl`, `student_knowledge_profiles.jsonl`, and
-   `benchmark_items.jsonl` following the schemas above, using the appropriate ISO 639-1
-   code in `language_iso_code`.
+1. Add a filled-in data-entry workbook to a `templates/` subfolder, then generate
+   `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` by running
+   `scripts/ingest_benchmark_data_template.py` against it (see the `templates/` section
+   above).
+1. Add `benchmark_items.jsonl` following the schema above, using the appropriate ISO
+   639-1 code in `language_iso_code`.
 1. The `get_data_dir()` utility in `data_io` resolves language folders by name, so the
    folder name must match the string passed to the data-loading functions.
