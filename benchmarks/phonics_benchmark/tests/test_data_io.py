@@ -376,7 +376,7 @@ class TestValidateStudentKnowledge:
         )
 
     def test_passes_for_valid_kiswahili_student_knowledge(self) -> None:
-        """Passes without error for a profile with valid Kiswahili taught_knowledge."""
+        """Passes without error for a profile with valid Kiswahili student_knowledge."""
         profile = StudentKnowledge(
             student_knowledge_id="stu-sw-001",
             language_iso_code="sw",
