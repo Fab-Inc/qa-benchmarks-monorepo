@@ -368,7 +368,7 @@ class TestValidateStudentKnowledge:
 
     @pytest.fixture
     def unregistered_language_profile(self) -> StudentKnowledge:
-        """A profile for a language with no registered grapheme validator."""
+        """A profile for a language with no registered knowledge validator."""
         return StudentKnowledge(
             student_knowledge_id="stu-en",
             language_iso_code="en",
