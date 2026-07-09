@@ -12,7 +12,7 @@ from linguistic_knowledge_benchmark import judge_bench
 # small helpers
 # --------------------------------------------------------------------------- #
 def _answers_dir(base, language="luganda"):
-    d = base / f"cache_{language}" / "answers"
+    d = base / language / "runs" / "default" / "answers"
     d.mkdir(parents=True)
     return d
 
@@ -100,16 +100,16 @@ def test_judge_results_cache_hit(tmp_path, monkeypatch):
         answers,
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "answer_type": "multiple_choice",
                 "expected_answers": "B",
                 "output": "B",
             }
         ],
     )
-    judged = tmp_path / "cache_luganda" / "answers_judged"
+    judged = tmp_path / "luganda" / "runs" / "default" / "answers_judged"
     judged.mkdir(parents=True)
-    pd.DataFrame([{"id": 1, "is_correct": True}]).to_csv(
+    pd.DataFrame([{"question_id": 1, "is_correct": True}]).to_csv(
         judged / f"resps_{VALID_MODEL}_judged.csv", index=False
     )
 
@@ -123,14 +123,39 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
     answers = _answers_dir(tmp_path)
     rows = [
-        dict(id=1, answer_type="multiple_choice", expected_answers="B", output="B"),
-        dict(id=2, answer_type="short_form", expected_answers="kintu", output="kintu"),
-        dict(id=3, answer_type="true_false", expected_answers="True", output="True"),
-        dict(id=4, answer_type="true_false", expected_answers="True", output="maybe"),
-        dict(id=5, answer_type="multiple_choice", expected_answers="B", output=""),
-        dict(id=6, answer_type="essay", expected_answers="x", output="x"),
         dict(
-            id=7,
+            question_id=1,
+            answer_type="multiple_choice",
+            expected_answers="B",
+            output="B",
+        ),
+        dict(
+            question_id=2,
+            answer_type="short_form",
+            expected_answers="kintu",
+            output="kintu",
+        ),
+        dict(
+            question_id=3,
+            answer_type="true_false",
+            expected_answers="True",
+            output="True",
+        ),
+        dict(
+            question_id=4,
+            answer_type="true_false",
+            expected_answers="True",
+            output="maybe",
+        ),
+        dict(
+            question_id=5,
+            answer_type="multiple_choice",
+            expected_answers="B",
+            output="",
+        ),
+        dict(question_id=6, answer_type="essay", expected_answers="x", output="x"),
+        dict(
+            question_id=7,
             answer_type="multiple_choice",
             expected_answers="B",
             output="",
@@ -141,16 +166,22 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     ]
     _write_answers(answers, rows)
     ds = write_dataset(
-        tmp_path / "ds.json", [{"id": r["id"], "question": f"q{r['id']}"} for r in rows]
+        tmp_path / "ds.json",
+        [
+            {"question_id": r["question_id"], "question": f"q{r['question_id']}"}
+            for r in rows
+        ],
     )
     caller = FakeCaller(
         make_response(json.dumps({"is_correct": True, "justification": "ok"}))
     )
     monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
 
+    monkeypatch.setattr(judge_bench, "git_hash", lambda: "judge123")
+
     df = judge_bench.judge_results(
         VALID_MODEL, language_name="Luganda", dataset_path=ds
-    ).set_index("id")
+    ).set_index("question_id")
 
     assert bool(df.loc[1, "is_correct"]) is True  # MC regex
     assert df.loc[1, "score_method"] == judge_bench.SCORE_METHOD_REGEX
@@ -170,29 +201,38 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     # judged CSV written
     out = (
         tmp_path
-        / "cache_luganda"
+        / "luganda"
+        / "runs"
+        / "default"
         / "answers_judged"
         / f"resps_{VALID_MODEL}_judged.csv"
     )
     assert out.exists()
+    # log.json written at run dir level
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    assert log_path.exists()
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert "answers_judged_timestamp-utc" in entry
+    assert entry["answers_judged_git-hash"] == "judge123"
+    assert "answers_judged_fallback_timestamp-utc" not in entry
 
 
 def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
-    answers = tmp_path / "cache_luganda" / "runs" / "run-123" / "answers"
+    answers = tmp_path / "luganda" / "runs" / "run-123" / "answers"
     answers.mkdir(parents=True)
     _write_answers(
         answers,
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "answer_type": "multiple_choice",
                 "expected_answers": "B",
                 "output": "B",
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"id": 1, "question": "q"}])
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     judge_bench.judge_results(
         VALID_MODEL,
@@ -203,7 +243,7 @@ def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
 
     assert (
         tmp_path
-        / "cache_luganda"
+        / "luganda"
         / "runs"
         / "run-123"
         / "answers_judged"
@@ -218,14 +258,14 @@ def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
         answers,
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "answer_type": "short_form",
                 "expected_answers": "x",
                 "output": "y",
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"id": 1, "question": "q"}])
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     def raise_ni(_n):
         raise NotImplementedError
@@ -239,7 +279,7 @@ def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
 # judge_results_fallback
 # --------------------------------------------------------------------------- #
 def _judged_dir(base, language="luganda"):
-    d = base / f"cache_{language}" / "answers_judged"
+    d = base / language / "runs" / "default" / "answers_judged"
     d.mkdir(parents=True)
     return d
 
@@ -256,11 +296,11 @@ def test_fallback_cache_hit(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
     judged = _judged_dir(tmp_path)
     pd.DataFrame(
-        [{"id": 1, "is_correct": True, "answer_type": "multiple_choice"}]
+        [{"question_id": 1, "is_correct": True, "answer_type": "multiple_choice"}]
     ).to_csv(judged / f"resps_{VALID_MODEL}_judged.csv", index=False)
-    fb = tmp_path / "cache_luganda" / "answers_judged_fallback"
+    fb = tmp_path / "luganda" / "runs" / "default" / "answers_judged_fallback"
     fb.mkdir(parents=True)
-    pd.DataFrame([{"id": 1, "is_correct_fallback": True}]).to_csv(
+    pd.DataFrame([{"question_id": 1, "is_correct_fallback": True}]).to_csv(
         fb / f"resps_{VALID_MODEL}_judged.csv", index=False
     )
     df = judge_bench.judge_results_fallback(
@@ -271,11 +311,12 @@ def test_fallback_cache_hit(tmp_path, monkeypatch):
 
 def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(judge_bench, "git_hash", lambda: "fb123")
     judged = _judged_dir(tmp_path)
     pd.DataFrame(
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "is_correct": True,
                 "answer_type": "multiple_choice",
                 "expected_answers": "B",
@@ -290,11 +331,17 @@ def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     assert df["is_correct_fallback"].isna().all()
     out = (
         tmp_path
-        / "cache_luganda"
+        / "luganda"
+        / "runs"
+        / "default"
         / "answers_judged_fallback"
         / f"resps_{VALID_MODEL}_judged.csv"
     )
     assert out.exists()
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert "answers_judged_fallback_timestamp-utc" in entry
+    assert entry["answers_judged_fallback_git-hash"] == "fb123"
 
 
 def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
@@ -303,7 +350,7 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
     pd.DataFrame(
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "is_correct": None,
                 "answer_type": "multiple_choice",
                 "expected_answers": "B",
@@ -311,7 +358,7 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
             }
         ]
     ).to_csv(judged / f"resps_{VALID_MODEL}_judged.csv", index=False)
-    ds = write_dataset(tmp_path / "ds.json", [{"id": 1, "question": "q"}])
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
     caller = FakeCaller(
         make_response(json.dumps({"is_correct": True, "justification": "B it is"}))
     )
@@ -331,7 +378,7 @@ def test_fallback_judge_not_registered(tmp_path, monkeypatch):
     pd.DataFrame(
         [
             {
-                "id": 1,
+                "question_id": 1,
                 "is_correct": None,
                 "answer_type": "true_false",
                 "expected_answers": "True",
@@ -339,7 +386,7 @@ def test_fallback_judge_not_registered(tmp_path, monkeypatch):
             }
         ]
     ).to_csv(judged / f"resps_{VALID_MODEL}_judged.csv", index=False)
-    ds = write_dataset(tmp_path / "ds.json", [{"id": 1, "question": "q"}])
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     def raise_ni(_n):
         raise NotImplementedError
@@ -369,7 +416,7 @@ def test_compute_summary_basic():
     assert summary["unscored_count"] == 1
     assert summary["accuracy"] == round(2 / 3 * 100, 2)
     assert summary["accuracy_mc"] == 50.0
-    assert summary["accuracy_true_false"] == 0.0  # all unscored
+    assert "accuracy_true_false" not in summary
 
 
 def test_compute_summary_uses_fallback_when_present():

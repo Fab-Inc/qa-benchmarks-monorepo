@@ -6,7 +6,9 @@ Supports multiple_choice, short_form, and true_false answer types.
 
 import json
 import re
+import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -20,7 +22,7 @@ from linguistic_knowledge_benchmark.shared_utils import (
     RATE_LIMITED_MODELS,
 )
 
-CACHE_BASE_DIR = BENCH_DIR / "cache" / "cache_linguistic_knowledge"
+CACHE_BASE_DIR = BENCH_DIR / "cache"
 CALL_STATUS_SUCCESS = "success"
 CALL_STATUS_ERROR = "error"
 
@@ -87,6 +89,18 @@ def _build_system_prompts(language_name: str) -> dict[str, str]:
     }
 
 
+def _build_user_message(question: dict) -> str:
+    """Build the user message for a question, folding MCQ options into the text."""
+    text = question["question"]
+    if question.get("answer_type") == "multiple_choice" and question.get("options"):
+        lines = [text, ""]
+        for letter in ("A", "B", "C", "D"):
+            if letter in question["options"]:
+                lines.append(f"{letter}. {question['options'][letter]}")
+        return "\n".join(lines)
+    return text
+
+
 def load_dataset(dataset_path: Path) -> list[dict]:
     """Load a Linguistic Knowledge evaluation dataset from a JSON file.
 
@@ -94,8 +108,8 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         dataset_path: Path to the dataset JSON file.
 
     Returns:
-        List of question dicts with keys: id, category, question,
-        answer_type, expected_answers, rubric_id, etc.
+        List of question dicts with keys: question_id, domain, question,
+        answer_type, expected_answers, options (MCQ only), etc.
     """
     dataset_path = Path(dataset_path)
     if not dataset_path.exists():
@@ -104,12 +118,46 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
+def _run_dir(language_name: str, run_id: str | None = None) -> Path:
+    """Return the run directory for a language/run."""
+    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
+
+
 def _answers_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the stage-1 answers directory for a language/run."""
-    language_dir = CACHE_BASE_DIR / f"cache_{language_name.lower()}"
-    if run_id:
-        language_dir = language_dir / "runs" / run_id
-    return language_dir / "answers"
+    """Return the answers directory for a language/run.
+
+    Always writes under runs/; omitting run_id uses the 'default' run.
+    """
+    return _run_dir(language_name, run_id) / "answers"
+
+
+def git_hash() -> str | None:
+    """Return the short git hash of HEAD, or None (with a warning) if unavailable."""
+    import subprocess
+
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(BENCH_DIR),
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception as e:
+        print(f"WARNING: could not read git hash: {e}", file=sys.stderr)
+        return None
+
+
+def update_log(run_dir: Path, model_name: str, fields: dict[str, str | None]) -> None:
+    """Merge-write model provenance fields into log.json; skip None values."""
+    log_path = run_dir / "log.json"
+    log_data: dict = {}
+    if log_path.exists():
+        with open(log_path, encoding="utf-8") as _f:
+            log_data = json.load(_f)
+    entry = log_data.setdefault(model_name, {})
+    entry.update({k: v for k, v in fields.items() if v is not None})
+    with open(log_path, "w", encoding="utf-8") as _f:
+        json.dump(log_data, _f, indent=2)
 
 
 def _question_result_row(
@@ -123,11 +171,12 @@ def _question_result_row(
     call_status: str,
     error_type: str = "",
     error_message: str = "",
+    retry_count: int = 0,
 ) -> dict:
     """Build a persisted stage-1 result row."""
     return {
-        "id": question["id"],
-        "category": question["category"],
+        "question_id": question["question_id"],
+        "domain": question["domain"],
         "answer_type": question["answer_type"],
         "expected_answers": "|".join(question["expected_answers"]),
         "output": output,
@@ -138,6 +187,7 @@ def _question_result_row(
         "call_status": call_status,
         "error_type": error_type,
         "error_message": error_message,
+        "retry_count": retry_count,
     }
 
 
@@ -168,16 +218,19 @@ def run_benchmark(
         force: Force re-run even if cached results exist
         retry_errors: Retry rows with persisted call_status="error" in an
             existing cache file
-        run_id: Optional non-overwriting run ID under cache_<language>/runs/
+        run_id: Optional run ID; writes under
+            cache/<language>/runs/<run_id>/answers/.
+            Defaults to 'default' when not specified.
         output_dir: Directory to save results (default:
-            cache/cache_linguistic_knowledge/cache_{language_name.lower()}/answers)
+            cache/<language>/runs/<run_id>/answers)
     Returns:
-        DataFrame with columns: id, category, answer_type, expected_answers,
+        DataFrame with columns: question_id, domain, answer_type, expected_answers,
         output, latency, total_tokens, completion_tokens, reasoning_tokens
     """
     if output_dir is None:
         output_dir = _answers_dir(language_name, run_id)
     output_dir = Path(output_dir)
+    run_dir = output_dir.parent
 
     # Validate model name
     if model_name not in EVAL_MODELS:
@@ -226,10 +279,10 @@ def run_benchmark(
         ) from None
 
     if retry_errors and cached_df is not None and cached_error_mask is not None:
-        error_ids = set(cached_df.loc[cached_error_mask, "id"].astype(str))
-        questions_to_run = [q for q in questions if str(q["id"]) in error_ids]
+        error_ids = set(cached_df.loc[cached_error_mask, "question_id"].astype(str))
+        questions_to_run = [q for q in questions if str(q["question_id"]) in error_ids]
         results_by_id = {
-            str(row["id"]): row.to_dict() for _, row in cached_df.iterrows()
+            str(row["question_id"]): row.to_dict() for _, row in cached_df.iterrows()
         }
         desc = f"Retrying {model_name}"
     else:
@@ -239,14 +292,21 @@ def run_benchmark(
 
     # Run benchmark
     for question in tqdm(questions_to_run, desc=desc):
+        qid = str(question["question_id"])
         system_prompt = system_prompts[question["answer_type"]]
+        prev_retry_count = results_by_id.get(qid, {}).get("retry_count", 0)
+        next_retry_count = (
+            ((prev_retry_count if isinstance(prev_retry_count, int) else 0) + 1)
+            if retry_errors
+            else 0
+        )
         try:
             messages = [
                 LLMMessage(Role="system", Message=system_prompt),
-                LLMMessage(Role="user", Message=question["question"]),
+                LLMMessage(Role="user", Message=_build_user_message(question)),
             ]
             response = caller.call(messages, max_tokens=None)
-            results_by_id[str(question["id"])] = _question_result_row(
+            results_by_id[qid] = _question_result_row(
                 question,
                 output=response.Message,
                 latency=response.Latency,
@@ -254,10 +314,11 @@ def run_benchmark(
                 completion_tokens=response.TokensUsedCompletion,
                 reasoning_tokens=response.TokensUsedReasoning,
                 call_status=CALL_STATUS_SUCCESS,
+                retry_count=next_retry_count,
             )
         except Exception as e:
-            print(f"\nERROR on question {question['id']}: {e}")
-            results_by_id[str(question["id"])] = _question_result_row(
+            tqdm.write(f"ERROR on question {qid}: {e}", file=sys.stderr)
+            results_by_id[qid] = _question_result_row(
                 question,
                 output="",
                 latency=None,
@@ -267,16 +328,27 @@ def run_benchmark(
                 call_status=CALL_STATUS_ERROR,
                 error_type=type(e).__name__,
                 error_message=str(e),
+                retry_count=next_retry_count,
             )
 
         if model_name in RATE_LIMITED_MODELS:
             time.sleep(5)
 
-    results = [results_by_id[str(question["id"])] for question in questions]
+    results = [results_by_id[str(question["question_id"])] for question in questions]
     results_df = pd.DataFrame(results)
+    results_df["retry_count"] = results_df["retry_count"].fillna(0).astype(int)
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_path = output_dir / f"resps_{model_name}.csv"
     results_df.to_csv(cache_path, index=False)
+    prefix = "answers_retry" if retry_errors else "answers"
+    update_log(
+        run_dir,
+        model_name,
+        {
+            f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),
+            f"{prefix}_git-hash": git_hash(),
+        },
+    )
     print(f"Results saved to {cache_path}")
     error_count = int(_error_mask(results_df).sum())
     if error_count > 0:

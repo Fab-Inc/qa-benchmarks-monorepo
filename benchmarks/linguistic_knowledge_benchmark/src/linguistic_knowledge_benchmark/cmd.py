@@ -1,5 +1,7 @@
 """Command-line interface for linguistic_knowledge_benchmark."""
 
+import json
+import re
 from datetime import UTC, datetime
 
 import pandas as pd
@@ -12,7 +14,7 @@ from linguistic_knowledge_benchmark.judge_bench import (
     judge_results,
     judge_results_fallback,
 )
-from linguistic_knowledge_benchmark.run_bench import run_benchmark
+from linguistic_knowledge_benchmark.run_bench import CACHE_BASE_DIR, run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
     DATA_DIR,
@@ -28,12 +30,31 @@ DATASETS: dict[str, dict] = {
         "path": DATA_DIR / "linguistic_knowledge_eval_luganda.json",
         "language_name": "Luganda",
     },
+    "swahili": {
+        "path": DATA_DIR / "linguistic_knowledge_eval_swahili.json",
+        "language_name": "Swahili",
+    },
 }
+
+# run-id must be alphanumeric + hyphens only (no underscores) so that underscores
+# can be used as field separators in output filenames.
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
 
 def _timestamp_run_id() -> str:
     """Return a filesystem-safe UTC timestamp for non-overwriting runs."""
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _validate_run_id(run_id: str | None) -> None:
+    """Abort with a clear message if run_id contains invalid characters."""
+    if run_id and not _RUN_ID_RE.match(run_id):
+        typer.echo(
+            f"ERROR: --run-id '{run_id}' is invalid. "
+            "Use only alphanumeric characters and hyphens (no underscores).",
+            err=True,
+        )
+        raise typer.Exit(1)
 
 
 app = typer.Typer(
@@ -46,9 +67,9 @@ app = typer.Typer(
 @app.callback()
 def setup() -> None:
     """Linguistic Knowledge Benchmark"""
-    # Load provider API keys from the package-level .env into os.environ so fdllm
+    # Load provider API keys from the repo-root .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
-    load_dotenv(BENCH_DIR / ".env")
+    load_dotenv(REPO_ROOT / ".env")
     register_models(str(REPO_ROOT / "custom_models.yaml"))
 
 
@@ -74,7 +95,10 @@ def run_bench_cmd(
     run_id: str | None = typer.Option(
         None,
         "--run-id",
-        help="Write/read answers under cache_<language>/runs/<run-id>/",
+        help=(
+            "Write/read answers under cache/<language>/runs/<run-id>/. "
+            "Alphanumeric and hyphens only. Defaults to 'default'."
+        ),
     ),
     timestamped_output: bool = typer.Option(
         False,
@@ -82,10 +106,10 @@ def run_bench_cmd(
         help="Generate a UTC timestamp run ID for a non-overwriting run",
     ),
     language: str = typer.Option(
-        "luganda",
+        ...,
         "--language",
         "-l",
-        help=f"Language: one of {', '.join(DATASETS)}",
+        help=f"Language to evaluate: one of {', '.join(DATASETS)}",
     ),
 ) -> None:
     """Run Linguistic Knowledge evaluation on LLM models.
@@ -101,6 +125,8 @@ def run_bench_cmd(
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
         raise typer.Exit(1)
 
+    _validate_run_id(run_id)
+
     if model:
         if model not in EVAL_MODELS:
             typer.echo(
@@ -115,9 +141,11 @@ def run_bench_cmd(
     entry = DATASETS[language]
     if timestamped_output and run_id is None:
         run_id = _timestamp_run_id()
-    typer.echo(f"\n=== Running Linguistic Knowledge Evaluation ({language}) ===")
+    typer.echo(f"\n=== Running Linguistic Knowledge Benchmark ({language}) ===")
     if run_id:
         typer.echo(f"Run ID: {run_id}")
+    else:
+        typer.echo("Run ID: default (no --run-id supplied)")
 
     for current_model in models_to_run:
         try:
@@ -157,13 +185,16 @@ def judge_bench_cmd(
     run_id: str | None = typer.Option(
         None,
         "--run-id",
-        help="Read/write judged artifacts under cache_<language>/runs/<run-id>/",
+        help=(
+            "Read/write judged artifacts under cache/<language>/runs/<run-id>/. "
+            "Alphanumeric and hyphens only. Defaults to 'default'."
+        ),
     ),
     language: str = typer.Option(
-        "luganda",
+        ...,
         "--language",
         "-l",
-        help=f"Language: one of {', '.join(DATASETS)}",
+        help=f"Language to judge: one of {', '.join(DATASETS)}",
     ),
     judge_fallback: bool = typer.Option(
         False,
@@ -184,6 +215,9 @@ def judge_bench_cmd(
         typer.echo(f"ERROR: Invalid language '{language}'.", err=True)
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
         raise typer.Exit(1)
+
+    _validate_run_id(run_id)
+
     if model:
         if model not in EVAL_MODELS:
             typer.echo(
@@ -197,14 +231,25 @@ def judge_bench_cmd(
 
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
+    effective_run_id = run_id or "default"
+    # Report the directory this mode actually reads from: standard judging reads
+    # the raw run-bench answers, while --judge-fallback re-scores the already-judged
+    # CSVs, so its source is answers_judged/ (produced by a prior standard pass).
+    input_subdir = "answers_judged" if judge_fallback else "answers"
+    input_dir = (
+        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / input_subdir
+    )
+
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
+    typer.echo(f"Judge model: {judge_model}")
     if run_id:
-        typer.echo(f"Run ID: {run_id}")
+        typer.echo(f"Run ID: {effective_run_id}")
+    else:
+        typer.echo(f"Run ID: {effective_run_id} (no --run-id supplied)")
+    typer.echo(f"Judging answers from: {input_dir}")
 
-    if judge_fallback:
-        typer.echo(f"Inspecting {len(models_to_judge)} model(s) for fallback")
-
-    summaries = []
+    summaries: list[dict[str, object]] = []
+    skipped_models: list[str] = []
 
     for current_model in models_to_judge:
         try:
@@ -233,26 +278,68 @@ def judge_bench_cmd(
             typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
             typer.echo(f"  MC accuracy: {summary['accuracy_mc']}%")
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
-            typer.echo(f"  True/false accuracy: {summary['accuracy_true_false']}%")
 
-        except FileNotFoundError as e:
-            typer.echo(f"SKIP [{current_model}]: {e}", err=True)
+        except FileNotFoundError:
+            skipped_models.append(current_model)
         except Exception as e:
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
             raise typer.Exit(1)
 
-    if summaries:
-        results_dir = BENCH_DIR / "results"
-        results_dir.mkdir(exist_ok=True)
-        summary_df = pd.DataFrame(summaries)
-        suffix = "_fallback" if judge_fallback else ""
-        run_suffix = f"_{run_id}" if run_id else ""
-        summary_name = (
-            f"summary_linguistic_knowledge_{language}{run_suffix}{suffix}.csv"
+    # If run directory missing, show only the "directory not found" diagnostic.
+    if not summaries and not input_dir.exists():
+        typer.echo(
+            f"\nNothing judged: expected directory not found — {input_dir}\n"
+            f"No run '{effective_run_id}' exists for {language}. If you meant a "
+            "timestamped run, re-run with its --run-id; otherwise run 'run-bench' "
+            "first."
         )
-        summary_path = results_dir / summary_name
-        summary_df.to_csv(summary_path, index=False)
-        typer.echo(f"\nSummary saved to {summary_path}")
+        return
+
+    if skipped_models:
+        typer.echo(
+            f"\nSkipped {len(skipped_models)} model(s) with no results to judge: "
+            f"{', '.join(skipped_models)}"
+        )
+
+    if not summaries:
+        typer.echo(
+            f"\nNothing judged: no result files in {input_dir}\n"
+            "The directory exists but is empty. Run 'run-bench' for this run-id first."
+        )
+        return
+
+    results_dir = BENCH_DIR / "results"
+    results_dir.mkdir(exist_ok=True)
+    log_path = (
+        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / "log.json"
+    )
+    log_data: dict[str, dict[str, str | None]] = {}
+    if log_path.exists():
+        with open(log_path, encoding="utf-8") as _f:
+            log_data = json.load(_f)
+    log_fields = [
+        "answers_timestamp-utc",
+        "answers_git-hash",
+        "answers_retry_timestamp-utc",
+        "answers_retry_git-hash",
+        "answers_judged_timestamp-utc",
+        "answers_judged_git-hash",
+        "answers_judged_fallback_timestamp-utc",
+        "answers_judged_fallback_git-hash",
+    ]
+    for s in summaries:
+        entry = log_data.get(str(s.get("model", "")), {})
+        for field in log_fields:
+            s[field] = entry.get(field)
+    summary_df = pd.DataFrame(summaries)
+    fallback_suffix = "_fallback" if judge_fallback else ""
+    summary_name = (
+        f"summary_linguistic-knowledge_{language}"
+        f"_{effective_run_id}{fallback_suffix}.csv"
+    )
+    summary_path = results_dir / summary_name
+    summary_df.to_csv(summary_path, index=False)
+    typer.echo(f"\nSummary saved to {summary_path}")
 
 
 def main() -> None:

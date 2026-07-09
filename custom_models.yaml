@@ -546,3 +546,729 @@ Moonshot:
       Token_Window: 262000
       Vision: True
       Tool_Use: True
+
+OpenRouter:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: OPENROUTER_API_KEY
+  Client_Args:
+    base_url: https://openrouter.ai/api/v1
+  models:
+    command-r-plus:
+      Token_Window: 128000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: cohere/command-r-plus-08-2024
+    grok-beta:
+      Token_Window: 131072
+      Token_Limit_Completion: 16000
+      Api_Model_Name: x-ai/grok-beta
+    jamba-1-5-large:
+      Token_Window: 256000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: ai21/jamba-1-5-large
+    jamba-1-5-mini:
+      Token_Window: 256000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: ai21/jamba-1-5-mini
+    jamba-instruct:
+      Token_Window: 256000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: ai21/jamba-instruct
+    gemini-exp-1206-free:
+      Token_Window: 8192
+      Token_Limit_Completion: 8192
+      Api_Model_Name: google/gemini-exp-1206:free
+    gemma-2-27b-it:
+      Token_Window: 8192
+      Token_Limit_Completion: 8192
+      Api_Model_Name: google/gemma-2-27b-it
+    grok-2-1212:
+      Token_Window: 131072
+      Token_Limit_Completion: 16000
+      Api_Model_Name: x-ai/grok-2-1212
+    cohere-r7b-1224:
+      Token_Window: 128000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: cohere/command-r7b-12-2024
+    mistral-large-2411:
+      Token_Window: 128000
+      Token_Limit_Completion: 4096
+      Api_Model_Name: mistralai/mistral-large-2411
+    ministral-8b:
+      Token_Window: 128000
+      Token_Limit_Completion: 4096
+      Api_Model_Name: mistralai/ministral-8b
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    ministral-3b:
+      Token_Window: 128000
+      Token_Limit_Completion: 4096
+      Api_Model_Name: mistralai/ministral-3b
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    qwen-qvq-72b-preview:
+      Token_Window: 128000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: qwen/qvq-72b-preview
+    microsoft-phi-4-bf16:
+      Token_Window: 16000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: microsoft/phi-4
+    deepseek-r1:
+      Token_Window: 64000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: deepseek/deepseek-r1
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepSeek"], "allow_fallbacks": false}}
+    liquid-lfm-7b:
+      Token_Window: 33000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: liquid/lfm-7b
+    deepseek-r1-nvt:
+      Token_Window: 64000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: deepseek/deepseek-r1
+      Call_Args:
+        extra_body: {"provider": {"order": ["NovitaAI"], "allow_fallbacks": false}}
+    sonar:
+      Token_Window: 127000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: perplexity/sonar
+    sonar-reasoning:
+      Token_Window: 127000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: perplexity/sonar-reasoning
+    qwen-qwq-32b:
+      Token_Window: 131000
+      Token_Limit_Completion: 32768
+      Api_Model_Name: qwen/qwq-32b
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    liquid-lfm-3b:
+      Token_Window: 33000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: liquid/lfm-3b
+    phi-4-multimodal-instruct-bf16:
+      Token_Window: 131000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: microsoft/phi-4-multimodal-instruct
+    phi-35-mini:
+      Token_Window: 128000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: microsoft/phi-3.5-mini-128k-instruct
+    cohere-command-a:
+      Token_Window: 256000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: cohere/command-a
+    jamba-1-6-large:
+      Token_Window: 256000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: ai21/jamba-1.6-large
+    jamba-1-6-mini:
+      Token_Window: 256000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: ai21/jamba-1.6-mini
+    gemma-3-27b:
+      Token_Window: 128000
+      Token_Limit_Completion: 65536
+      Api_Model_Name: google/gemma-3-27b-it
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    olmo-2-32b:
+      Token_Window: 4000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: allenai/olmo-2-0325-32b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    mistral-small-3-1-24b:
+      Token_Window: 128000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: mistralai/mistral-small-3.1-24b-instruct-2503
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    deepseek-v3-0324-fp8:
+      Token_Window: 66000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: deepseek/deepseek-chat-v3-0324
+    gemma-3-12b-it:
+      Token_Window: 131000
+      Token_Limit_Completion: 65536
+      Api_Model_Name: google/gemma-3-12b-it
+    gemma-3-4b-it:
+      Token_Window: 131000
+      Token_Limit_Completion: 65536
+      Api_Model_Name: google/gemma-3-4b-it
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    grok-3-beta:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: x-ai/grok-3-beta
+      Call_Args:
+        extra_body: {"provider": {"order": ["xAI"], "allow_fallbacks": false}}
+    grok-3-mini-beta:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: x-ai/grok-3-mini-beta
+      Call_Args:
+        extra_body: {"provider": {"order": ["xAI"], "allow_fallbacks": false}}
+    qwen-3-32b:
+      Token_Window: 41000
+      Token_Limit_Completion: 32768
+      Api_Model_Name: qwen/qwen3-32b
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    qwen-3-14b:
+      Token_Window: 41000
+      Token_Limit_Completion: 32768
+      Api_Model_Name: qwen/qwen3-14b
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    phi-4-reasoning-plus:
+      Token_Window: 33000
+      Token_Limit_Completion: 32768
+      Api_Model_Name: microsoft/phi-4-reasoning-plus
+    mistral-medium-3:
+      Token_Window: 131000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: mistralai/mistral-medium-3
+    deepseek-r1-0528-fp8-lambda:
+      Token_Window: 160000
+      Token_Limit_Completion: 20480
+      Api_Model_Name: deepseek/deepseek-r1-0528
+      Call_Args:
+        extra_body: {"provider": {"order": ["Lambda"], "allow_fallbacks": false}}
+    qwen-3-8b-fp8:
+      Token_Window: 128000
+      Token_Limit_Completion: 20000
+      Api_Model_Name: qwen/qwen3-8b
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    magistral-small-2506:
+      Token_Window: 40000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: mistralai/magistral-small-2506
+    magistral-medium-2506:
+      Token_Window: 40000
+      Token_Limit_Completion: 4000
+      Api_Model_Name: mistralai/magistral-medium-2506
+    llama-v3p2-1b-instruct-bf16:
+      Token_Window: 60000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-3.2-1b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["Cloudflare"], "allow_fallbacks": false}}
+    llama-v3p2-3b-instruct-bf16:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-3.2-3b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["Cloudflare"], "allow_fallbacks": false}}
+    mistral-nemo-instruct-2407-fp8:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: mistralai/mistral-nemo
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    qwen-2p5-7b-instruct-bf16:
+      Token_Window: 33000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: qwen/qwen-2.5-7b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    mistral-small-24b-instruct-2501-fp8:
+      Token_Window: 32000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: mistralai/mistral-small-24b-instruct-2501
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    minimax-m1:
+      Token_Window: 1000000
+      Token_Limit_Completion: 40000
+      Api_Model_Name: minimax/minimax-m1
+      Call_Args:
+        extra_body: {"provider": {"order": ["NovitaAI"], "allow_fallbacks": false}}
+    mistral-small-3p2-24b-instruct:
+      Token_Window: 131000
+      Token_Limit_Completion: 40000
+      Api_Model_Name: mistralai/mistral-small-3.2-24b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    grok-4:
+      Api_Model_Name: x-ai/grok-4
+      Token_Window: 255000
+      Token_Limit_Completion: 255000
+      Tool_Use: True
+      Vision: True
+    kimi-k2:
+      Token_Window: 130000
+      Token_Limit_Completion: 130000
+      Api_Model_Name: moonshotai/kimi-k2
+      Call_Args:
+        extra_body: {"provider": {"order": ["NovitaAI"], "allow_fallbacks": false}}
+    glm-4.1v-9b-thinking:
+      Api_Model_Name: thudm/glm-4.1v-9b-thinking
+      Token_Window: 66000
+      Token_Limit_Completion: 8000
+      Vision: True
+    qwen-3-235b-a22b-2507-bf16:
+      Token_Window: 262000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: qwen/qwen3-235b-a22b-07-25
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    qwen3-235b-a22b-thinking-2507:
+      Token_Window: 262000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: qwen/qwen3-235b-a22b-thinking-2507
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    glm-4.5-air:
+      Token_Window: 131000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: z-ai/glm-4.5-air
+    mistral-medium-3.1:
+      Token_Window: 131000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: mistralai/mistral-medium-3.1
+    jamba-large-1.7:
+      Token_Window: 256000
+      Token_Limit_Completion: 4100
+      Api_Model_Name: ai21/jamba-large-1.7
+    jamba-mini-1.7:
+      Token_Window: 256000
+      Token_Limit_Completion: 4100
+      Api_Model_Name: ai21/jamba-mini-1.7
+    grok-4-fast:
+      Token_Window: 2000000
+      Token_Limit_Completion: 30000
+      Api_Model_Name: x-ai/grok-4-fast
+    grok-4.1-fast:
+      Token_Window: 2000000
+      Token_Limit_Completion: 30000
+      Api_Model_Name: x-ai/grok-4.1-fast
+    lfm2-8b-a1b:
+      Token_Window: 30000
+      Token_Limit_Completion: 30000
+      Api_Model_Name: liquid/lfm2-8b-a1b
+    mistral-large-3-2512:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: mistralai/mistral-large-2512
+    ministral-3-14b-2512:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: mistralai/ministral-14b-
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    ministral-3-8b-2512:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: mistralai/ministral-8b-2512
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    ministral-3-3b-2512:
+      Token_Window: 130000
+      Token_Limit_Completion: 130000
+      Api_Model_Name: mistralai/ministral-3b-2512
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    olmo-3.1-32b-think:
+      Token_Window: 65000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: allenai/olmo-3.1-32b-think
+    olmo-3.1-32b-instruct:
+      Token_Window: 65000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: allenai/olmo-3.1-32b-instruct
+    olmo-3-7b-think:
+      Token_Window: 65000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: allenai/olmo-3-7b-think
+    olmo-3-7b-instruct:
+      Token_Window: 65000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: allenai/olmo-3-7b-instruct
+    nova-2-lite-v1:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: amazon/nova-2-lite-v1
+    glm-4.6v:
+      Api_Model_Name: z-ai/glm-4.6v
+      Token_Window: 131072
+      Token_Limit_Completion: 16000
+      Vision: True
+    glm-4.7-flash:
+      Api_Model_Name: z-ai/glm-4.7-flash
+      Token_Window: 202000
+      Token_Limit_Completion: 202000
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    seed-1.6:
+      Token_Window: 260000
+      Token_Limit_Completion: 32000
+      Api_Model_Name: bytedance-seed/seed-1.6
+      Call_Args:
+        extra_body: {"provider": {"order": ["Seed"], "allow_fallbacks": false}}
+    seed-1.6-flash:
+      Token_Window: 260000
+      Token_Limit_Completion: 32000
+      Api_Model_Name: bytedance-seed/seed-1.6-flash
+      Call_Args:
+        extra_body: {"provider": {"order": ["Seed"], "allow_fallbacks": false}}
+    lfm-2.5-1.2b-thinking:
+      Token_Window: 32000
+      Token_Limit_Completion: 32000
+      Api_Model_Name: liquid/lfm-2.5-1.2b-thinking:free
+    deepseek-r1-0528-fp8:
+      Api_Model_Name: deepseek/deepseek-r1-0528
+      Token_Window: 130000
+      Token_Limit_Completion: 32000
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    qwen3.5-397b-a17b:
+      Token_Window: 262000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-397b-a17b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    qwen3.5-flash-02-23:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-flash-02-23
+      Vision: True
+    qwen3.5-plus-02-15:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-plus-02-15
+      Vision: True
+    qwen3.5-35b-a3b:
+      Token_Window: 260000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-35b-a3b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    qwen3.5-122b-a10b:
+      Token_Window: 260000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-122b-a10b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    qwen3.5-27b:
+      Token_Window: 260000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.5-27b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Novita"], "allow_fallbacks": false}}
+    qwen3.5-9b:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: qwen/qwen3.5-9b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Together"], "allow_fallbacks": false}}
+    mistral-small-2603:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: mistralai/mistral-small-2603
+      Call_Args:
+        extra_body: {"provider": {"order": ["Mistral"], "allow_fallbacks": false}}
+    glm-5-turbo:
+      Api_Model_Name: z-ai/glm-5-turbo
+      Token_Window: 202000
+      Token_Limit_Completion: 131000
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    grok-4.20-beta:
+      Token_Window: 1900000
+      Token_Limit_Completion: 1900000
+      Api_Model_Name: x-ai/grok-4.20-beta
+      Call_Args:
+        extra_body: {"provider": {"order": ["xAI"], "allow_fallbacks": false}}
+    minimax-m2.7:
+      Token_Window: 204000
+      Token_Limit_Completion: 131000
+      Api_Model_Name: minimax/minimax-m2.7
+      #Call_Args:
+      #  extra_body: {"provider": {"order": ["MiniMax"], "allow_fallbacks": false}}
+    mimo-v2-pro:
+      Token_Window: 1000000
+      Token_Limit_Completion: 130000
+      Api_Model_Name: xiaomi/mimo-v2-pro
+      Call_Args:
+        extra_body: {"provider": {"order": ["Xiaomi"], "allow_fallbacks": false}}
+    mimo-v2-flash:
+      Token_Window: 260000
+      Token_Limit_Completion: 32000
+      Api_Model_Name: xiaomi/mimo-v2-flash
+      Call_Args:
+        extra_body: {"provider": {"order": ["Xiaomi"], "allow_fallbacks": false}}
+    gemma-4-31b-it:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: google/gemma-4-31b-it
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    gemma-4-26b-a4b-it:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: google/gemma-4-26b-a4b-it
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["Parasail"], "allow_fallbacks": false}}
+    glm-5.1:
+      Token_Window: 200000
+      Token_Limit_Completion: 130000
+      Api_Model_Name: z-ai/glm-5.1
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    qwen3.6-plus:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.6-plus
+    # re-deployed models that are not deployed anymore on Fireworks
+    llama-4-maverick-instruct-basic:
+      Token_Window: 1000000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-4-maverick
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    llama-4-scout-instruct-basic:
+      Token_Window: 1000000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-4-scout
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    llama-3.1-8b-instruct:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-3.1-8b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    qwen-2.5-7b-instruct:
+      Token_Window: 32000
+      Token_Limit_Completion: 8000
+      Api_Model_Name: qwen/qwen-2.5-7b-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    llama-3.2-11b-vision-instruct:
+      Token_Window: 131000
+      Token_Limit_Completion: 16000
+      Api_Model_Name: meta-llama/llama-3.2-11b-vision-instruct
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    deepseek-v4-pro:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: deepseek/deepseek-v4-pro
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    deepseek-v4-flash:
+      Token_Window: 1000000
+      Token_Limit_Completion: 390000
+      Api_Model_Name: deepseek/deepseek-v4-flash
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    mimo-v2.5:
+      Token_Window: 1000000
+      Token_Limit_Completion: 131000
+      Api_Model_Name: xiaomi/mimo-v2.5
+      Vision: True
+    mimo-v2.5-pro:
+      Token_Window: 1000000
+      Token_Limit_Completion: 131000
+      Api_Model_Name: xiaomi/mimo-v2.5-pro
+      Vision: True
+    qwen3.6-27b:
+      Token_Window: 262000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.6-27b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["DeepInfra"], "allow_fallbacks": false}}
+    qwen3.6-35b-a3b:
+      Token_Window: 262000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.6-35b-a3b
+      Vision: True
+      Call_Args:
+        extra_body: {"provider": {"order": ["AtlasCloud"], "allow_fallbacks": false}}
+    qwen3.6-flash:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.6-flash
+      Vision: True
+    qwen3.6-max-preview:
+      Token_Window: 262000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.6-max-preview
+      Vision: True
+    mistral-medium-3-5:
+      Token_Window: 260000
+      Token_Limit_Completion: 260000
+      Api_Model_Name: mistralai/mistral-medium-3-5
+      Vision: True
+    qwen3.7-max:
+      Token_Window: 1000000
+      Token_Limit_Completion: 65000
+      Api_Model_Name: qwen/qwen3.7-max
+      Vision: False
+    minimax-m3:
+      Token_Window: 524000
+      Token_Limit_Completion: 512000
+      Api_Model_Name: minimax/minimax-m3
+      Vision: True
+
+HuggingFace:
+  Api_Interface: OpenAI
+  Api_Key_Env_Var: HUGGINGFACE_API_KEY
+  models:
+    hf-qwen3-0-6b:
+      Client_Args:
+        base_url: https://hvwpiq7trgu09ly4.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32768
+    hf-qwen3-1-7b:
+      Client_Args:
+        base_url: https://gm2chwjj7t99bx05.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32768
+    hf-qwen3-4b:
+      Client_Args:
+        base_url: https://mour7a3q5tjtk7m9.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32768
+    hf-smollm2-135m-instruct:
+      Client_Args:
+        base_url: https://hslbg5mh8bsmkpjv.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 8192
+    hf-smollm2-360m-instruct:
+      Client_Args:
+        base_url: https://jool76huemsod9d0.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 8192
+    hf-smollm2-1-7b-instruct:
+      Client_Args:
+        base_url: https://vvn1d3yrancspb1r.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 8192
+    hf-smollm3-3b-instruct:
+      Client_Args:
+        base_url: https://dlq66es12hkfzqy9.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: HuggingFaceTB/SmolLM3-3B
+      Token_Window: 60000
+    hf-eth-tutorrl-7b:
+      Client_Args:
+        base_url: https://stwqxbbcw7xmj1r0.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32768
+    hf-gemma-3-270m-it:
+      Client_Args:
+        base_url: https://d7lprsk9sn294yfr.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32000
+    hf-olmo-2-0425-1b-instruct:
+      Client_Args:
+        base_url: https://wa1hrknssvt3fdf0.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 4096
+    hf-olmo-2-1124-7b-instruct:
+      Client_Args:
+        base_url: https://mly1zqxt9zk6r0bi.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 4096
+    hf-olmo-2-1124-13b-instruct:
+      Client_Args:
+        base_url: https://hvb2uprii28sn4qx.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 4096
+    hf-olmo-2-0325-32b-instruct:
+      Client_Args:
+        base_url: https://hd9gq2bidqg3vk9m.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 4096
+    hf-swahili-gemma-1b:
+      Client_Args:
+        base_url: https://yv1jcyliuxny1681.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: CraneAILabs/swahili-gemma-1b
+      Token_Window: 4096
+    hf-lfm2-2.6b:
+      Client_Args:
+        base_url: https://jnit05r6ppk2aznv.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: LiquidAI/LFM2-2.6B
+      Token_Window: 32768
+    hf-lfm2.5-1.2b-instruct:
+      Client_Args:
+        base_url: https://u4njnjzdzok3ki0f.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: LiquidAI/LFM2.5-1.2B-Instruct
+      Token_Window: 32768
+    hf-gemma-4-e2b-it-gguf-bf16:
+      Client_Args:
+        base_url: https://z7u3ethommrizy8t.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: unsloth/gemma-4-E2B-it-GGUF
+      Token_Window: 32000
+    hf-gemma-4-e4b-it-gguf-bf16:
+      Client_Args:
+        base_url: https://rc2hf8x3vwfgiua2.us-east-2.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: unsloth/gemma-4-E4B-it-GGUF
+      Token_Window: 32000
+    hf-gemma-3-1b-it:
+      Client_Args:
+        base_url: https://s0dgqw9qzvt5iog9.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32000
+    hf-qwen3-5-2b-gguf-bf16:
+      Client_Args:
+        base_url: https://hvgslycrotyqwrq0.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: unsloth/Qwen3.5-2B-GGUF
+      Token_Window: 32000
+    hf-ganda-gemma-fln-bridge:
+      Client_Args:
+        base_url: https://h8l7y9n1s5j8zq0i.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: tgi
+      Token_Window: 32000
+    hf-tiny-aya-earth-gguf:
+      Client_Args:
+        base_url: https://sh4qt303q9b23xfi.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: CohereLabs/tiny-aya-earth-GGUF
+      Token_Window: 8000
+    hf-tiny-aya-global-gguf:
+      Client_Args:
+        base_url: https://wwkoc9fyw062l04z.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: CohereLabs/tiny-aya-global-GGUF
+      Token_Window: 8000
+    hf-qwen3-5-0.8b:
+      Client_Args:
+        base_url: https://y4wc9m7pdv1tk2h2.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: Qwen/Qwen3.5-0.8B
+      Token_Window: 32768
+    hf-qwen3-5-2b:
+      Client_Args:
+        base_url: https://pp81x52etlzjxxy1.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: Qwen/Qwen3.5-2B
+      Token_Window: 32768
+    hf-qwen3-5-4b:
+      Client_Args:
+        base_url: https://bqobpkmkftbmzc1t.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: Qwen/Qwen3.5-4B
+      Token_Window: 32768
+    hf-ternary-bonsai-1-7b-gguf-bf16:
+      Client_Args:
+        base_url: https://kpc8s1sw6kbi1vyo.us-east-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: prism-ml/Ternary-Bonsai-1.7B-gguf
+      Token_Window: 32000
+    hf-ternary-bonsai-4b-gguf-bf16:
+      Client_Args:
+        base_url: https://x820znaimiiedvgz.eu-west-1.aws.endpoints.huggingface.cloud/v1
+      Api_Model_Name: prism-ml/Ternary-Bonsai-4B-gguf
+      Token_Window: 32000

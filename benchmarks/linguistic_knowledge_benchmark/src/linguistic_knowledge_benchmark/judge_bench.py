@@ -7,6 +7,7 @@ or LLM judge (short_form/true_false).
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -17,8 +18,10 @@ from tqdm import tqdm
 
 from linguistic_knowledge_benchmark.run_bench import (
     CACHE_BASE_DIR,
+    git_hash,
     load_dataset,
     parse_answer,
+    update_log,
 )
 
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-5-20250929"
@@ -122,11 +125,11 @@ def score_true_false_regex(
 
 
 def _language_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the cache directory for a language/run."""
-    language_dir = CACHE_BASE_DIR / f"cache_{language_name.lower()}"
-    if run_id:
-        language_dir = language_dir / "runs" / run_id
-    return language_dir
+    """Return the run directory for a language/run.
+
+    Always resolves under runs/; omitting run_id uses the 'default' run.
+    """
+    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
 
 
 def score_with_llm_judge(
@@ -194,7 +197,9 @@ def judge_results(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if judged results exist
-        run_id: Optional non-overwriting run ID under cache_<language>/runs/
+        run_id: Optional run ID; reads/writes under
+            cache/<language>/runs/<run_id>/.
+            Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct and justification columns
@@ -237,7 +242,7 @@ def judge_results(
 
     # Load original dataset to get question text for judge prompts
     questions = load_dataset(dataset_path)
-    question_map = {q["id"]: q["question"] for q in questions}
+    question_map = {q["question_id"]: q["question"] for q in questions}
 
     # Score each row
     is_correct_list: list[bool | None] = []
@@ -251,7 +256,7 @@ def judge_results(
         output = row["output"]
         expected_answers = str(row["expected_answers"]).split("|")
         answer_type = row["answer_type"]
-        question_id = row["id"]
+        question_id = row["question_id"]
 
         if row.get("call_status") == "error":
             error_type = row.get("error_type", "")
@@ -326,6 +331,14 @@ def judge_results(
     # Save judged results
     output_path.parent.mkdir(parents=True, exist_ok=True)
     results_df.to_csv(output_path, index=False)
+    update_log(
+        language_dir,
+        model_name,
+        {
+            "answers_judged_timestamp-utc": datetime.now(UTC).isoformat(),
+            "answers_judged_git-hash": git_hash(),
+        },
+    )
     print(f"Judged results saved to {output_path}")
 
     return results_df
@@ -352,7 +365,9 @@ def judge_results_fallback(
         dataset_path: Path to the dataset JSON file.
         judge_model: Model to use as LLM judge
         force: Force re-judge even if fallback results exist
-        run_id: Optional non-overwriting run ID under cache_<language>/runs/
+        run_id: Optional run ID; reads/writes under
+            cache/<language>/runs/<run_id>/.
+            Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct_fallback and justification_fallback
@@ -364,11 +379,7 @@ def judge_results_fallback(
     # Read existing judged CSV
     input_path = input_dir / f"resps_{model_name}_judged.csv"
     if not input_path.exists():
-        raise FileNotFoundError(
-            f"No judged results for {model_name} at {input_path}. "
-            f"Run 'judge-bench --model {model_name} "
-            f"--language {language_name.lower()}' first."
-        )
+        raise FileNotFoundError(f"No result to judge for {model_name}. ")
 
     output_path = fallback_dir / f"resps_{model_name}_judged.csv"
     if not force and output_path.exists():
@@ -399,6 +410,14 @@ def judge_results_fallback(
         df["justification_fallback"] = justification_fallback
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
+        update_log(
+            language_dir,
+            model_name,
+            {
+                "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
+                "answers_judged_fallback_git-hash": git_hash(),
+            },
+        )
         return df
 
     # Create judge caller
@@ -411,7 +430,7 @@ def judge_results_fallback(
 
     # Load questions for judge prompts
     questions = load_dataset(dataset_path)
-    question_map = {q["id"]: q["question"] for q in questions}
+    question_map = {q["question_id"]: q["question"] for q in questions}
 
     # Score only null MC/TF rows
     for idx in tqdm(
@@ -419,7 +438,7 @@ def judge_results_fallback(
         desc=f"Fallback judging {model_name}",
     ):
         row = df.loc[idx]
-        question_text = question_map.get(row["id"], "")
+        question_text = question_map.get(row["question_id"], "")
         expected_answers = str(row["expected_answers"]).split("|")
         result, justification = score_with_llm_judge(
             question_text,
@@ -440,11 +459,19 @@ def judge_results_fallback(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
+    update_log(
+        language_dir,
+        model_name,
+        {
+            "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
+            "answers_judged_fallback_git-hash": git_hash(),
+        },
+    )
     print(f"Fallback results saved to {output_path}")
     return df
 
 
-def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict:
+def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, object]:
     """Compute summary statistics from judged results.
 
     When ``is_correct_fallback`` is present (from ``--judge-fallback``),
@@ -488,5 +515,4 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict:
         "unscored_count": int((~scored_mask).sum()),
         "accuracy_mc": by_type.get("multiple_choice", 0.0),
         "accuracy_short_form": by_type.get("short_form", 0.0),
-        "accuracy_true_false": by_type.get("true_false", 0.0),
     }

@@ -47,25 +47,26 @@ def write_dataset(path: Path, questions: list[dict]) -> Path:
 
 
 def sample_questions() -> list[dict]:
-    """One question per supported answer_type."""
+    """One question per supported answer_type, using the native JSON field names."""
     return [
         {
-            "id": 1,
-            "category": "morphology",
+            "question_id": 1,
+            "domain": "morphology",
             "question": "Pick the right letter.",
             "answer_type": "multiple_choice",
+            "options": {"A": "opt A", "B": "opt B", "C": "opt C", "D": "opt D"},
             "expected_answers": ["B"],
         },
         {
-            "id": 2,
-            "category": "vocabulary",
+            "question_id": 2,
+            "domain": "vocabulary",
             "question": "Translate 'thing'.",
             "answer_type": "short_form",
             "expected_answers": ["kintu"],
         },
         {
-            "id": 3,
-            "category": "grammar",
+            "question_id": 3,
+            "domain": "grammar",
             "question": "Is this true?",
             "answer_type": "true_false",
             "expected_answers": ["True"],
