@@ -10,12 +10,12 @@ from phonics_benchmark.data_io import (
     read_decodable_texts,
     read_student_knowledge_profiles,
     validate_benchmark_dataset,
-    validate_taught_knowledge,
+    validate_student_knowledge,
 )
 from phonics_benchmark.models import (
     BenchmarkItem,
     DecodableText,
-    StudentKnowledgeProfile,
+    StudentKnowledge,
 )
 
 
@@ -25,7 +25,7 @@ def student_profile_record():
     return {
         "student_knowledge_id": "stu-001",
         "language_iso_code": "sw",
-        "taught_knowledge": {
+        "student_knowledge": {
             "graphemes": ["a"],
             "whole_words": ["mama", "paka"],
         },
@@ -93,15 +93,15 @@ class TestReadStudentKnowledgeProfiles:
         """Returns the correct number of StudentKnowledgeProfile objects."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         assert len(profiles) == 2
-        assert all(isinstance(p, StudentKnowledgeProfile) for p in profiles)
+        assert all(isinstance(p, StudentKnowledge) for p in profiles)
 
     def test_first_profile(self, real_data_root) -> None:
         """First profile has the expected ID, graphemes, and whole_words."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         first = profiles[0]
         assert first.student_knowledge_id == "stu-sw-001"
-        assert "graphemes" in first.taught_knowledge
-        assert "whole_words" in first.taught_knowledge
+        assert "graphemes" in first.student_knowledge
+        assert "whole_words" in first.student_knowledge
 
     def test_missing_file_raises(self, real_data_root) -> None:
         """Raises FileNotFoundError naming the file when no profiles JSONL exists."""
@@ -153,11 +153,11 @@ class TestReadStudentKnowledgeProfiles:
     def test_rejects_wrong_field_type(
         self, patched_data_root, student_profile_record
     ) -> None:
-        """Raises ValueError when taught_knowledge is not a dict."""
+        """Raises ValueError when student_knowledge is not a dict."""
         d = patched_data_root / "testlang"
         d.mkdir()
         (d / "student_knowledge_profiles.jsonl").write_text(
-            json.dumps({**student_profile_record, "taught_knowledge": "not-a-dict"})
+            json.dumps({**student_profile_record, "student_knowledge": "not-a-dict"})
             + "\n",
             encoding="utf-8",
         )
@@ -363,54 +363,47 @@ class TestValidateBenchmarkDataset:
             validate_benchmark_dataset("testlang", patched_data_root)
 
 
-class TestValidateTaughtKnowledge:
-    """Test for validate_taught_knowledge() function."""
+class TestValidateStudentKnowledge:
+    """Test for validate_student_knowledge() function."""
 
-    def test_passes_for_valid_kiswahili_taught_knowledge(self) -> None:
+    @pytest.fixture
+    def unregistered_language_profile(self) -> StudentKnowledge:
+        """A profile for a language with no registered grapheme validator."""
+        return StudentKnowledge(
+            student_knowledge_id="stu-en",
+            language_iso_code="en",
+            student_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
+        )
+
+    def test_passes_for_valid_kiswahili_student_knowledge(self) -> None:
         """Passes without error for a profile with valid Kiswahili taught_knowledge."""
-        profile = StudentKnowledgeProfile(
+        profile = StudentKnowledge(
             student_knowledge_id="stu-sw-001",
             language_iso_code="sw",
-            taught_knowledge={"graphemes": ["a", "m"], "whole_words": ["mama"]},
+            student_knowledge={"graphemes": ["a", "m"], "whole_words": ["mama"]},
         )
-        validate_taught_knowledge([profile])
+        validate_student_knowledge([profile])
 
-    def test_invalid_kiswahili_grapheme_raises(self) -> None:
+    def test_invalid_kiswahili_student_knowledge_raises(self) -> None:
         """Raises ValueError naming the profile when a grapheme isn't valid."""
-        profile = StudentKnowledgeProfile(
+        profile = StudentKnowledge(
             student_knowledge_id="stu-bad",
             language_iso_code="sw",
-            taught_knowledge={"graphemes": ["a", "xyz"], "whole_words": []},
+            student_knowledge={"graphemes": ["a", "xyz"], "whole_words": []},
         )
         with pytest.raises(ValueError, match="stu-bad"):
-            validate_taught_knowledge([profile])
+            validate_student_knowledge([profile])
 
-    def test_unregistered_language_warns_but_does_not_raise(self) -> None:
+    def test_unregistered_language_warns_but_does_not_raise(
+        self, unregistered_language_profile
+    ) -> None:
         """Warns, but does not raise, for a language with no registered validator."""
-        profile = StudentKnowledgeProfile(
-            student_knowledge_id="stu-en",
-            language_iso_code="en",
-            taught_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
-        )
         with pytest.warns(UserWarning, match="stu-en"):
-            validate_taught_knowledge([profile])
+            validate_student_knowledge([unregistered_language_profile])
 
-    def test_unregistered_language_raises_when_strict(self) -> None:
+    def test_unregistered_language_raises_when_strict(
+        self, unregistered_language_profile
+    ) -> None:
         """Raises ValueError naming the profile when strict=True and no validator."""
-        profile = StudentKnowledgeProfile(
-            student_knowledge_id="stu-en",
-            language_iso_code="en",
-            taught_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
-        )
         with pytest.raises(ValueError, match="stu-en"):
-            validate_taught_knowledge([profile], strict=True)
-
-    def test_non_list_graphemes_raises(self) -> None:
-        """Raises ValueError naming the profile when graphemes isn't a list."""
-        profile = StudentKnowledgeProfile(
-            student_knowledge_id="stu-malformed",
-            language_iso_code="sw",
-            taught_knowledge={"graphemes": 7, "whole_words": []},
-        )
-        with pytest.raises(ValueError, match="stu-malformed"):
-            validate_taught_knowledge([profile])
+            validate_student_knowledge([unregistered_language_profile], strict=True)

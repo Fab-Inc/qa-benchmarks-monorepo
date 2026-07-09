@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from phonics_benchmark.models import (
     BenchmarkItem,
     DecodableText,
-    StudentKnowledgeProfile,
+    StudentKnowledge,
 )
 
 # Per-language taught-knowledge validators.
@@ -67,13 +67,13 @@ def read_decodable_texts(language: str, data_root: Path) -> list[DecodableText]:
 
 def read_student_knowledge_profiles(
     language: str, data_root: Path
-) -> list[StudentKnowledgeProfile]:
+) -> list[StudentKnowledge]:
     """Parse student_knowledge_profiles.jsonl for the given language.
 
-    Returns a list of StudentKnowledgeProfile objects.
+    Returns a list of StudentKnowledge objects.
     """
     path = get_data_dir(language, data_root) / "student_knowledge_profiles.jsonl"
-    profiles: list[StudentKnowledgeProfile] = []
+    profiles: list[StudentKnowledge] = []
     seen_ids: set[str] = set()
     with _open_jsonl(path, language, "student_knowledge_profiles.jsonl") as f:
         for line_no, raw in enumerate(f, start=1):
@@ -82,7 +82,7 @@ def read_student_knowledge_profiles(
                 continue
             try:
                 record = json.loads(line)
-                profile = StudentKnowledgeProfile.model_validate(record)
+                profile = StudentKnowledge.model_validate(record)
             except (json.JSONDecodeError, ValidationError) as exc:
                 raise ValueError(
                     f"{path}:{line_no}: failed to parse record — {exc}"
@@ -130,14 +130,14 @@ def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
     return items
 
 
-def validate_taught_knowledge(
-    profiles: list[StudentKnowledgeProfile], *, strict: bool = False
+def validate_student_knowledge(
+    profiles: list[StudentKnowledge], *, strict: bool = False
 ) -> None:
-    """Check that each profile's taught_knowledge is valid for its language.
+    """Check that each profile's student_knowledge is valid for its language.
 
     Delegates to the language-specific model in `decodability` (e.g.
     KiswahiliStudentKnowledge for "sw"). Profiles in a language with no
-    registered validator emit a warning, since their taught_knowledge goes
+    registered validator emit a warning, since their student_knowledge goes
     unchecked — pass strict=True to raise instead (e.g. once a language is
     expected to always have a registered validator).
     """
@@ -147,7 +147,7 @@ def validate_taught_knowledge(
         )
         if student_knowledge_model is None:
             message = (
-                f"No known taught_knowledge validator registered for language "
+                f"No known student_knowledge validator registered for language "
                 f"'{profile.language_iso_code}' (student_knowledge_id "
                 f"'{profile.student_knowledge_id}')"
             )
@@ -156,7 +156,7 @@ def validate_taught_knowledge(
             warnings.warn(f"{message}; skipping validation.", stacklevel=2)
             continue
         try:
-            student_knowledge_model.model_validate(profile.taught_knowledge)
+            student_knowledge_model.model_validate(profile.student_knowledge)
         except ValidationError as exc:
             raise ValueError(
                 f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"

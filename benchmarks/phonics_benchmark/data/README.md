@@ -48,19 +48,18 @@ decodable for that student.
 | ---------------------- | ------ | ------------------------------------------------------- |
 | `student_knowledge_id` | string | Unique identifier for the profile (e.g. `"stu-sw-001"`) |
 | `language_iso_code`    | string | ISO 639-1 language code                                 |
-| `taught_knowledge`     | object | Phonics units the student has been taught (see below)   |
+| `student_knowledge`    | object | Phonics units the student has been taught (see below)   |
 
-### `taught_knowledge` fields
+### `student_knowledge` fields
 
 > [!WARNING]\
-> Student knowledge representation is currently evolving and fields in the taught
-> knowledge object are subject to change.
+> Student knowledge representation is currently evolving and fields in the
+> student_knowledge object are subject to change.
 
-| Field                     | Type     | Description                                                   |
-| ------------------------- | -------- | ------------------------------------------------------------- |
-| `known_syllables`         | string[] | Syllables the student has been taught (vowels and CV/CCV etc) |
-| `known_syllable_patterns` | string[] | Syllable structure patterns the student can decode            |
-| `max_word_length`         | number   | Maximum word length (in characters) the student can decode    |
+| Field         | Type     | Description                                                          |
+| ------------- | -------- | -------------------------------------------------------------------- |
+| `graphemes`   | string[] | Graphemes (letters/digraphs) the student has been taught, cumulative |
+| `whole_words` | string[] | Sight/whole words the student has been taught (may be empty)         |
 
 **Example**
 
@@ -68,11 +67,10 @@ decodable for that student.
 {
   "student_knowledge_id": "stu-sw-002",
   "language_iso_code": "sw",
-  "taught_knowledge": {
-    "known_syllables": ["a", "e", "i", "o", "u", "ba", "be", "bi", "bo", "bu",
-                        "ma", "me", "mi", "mo", "mu", "m_", "n_", "st"],
-    "known_syllable_patterns": ["CV", "CVCV", "CCV"],
-    "max_word_length": 7
+  "student_knowledge": {
+    "graphemes": ["a", "e", "i", "o", "u", "ba", "be", "bi", "bo", "bu",
+                  "ma", "me", "mi", "mo", "mu", "m_", "n_", "st"],
+    "whole_words": ["mama", "paka", "ana"]
   }
 }
 ```
