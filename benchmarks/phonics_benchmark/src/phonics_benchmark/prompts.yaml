@@ -12,7 +12,7 @@ decodability_evaluation: >-
 
   A word is "non-decodable" for a student when the student cannot read it based on what
   they currently know, neither by recognising it as a whole word they already know, nor
-  by sounding it out from letter-sounds (graphemes) they have been taught.
+  by sounding it out from letter-sounds (graphemes) that they already know.
 
 
   The text is in the language of {language}.
@@ -20,7 +20,7 @@ decodability_evaluation: >-
 
   The student knowledge profile is:
 
-  {taught_knowledge}
+  {student_knowledge}
 
 
   The text to evaluate is:

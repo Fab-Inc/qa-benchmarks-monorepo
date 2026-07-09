@@ -162,7 +162,7 @@ def submit_benchmark_item_to_model(
     # Temporary field names based on sample Excel data column headers
     benchmark_item_id = benchmark_item["ID"]
     text = benchmark_item["Text"]
-    knowledge_profile = {
+    student_knowledge = {
         "taught_sounds": benchmark_item["Taught sounds (summary)"],
         "sight_words_known": benchmark_item["Whole words known"],
     }
@@ -170,7 +170,7 @@ def submit_benchmark_item_to_model(
 
     # alternative handling when using JSON data from data/ dir
     # text: DecodableText = benchmark_item["decodable_text"]
-    # knowledge_profile: StudentKnowledgeProfile = benchmark_item[
+    # student_knowledge: StudentKnowledgeProfile = benchmark_item[
     #     "student_knowledge_profile"
     # ]
 
@@ -178,7 +178,7 @@ def submit_benchmark_item_to_model(
         "decodability_evaluation",
         language=language,
         text=text,
-        taught_knowledge=knowledge_profile,
+        student_knowledge=student_knowledge,
     )
 
     # TODO: handle failure/retries, maybe not here though
