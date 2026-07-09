@@ -56,10 +56,10 @@ decodable for that student.
 > Student knowledge representation is currently evolving and fields in the
 > student_knowledge object are subject to change.
 
-| Field         | Type     | Description                                                          |
-| ------------- | -------- | -------------------------------------------------------------------- |
-| `graphemes`   | string[] | Graphemes (letters/digraphs) the student has been taught, cumulative |
-| `whole_words` | string[] | Sight/whole words the student has been taught (may be empty)         |
+| Field         | Type     | Description                                                  |
+| ------------- | -------- | ------------------------------------------------------------ |
+| `graphemes`   | string[] | Graphemes (letters/digraphs) the student has been taught     |
+| `whole_words` | string[] | Sight/whole words the student has been taught (may be empty) |
 
 **Example**
 
