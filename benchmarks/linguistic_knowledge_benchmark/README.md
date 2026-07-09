@@ -47,10 +47,10 @@ prompts. Fill in a column as each language's components are finalized.
 Questions are written in English for every language (see above), so there is no
 per-language "question language" column.
 
-**Registering a language:** drop its JSON dataset in [`data/`](data/) and add an entry
-to the `DATASETS` dict in [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)
-(language key → dataset path and language name). The system prompts are English for
-every language, so there is nothing else to configure.
+**Registering a language:** put its JSON dataset in [`data/`](data/) and add an entry to
+the `DATASETS` dict in [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py) (language
+key → dataset path and language name). The system prompts are English for every
+language, so there is nothing else to configure.
 
 ## Dataset format
 
@@ -83,7 +83,7 @@ the following structure:
 }
 ```
 
-Short-form and true/false questions omit `options`. The `expected_answers` field is
+Short-form and true/false (TF) questions omit `options`. The `expected_answers` field is
 always a list (multiple acceptable answers are supported for `short_form`).
 
 There are two `answer_type`s in current datasets, each scored differently (see
@@ -94,15 +94,15 @@ There are two `answer_type`s in current datasets, each scored differently (see
 
 > **Note:** this JSON schema is provisional and may change as the benchmark evolves. The
 > judge ([`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)) supports
-> three answer formats — MCQ, true/false, and short-form — but current datasets use only
-> MCQ and short-form. Any dataset must use one of the three per question.
+> three answer formats — MCQ, true/false (TF), and short-form — but current datasets use
+> only MCQ and short-form. Any dataset must use one of the three per question.
 
 ## Key components
 
 | Component                                                               | Purpose                                                                                                                                                                                     |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw answers. Holds the answer-type system prompts and the MCQ regex parser (`parse_answer`).                            |
-| [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw answers — regex for MC/true-false, an LLM judge for short-form — plus an optional LLM fallback for unparseable MC/TF rows, and accuracy summaries.                  |
+| [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw answers — regex for MCQ/TF, an LLM judge for short-form — plus an optional LLM fallback for unparseable MCQ/TF rows, and accuracy summaries.                        |
 | [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                              |
 | [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR`, lists rate-limited models. (The cache root `CACHE_BASE_DIR` is defined in `run_bench.py`.) |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                       |
