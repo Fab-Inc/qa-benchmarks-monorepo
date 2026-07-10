@@ -45,14 +45,30 @@ def test_parse_word_list_from_response():
     assert parse_word_list_from_response(response) == expected_output_double
 
     # Test with apostrophes in words
-    expected_output_apostrophe = ["wordone's", "wordtwo's", "wordthree's"]
-    response = """Some extra text ["wordone's", "wordtwo's", "wordthree's"] more text"""
+    expected_output_apostrophe = ["don't", "dog's", "ng'alang'o"]
+    response = """Some extra text ["don't", "dog's", "ng'alang'o"] more text"""
     assert parse_word_list_from_response(response) == expected_output_apostrophe
 
-    # TODO: consider testing with curly quotes and apostrophes,
-    #   e.g. “wordone”, “wordtwo”, “wordthree”
-    # TODO: consider testing with a valid JSON array of words that contain punctuation,
-    #   e.g. "word-one", "word.two", "word,three"
+    # Test with hyphens in words
+    expected_output_hyphen = ["two-word", "three-word-join"]
+    response = """Some extra text ["two-word", "three-word-join"] more text"""
+    assert parse_word_list_from_response(response) == expected_output_hyphen
+
+    # TODO: consider testing with pesky curly quotes and curly apostrophes,
+    #   e.g. “wordone”, “word’two”, “wordthree”
+    # TODO: test with some parse failures, e.g. missing closing bracket.
+    # TODO: test dodgy cases like ["word.one", "word,two", "word three"]
+    #   where punctuation is included in the words; unclear how to handle these.
+
+    # Test accented characters
+    expected_output_accented = ["naïve", "résumé", "façade", "niño", "smörgåsbord"]
+    response = """Pre ["naïve", "résumé", "façade", "niño", "smörgåsbord"] post"""
+    assert parse_word_list_from_response(response) == expected_output_accented
+
+    # Test other scripts (e.g. Cyrillic, Greek, Chinese)
+    expected_output_cyrillic = ["слово", "пример", "Кыргызстан"]
+    response = """Some extra text ["слово", "пример", "Кыргызстан"] more text"""
+    assert parse_word_list_from_response(response) == expected_output_cyrillic
 
     # Test with an empty array
     response = "[]"
