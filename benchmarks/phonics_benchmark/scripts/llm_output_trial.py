@@ -166,10 +166,12 @@ results = []
 # TODO: add parallelisation using concurrent.futures , though this
 # higher-level orchestration will normally be handled elsewhere by the runner
 for model in models:
+    counter = 0
     print(f"Running decodability benchmark for model: {model}")
     for _, benchmark_item in benchmark_items.iterrows():
-        if max_rows_per_model and len(results) >= max_rows_per_model:
+        if max_rows_per_model and counter >= max_rows_per_model:
             break
+        counter += 1
 
         call_record = submit_benchmark_item_to_model(model, benchmark_item, language)
         result = process_model_response_into_result(call_record, benchmark_item)
