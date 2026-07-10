@@ -128,12 +128,15 @@ def process_model_response_into_result(
     call_record: dict[str, Any], benchmark_item: Any
 ) -> dict[str, Any]:
     response_raw: str = call_record["response_text"]
-    response_parsed = parse_word_list_from_response(response_raw)
+    response_parsed, response_parse_ok = parse_word_list_from_response(response_raw)
     print(f"Parsed response word list: {response_parsed}")
+    if not response_parse_ok:
+        # TODO: maybe retry the LLM call instead of just recording the failure
+        print("WARNING: model response did not match expected pattern")
 
     # basic scoring approach while testing; scoring will be properly handled elsewhere
     correct_answer_raw = benchmark_item["Non-decodable words (cannot read)"]
-    correct_answer_parsed = parse_word_list_from_response(correct_answer_raw)
+    correct_answer_parsed = parse_word_list_from_response(correct_answer_raw).words
 
     # Assess perfect one-to-one correspondence ignoring order (dupes must match too)
     perfect_match = Counter(response_parsed) == Counter(correct_answer_parsed)
@@ -146,6 +149,7 @@ def process_model_response_into_result(
         "benchmark_item_id": benchmark_item["ID"],
         "response_raw": response_raw,
         "response_parsed": response_parsed,
+        "response_parse_ok": response_parse_ok,
         "correct_answer": correct_answer_parsed,
         "perfect_match": perfect_match,
         "max_tokens": call_record["max_tokens"],
