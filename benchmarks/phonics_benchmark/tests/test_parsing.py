@@ -87,3 +87,12 @@ def test_parse_word_list_from_response():
     # TODO: decide how to handle this case
     # assert parse_word_list_from_response(response) == []
     # assert "WARNING" in capsys.readouterr().out
+
+    # Test with the word "all" in the response, but also a valid array
+    response = 'All words are decodable, but here is a list: ["wordone", "wordtwo"]'
+    assert parse_word_list_from_response(response) == expected_output_double
+
+    # Test multiple arrays in the response; should only parse the last one
+    #  since sometimes the model will change its mind or revise its answer mid-response.
+    response = 'Bla ["wordone", "wordtwo"] actually ["wordthree", "wordfour"] blagh'
+    assert parse_word_list_from_response(response) == ["wordthree", "wordfour"]
