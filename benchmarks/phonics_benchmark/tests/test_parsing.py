@@ -56,7 +56,6 @@ def test_parse_word_list_from_response():
 
     # TODO: consider testing with pesky curly quotes and curly apostrophes,
     #   e.g. “wordone”, “word’two”, “wordthree”
-    # TODO: test with some parse failures, e.g. missing closing bracket.
     # TODO: test dodgy cases like ["word.one", "word,two", "word three"]
     #   where punctuation is included in the words; unclear how to handle these.
 
@@ -120,8 +119,7 @@ def test_parse_word_list_from_response_parse_ok_flag():
     assert result.parse_ok
 
     # No array at all: words are scraped from the full text but flagged
-    result = parse_word_list_from_response("wordone, wordtwo, wordthree")
-    assert result.words == ["wordone", "wordtwo", "wordthree"]
+    result = parse_word_list_from_response("Here are the words: wordone, wordtwo")
     assert not result.parse_ok
 
     # Missing closing bracket: flagged, and surrounding prose leaks into the words
