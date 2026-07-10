@@ -31,7 +31,7 @@ decodability_evaluation: >-
   Your task is to reply with a list of unique non-decodable words, formatted in JSON
   array format exactly like this:
 
-  `["word1", "word2", "word3"]`
+  `["apple", "banana", "pear"]`
 
 
   If all words are decodable, reply with an empty list like this:
