@@ -39,7 +39,7 @@ from phonics_benchmark.prompts import get_prompt
 # decodable_texts = read_decodable_texts(language)
 # student_knowledge_profiles = read_student_knowledge_profiles(language)
 
-# # calculate outer product of texts vs knowledge profiles
+# # calculate outer product of texts vs student knowledge profiles
 # benchmark_items = []
 # for text in decodable_texts:
 #     for profile in student_knowledge_profiles:
@@ -80,7 +80,7 @@ models = [
 ]
 
 # option to end loop early for quicker tests; set to 0 to disable
-max_rows = 5
+max_rows_per_model = 5
 
 language = "kiswahili"  # hardcoded for now, in reality will be CLI-supplied value
 
@@ -230,7 +230,7 @@ results = []
 for model in models:
     print(f"Running decodability benchmark for model: {model}")
     for _, benchmark_item in benchmark_items.iterrows():
-        if max_rows and len(results) >= max_rows:
+        if max_rows_per_model and len(results) >= max_rows_per_model:
             break
 
         call_record = submit_benchmark_item_to_model(model, benchmark_item, language)
