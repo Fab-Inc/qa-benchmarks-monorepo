@@ -97,6 +97,14 @@ def test_parse_word_list_from_response():
     response = 'Bla ["wordone", "wordtwo"] actually ["wordthree", "wordfour"] blagh'
     assert parse_word_list_from_response(response).words == ["wordthree", "wordfour"]
 
+    # Test full JSON style
+    response = '{"words": ["wordone", "wordtwo"]}'
+    assert parse_word_list_from_response(response).words == expected_output_double
+
+    # Test alternate JSON style
+    response = '```json\n[\n "wordone",\n "wordtwo",\n "wordthree"\n]\n```'
+    assert parse_word_list_from_response(response).words == expected_output_triple
+
 
 def test_parse_word_list_from_response_parse_ok_flag():
     # A well-formed bracketed array parses ok
