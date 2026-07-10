@@ -11,7 +11,7 @@ class ParseResult(NamedTuple):
     parse_ok: bool
 
 
-def parse_word_list_from_response(response: str) -> ParseResult:
+def parse_word_list(response: str) -> ParseResult:
     """Parse a model response to a benchmark item into a pure list of words (strings).
 
     A typical model response is expected to include a JSON array of words, e.g.:

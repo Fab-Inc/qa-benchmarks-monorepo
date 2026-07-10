@@ -23,7 +23,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from fdllm import register_models
 from phonics_benchmark.llm import call_llm
-from phonics_benchmark.parsing import parse_word_list_from_response
+from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.prompts import get_prompt
 
 # --- resurrect once data/ dir is mature and holds enough usable benchmark items ---
@@ -128,7 +128,7 @@ def process_model_response_into_result(
     call_record: dict[str, Any], benchmark_item: Any
 ) -> dict[str, Any]:
     response_raw: str = call_record["response_text"]
-    response_parsed, response_parse_ok = parse_word_list_from_response(response_raw)
+    response_parsed, response_parse_ok = parse_word_list(response_raw)
     print(f"Parsed response word list: {response_parsed}")
     if not response_parse_ok:
         # TODO: maybe retry the LLM call instead of just recording the failure
@@ -136,7 +136,7 @@ def process_model_response_into_result(
 
     # basic scoring approach while testing; scoring will be properly handled elsewhere
     correct_answer_raw = benchmark_item["Non-decodable words (cannot read)"]
-    correct_answer_parsed = parse_word_list_from_response(correct_answer_raw).words
+    correct_answer_parsed = parse_word_list(correct_answer_raw).words
 
     # Assess perfect one-to-one correspondence ignoring order (dupes must match too)
     perfect_match = Counter(response_parsed) == Counter(correct_answer_parsed)
