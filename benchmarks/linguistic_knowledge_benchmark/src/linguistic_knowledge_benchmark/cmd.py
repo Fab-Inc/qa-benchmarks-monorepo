@@ -75,6 +75,7 @@ def setup() -> None:
         bucket_name="fab-open-configs",
         file_name="custom_models.yaml",
         write_path=REPO_ROOT / "custom_models.yaml",
+        require_auth=False,
     )
     register_models(str(REPO_ROOT / "custom_models.yaml"))
 
