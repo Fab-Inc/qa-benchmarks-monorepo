@@ -25,7 +25,7 @@ def download_file(
     if require_auth:
         client = Client()
     else:
-        client = Client().create_anonymous_client()
+        client = Client.create_anonymous_client()
     bucket = client.bucket(selected_bucket)
     blob = bucket.blob(file_name)
     blob.download_to_filename(write_path)
