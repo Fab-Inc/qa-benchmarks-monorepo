@@ -9,6 +9,11 @@ from fab_benchmark_publisher.results import results_to_json, write_results_json
 def download_file(
     *, bucket_name: str | None = None, file_name: str, write_path: str | Path
 ):
+    """
+    Downloads the file 'file_name'
+    from the bucket 'bucket_name'
+    to the local path 'write_path'
+    """
 
     from google.cloud.storage import Client
 
