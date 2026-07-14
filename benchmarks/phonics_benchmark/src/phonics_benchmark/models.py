@@ -7,12 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
-class StudentKnowledgeProfile(BaseModel):
+class StudentKnowledge(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
     # Schema is intentionally open — taught_knowledge is still evolving.
-    taught_knowledge: dict[str, list[str] | int]
+    student_knowledge: dict[str, list[str] | int]
 
 
 class DecodableText(BaseModel):

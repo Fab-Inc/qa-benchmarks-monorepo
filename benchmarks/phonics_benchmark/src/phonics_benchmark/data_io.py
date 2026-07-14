@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
+from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from pydantic import ValidationError
 
 from phonics_benchmark.models import (
     BenchmarkItem,
     DecodableText,
-    StudentKnowledgeProfile,
+    StudentKnowledge,
 )
+
+# Per-language taught-knowledge validators.
+STUDENT_KNOWLEDGE_MODELS = {
+    "sw": KiswahiliStudentKnowledge,
+}
 
 
 def get_data_dir(language: str, data_root: Path) -> Path:
@@ -60,13 +67,13 @@ def read_decodable_texts(language: str, data_root: Path) -> list[DecodableText]:
 
 def read_student_knowledge_profiles(
     language: str, data_root: Path
-) -> list[StudentKnowledgeProfile]:
+) -> list[StudentKnowledge]:
     """Parse student_knowledge_profiles.jsonl for the given language.
 
-    Returns a list of StudentKnowledgeProfile objects.
+    Returns a list of StudentKnowledge objects.
     """
     path = get_data_dir(language, data_root) / "student_knowledge_profiles.jsonl"
-    profiles: list[StudentKnowledgeProfile] = []
+    profiles: list[StudentKnowledge] = []
     seen_ids: set[str] = set()
     with _open_jsonl(path, language, "student_knowledge_profiles.jsonl") as f:
         for line_no, raw in enumerate(f, start=1):
@@ -75,7 +82,7 @@ def read_student_knowledge_profiles(
                 continue
             try:
                 record = json.loads(line)
-                profile = StudentKnowledgeProfile.model_validate(record)
+                profile = StudentKnowledge.model_validate(record)
             except (json.JSONDecodeError, ValidationError) as exc:
                 raise ValueError(
                     f"{path}:{line_no}: failed to parse record — {exc}"
@@ -121,6 +128,39 @@ def read_benchmark_items(language: str, data_root: Path) -> list[BenchmarkItem]:
             seen_ids.add(item.benchmark_item_id)
             items.append(item)
     return items
+
+
+def validate_student_knowledge(
+    profiles: list[StudentKnowledge], *, strict: bool = False
+) -> None:
+    """Check that each profile's student_knowledge is valid for its language.
+
+    Delegates to the language-specific model in `decodability` (e.g.
+    KiswahiliStudentKnowledge for "sw"). Profiles in a language with no
+    registered validator emit a warning, since their student_knowledge goes
+    unchecked — pass strict=True to raise instead (e.g. once a language is
+    expected to always have a registered validator).
+    """
+    for profile in profiles:
+        student_knowledge_model = STUDENT_KNOWLEDGE_MODELS.get(
+            profile.language_iso_code
+        )
+        if student_knowledge_model is None:
+            message = (
+                f"No known student_knowledge validator registered for language "
+                f"'{profile.language_iso_code}' (student_knowledge_id "
+                f"'{profile.student_knowledge_id}')"
+            )
+            if strict:
+                raise ValueError(message)
+            warnings.warn(f"{message}; skipping validation.", stacklevel=2)
+            continue
+        try:
+            student_knowledge_model.model_validate(profile.student_knowledge)
+        except ValidationError as exc:
+            raise ValueError(
+                f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"
+            ) from exc
 
 
 def validate_benchmark_dataset(language: str, data_root: Path) -> None:

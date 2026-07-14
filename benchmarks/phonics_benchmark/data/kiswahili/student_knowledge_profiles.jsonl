@@ -1,2 +1,2 @@
-{ "student_knowledge_id": "stu-sw-001", "language_iso_code": "sw", "taught_knowledge": {"known_syllables":["a","e", "i", "o", "u", "ba", "be", "bi", "bo", "bu"], "known_syllable_patterns":["CV", "CVCV"], "max_word_length": 4} }
-{ "student_knowledge_id": "stu-sw-002", "language_iso_code": "sw", "taught_knowledge": {"known_syllables":["a","e", "i", "o", "u", "ba", "be", "bi", "bo", "bu", "ma","me","mi", "mo", "mu","m_","n_","st"], "known_syllable_patterns":["CV", "CVCV","CCV"], "max_word_length": 7} }
+{ "student_knowledge_id": "stu-sw-001", "language_iso_code": "sw", "student_knowledge": {"graphemes":["a","e", "i", "o", "u", "ba", "be", "bi", "bo", "bu"], "whole_words":["mama", "paka"]} }
+{ "student_knowledge_id": "stu-sw-002", "language_iso_code": "sw", "student_knowledge": {"graphemes":["a","e", "i", "o", "u", "ba", "be", "bi", "bo", "bu", "ma","me","mi", "mo", "mu","m_","n_","st"], "whole_words":["mama", "paka","ana"]} }

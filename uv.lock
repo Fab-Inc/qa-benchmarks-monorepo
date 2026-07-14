@@ -1544,6 +1544,7 @@ name = "phonics-benchmark"
 version = "0.1.0"
 source = { editable = "benchmarks/phonics_benchmark" }
 dependencies = [
+    { name = "decodability" },
     { name = "fab-benchmark-publisher" },
     { name = "pydantic" },
     { name = "typer" },
@@ -1551,6 +1552,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "decodability", editable = "packages/decodability" },
     { name = "fab-benchmark-publisher", editable = "packages/fab_benchmark_publisher" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "typer", specifier = ">=0.12.0" },

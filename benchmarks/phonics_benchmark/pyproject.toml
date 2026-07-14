@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Phonics benchmark package"
 requires-python = ">=3.13"
 dependencies = [
+  "decodability",
   "fab-benchmark-publisher",
   "pydantic>=2.13.4",
   "typer>=0.12.0",
