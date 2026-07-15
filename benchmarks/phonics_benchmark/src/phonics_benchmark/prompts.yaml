@@ -18,9 +18,14 @@ decodability_evaluation: >-
   The text is in the language of {language}.
 
 
-  The student knowledge profile is:
+  The graphemes the student knows are:
 
-  {student_knowledge}
+  {known_graphemes}
+
+
+  The sight words the student knows are:
+
+  {known_sight_words}
 
 
   The text to evaluate is:
