@@ -47,7 +47,7 @@ models = [
 ]
 
 # option to end loop early for quicker tests; set to 0 to disable
-max_rows_per_model = 5
+max_rows_per_model = 10
 
 language = "kiswahili"  # hardcoded for now, in reality will be CLI-supplied value
 
