@@ -8,8 +8,10 @@ from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
+    DEFAULT_CUSTOM_MODELS_PATH,
     PLACEHOLDER_LLM_TEXT,
     evaluate_item_with_fdllm,
+    prepare_fdllm_for_run,
     run_benchmark,
     run_from_config_file,
     snapshot_model_configs,
@@ -479,6 +481,66 @@ def test_snapshot_model_configs_reads_registered_fdllm_models() -> None:
     }
 
 
+def test_prepare_fdllm_downloads_default_custom_models_anonymously(
+    tmp_path: Path,
+) -> None:
+    """Default model setup refreshes the public shared model registry."""
+
+    config = BenchmarkRunConfig(
+        run_id="experiment-a",
+        language="english",
+        task="decodability",
+        data_root=tmp_path / "data",
+        output_dir=tmp_path / "outputs",
+        models=["model-a"],
+    )
+
+    with (
+        patch("phonics_benchmark.runner._load_environment") as load_environment,
+        patch("fab_benchmark_publisher.download_file") as download_file,
+        patch("phonics_benchmark.runner._register_custom_models") as register_models,
+        patch("phonics_benchmark.runner.validate_registered_models") as validate_models,
+    ):
+        prepare_fdllm_for_run(config)
+
+    load_environment.assert_called_once_with(None)
+    download_file.assert_called_once_with(
+        bucket_name="fab-open-configs",
+        file_name="custom_models.yaml",
+        write_path=DEFAULT_CUSTOM_MODELS_PATH,
+        require_auth=False,
+    )
+    register_models.assert_called_once_with(DEFAULT_CUSTOM_MODELS_PATH)
+    validate_models.assert_called_once_with(["model-a"])
+
+
+def test_prepare_fdllm_preserves_explicit_custom_models_path(tmp_path: Path) -> None:
+    """An explicit model registry remains a pinned, non-downloaded override."""
+
+    custom_models_path = tmp_path / "custom_models.yaml"
+    custom_models_path.write_text("models: []", encoding="utf-8")
+    config = BenchmarkRunConfig(
+        run_id="experiment-a",
+        language="english",
+        task="decodability",
+        data_root=tmp_path / "data",
+        output_dir=tmp_path / "outputs",
+        models=["model-a"],
+        custom_models_path=custom_models_path,
+    )
+
+    with (
+        patch("phonics_benchmark.runner._load_environment"),
+        patch("fab_benchmark_publisher.download_file") as download_file,
+        patch("phonics_benchmark.runner._register_custom_models") as register_models,
+        patch("phonics_benchmark.runner.validate_registered_models"),
+    ):
+        prepare_fdllm_for_run(config)
+
+    download_file.assert_not_called()
+    register_models.assert_called_once_with(custom_models_path)
+
+
 def test_default_evaluator_returns_placeholder(tmp_path: Path) -> None:
     """The temporary default evaluator does not build prompts or call FDLLM."""
 
@@ -650,7 +712,7 @@ def _write_dataset(data_dir: Path, items: list[dict]) -> None:
             {
                 "student_knowledge_id": student_id,
                 "language_iso_code": "en",
-                "taught_knowledge": item.get("student_knowledge", {}),
+                "student_knowledge": item.get("student_knowledge", {}),
             }
         )
         benchmark_items.append(

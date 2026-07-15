@@ -30,6 +30,8 @@ PLACEHOLDER_LLM_TEXT = "placeholder"
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 DEFAULT_CUSTOM_MODELS_PATH = REPO_ROOT / "custom_models.yaml"
+CUSTOM_MODELS_BUCKET = "fab-open-configs"
+CUSTOM_MODELS_FILE_NAME = "custom_models.yaml"
 
 
 RunOutput = dict[str, Any]
@@ -218,10 +220,11 @@ def run_benchmark(
 
 
 def prepare_fdllm_for_run(config: BenchmarkRunConfig) -> None:
-    """Load model environment, register model config, and validate model names."""
+    """Load model environment, prepare model config, and validate model names."""
 
     _load_environment(config.env_path)
-    _register_custom_models(config.custom_models_path)
+    custom_models_path = _prepare_custom_models(config.custom_models_path)
+    _register_custom_models(custom_models_path)
     validate_registered_models(config.models)
 
 
@@ -385,6 +388,23 @@ def _register_custom_models(custom_models_path: Path | None) -> Path:
 
     register_models(str(resolved_custom_models_path))
     return resolved_custom_models_path
+
+
+def _prepare_custom_models(custom_models_path: Path | None) -> Path:
+    """Download the shared model config, unless the caller supplied a pinned file."""
+
+    if custom_models_path is not None:
+        return _resolve_custom_models_path(custom_models_path)
+
+    from fab_benchmark_publisher import download_file
+
+    download_file(
+        bucket_name=CUSTOM_MODELS_BUCKET,
+        file_name=CUSTOM_MODELS_FILE_NAME,
+        write_path=DEFAULT_CUSTOM_MODELS_PATH,
+        require_auth=False,
+    )
+    return DEFAULT_CUSTOM_MODELS_PATH
 
 
 def _resolve_custom_models_path(custom_models_path: Path | None) -> Path:

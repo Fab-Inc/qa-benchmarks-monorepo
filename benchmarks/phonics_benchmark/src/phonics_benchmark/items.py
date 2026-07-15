@@ -54,7 +54,7 @@ def load_benchmark_items(language: str, data_root: str | Path) -> pd.DataFrame:
                 "text_id": item.text_id,
                 "student_knowledge_id": item.student_knowledge_id,
                 "text": text.content,
-                "student_knowledge": student.taught_knowledge,
+                "student_knowledge": student.student_knowledge,
                 "metadata": {
                     "decodable_text": text.model_dump(),
                     "student_knowledge_profile": student.model_dump(),

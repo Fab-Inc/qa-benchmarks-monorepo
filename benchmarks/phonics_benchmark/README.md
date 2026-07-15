@@ -35,9 +35,10 @@ prompt, model name, model config, max tokens, or unknown future config fields cr
 new result rows for those calls.
 
 Before a run starts, the CLI loads provider keys from the repo-root `.env` when present,
-registers models from the repo-root `custom_models.yaml` when present, and verifies that
-every configured model name is registered with FDLLM. Use `--env-path` or
-`--custom-models-path` to override either path.
+anonymously downloads the latest public `custom_models.yaml` from the `fab-open-configs`
+bucket, registers its models, and verifies that every configured model name is
+registered with FDLLM. Use `--env-path` to override the environment file. Supplying
+`--custom-models-path` uses that file as a pinned override and skips the download.
 
 The first-pass config format is JSON. Relative paths in a config file are resolved from
 the config file's directory. Relative paths in CLI options are resolved from the current
