@@ -30,9 +30,9 @@ when supplied, it must use only alphanumeric characters and hyphens. Use
 Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
 set `"chunk_size": null` in a config file to save once after each model. Cached rows are
 reused when the model-call inputs are unchanged, even if provenance-only config fields
-or the model list change. Changing model-call inputs such as the task, item payload,
-prompt, model name, model config, max tokens, or unknown future config fields creates
-new result rows for those calls.
+or the model list change. Unknown future config fields are also treated as provenance.
+Changing model-call inputs such as the task, item payload, prompt, model name, model
+config, or max tokens creates new result rows for those calls.
 
 Before a run starts, the CLI loads provider keys from the repo-root `.env` when present,
 anonymously downloads the latest public `custom_models.yaml` from the `fab-open-configs`

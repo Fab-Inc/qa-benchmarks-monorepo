@@ -571,7 +571,6 @@ def _model_call_id(
 ) -> str:
     return _sha256_json(
         {
-            "extra": config.extra,
             "item": item_to_dict(item),
             "language": config.language,
             "max_tokens": config.max_tokens,

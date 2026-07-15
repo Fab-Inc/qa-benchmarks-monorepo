@@ -203,10 +203,10 @@ def test_run_from_config_file_adding_model_keeps_existing_model_cache(
     )
 
 
-def test_run_from_config_file_metadata_change_keeps_model_cache(
+def test_run_from_config_file_provenance_change_keeps_model_cache(
     tmp_path: Path,
 ) -> None:
-    """Provenance-only config changes do not force model calls to rerun."""
+    """Provenance and future config fields do not force model calls to rerun."""
 
     config_path = _write_config(
         tmp_path,
@@ -222,6 +222,7 @@ def test_run_from_config_file_metadata_change_keeps_model_cache(
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     config["metadata"] = {"owner": "benchmarks"}
+    config["future_field"] = "not-a-model-call-input"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     def fail_if_called(
@@ -230,7 +231,7 @@ def test_run_from_config_file_metadata_change_keeps_model_cache(
         _item: dict,
         _prompt: str,
     ) -> dict:
-        raise AssertionError("metadata-only changes should use cached rows")
+        raise AssertionError("provenance-only changes should use cached rows")
 
     second_output = run_from_config_file(
         config_path,
