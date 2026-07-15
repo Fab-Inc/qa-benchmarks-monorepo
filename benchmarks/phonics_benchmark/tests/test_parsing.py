@@ -1,5 +1,7 @@
 """Test cases for parsing LLM responses (extracting list of non-decodable words)."""
 
+import json
+
 from phonics_benchmark.parsing import parse_word_list
 
 
@@ -131,3 +133,15 @@ def test_parse_word_list_parse_ok_flag():
     result = parse_word_list("")
     assert result.words == []
     assert not result.parse_ok
+
+
+def test_parse_word_list_preserves_apostrophe_from_tusome_data(
+    tusome_stage_11_item,
+):
+    expected_words = json.loads(tusome_stage_11_item["non_decodable_words"])
+
+    result = parse_word_list(tusome_stage_11_item["non_decodable_words"])
+
+    assert result.words == expected_words
+    assert "ng'ombe" in result.words
+    assert result.parse_ok
