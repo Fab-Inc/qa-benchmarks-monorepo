@@ -24,8 +24,10 @@ def test_main_succeeds(runner: CliRunner) -> None:
     assert "Usage:" in result.stdout
 
 
-def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
-    """The run command delegates to the config-driven runner."""
+def test_run_decodability_command_uses_config(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """The decodability command delegates to the config-driven runner."""
 
     config_path = tmp_path / "run.json"
     config_path.write_text(
@@ -48,7 +50,7 @@ def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
         ) as snapshot,
         patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
     ):
-        result = runner.invoke(app, ["run", "--config", str(config_path)])
+        result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
 
     assert result.exit_code == 0
     prepare.assert_called_once()
@@ -65,8 +67,10 @@ def test_run_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
     assert "Results:" in result.stdout
 
 
-def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
-    """The run command can be driven directly by command-line options."""
+def test_run_decodability_command_uses_cli_args(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """The decodability command accepts direct command-line options."""
 
     output_dir = tmp_path / "outputs"
     data_root = tmp_path / "data"
@@ -88,7 +92,7 @@ def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
         result = runner.invoke(
             app,
             [
-                "run",
+                "run-decodability",
                 "--run-id",
                 "experiment-a",
                 "--language",
@@ -99,8 +103,6 @@ def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
                 str(data_root),
                 "--output-dir",
                 str(output_dir),
-                "--task",
-                "decodability",
                 "--env-path",
                 str(env_path),
                 "--custom-models-path",
@@ -133,16 +135,20 @@ def test_run_command_uses_cli_args(runner: CliRunner, tmp_path: Path) -> None:
     assert "Run ID: experiment-a" in result.stdout
 
 
-def test_run_command_requires_cli_args_without_config(runner: CliRunner) -> None:
+def test_run_decodability_command_requires_cli_args_without_config(
+    runner: CliRunner,
+) -> None:
     """The CLI reports missing direct-run options when no config is supplied."""
 
-    result = runner.invoke(app, ["run"])
+    result = runner.invoke(app, ["run-decodability"])
 
     assert result.exit_code == 1
     assert "Missing required options" in result.stderr
 
 
-def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
+def test_run_decodability_command_defaults_run_id(
+    runner: CliRunner, tmp_path: Path
+) -> None:
     """Direct CLI runs can omit --run-id."""
 
     output = _run_output(tmp_path / "results", "default", total=1)
@@ -155,7 +161,7 @@ def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
         result = runner.invoke(
             app,
             [
-                "run",
+                "run-decodability",
                 "--language",
                 "english",
                 "--models",
@@ -169,7 +175,7 @@ def test_run_command_defaults_run_id(runner: CliRunner, tmp_path: Path) -> None:
     assert run_config.data_root == DEFAULT_DATA_ROOT.resolve()
 
 
-def test_run_command_timestamped_output_generates_run_id(
+def test_run_decodability_command_timestamped_output_generates_run_id(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """--timestamped-output fills run_id when one is not supplied."""
@@ -185,7 +191,7 @@ def test_run_command_timestamped_output_generates_run_id(
         result = runner.invoke(
             app,
             [
-                "run",
+                "run-decodability",
                 "--language",
                 "english",
                 "--models",
@@ -199,7 +205,7 @@ def test_run_command_timestamped_output_generates_run_id(
     assert run_config.run_id == "20260622T120000Z"
 
 
-def test_run_command_accepts_models_json_list(
+def test_run_decodability_command_accepts_models_json_list(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """The --models option also accepts a JSON list string."""
@@ -214,7 +220,7 @@ def test_run_command_accepts_models_json_list(
         result = runner.invoke(
             app,
             [
-                "run",
+                "run-decodability",
                 "--run-id",
                 "experiment-a",
                 "--language",
@@ -229,7 +235,7 @@ def test_run_command_accepts_models_json_list(
     assert run_config.models == ["model-a", "model-b"]
 
 
-def test_run_command_preflights_registered_models(
+def test_run_decodability_command_preflights_registered_models(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """Model registration errors are reported before the runner starts."""
@@ -244,7 +250,7 @@ def test_run_command_preflights_registered_models(
         result = runner.invoke(
             app,
             [
-                "run",
+                "run-decodability",
                 "--language",
                 "english",
                 "--models",

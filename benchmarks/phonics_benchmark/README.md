@@ -2,16 +2,16 @@
 
 Config-driven benchmark harness for phonics experiments.
 
-## Run From Config
+## Run Decodability
 
 ```bash
-phonics-benchmark run --config path/to/run.json
+phonics-benchmark run-decodability --config path/to/run.json
 ```
 
 The same command can also be driven directly from CLI options:
 
 ```bash
-phonics-benchmark run \
+phonics-benchmark run-decodability \
   --run-id decodability-smoke-test \
   --language kiswahili \
   --models gpt-5-mini-2025-08-07-medium,claude-sonnet-4-5-20250929 \
@@ -25,14 +25,15 @@ phonics-benchmark run \
 When `--config` is supplied, values come from the config file. Without `--config`, the
 required CLI options are `--language` and `--models`. `--run-id` defaults to `default`;
 when supplied, it must use only alphanumeric characters and hyphens. Use
-`--timestamped-output` to generate a UTC timestamp run ID for a non-overwriting run.
+`--timestamped-output` to generate a UTC timestamp run ID for a non-overwriting run. The
+command records the task as `decodability`; task selection is not a config option.
 
 Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
 set `"chunk_size": null` in a config file to save once after each model. Cached rows are
 reused when the model-call inputs are unchanged, even if provenance-only config fields
 or the model list change. Unknown future config fields are also treated as provenance.
-Changing model-call inputs such as the task, item payload, prompt, model name, model
-config, or max tokens creates new result rows for those calls.
+Changing model-call inputs such as the item payload, prompt, model name, model config,
+or max tokens creates new result rows for those calls.
 
 Before a run starts, the CLI loads provider keys from the repo-root `.env` when present,
 anonymously downloads the latest public `custom_models.yaml` from the `fab-open-configs`
@@ -49,7 +50,6 @@ when a config file does not set `data_root`.
 {
   "run_id": "decodability-smoke-test",
   "language": "kiswahili",
-  "task": "decodability",
   "data_root": "data",
   "output_dir": "results",
   "chunk_size": 100,

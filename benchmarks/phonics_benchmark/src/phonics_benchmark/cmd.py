@@ -8,6 +8,7 @@ from pathlib import Path
 import typer
 
 from phonics_benchmark.config import (
+    DECODABILITY_TASK,
     ConfigError,
     build_run_config,
     config_identity_sha256,
@@ -36,8 +37,8 @@ def setup(ctx: typer.Context) -> None:
         raise typer.Exit()
 
 
-@app.command("run")
-def run_cmd(
+@app.command("run-decodability")
+def run_decodability_cmd(
     config: Path | None = typer.Option(
         None,
         "--config",
@@ -94,11 +95,6 @@ def run_cmd(
         "--output-dir",
         help="Directory where run artifacts should be written.",
     ),
-    task: str = typer.Option(
-        "decodability",
-        "--task",
-        help="Benchmark task name recorded in results.",
-    ),
     custom_models_path: Path | None = typer.Option(
         None,
         "--custom-models-path",
@@ -138,11 +134,15 @@ def run_cmd(
         help="Retry only existing result rows with call_status=error.",
     ),
 ) -> None:
-    """Run a phonics benchmark experiment from a config file or CLI options."""
+    """Run the decodability benchmark from a config file or CLI options."""
 
     try:
         if config is not None:
-            run_config = load_run_config(config, default_data_root=data_root)
+            run_config = load_run_config(
+                config,
+                task=DECODABILITY_TASK,
+                default_data_root=data_root,
+            )
             prepare_fdllm_for_run(run_config)
             model_configs = snapshot_model_configs(run_config.models)
             output = run_benchmark(
@@ -166,7 +166,7 @@ def run_cmd(
                 output_dir=output_dir,
                 models=model_names,
                 base_dir=Path.cwd(),
-                task=task,
+                task=DECODABILITY_TASK,
                 env_path=env_path,
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,

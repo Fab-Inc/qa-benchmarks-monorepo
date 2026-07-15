@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_RUN_ID = "default"
+DECODABILITY_TASK = "decodability"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
 
@@ -100,6 +101,7 @@ def config_identity_sha256(config: BenchmarkRunConfig) -> str:
 def load_run_config(
     config_path: str | Path,
     *,
+    task: str = DECODABILITY_TASK,
     default_data_root: str | Path | None = None,
 ) -> BenchmarkRunConfig:
     """Load and validate a phonics benchmark run config from JSON."""
@@ -121,6 +123,7 @@ def load_run_config(
     )
     return _parse_run_config(
         raw_config,
+        task=task,
         base_dir=base_dir,
         config_path=path,
         default_data_root=resolved_default_data_root,
@@ -135,7 +138,7 @@ def build_run_config(
     output_dir: str | Path,
     models: list[str],
     base_dir: Path,
-    task: str = "decodability",
+    task: str,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
@@ -149,7 +152,6 @@ def build_run_config(
     raw_config: dict[str, Any] = {
         "run_id": run_id,
         "language": language,
-        "task": task,
         "data_root": str(data_root),
         "output_dir": str(output_dir),
         "models": models,
@@ -163,6 +165,7 @@ def build_run_config(
     }
     return _parse_run_config(
         raw_config,
+        task=task,
         base_dir=base_dir.resolve(),
         config_path=None,
         default_data_root=None,
@@ -172,6 +175,7 @@ def build_run_config(
 def _parse_run_config(
     raw_config: dict[str, Any],
     *,
+    task: str,
     base_dir: Path,
     config_path: Path | None,
     default_data_root: str | Path | None,
@@ -182,9 +186,13 @@ def _parse_run_config(
     if not isinstance(language, str) or not language.strip():
         raise ConfigError("Config must include a non-empty 'language'")
 
-    task = raw_config.get("task", "decodability")
     if not isinstance(task, str) or not task.strip():
-        raise ConfigError("'task' must be a non-empty string")
+        raise ConfigError("The command task must be a non-empty string")
+
+    if "task" in raw_config:
+        raise ConfigError(
+            "'task' is selected by the CLI command and must not be set in config"
+        )
 
     if "items_path" in raw_config:
         raise ConfigError(
@@ -240,7 +248,6 @@ def _parse_run_config(
     known_keys = {
         "run_id",
         "language",
-        "task",
         "data_root",
         "output_dir",
         "models",

@@ -320,7 +320,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
     first_rows = _read_jsonl(first_output["results_paths"]["model-a"])
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["task"] = "phonics_annotation"
+    config["max_tokens"] = 100
     config_path.write_text(json.dumps(config), encoding="utf-8")
     calls = []
 
@@ -330,7 +330,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
         item: dict,
         _prompt: str,
     ) -> dict:
-        calls.append((config.task, item["item_id"]))
+        calls.append((config.max_tokens, item["item_id"]))
         return {"output": "second"}
 
     second_output = run_from_config_file(
@@ -341,7 +341,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
 
     rows = _read_jsonl(second_output["results_paths"]["model-a"])
     assert first_output["config_id"] != second_output["config_id"]
-    assert calls == [("phonics_annotation", "item-1")]
+    assert calls == [(100, "item-1")]
     assert second_output["executed_count"] == 1
     assert second_output["skipped_count"] == 0
     assert len(rows) == 1
@@ -679,7 +679,6 @@ def _write_config(
     config = {
         "run_id": "experiment-a",
         "language": "english",
-        "task": "decodability",
         "output_dir": "outputs",
         "models": models,
     }

@@ -24,7 +24,6 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
             {
                 "run_id": "experiment-a",
                 "language": "english",
-                "task": "decodability",
                 "data_root": "../data",
                 "output_dir": "../outputs",
                 "env_path": "../.env",
@@ -44,6 +43,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
 
     assert config.run_id == "experiment-a"
     assert config.language == "english"
+    assert config.task == "decodability"
     assert config.data_root == data_root.resolve()
     assert config.output_dir == (tmp_path / "outputs").resolve()
     assert config.env_path == env_path.resolve()
@@ -179,6 +179,25 @@ def test_load_run_config_rejects_items_path(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ConfigError, match="items_path"):
+        load_run_config(config_path, default_data_root=tmp_path / "data")
+
+
+def test_load_run_config_rejects_task_selected_in_config(tmp_path: Path) -> None:
+    """The CLI command, rather than the config file, selects the benchmark task."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "language": "kiswahili",
+                "task": "phonics_annotation",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="selected by the CLI command"):
         load_run_config(config_path, default_data_root=tmp_path / "data")
 
 
