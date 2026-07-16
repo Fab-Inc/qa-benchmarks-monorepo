@@ -16,12 +16,11 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.runner import (
     RunOutput,
+    download_default_custom_models,
     prepare_fdllm_for_run,
     run_benchmark,
     snapshot_model_configs,
 )
-
-DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[2] / "data"
 
 app = typer.Typer(
     name="phonics-benchmark",
@@ -65,19 +64,7 @@ def run_decodability_cmd(
         None,
         "--language",
         "-l",
-        help="Language to evaluate. Passed to benchmark data loading.",
-    ),
-    data_root: Path = typer.Option(
-        DEFAULT_DATA_ROOT,
-        "--data-root",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        readable=True,
-        help=(
-            "Root directory containing per-language benchmark data directories. "
-            "Used as the default when a config file omits data_root."
-        ),
+        help="Language label for the benchmark run and prompt.",
     ),
     models: str | None = typer.Option(
         None,
@@ -95,6 +82,14 @@ def run_decodability_cmd(
         "--output-dir",
         help="Directory where run artifacts should be written.",
     ),
+    items_path: Path | None = typer.Option(
+        None,
+        "--items-path",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="CSV containing already-composed benchmark items.",
+    ),
     custom_models_path: Path | None = typer.Option(
         None,
         "--custom-models-path",
@@ -102,6 +97,11 @@ def run_decodability_cmd(
         dir_okay=False,
         readable=True,
         help="Path to the FDLLM custom models YAML file.",
+    ),
+    skip_models_download: bool = typer.Option(
+        False,
+        "--skip-models-download",
+        help="Do not refresh the shared repo-root custom_models.yaml before the run.",
     ),
     env_path: Path | None = typer.Option(
         None,
@@ -114,13 +114,19 @@ def run_decodability_cmd(
     max_tokens: int | None = typer.Option(
         None,
         "--max-tokens",
-        help="Default maximum response tokens for each model call.",
+        help="Maximum response tokens for each model call. Defaults to 10,000.",
     ),
     chunk_size: int = typer.Option(
         100,
         "--chunk-size",
         min=1,
         help="Number of pending items to evaluate before checkpointing results.",
+    ),
+    model_workers: int = typer.Option(
+        1,
+        "--model-workers",
+        min=1,
+        help="Maximum number of models to run concurrently.",
     ),
     force: bool = typer.Option(
         False,
@@ -141,14 +147,6 @@ def run_decodability_cmd(
             run_config = load_run_config(
                 config,
                 task=DECODABILITY_TASK,
-                default_data_root=data_root,
-            )
-            prepare_fdllm_for_run(run_config)
-            model_configs = snapshot_model_configs(run_config.models)
-            output = run_benchmark(
-                run_config,
-                config_id=config_identity_sha256(run_config),
-                model_configs=model_configs,
             )
         else:
             effective_run_id = (
@@ -158,29 +156,34 @@ def run_decodability_cmd(
             _validate_cli_run_args(
                 language=language,
                 models=model_names,
+                items_path=items_path,
             )
             run_config = build_run_config(
                 run_id=effective_run_id,
                 language=language,
-                data_root=data_root,
                 output_dir=output_dir,
                 models=model_names,
                 base_dir=Path.cwd(),
                 task=DECODABILITY_TASK,
+                items_path=items_path,
                 env_path=env_path,
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,
                 chunk_size=chunk_size,
+                model_workers=model_workers,
                 force=force,
                 retry_errors=retry_errors,
             )
-            prepare_fdllm_for_run(run_config)
-            model_configs = snapshot_model_configs(run_config.models)
-            output = run_benchmark(
-                run_config,
-                config_id=config_identity_sha256(run_config),
-                model_configs=model_configs,
-            )
+
+        if not skip_models_download:
+            download_default_custom_models()
+        prepare_fdllm_for_run(run_config)
+        model_configs = snapshot_model_configs(run_config.models)
+        output = run_benchmark(
+            run_config,
+            config_id=config_identity_sha256(run_config),
+            model_configs=model_configs,
+        )
     except (ConfigError, FileNotFoundError) as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
@@ -232,12 +235,15 @@ def _validate_cli_run_args(
     *,
     language: str | None,
     models: Sequence[str] | None,
+    items_path: Path | None,
 ) -> None:
     missing = []
     if not language:
         missing.append("--language")
     if not models:
         missing.append("--models")
+    if items_path is None:
+        missing.append("--items-path")
     if missing:
         raise ConfigError(
             "Missing required options for CLI-driven run: " + ", ".join(missing)

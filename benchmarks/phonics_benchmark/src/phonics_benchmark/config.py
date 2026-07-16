@@ -25,13 +25,14 @@ class BenchmarkRunConfig:
     run_id: str
     language: str
     task: str
-    data_root: Path
     output_dir: Path
     models: list[str]
+    items_path: Path
     env_path: Path | None = None
     custom_models_path: Path | None = None
     max_tokens: int | None = None
     chunk_size: int | None = 100
+    model_workers: int = 1
     force: bool = False
     retry_errors: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -46,15 +47,16 @@ class BenchmarkRunConfig:
             "run_id": self.run_id,
             "language": self.language,
             "task": self.task,
-            "data_root": str(self.data_root),
             "output_dir": str(self.output_dir),
             "models": self.models,
+            "items_path": str(self.items_path),
             "env_path": str(self.env_path) if self.env_path else None,
             "custom_models_path": (
                 str(self.custom_models_path) if self.custom_models_path else None
             ),
             "max_tokens": self.max_tokens,
             "chunk_size": self.chunk_size,
+            "model_workers": self.model_workers,
             "force": self.force,
             "retry_errors": self.retry_errors,
             "metadata": self.metadata,
@@ -65,7 +67,12 @@ class BenchmarkRunConfig:
         """Return the semantic run inputs used to identify result rows."""
 
         resolved = self.to_resolved_dict()
-        for operational_key in ("chunk_size", "force", "retry_errors"):
+        for operational_key in (
+            "chunk_size",
+            "model_workers",
+            "force",
+            "retry_errors",
+        ):
             resolved.pop(operational_key, None)
         return resolved
 
@@ -102,7 +109,6 @@ def load_run_config(
     config_path: str | Path,
     *,
     task: str = DECODABILITY_TASK,
-    default_data_root: str | Path | None = None,
 ) -> BenchmarkRunConfig:
     """Load and validate a phonics benchmark run config from JSON."""
 
@@ -116,17 +122,11 @@ def load_run_config(
         raise ConfigError("Run config must be a JSON object")
 
     base_dir = path.parent
-    resolved_default_data_root = (
-        Path(default_data_root).expanduser().resolve()
-        if default_data_root is not None
-        else None
-    )
     return _parse_run_config(
         raw_config,
         task=task,
         base_dir=base_dir,
         config_path=path,
-        default_data_root=resolved_default_data_root,
     )
 
 
@@ -134,15 +134,16 @@ def build_run_config(
     *,
     run_id: str | None,
     language: str,
-    data_root: str | Path,
     output_dir: str | Path,
     models: list[str],
     base_dir: Path,
     task: str,
+    items_path: str | Path,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
     chunk_size: int | None = 100,
+    model_workers: int = 1,
     force: bool = False,
     retry_errors: bool = False,
     metadata: dict[str, Any] | None = None,
@@ -152,13 +153,14 @@ def build_run_config(
     raw_config: dict[str, Any] = {
         "run_id": run_id,
         "language": language,
-        "data_root": str(data_root),
         "output_dir": str(output_dir),
         "models": models,
+        "items_path": str(items_path),
         "env_path": str(env_path) if env_path else None,
         "custom_models_path": str(custom_models_path) if custom_models_path else None,
         "max_tokens": max_tokens,
         "chunk_size": chunk_size,
+        "model_workers": model_workers,
         "force": force,
         "retry_errors": retry_errors,
         "metadata": metadata or {},
@@ -168,7 +170,6 @@ def build_run_config(
         task=task,
         base_dir=base_dir.resolve(),
         config_path=None,
-        default_data_root=None,
     )
 
 
@@ -178,7 +179,6 @@ def _parse_run_config(
     task: str,
     base_dir: Path,
     config_path: Path | None,
-    default_data_root: str | Path | None,
 ) -> BenchmarkRunConfig:
     run_id = _parse_run_id(raw_config.get("run_id"))
 
@@ -194,17 +194,10 @@ def _parse_run_config(
             "'task' is selected by the CLI command and must not be set in config"
         )
 
-    if "items_path" in raw_config:
+    if "data_root" in raw_config:
         raise ConfigError(
-            "'items_path' is no longer supported; benchmark data is selected by "
-            "'language'"
+            "'data_root' is no longer supported; provide a composed 'items_path'"
         )
-
-    data_root = raw_config.get("data_root")
-    if data_root is None:
-        data_root = str(default_data_root) if default_data_root is not None else None
-    if not isinstance(data_root, str) or not data_root.strip():
-        raise ConfigError("Config must include a non-empty 'data_root'")
 
     output_dir = raw_config.get("output_dir", "results")
     if not isinstance(output_dir, str) or not output_dir.strip():
@@ -212,6 +205,10 @@ def _parse_run_config(
 
     models_raw = raw_config.get("models")
     models = _parse_models(models_raw)
+
+    items_path = raw_config.get("items_path")
+    if not isinstance(items_path, str) or not items_path.strip():
+        raise ConfigError("Config must include a non-empty 'items_path'")
 
     env_path = raw_config.get("env_path")
     if env_path is not None and not isinstance(env_path, str):
@@ -231,6 +228,14 @@ def _parse_run_config(
     ):
         raise ConfigError("'chunk_size' must be a positive integer or null")
 
+    model_workers = raw_config.get("model_workers", 1)
+    if (
+        isinstance(model_workers, bool)
+        or not isinstance(model_workers, int)
+        or model_workers < 1
+    ):
+        raise ConfigError("'model_workers' must be a positive integer")
+
     force = raw_config.get("force", False)
     if not isinstance(force, bool):
         raise ConfigError("'force' must be a boolean when provided")
@@ -248,13 +253,14 @@ def _parse_run_config(
     known_keys = {
         "run_id",
         "language",
-        "data_root",
         "output_dir",
         "models",
+        "items_path",
         "env_path",
         "custom_models_path",
         "max_tokens",
         "chunk_size",
+        "model_workers",
         "force",
         "retry_errors",
         "metadata",
@@ -265,15 +271,16 @@ def _parse_run_config(
         run_id=run_id,
         language=language,
         task=task,
-        data_root=_resolve_path(data_root, base_dir),
         output_dir=_resolve_path(output_dir, base_dir),
         models=models,
+        items_path=_resolve_path(items_path, base_dir),
         env_path=_resolve_path(env_path, base_dir) if env_path else None,
         custom_models_path=(
             _resolve_path(custom_models_path, base_dir) if custom_models_path else None
         ),
         max_tokens=max_tokens,
         chunk_size=chunk_size,
+        model_workers=model_workers,
         force=force,
         retry_errors=retry_errors,
         metadata=metadata,
@@ -297,7 +304,12 @@ def _parse_models(value: Any) -> list[str]:
     models = []
     for model in value:
         if isinstance(model, str) and model.strip():
-            models.append(model.strip())
+            model_name = model.strip()
+            if model_name in models:
+                raise ConfigError(
+                    f"Config models must be unique; duplicate: {model_name}"
+                )
+            models.append(model_name)
             continue
         raise ConfigError(
             "Each model must be a string name. Provider parameters belong in "

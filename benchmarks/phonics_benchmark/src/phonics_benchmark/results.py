@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -50,7 +51,14 @@ def save_results(
 
     path = Path(file_name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    records = results.to_dict(orient="records")
+    records = [
+        {
+            key: value
+            for key, value in row.items()
+            if not (isinstance(value, float) and math.isnan(value))
+        }
+        for row in results.to_dict(orient="records")
+    ]
     content = "\n".join(_json_dumps(row) for row in records)
     _write_text_atomic(path, content + ("\n" if content else ""))
     return path

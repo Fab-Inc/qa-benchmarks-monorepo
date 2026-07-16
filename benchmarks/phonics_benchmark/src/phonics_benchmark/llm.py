@@ -9,12 +9,14 @@ from typing import Any
 from fdllm import LLMMessage, get_caller
 from pydantic import BaseModel
 
+DEFAULT_MAX_TOKENS = 10_000
+
 
 def call_llm(
     prompt: str,
     model: str,
     system_prompt: str | None = None,
-    max_tokens: int = 10000,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
     bypass_llm: bool = False,
     should_log: bool = True,
     log_base_dir: Path | None = None,

@@ -6,12 +6,13 @@ import json
 import re
 import subprocess
 import sys
-import time
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import pandas as pd
 
@@ -22,11 +23,12 @@ from phonics_benchmark.config import (
     load_run_config,
 )
 from phonics_benchmark.items import item_to_dict, load_benchmark_items
+from phonics_benchmark.llm import DEFAULT_MAX_TOKENS, call_llm
+from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import load_results, save_results
 
 CALL_STATUS_ERROR = "error"
 CALL_STATUS_SUCCESS = "success"
-PLACEHOLDER_LLM_TEXT = "placeholder"
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 DEFAULT_CUSTOM_MODELS_PATH = REPO_ROOT / "custom_models.yaml"
@@ -37,18 +39,24 @@ CUSTOM_MODELS_FILE_NAME = "custom_models.yaml"
 RunOutput = dict[str, Any]
 
 
+class _ModelRunOutput(TypedDict):
+    model_name: str
+    executed_count: int
+    skipped_count: int
+    error_count: int
+
+
 def run_from_config_file(
     config_path: str | Path,
     *,
-    default_data_root: str | Path | None = None,
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
 ) -> RunOutput:
-    """Load a run config file and execute the configured benchmark."""
+    """Load a run config file and execute it without downloading model config."""
 
-    config = load_run_config(config_path, default_data_root=default_data_root)
+    config = load_run_config(config_path)
     config_id = config_identity_sha256(config)
     model_configs = None
     if evaluator is None:
@@ -86,7 +94,7 @@ def run_benchmark(
     resolved_config = config.to_resolved_dict()
     resolved_config["custom_models_path"] = str(custom_models_path)
     code_git_hash = git_hash()
-    items = load_benchmark_items(config.language, config.data_root)
+    items = load_benchmark_items(config.items_path)
     run_dir = config.output_dir / config.run_id
     results_dir = run_dir / "answers"
     config_snapshot_path = run_dir / "config.json"
@@ -94,109 +102,37 @@ def run_benchmark(
         model_name: _model_results_path(results_dir, model_name)
         for model_name in config.models
     }
+    _preflight_retry_results(config, results_paths)
 
     run_dir.mkdir(parents=True, exist_ok=True)
+    sanitized_model_configs = _sanitize_model_config(dict(model_configs or {}))
     config_snapshot = {
         "config_id": config_id,
         "source_config_path": str(config.config_path) if config.config_path else None,
         "raw_config": config.raw_config,
         "resolved_config": resolved_config,
         "code_git_hash": code_git_hash,
-        "model_configs": _sanitize_model_config(dict(model_configs or {})),
+        "model_configs": sanitized_model_configs,
     }
     _write_json(config_snapshot_path, config_snapshot)
 
-    executed_count = 0
-    skipped_count = 0
-    executed_models: set[str] = set()
-    error_count = 0
-
-    for model_name in config.models:
-        results_path = results_paths[model_name]
-        if config.retry_errors and not results_path.exists():
-            raise FileNotFoundError(
-                f"No cached results found for {model_name}; cannot use --retry-errors."
-            )
-        existing_results = load_results(results_path, force=config.force)
-        existing_rows_by_id = _results_by_id(existing_results)
-        current_model_config = _sanitize_model_config(
-            (model_configs or {}).get(model_name, {})
-        )
-        planned_items = _planned_model_items(
-            config=config,
-            model_name=model_name,
-            model_config=current_model_config,
-            items=items.to_dict(orient="records"),
-        )
-        expected_result_ids = [
-            str(planned_item["result_id"]) for planned_item in planned_items
-        ]
-        expected_result_id_set = set(expected_result_ids)
-        stale_result_count = len(
-            set(existing_rows_by_id).difference(expected_result_id_set)
-        )
-        rows_by_id = {
-            result_id: existing_rows_by_id[result_id]
-            for result_id in expected_result_ids
-            if result_id in existing_rows_by_id
-        }
-        pending_items: list[dict[str, Any]] = []
-
-        for planned_item in planned_items:
-            result_id = str(planned_item["result_id"])
-            existing = rows_by_id.get(result_id)
-            if existing and _should_skip_existing(
-                existing, retry_errors=config.retry_errors
-            ):
-                skipped_count += 1
-                continue
-
-            pending_items.append(
-                {
-                    "item": planned_item["item"],
-                    "model_call_id": planned_item["model_call_id"],
-                    "prompt": planned_item["prompt"],
-                    "result_id": result_id,
-                }
-            )
-
-        for chunk in _chunked(pending_items, config.chunk_size):
-            for pending in chunk:
-                item = pending["item"]
-                result_id = pending["result_id"]
-                row = _evaluate_item(
-                    config=config,
-                    config_id=config_id,
-                    config_snapshot_path=config_snapshot_path,
-                    model_name=model_name,
-                    item=item,
-                    model_call_id=pending["model_call_id"],
-                    prompt=pending["prompt"],
-                    result_id=result_id,
-                    evaluator=evaluator,
-                )
-                rows_by_id[result_id] = row
-                executed_count += 1
-                executed_models.add(model_name)
-
-            results = _ordered_results(rows_by_id, expected_result_ids)
-            _save_results(
-                results_path,
-                results,
-                config=config,
-                resolved_config=resolved_config,
-                custom_models_path=custom_models_path,
-            )
-        if stale_result_count and not pending_items:
-            results = _ordered_results(rows_by_id, expected_result_ids)
-            _save_results(
-                results_path,
-                results,
-                config=config,
-                resolved_config=resolved_config,
-                custom_models_path=custom_models_path,
-            )
-        error_count += _error_count(_ordered_results(rows_by_id, expected_result_ids))
+    model_outputs = _run_models(
+        config=config,
+        config_id=config_id,
+        config_snapshot_path=config_snapshot_path,
+        model_configs=sanitized_model_configs,
+        items=items.to_dict(orient="records"),
+        results_paths=results_paths,
+        resolved_config=resolved_config,
+        custom_models_path=custom_models_path,
+        evaluator=evaluator,
+    )
+    executed_count = sum(result["executed_count"] for result in model_outputs)
+    skipped_count = sum(result["skipped_count"] for result in model_outputs)
+    error_count = sum(result["error_count"] for result in model_outputs)
+    executed_models = {
+        result["model_name"] for result in model_outputs if result["executed_count"] > 0
+    }
 
     output: RunOutput = {
         "run_id": config.run_id,
@@ -219,11 +155,179 @@ def run_benchmark(
     return output
 
 
+def _run_models(
+    *,
+    config: BenchmarkRunConfig,
+    config_id: str,
+    config_snapshot_path: Path,
+    model_configs: Mapping[str, Any],
+    items: list[dict[str, Any]],
+    results_paths: Mapping[str, Path],
+    resolved_config: dict[str, Any],
+    custom_models_path: Path,
+    evaluator: Callable[
+        [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
+    ],
+) -> list[_ModelRunOutput]:
+    """Run model workers serially or with bounded model-level concurrency."""
+
+    worker_kwargs = [
+        {
+            "config": config,
+            "config_id": config_id,
+            "config_snapshot_path": config_snapshot_path,
+            "model_name": model_name,
+            "model_config": model_configs.get(model_name, {}),
+            "items": deepcopy(items),
+            "results_path": results_paths[model_name],
+            "resolved_config": resolved_config,
+            "custom_models_path": custom_models_path,
+            "evaluator": evaluator,
+        }
+        for model_name in config.models
+    ]
+    if config.model_workers == 1 or len(worker_kwargs) == 1:
+        return [_run_model(**kwargs) for kwargs in worker_kwargs]
+
+    max_workers = min(config.model_workers, len(worker_kwargs))
+    with ThreadPoolExecutor(
+        max_workers=max_workers,
+        thread_name_prefix="phonics-model",
+    ) as executor:
+        futures = [executor.submit(_run_model, **kwargs) for kwargs in worker_kwargs]
+        return [future.result() for future in futures]
+
+
+def _run_model(
+    *,
+    config: BenchmarkRunConfig,
+    config_id: str,
+    config_snapshot_path: Path,
+    model_name: str,
+    model_config: Mapping[str, Any],
+    items: list[dict[str, Any]],
+    results_path: Path,
+    resolved_config: dict[str, Any],
+    custom_models_path: Path,
+    evaluator: Callable[
+        [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
+    ],
+) -> _ModelRunOutput:
+    """Run every pending item for one model, sequentially and with checkpoints."""
+
+    existing_results = load_results(results_path, force=config.force)
+    existing_rows_by_id = _results_by_id(existing_results)
+    planned_items = _planned_model_items(
+        config=config,
+        model_name=model_name,
+        model_config=model_config,
+        items=items,
+    )
+    expected_result_ids = [
+        str(planned_item["result_id"]) for planned_item in planned_items
+    ]
+    expected_result_id_set = set(expected_result_ids)
+    stale_result_count = len(
+        set(existing_rows_by_id).difference(expected_result_id_set)
+    )
+    rows_by_id = {
+        result_id: existing_rows_by_id[result_id]
+        for result_id in expected_result_ids
+        if result_id in existing_rows_by_id
+    }
+    pending_items: list[dict[str, Any]] = []
+    skipped_count = 0
+
+    for planned_item in planned_items:
+        result_id = str(planned_item["result_id"])
+        existing = rows_by_id.get(result_id)
+        if existing and _should_skip_existing(
+            existing, retry_errors=config.retry_errors
+        ):
+            skipped_count += 1
+            continue
+
+        pending_items.append(
+            {
+                "item": planned_item["item"],
+                "model_call_id": planned_item["model_call_id"],
+                "prompt": planned_item["prompt"],
+                "result_id": result_id,
+            }
+        )
+
+    executed_count = 0
+    for chunk in _chunked(pending_items, config.chunk_size):
+        for pending in chunk:
+            item = pending["item"]
+            result_id = pending["result_id"]
+            row = _evaluate_item(
+                config=config,
+                config_id=config_id,
+                config_snapshot_path=config_snapshot_path,
+                model_name=model_name,
+                item=item,
+                model_call_id=pending["model_call_id"],
+                prompt=pending["prompt"],
+                result_id=result_id,
+                evaluator=evaluator,
+            )
+            rows_by_id[result_id] = row
+            executed_count += 1
+
+        results = _ordered_results(rows_by_id, expected_result_ids)
+        _save_results(
+            results_path,
+            results,
+            config=config,
+            resolved_config=resolved_config,
+            custom_models_path=custom_models_path,
+        )
+    if stale_result_count and not pending_items:
+        results = _ordered_results(rows_by_id, expected_result_ids)
+        _save_results(
+            results_path,
+            results,
+            config=config,
+            resolved_config=resolved_config,
+            custom_models_path=custom_models_path,
+        )
+
+    results = _ordered_results(rows_by_id, expected_result_ids)
+    return {
+        "model_name": model_name,
+        "executed_count": executed_count,
+        "skipped_count": skipped_count,
+        "error_count": _error_count(results),
+    }
+
+
+def _preflight_retry_results(
+    config: BenchmarkRunConfig,
+    results_paths: Mapping[str, Path],
+) -> None:
+    """Require every model cache before starting any retry-only worker."""
+
+    if not config.retry_errors:
+        return
+    missing_models = [
+        model_name
+        for model_name in config.models
+        if not results_paths[model_name].exists()
+    ]
+    if missing_models:
+        raise FileNotFoundError(
+            "No cached results found for "
+            + ", ".join(missing_models)
+            + "; cannot use --retry-errors."
+        )
+
+
 def prepare_fdllm_for_run(config: BenchmarkRunConfig) -> None:
-    """Load model environment, prepare model config, and validate model names."""
+    """Load model environment, register the selected file, and validate models."""
 
     _load_environment(config.env_path)
-    custom_models_path = _prepare_custom_models(config.custom_models_path)
+    custom_models_path = _resolve_custom_models_path(config.custom_models_path)
     _register_custom_models(custom_models_path)
     validate_registered_models(config.models)
 
@@ -263,22 +367,23 @@ def evaluate_item_with_fdllm(
     item: Mapping[str, Any],
     prompt: str,
 ) -> dict[str, Any]:
-    """Return the temporary model response payload for one model/item pair."""
+    """Call the configured model and return the fields stored in its result row."""
 
+    call_record = call_llm(
+        prompt,
+        model=model_name,
+        system_prompt=None,
+        max_tokens=_effective_max_tokens(config.max_tokens),
+        should_log=False,
+        tag=str(item["item_id"]),
+    )
     return {
-        "output": call_fdllm(config, model_name, item, prompt),
+        "output": call_record["response_text"],
+        "max_tokens": call_record["max_tokens"],
+        "tokens_used_completion": call_record["tokens_used_completion"],
+        "timestamp_utc": call_record["timestamp_utc"],
+        "latency_seconds": call_record["latency_seconds"],
     }
-
-
-def call_fdllm(
-    config: BenchmarkRunConfig,
-    model_name: str,
-    item: Mapping[str, Any],
-    prompt: str,
-) -> str:
-    """Temporary placeholder for prompt loading and the eventual FDLLM call."""
-
-    return PLACEHOLDER_LLM_TEXT
 
 
 def _planned_model_items(
@@ -290,7 +395,7 @@ def _planned_model_items(
 ) -> list[dict[str, Any]]:
     planned_items = []
     for item in items:
-        prompt = PLACEHOLDER_LLM_TEXT
+        prompt = build_decodability_prompt(item, config.language)
         model_call_id = _model_call_id(
             config=config,
             model_name=model_name,
@@ -323,8 +428,6 @@ def _evaluate_item(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
 ) -> dict[str, Any]:
-    started_at = _utc_now()
-    started_perf = time.perf_counter()
     base_row: dict[str, Any] = {
         "result_id": result_id,
         "run_id": config.run_id,
@@ -338,12 +441,10 @@ def _evaluate_item(
         "item_id": item["item_id"],
         "item": item_to_dict(item),
         "prompt": prompt,
-        "started_at": started_at,
     }
 
     try:
         payload = evaluator(config, model_name, item, prompt)
-        elapsed_seconds = time.perf_counter() - started_perf
         return {
             **base_row,
             **payload,
@@ -351,11 +452,8 @@ def _evaluate_item(
             "call_status": CALL_STATUS_SUCCESS,
             "error_type": "",
             "error_message": "",
-            "elapsed_seconds": elapsed_seconds,
-            "completed_at": _utc_now(),
         }
     except Exception as e:
-        elapsed_seconds = time.perf_counter() - started_perf
         return {
             **base_row,
             "output": "",
@@ -363,8 +461,6 @@ def _evaluate_item(
             "call_status": CALL_STATUS_ERROR,
             "error_type": type(e).__name__,
             "error_message": str(e),
-            "elapsed_seconds": elapsed_seconds,
-            "completed_at": _utc_now(),
         }
 
 
@@ -390,11 +486,8 @@ def _register_custom_models(custom_models_path: Path | None) -> Path:
     return resolved_custom_models_path
 
 
-def _prepare_custom_models(custom_models_path: Path | None) -> Path:
-    """Download the shared model config, unless the caller supplied a pinned file."""
-
-    if custom_models_path is not None:
-        return _resolve_custom_models_path(custom_models_path)
+def download_default_custom_models() -> Path:
+    """Anonymously refresh the shared repo-root custom_models.yaml."""
 
     from fab_benchmark_publisher import download_file
 
@@ -573,12 +666,20 @@ def _model_call_id(
         {
             "item": item_to_dict(item),
             "language": config.language,
-            "max_tokens": config.max_tokens,
+            "max_tokens": _effective_max_tokens(config.max_tokens),
             "model": model_name,
             "model_config": model_config,
             "prompt": prompt,
             "task": config.task,
         }
+    )
+
+
+def _effective_max_tokens(configured_max_tokens: int | None) -> int:
+    return (
+        configured_max_tokens
+        if configured_max_tokens is not None
+        else DEFAULT_MAX_TOKENS
     )
 
 
