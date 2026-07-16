@@ -10,7 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
   "decodability",
   "fab-benchmark-publisher",
-  "openpyxl>=3.1",
+  "pandas>=2.0.0",
   "pydantic>=2.13.4",
   "typer>=0.12.0",
 ]
