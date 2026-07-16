@@ -93,7 +93,7 @@ class TestReadStudentKnowledgeProfiles:
         """Returns the correct number of StudentKnowledgeProfile objects."""
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         assert len(profiles) == 76
-        assert all(isinstance(p, StudentKnowledgeProfile) for p in profiles)
+        assert all(isinstance(p, StudentKnowledge) for p in profiles)
 
     def test_first_profile(self, real_data_root) -> None:
         """First profile has the expected ID, graphemes, and whole_words."""
@@ -101,8 +101,8 @@ class TestReadStudentKnowledgeProfiles:
         profiles = read_student_knowledge_profiles("kiswahili", real_data_root)
         first = profiles[0]
         assert first.student_knowledge_id == "tusome-ke-stage-01"
-        assert first.taught_knowledge["graphemes"] == ["a", "m"]
-        assert "whole_words" in first.taught_knowledge
+        assert first.student_knowledge["graphemes"] == ["a", "m"]
+        assert "whole_words" in first.student_knowledge
 
     def test_missing_file_raises(self, real_data_root) -> None:
         """Raises FileNotFoundError naming the file when no profiles JSONL exists."""
