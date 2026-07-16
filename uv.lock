@@ -1546,8 +1546,10 @@ source = { editable = "benchmarks/phonics_benchmark" }
 dependencies = [
     { name = "decodability" },
     { name = "fab-benchmark-publisher" },
+    { name = "fabdata-llm" },
     { name = "pandas" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "typer" },
 ]
 
@@ -1555,8 +1557,10 @@ dependencies = [
 requires-dist = [
     { name = "decodability", editable = "packages/decodability" },
     { name = "fab-benchmark-publisher", editable = "packages/fab_benchmark_publisher" },
-    { name = "pandas", specifier = ">=2.0.0" },
+    { name = "fabdata-llm", git = "https://github.com/AI-for-Education/fabdata-llm.git?rev=main" },
+    { name = "pandas", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
 

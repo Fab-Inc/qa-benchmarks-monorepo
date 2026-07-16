@@ -10,8 +10,14 @@ requires-python = ">=3.13"
 dependencies = [
   "decodability",
   "fab-benchmark-publisher",
+<<<<<<< qfb-187-template-ingestion-script
   "pandas>=2.0.0",
+=======
+  "fabdata-llm",
+  "pandas>=3.0.0",
+>>>>>>> main
   "pydantic>=2.13.4",
+  "pyyaml>=6.0",
   "typer>=0.12.0",
 ]
 

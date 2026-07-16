@@ -1,5 +1,6 @@
 from fab_benchmark_publisher.contracts import LeaderboardRecord
 from fab_benchmark_publisher.publisher import (
+    download_file,
     publish_records,
     results_blob_name,
     upload_file,
@@ -24,4 +25,5 @@ __all__ = [
     "validate_records",
     "write_and_publish_records",
     "write_results_json",
+    "download_file",
 ]
