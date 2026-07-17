@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-from phonics_benchmark.analysis import (
+from phonics_benchmark.plots import (
     save_accuracy_by_nondecodable_count_plot,
     save_confusion_bar_plot,
 )
@@ -71,6 +71,8 @@ def main() -> None:
             [
                 "benchmark_item_id",
                 "model_name",
+                "prompt",
+                "response_raw",
                 "response_parsed",
                 "correct_answer",
                 "perfect_match",

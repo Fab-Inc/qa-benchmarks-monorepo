@@ -28,13 +28,13 @@ from fdllm import register_models
 from phonics_benchmark.llm import call_llm
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.prompts import build_decodability_prompt as build_prompt
-from phonics_benchmark.analysis import save_nondecodable_ratio_histogram
 from phonics_benchmark.dataset import (
     add_analysis_columns,
     build_benchmark_items,
     filter_benchmark_items,
 )
 from phonics_benchmark.labeling import label_nondecodable_words
+from phonics_benchmark.plots import save_nondecodable_ratio_histogram
 from phonics_benchmark.run import load_completed_keys, run_benchmark
 
 REPO_ROOT = Path(__file__).parents[3]

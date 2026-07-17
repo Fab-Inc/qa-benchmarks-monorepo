@@ -1,7 +1,7 @@
-"""Tests for the analysis module."""
+"""Tests for the plots module."""
 
 import pandas as pd
-from phonics_benchmark.analysis import save_nondecodable_ratio_histogram
+from phonics_benchmark.plots import save_nondecodable_ratio_histogram
 
 
 def test_save_histogram_writes_file(tmp_path) -> None:

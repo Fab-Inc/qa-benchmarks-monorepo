@@ -1,11 +1,10 @@
 """Run models against prepared benchmark items and score their responses.
 
 Calls are fanned out with asyncio (fdllm handles retry/backoff for rate limits;
-we add the concurrency cap it lacks). Scoring is deliberately crude (exact set
-match against the labelled non-decodable words) — richer scoring is out of scope
-for now. ``run_benchmark_async`` exposes an ``on_result`` hook so a runner can
-stream results to disk, and a ``completed_keys`` set so an interrupted run can be
-resumed without re-calling model/item pairs already done.
+we add the concurrency cap it lacks). ``run_benchmark_async`` exposes an
+``on_result`` hook so a runner can stream results to disk, and a
+``completed_keys`` set so an interrupted run can be resumed without re-calling
+model/item pairs already done.
 """
 
 from __future__ import annotations
@@ -76,13 +75,15 @@ def submit_benchmark_item_to_model(
     return call_record
 
 
-def evaluate_response(
+def process_model_response_into_result(
     call_record: dict[str, Any], benchmark_item: Any
 ) -> dict[str, Any]:
     """Parse and score a model response into a flat result record."""
     response_raw: str = call_record["response_text"]
+
     response_parsed, response_parse_ok = parse_word_list(response_raw)
     response_parsed = [word.lower() for word in response_parsed]
+
     if not response_parse_ok:
         # TODO: maybe retry the LLM call instead of just recording the failure
         print(
@@ -122,18 +123,25 @@ def load_completed_keys(path: Path) -> set[tuple[str, str]]:
     calls that already succeeded.
     """
     completed: set[tuple[str, str]] = set()
+
     if not path.exists():
         return completed
+
     with path.open(encoding="utf-8") as file:
         for line in file:
             line = line.strip()
+
             if not line:
                 continue
+
             record = json.loads(line)
+
             model_name = record.get("model_name")
             benchmark_item_id = record.get("benchmark_item_id")
+
             if model_name is not None and benchmark_item_id is not None:
                 completed.add((model_name, benchmark_item_id))
+
     return completed
 
 
@@ -146,9 +154,11 @@ async def _submit_and_evaluate_async(
     max_tokens: int,
     bypass_llm: bool,
 ) -> dict[str, Any]:
+    """Submit benchmark item to model and evaluate the response (async)."""
     prompt = build_decodability_prompt(
         benchmark_item, language, prompt_name=prompt_name
     )
+
     call_record = await call_llm_async(
         prompt,
         model=model,
@@ -156,9 +166,11 @@ async def _submit_and_evaluate_async(
         tag=str(benchmark_item["benchmark_item_id"]),
         bypass_llm=bypass_llm,
     )
+
     call_record.setdefault("model", model)
     call_record.setdefault("prompt", prompt)
-    return evaluate_response(call_record, benchmark_item)
+
+    return process_model_response_into_result(call_record, benchmark_item)
 
 
 async def run_benchmark_async(
@@ -206,14 +218,17 @@ async def run_benchmark_async(
             if max_rows_per_model == 0
             else benchmark_items.head(max_rows_per_model)
         )
+
         tasks = []
         skipped = 0
+
         for _, benchmark_item in rows.iterrows():
             if (model, benchmark_item["benchmark_item_id"]) in completed_keys:
                 skipped += 1
                 continue
             tasks.append(asyncio.create_task(worker(model, benchmark_item)))
 
+        # TODO: use logger
         print(
             f"Running decodability benchmark for model: {model} "
             f"({len(tasks)} to run, {skipped} already complete)"

@@ -46,16 +46,16 @@ def add_analysis_columns(benchmark_items: pd.DataFrame, language: str) -> pd.Dat
     """Add num_nondecodable_words, num_total_words and nondecodable_ratio.
 
     Expects a ``non_decodable_words`` column (see ``labeling``) and a ``content``
-    column. Total word count uses the language's tokenizer. Returns a copy.
+    column. Total word count uses the language's word extractor. Returns a copy.
     """
-    tokenizer = get_decodability_objects(language).tokenizer
+    extract_words = get_decodability_objects(language).extract_words
 
     benchmark_items = benchmark_items.copy()
     benchmark_items["num_nondecodable_words"] = benchmark_items[
         "non_decodable_words"
     ].apply(len)
     benchmark_items["num_total_words"] = benchmark_items["content"].apply(
-        lambda content: len(tokenizer(content))
+        lambda content: len(extract_words(content))
     )
     benchmark_items["nondecodable_ratio"] = (
         benchmark_items["num_nondecodable_words"] / benchmark_items["num_total_words"]

@@ -82,7 +82,7 @@ def _json_dumps(value: Any) -> str:
 Pairs each result row (one model's response to one benchmark item) with the
 item's non-decodable-word ratio and text vocabulary, so accuracy and
 word-level confusion counts can be sliced by item difficulty. Vocabulary is
-recomputed from ``content`` via the language tokenizer rather than trusting
+recomputed from ``content`` via the language ``extract_words`` rather than trusting
 ``num_total_words`` — that column counts word *occurrences* (repeats
 included), whereas confusion counts need the number of distinct word types in
 the text.
@@ -110,11 +110,11 @@ def attach_item_metadata(
     the set of distinct lowercase words in the item's text — used by
     ``add_word_level_counts`` to derive true negatives.
     """
-    tokenizer = get_decodability_objects(language).tokenizer
+    extract_words = get_decodability_objects(language).extract_words
     metadata_columns = ["benchmark_item_id", "content", "nondecodable_ratio"]
     merged = results.merge(items[metadata_columns], on="benchmark_item_id", how="left")
     merged["vocab"] = merged["content"].apply(
-        lambda content: {word.lower() for word in tokenizer(content)}
+        lambda content: {word.lower() for word in extract_words(content)}
     )
     return merged
 

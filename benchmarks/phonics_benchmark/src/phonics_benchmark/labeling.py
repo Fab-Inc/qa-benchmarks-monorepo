@@ -61,7 +61,7 @@ def label_nondecodable_words(
     scoring_methods, aggregations = resolve_decodability_config(config, language)
 
     def get_nondecodable_words(benchmark_item: pd.Series) -> list[str]:
-        words = objs.tokenizer(benchmark_item.content)
+        words = objs.extract_words(benchmark_item.content)
         student_knowledge = objs.student_knowledge_model.model_validate(
             benchmark_item.student_knowledge
         )
