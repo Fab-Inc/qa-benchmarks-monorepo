@@ -71,7 +71,12 @@ def label_nondecodable_words(
             student_knowledge=student_knowledge,
             aggregations=aggregations,
         )
-        label_df = label_df.drop_duplicates()
-        return label_df["word"][label_df[score_column] == 0.0].tolist()
+        nondecodable_words = sorted(
+            label_df["word"][label_df[score_column] == 0.0]
+            .str.lower()
+            .unique()
+            .tolist()
+        )
+        return nondecodable_words
 
     return benchmark_items.apply(get_nondecodable_words, axis=1)
