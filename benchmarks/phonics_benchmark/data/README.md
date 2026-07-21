@@ -1,17 +1,40 @@
 # Decodability Benchmark Data
 
 Benchmark data for the decodability assessment, organised by language. Each language
-gets its own subfolder (e.g. `kiswahili/`, `english/`). A subfolder without data files
-is a placeholder for a language not yet populated.
+gets its own subfolder (e.g. `kiswahili/`).
 
 ```
 data/
-├── kiswahili/
-│   ├── decodable_texts.jsonl
-│   ├── student_knowledge_profiles.jsonl
-│   └── benchmark_items.jsonl
-└── english/                    # placeholder — no data files yet
+└── kiswahili/
+    ├── raw/
+    │   └── benchmark_data_tusome_ke.xlsx
+    ├── templates/
+    │   └── benchmark_data_template_kiswahili.xlsx
+    ├── decodable_texts.jsonl
+    ├── student_knowledge_profiles.jsonl
+    └── benchmark_items.jsonl
 ```
+
+______________________________________________________________________
+
+## `raw/`
+
+Holds the filled-in workbooks completed by language experts. These are the source data
+from which `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` are generated.
+
+______________________________________________________________________
+
+## `templates/`
+
+Holds the blank Excel data-entry template(s) for a language. Each workbook has a
+`Student Profiles` tab and a `Texts` tab, plus a `README` tab documenting which columns
+are machine-read versus free-form expert context.
+
+> [!NOTE]\
+> `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` are programmatically
+> generated from a filled-in workbook in `raw/` using
+> `scripts/ingest_benchmark_data_template.py` — don't hand-edit those two files
+> directly, re-run the ingestion script against the workbook instead.
 
 ______________________________________________________________________
 
@@ -50,26 +73,21 @@ decodable for that student.
 | `language_iso_code`    | string | ISO 639-1 language code                                 |
 | `student_knowledge`    | object | Phonics units the student has been taught (see below)   |
 
-### `student_knowledge` fields
-
 > [!WARNING]\
-> Student knowledge representation is currently evolving and fields in the
-> student_knowledge object are subject to change.
+> The contents of the `student_knowledge` object are language-dependent and still
+> evolving. Each language defines its own set of fields (e.g. graphemes, whole words,
+> syllable patterns) in the `STUDENT_KNOWLEDGE_FIELDS` registry in
+> `scripts/ingest_benchmark_data_template.py`. Refer to that registry for the
+> authoritative field list per language.
 
-| Field         | Type     | Description                                                  |
-| ------------- | -------- | ------------------------------------------------------------ |
-| `graphemes`   | string[] | Graphemes (letters/digraphs) the student has been taught     |
-| `whole_words` | string[] | Sight/whole words the student has been taught (may be empty) |
-
-**Example**
+**Example (Kiswahili)**
 
 ```json
 {
-  "student_knowledge_id": "stu-sw-002",
+  "student_knowledge_id": "tusome-ke-stage-01",
   "language_iso_code": "sw",
   "student_knowledge": {
-    "graphemes": ["a", "e", "i", "o", "u", "ba", "be", "bi", "bo", "bu",
-                  "ma", "me", "mi", "mo", "mu", "m_", "n_", "st"],
+    "graphemes": ["a", "e", "i", "o", "u", "ba", "be", "bi"],
     "whole_words": ["mama", "paka", "ana"]
   }
 }
@@ -112,8 +130,13 @@ ______________________________________________________________________
 ## Adding a new language
 
 1. Create a subfolder using the full language name in lowercase (e.g. `data/english/`).
-1. Add `decodable_texts.jsonl`, `student_knowledge_profiles.jsonl`, and
-   `benchmark_items.jsonl` following the schemas above, using the appropriate ISO 639-1
-   code in `language_iso_code`.
+1. Add a blank data-entry template to `templates/` and a filled-in copy to `raw/`, then
+   generate `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` by running
+   `scripts/ingest_benchmark_data_template.py` against the filled-in workbook (see the
+   `raw/` section above).
+1. Register the language's student-knowledge fields in the `STUDENT_KNOWLEDGE_FIELDS`
+   dict in `scripts/ingest_benchmark_data_template.py`.
+1. Add `benchmark_items.jsonl` following the schema above, using the appropriate ISO
+   639-1 code in `language_iso_code`.
 1. The `get_data_dir()` utility in `data_io` resolves language folders by name, so the
    folder name must match the string passed to the data-loading functions.

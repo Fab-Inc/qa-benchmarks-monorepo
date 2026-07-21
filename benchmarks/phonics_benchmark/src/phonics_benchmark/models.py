@@ -11,7 +11,7 @@ class StudentKnowledge(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
-    # Schema is intentionally open — taught_knowledge is still evolving.
+    # Schema is intentionally open — student_knowledge is still evolving.
     student_knowledge: dict[str, list[str] | int]
 
 
