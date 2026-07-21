@@ -2,7 +2,9 @@
 
 import re
 
-WORD_RE = re.compile(r"(?:[Nn][Gg]'|[A-Za-z])+")
+APOSTROPHE_RE = r"['’′´❜]"
+VELAR_NASAL_APOSTROPHE_RE = re.compile(rf"(?<=[Nn][Gg]){APOSTROPHE_RE}")
+WORD_RE = re.compile(rf"(?:[Nn][Gg]{APOSTROPHE_RE}|[A-Za-z])+")
 
 
 def extract_words_kiswahili(text: str) -> list[str]:
@@ -11,4 +13,4 @@ def extract_words_kiswahili(text: str) -> list[str]:
     However, we explicitly include "ng'" as a valid character sequence so that the
     apostrophe in this case won't split up a word.
     """
-    return WORD_RE.findall(text)
+    return [VELAR_NASAL_APOSTROPHE_RE.sub("'", w) for w in WORD_RE.findall(text)]

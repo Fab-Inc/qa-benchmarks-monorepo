@@ -103,6 +103,10 @@ class TestKiswahiliTokenizer:
             ("Baba ana duka sokoni.", ["Baba", "ana", "duka", "sokoni"]),
             ("Ng'ombe ni mnyama.", ["Ng'ombe", "ni", "mnyama"]),
             ("Ng'ang'ania.", ["Ng'ang'ania"]),
+            (
+                "Waliona ng’ombe na mbuzi shambani",
+                ["Waliona", "ng'ombe", "na", "mbuzi", "shambani"],
+            ),
         ],
     )
     def test_tokenize_kiswahili(self, text: str, expected: list[str]):
