@@ -183,26 +183,39 @@ async def run_benchmark_async(
     max_rows_per_model: int = 0,
     max_concurrency: int = 10,
     bypass_llm: bool = False,
+    concurrency_group: Callable[[str], str] | None = None,
     completed_keys: set[tuple[str, str]] | None = None,
     on_result: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Run every model against every benchmark item and score each response.
 
-    Models are processed one at a time (rate limits are per-provider); each
-    model's items are fanned out concurrently, capped at ``max_concurrency``.
+    All (model, item) calls are fanned out together so every provider works in
+    parallel; total time is bounded by the slowest provider, not the sum. Each
+    concurrency group gets its own ``max_concurrency`` cap.
+    ``concurrency_group`` maps a model name to a group key
+    (default: one group per model, i.e. each model capped independently);
+    map models that share a provider/account to the same key so they share a cap.
+
     ``max_rows_per_model`` caps rows per model for quick tests (0 = all rows).
-    ``completed_keys`` holds (model, benchmark_item_id) pairs to skip (for
-    resuming). ``on_result`` is called with each result as it completes (e.g. to
-    append to a JSONL crash-fallback). A call that raises is logged and dropped
-    (no result recorded) so a later resume retries it. Returns all new results,
-    in completion order.
+
+    ``completed_keys`` holds (model, benchmark_item_id) pairs to skip for resuming.
+
+    ``on_result`` is called with each result as it completes (e.g. to append to a
+    JSONL crash-fallback). A call that raises is logged and dropped (no result
+    recorded) so a later resume retries it.
+
+    Returns all new results, in completion order.
     """
     completed_keys = completed_keys or set()
-    semaphore = asyncio.Semaphore(max_concurrency)
+    group_of = concurrency_group or (lambda model: model)
+
+    semaphores = {
+        group_of(model): asyncio.Semaphore(max_concurrency) for model in models
+    }
     results: list[dict[str, Any]] = []
 
     async def worker(model: str, benchmark_item: Any) -> dict[str, Any]:
-        async with semaphore:
+        async with semaphores[group_of(model)]:
             return await _submit_and_evaluate_async(
                 model,
                 benchmark_item,
@@ -212,36 +225,39 @@ async def run_benchmark_async(
                 bypass_llm=bypass_llm,
             )
 
-    for model in models:
-        rows = (
-            benchmark_items
-            if max_rows_per_model == 0
-            else benchmark_items.head(max_rows_per_model)
-        )
+    rows = (
+        benchmark_items
+        if max_rows_per_model == 0
+        else benchmark_items.head(max_rows_per_model)
+    )
 
-        tasks = []
-        skipped = 0
-
-        for _, benchmark_item in rows.iterrows():
+    tasks = []
+    per_model_counts: Counter[str] = Counter()
+    skipped = 0
+    for _, benchmark_item in rows.iterrows():
+        for model in models:
             if (model, benchmark_item["benchmark_item_id"]) in completed_keys:
                 skipped += 1
                 continue
             tasks.append(asyncio.create_task(worker(model, benchmark_item)))
+            per_model_counts[model] += 1
 
-        # TODO: use logger
-        print(
-            f"Running decodability benchmark for model: {model} "
-            f"({len(tasks)} to run, {skipped} already complete)"
-        )
-        for coro in asyncio.as_completed(tasks):
-            try:
-                result = await coro
-            except Exception as exc:  # noqa: BLE001 - log and continue so resume retries
-                print(f"WARNING: call failed for model {model}: {exc!r}")
-                continue
-            results.append(result)
-            if on_result is not None:
-                on_result(result)
+    # TODO: use logger
+    print(
+        f"Running {len(tasks)} calls across {len(models)} model(s), "
+        f"{skipped} already complete: {dict(per_model_counts)}"
+    )
+    for coro in asyncio.as_completed(tasks):
+        try:
+            result = await coro
+        except Exception as exc:  # noqa: BLE001 - log and continue so resume retries
+            print(f"WARNING: call failed: {exc!r}")
+            continue
+
+        results.append(result)
+
+        if on_result is not None:
+            on_result(result)
 
     return results
 
