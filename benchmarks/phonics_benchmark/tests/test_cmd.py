@@ -72,6 +72,92 @@ def test_run_decodability_command_uses_config(
     assert "Results:" in result.stdout
 
 
+@pytest.mark.parametrize(
+    ("flag", "expected_force", "expected_retry_errors"),
+    [
+        ("--force", True, False),
+        ("--retry-errors", False, True),
+    ],
+)
+def test_run_decodability_command_execution_flags_override_config(
+    runner: CliRunner,
+    tmp_path: Path,
+    flag: str,
+    expected_force: bool,
+    expected_retry_errors: bool,
+) -> None:
+    """CLI execution flags take precedence when a config file is supplied."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "english",
+                "items_path": "items.csv",
+                "models": ["model-a"],
+                "force": False,
+                "retry_errors": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = _run_output(tmp_path / "outputs", "experiment-a", total=1)
+
+    with (
+        patch("phonics_benchmark.cmd.download_default_custom_models"),
+        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
+        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
+        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+    ):
+        result = runner.invoke(
+            app,
+            ["run-decodability", "--config", str(config_path), flag],
+        )
+
+    assert result.exit_code == 0
+    run_config = run.call_args.args[0]
+    assert run_config.force is expected_force
+    assert run_config.retry_errors is expected_retry_errors
+
+
+def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """An execution flag cannot combine with the opposite config mode."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "english",
+                "items_path": "items.csv",
+                "models": ["model-a"],
+                "force": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch(
+        "phonics_benchmark.cmd.download_default_custom_models"
+    ) as download_models:
+        result = runner.invoke(
+            app,
+            [
+                "run-decodability",
+                "--config",
+                str(config_path),
+                "--retry-errors",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "cannot be combined" in result.stderr
+    download_models.assert_not_called()
+
+
 def test_run_decodability_command_uses_cli_args(
     runner: CliRunner, tmp_path: Path
 ) -> None:

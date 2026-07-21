@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import typer
 
 from phonics_benchmark.config import (
     DECODABILITY_TASK,
+    BenchmarkRunConfig,
     ConfigError,
     build_run_config,
     config_identity_sha256,
@@ -148,6 +150,11 @@ def run_decodability_cmd(
                 config,
                 task=DECODABILITY_TASK,
             )
+            run_config = _apply_execution_overrides(
+                run_config,
+                force=force,
+                retry_errors=retry_errors,
+            )
         else:
             effective_run_id = (
                 _timestamp_run_id() if timestamped_output and run_id is None else run_id
@@ -189,6 +196,25 @@ def run_decodability_cmd(
         raise typer.Exit(1) from e
 
     _echo_run_output(output)
+
+
+def _apply_execution_overrides(
+    config: BenchmarkRunConfig,
+    *,
+    force: bool,
+    retry_errors: bool,
+) -> BenchmarkRunConfig:
+    """Apply explicitly enabled CLI execution modes to a file config."""
+
+    effective_force = force or config.force
+    effective_retry_errors = retry_errors or config.retry_errors
+    if effective_force and effective_retry_errors:
+        raise ConfigError("'force' and 'retry_errors' cannot be combined")
+    return replace(
+        config,
+        force=effective_force,
+        retry_errors=effective_retry_errors,
+    )
 
 
 def _timestamp_run_id() -> str:
