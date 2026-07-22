@@ -104,6 +104,9 @@ def attach_item_metadata(
 ) -> pd.DataFrame:
     """Join results to per-item metadata and add a lowercase vocabulary set.
 
+    # TODO: we will probably want to push out any normalization such as lowercasing
+    # to the decodability package in the future, rather than doing it here.
+
     ``items`` must have ``benchmark_item_id``, ``content`` and
     ``nondecodable_ratio`` columns (e.g.
     ``tusome_benchmark_items_with_analysis.csv``). Adds a ``vocab`` column —
@@ -113,31 +116,46 @@ def attach_item_metadata(
     extract_words = get_decodability_objects(language).extract_words
     metadata_columns = ["benchmark_item_id", "content", "nondecodable_ratio"]
     merged = results.merge(items[metadata_columns], on="benchmark_item_id", how="left")
-    merged["vocab"] = merged["content"].apply(
+
+    # TODO: Push out any normalization to extract_words in the future
+    merged["vocab_set"] = merged["content"].apply(
         lambda content: {word.lower() for word in extract_words(content)}
     )
     return merged
 
 
-def add_word_level_counts(results: pd.DataFrame) -> pd.DataFrame:
+def add_word_level_confusion_matrix(results: pd.DataFrame) -> pd.DataFrame:
     """Add per-row true/false positive/negative word counts.
 
-    A "positive" is a word the model listed as non-decodable. True negatives
-    are vocabulary words that are neither predicted nor actually
-    non-decodable. Expects ``response_parsed``, ``correct_answer`` and
-    ``vocab`` columns (see ``attach_item_metadata``).
+    A "positive" is a word the model listed as non-decodable.
+
+    Expects ``response_parsed``, ``correct_answer`` and ``vocab`` columns
+    (see ``attach_item_metadata``).
     """
 
-    def counts(row: pd.Series) -> pd.Series:
+    def get_confusion_matrix(row: pd.Series) -> pd.Series:
         predicted = set(row["response_parsed"])
         actual = set(row["correct_answer"])
-        tp = len(predicted & actual)
-        fp = len(predicted - actual)
-        fn = len(actual - predicted)
-        tn = len(row["vocab"] - predicted - actual)
-        return pd.Series({"tp": tp, "fp": fp, "fn": fn, "tn": tn})
+        perfect_match = predicted == actual
+        tp = predicted & actual
+        fp = predicted - actual
+        fn = actual - predicted
+        tn = row["vocab_set"] - predicted - actual
+        return pd.Series(
+            {
+                "perfect_match": perfect_match,
+                "tp": tp,
+                "fp": fp,
+                "fn": fn,
+                "tn": tn,
+                "tp_count": len(tp),
+                "fp_count": len(fp),
+                "fn_count": len(fn),
+                "tn_count": len(tn),
+            }
+        )
 
-    return pd.concat([results, results.apply(counts, axis=1)], axis=1)
+    return pd.concat([results, results.apply(get_confusion_matrix, axis=1)], axis=1)
 
 
 def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
@@ -154,13 +172,17 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     summary = results.groupby("model_name").agg(
         n_items=("benchmark_item_id", "count"),
         accuracy=("perfect_match", "mean"),
-        tp=("tp", "sum"),
-        fp=("fp", "sum"),
-        fn=("fn", "sum"),
-        tn=("tn", "sum"),
+        tp_count=("tp_count", "sum"),
+        fp_count=("fp_count", "sum"),
+        fn_count=("fn_count", "sum"),
+        tn_count=("tn_count", "sum"),
     )
-    summary["precision"] = summary["tp"] / (summary["tp"] + summary["fp"])
-    summary["recall"] = summary["tp"] / (summary["tp"] + summary["fn"])
+    summary["precision"] = summary["tp_count"] / (
+        summary["tp_count"] + summary["fp_count"]
+    )
+    summary["recall"] = summary["tp_count"] / (
+        summary["tp_count"] + summary["fn_count"]
+    )
     summary["f1"] = (
         2
         * summary["precision"]
@@ -173,8 +195,9 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
 def accuracy_by_nondecodable_count(results: pd.DataFrame) -> pd.DataFrame:
     """Per-model, per-num_nondecodable_words accuracy (mean perfect_match).
 
-    Reveals whether accuracy degrades as items get harder (more non-decodable
-    words to find), which a single overall accuracy figure would hide.
+    Reveals whether accuracy degrades as the number of non-decodable
+    words increases.
+
     Expects a ``num_nondecodable_words`` column (see
     ``phonics_benchmark.dataset.add_analysis_columns``).
     """
@@ -183,6 +206,11 @@ def accuracy_by_nondecodable_count(results: pd.DataFrame) -> pd.DataFrame:
         .agg(accuracy="mean", n_items="count")
         .reset_index()
     )
+
+
+def _sample(group, n_per_bin: int, random_state: int) -> pd.DataFrame:
+    """Sample ``n_per_bin`` rows from each group, or all if fewer than that."""
+    return group.sample(min(n_per_bin, len(group)), random_state=random_state)
 
 
 def sample_items_for_inspection(
@@ -206,10 +234,9 @@ def sample_items_for_inspection(
     return (
         items.groupby("ratio_bin", observed=True)
         .apply(
-            lambda group: group.sample(
-                min(n_per_bin, len(group)), random_state=random_state
-            ),
-            include_groups=False,
+            _sample,
+            n_per_bin=n_per_bin,
+            random_state=random_state,
         )
         .reset_index(level=0)
         .reset_index(drop=True)

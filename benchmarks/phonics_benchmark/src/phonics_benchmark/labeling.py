@@ -47,9 +47,7 @@ def label_nondecodable_words(
 ) -> pd.Series:
     """Return, per benchmark item, the list of words scored as non-decodable.
 
-    A word is non-decodable when its aggregated decodability score is 0.0 in the
-    ``score_column`` (which the config must produce). Expects the DataFrame to
-    have ``content`` and ``student_knowledge`` columns.
+    Expects the DataFrame to have ``content`` and ``student_knowledge`` columns.
     """
     missing = {"content", "student_knowledge"} - set(benchmark_items.columns)
     if missing:

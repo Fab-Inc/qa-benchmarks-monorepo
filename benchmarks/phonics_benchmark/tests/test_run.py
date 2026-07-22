@@ -50,12 +50,9 @@ def test_run_benchmark_bypass_produces_one_record_per_item() -> None:
     assert set(first) >= {
         "model_name",
         "benchmark_item_id",
-        "student_knowledge_id",
         "prompt",
         "response_parsed",
         "response_parse_ok",
-        "correct_answer",
-        "perfect_match",
     }
 
 

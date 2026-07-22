@@ -18,7 +18,7 @@ from phonics_benchmark.plots import (
 )
 from phonics_benchmark.results import (
     accuracy_by_nondecodable_count,
-    add_word_level_counts,
+    add_word_level_confusion_matrix,
     attach_item_metadata,
     load_results,
     sample_items_for_inspection,
@@ -38,13 +38,14 @@ OUTPUT_DIR = BENCHMARK_DIR / "outputs" / "analysis"
 def main() -> None:
     results = load_results(RESULTS_PATH)
     items = pd.read_csv(ITEMS_WITH_ANALYSIS_PATH)
+
     results = attach_item_metadata(results, items, LANGUAGE)
     results = results.merge(
         items[["benchmark_item_id", "num_nondecodable_words"]],
         on="benchmark_item_id",
         how="left",
     )
-    results = add_word_level_counts(results)
+    results = add_word_level_confusion_matrix(results)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -74,11 +75,10 @@ def main() -> None:
                 "prompt",
                 "response_raw",
                 "response_parsed",
-                "correct_answer",
-                "perfect_match",
-                "tp",
-                "fp",
-                "fn",
+                "tp_count",
+                "fp_count",
+                "fn_count",
+                "tn",
             ]
         ],
         on="benchmark_item_id",

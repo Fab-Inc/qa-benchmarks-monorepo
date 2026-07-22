@@ -91,23 +91,13 @@ def process_model_response_into_result(
             f"did not match expected pattern"
         )
 
-    correct_answer_parsed = [
-        word.lower() for word in benchmark_item["non_decodable_words"]
-    ]
-
-    # Perfect one-to-one correspondence ignoring order (duplicates must match too).
-    perfect_match = Counter(response_parsed) == Counter(correct_answer_parsed)
-
     return {
         "model_name": call_record.get("model"),
         "benchmark_item_id": benchmark_item["benchmark_item_id"],
-        "student_knowledge_id": benchmark_item["student_knowledge_id"],
         "prompt": call_record.get("prompt"),
         "response_raw": response_raw,
         "response_parsed": response_parsed,
         "response_parse_ok": response_parse_ok,
-        "correct_answer": correct_answer_parsed,
-        "perfect_match": perfect_match,
         "max_tokens": call_record.get("max_tokens"),
         "tokens_used_completion": call_record.get("tokens_used_completion"),
         "latency_seconds": call_record.get("latency_seconds"),

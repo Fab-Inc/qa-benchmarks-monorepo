@@ -33,7 +33,7 @@ def test_save_results_writes_jsonl_atomically(tmp_path: Path) -> None:
 import pandas as pd
 from phonics_benchmark.results import (
     accuracy_by_nondecodable_count,
-    add_word_level_counts,
+    add_word_level_confusion_matrix,
     attach_item_metadata,
     sample_items_for_inspection,
     summarize_by_model,
@@ -55,7 +55,7 @@ def test_attach_item_metadata_adds_vocab_and_ratio() -> None:
     merged = attach_item_metadata(results, ITEMS, "sw")
 
     assert merged.loc[0, "nondecodable_ratio"] == 0.25
-    assert merged.loc[0, "vocab"] == {"mama", "na", "paka", "soko"}
+    assert merged.loc[0, "vocab_set"] == {"mama", "na", "paka", "soko"}
 
 
 def test_add_word_level_counts_derives_confusion_counts() -> None:
@@ -64,16 +64,19 @@ def test_add_word_level_counts_derives_confusion_counts() -> None:
         {
             "response_parsed": [["soko", "kaka"]],  # predicted non-decodable
             "correct_answer": [["soko"]],  # actually non-decodable
-            "vocab": [{"mama", "na", "paka", "soko", "kaka"}],
+            "vocab_set": [{"mama", "na", "paka", "soko", "kaka"}],
         }
     )
 
-    scored = add_word_level_counts(results)
-
-    assert scored.loc[0, "tp"] == 1  # soko: predicted and actually non-decodable
-    assert scored.loc[0, "fp"] == 1  # kaka: predicted but decodable
-    assert scored.loc[0, "fn"] == 0  # nothing actually non-decodable was missed
-    assert scored.loc[0, "tn"] == 3  # mama, na, paka: correctly left off
+    scored = add_word_level_confusion_matrix(results)
+    assert scored.loc[0, "tp"] == {"soko"}
+    assert scored.loc[0, "fp"] == {"kaka"}
+    assert scored.loc[0, "fn"] == set()
+    assert scored.loc[0, "tn"] == {"mama", "na", "paka"}
+    assert scored.loc[0, "tp_count"] == 1
+    assert scored.loc[0, "fp_count"] == 1
+    assert scored.loc[0, "fn_count"] == 0
+    assert scored.loc[0, "tn_count"] == 3
 
 
 def test_summarize_by_model_pools_counts_and_derives_rates() -> None:
@@ -83,10 +86,10 @@ def test_summarize_by_model_pools_counts_and_derives_rates() -> None:
             "model_name": ["m1", "m1"],
             "benchmark_item_id": ["p1_t1", "p1_t2"],
             "perfect_match": [True, False],
-            "tp": [1, 1],
-            "fp": [0, 1],
-            "fn": [0, 1],
-            "tn": [3, 2],
+            "tp_count": [1, 1],
+            "fp_count": [0, 1],
+            "fn_count": [0, 1],
+            "tn_count": [3, 2],
         }
     )
 
