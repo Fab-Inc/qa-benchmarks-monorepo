@@ -65,7 +65,6 @@ def test_label_nondecodable_words_returns_sorted_lowercased_unique_words() -> No
             ],
         }
     )
-
     labels = label_nondecodable_words(items, CONFIG, "sw")
 
     assert labels.iloc[0] == ["hufanya", "kufanyia", "ofisi", "vifaa"]

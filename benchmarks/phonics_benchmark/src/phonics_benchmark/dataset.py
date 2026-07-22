@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from phonics_benchmark.utils import require_columns
+
 
 def build_benchmark_items(
     student_knowledge_profiles_path: Path,
@@ -41,10 +43,11 @@ def build_benchmark_items(
     return benchmark_items
 
 
+@require_columns(["non_decodable_words", "vocab_set"])
 def add_analysis_columns(benchmark_items: pd.DataFrame, language: str) -> pd.DataFrame:
     """Add num_nondecodable_words, num_total_words and nondecodable_ratio.
 
-    Expects a ``non_decodable_words`` column (see ``labeling``) and a ``content``
+    Expects a ``non_decodable_words`` column (see ``labeling``) and a ``vocab_set``
     column. Total word count uses the language's word extractor. Returns a copy.
     """
     benchmark_items = benchmark_items.copy()
@@ -62,6 +65,7 @@ def add_analysis_columns(benchmark_items: pd.DataFrame, language: str) -> pd.Dat
     return benchmark_items
 
 
+@require_columns(["nondecodable_ratio", "num_nondecodable_words"])
 def filter_benchmark_items(
     benchmark_items: pd.DataFrame,
     max_zero_nondecodable: int = 6,

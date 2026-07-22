@@ -92,12 +92,15 @@ from pathlib import Path
 
 import pandas as pd
 
+from phonics_benchmark.utils import require_columns
+
 
 def load_results(path: Path) -> pd.DataFrame:
     """Load a results JSONL (one row per model x benchmark item)."""
     return pd.read_json(path, lines=True)
 
 
+@require_columns(["response_parsed", "non_decodable_words", "vocab_set"])
 def add_word_level_confusion_matrix(results: pd.DataFrame) -> pd.DataFrame:
     """Add per-row true/false positive/negative word counts.
 
@@ -131,6 +134,17 @@ def add_word_level_confusion_matrix(results: pd.DataFrame) -> pd.DataFrame:
     return pd.concat([results, results.apply(get_confusion_matrix, axis=1)], axis=1)
 
 
+@require_columns(
+    [
+        "model_name",
+        "benchmark_item_id",
+        "perfect_match",
+        "tp_count",
+        "fp_count",
+        "fn_count",
+        "tn_count",
+    ]
+)
 def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     """Per-model item-level accuracy and pooled word-level confusion metrics.
 
@@ -165,6 +179,7 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     return summary.reset_index()
 
 
+@require_columns(["model_name", "num_nondecodable_words", "perfect_match"])
 def accuracy_by_nondecodable_count(results: pd.DataFrame) -> pd.DataFrame:
     """Per-model, per-num_nondecodable_words accuracy (mean perfect_match).
 
@@ -186,6 +201,7 @@ def _sample(group, n_per_bin: int, random_state: int) -> pd.DataFrame:
     return group.sample(min(n_per_bin, len(group)), random_state=random_state)
 
 
+@require_columns(["nondecodable_ratio"])
 def sample_items_for_inspection(
     items: pd.DataFrame,
     *,

@@ -14,6 +14,7 @@ import pandas as pd
 from decodability import Aggregation, Measure, annotate_words
 
 from phonics_benchmark.constants import DECODABILITY_REGISTRY
+from phonics_benchmark.utils import require_columns
 
 
 def resolve_decodability_config(
@@ -41,7 +42,9 @@ def resolve_decodability_config(
     return scoring_methods, aggregations
 
 
+@require_columns(["content"])
 def get_vocabulary_set(benchmark_items: pd.DataFrame, language: str) -> pd.Series:
+    """Get unique set of vocabulary per benchmark item from its content."""
     objs = DECODABILITY_REGISTRY[language]
 
     # TODO: push out any normalization such as lowercasing or deduplication
@@ -51,6 +54,7 @@ def get_vocabulary_set(benchmark_items: pd.DataFrame, language: str) -> pd.Serie
     )
 
 
+@require_columns(["content", "student_knowledge"])
 def label_nondecodable_words(
     benchmark_items: pd.DataFrame,
     config: dict,
@@ -63,13 +67,8 @@ def label_nondecodable_words(
     Expects the DataFrame to have ``content``, ``student_knowledge``, and ``vocab_set``
     columns.
     """
-    missing = {"content", "student_knowledge", "vocab_set"} - set(
-        benchmark_items.columns
-    )
-    if missing:
-        raise ValueError(
-            f"benchmark_items is missing required column(s): {sorted(missing)}"
-        )
+    if "vocab_set" not in benchmark_items.columns:
+        benchmark_items["vocab_set"] = get_vocabulary_set(benchmark_items, language)
 
     scoring_methods, aggregations = resolve_decodability_config(config, language)
     objs = DECODABILITY_REGISTRY[language]

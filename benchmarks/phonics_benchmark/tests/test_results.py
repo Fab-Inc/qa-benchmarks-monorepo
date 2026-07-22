@@ -52,7 +52,7 @@ def test_add_word_level_confusion_matrix_derives_confusion_counts() -> None:
     results = pd.DataFrame(
         {
             "response_parsed": [["soko", "kaka"]],  # predicted non-decodable
-            "correct_answer": [["soko"]],  # actually non-decodable
+            "non_decodable_words": [["soko"]],  # actually non-decodable
             "vocab_set": [{"mama", "na", "paka", "soko", "kaka"}],
         }
     )
