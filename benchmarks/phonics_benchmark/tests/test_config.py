@@ -1,12 +1,15 @@
 """Tests for phonics benchmark run configuration."""
 
 import json
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 from phonics_benchmark.config import (
     ConfigError,
     config_identity_sha256,
+    config_object_sha256,
+    config_sha256,
     load_run_config,
 )
 
@@ -112,6 +115,69 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
     )
 
     assert config_identity_sha256(original) == config_identity_sha256(retry)
+    assert config_object_sha256(original) != config_object_sha256(retry)
+
+
+def test_config_sha256_hashes_exact_file_contents(tmp_path: Path) -> None:
+    """The source-config hash represents the exact bytes on disk."""
+
+    config_path = _write_config(tmp_path)
+
+    assert config_sha256(config_path) == sha256(config_path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("contents", "error"),
+    [
+        ("{", "Invalid JSON"),
+        ("[]", "JSON object"),
+    ],
+)
+def test_load_run_config_rejects_invalid_document_shape(
+    tmp_path: Path,
+    contents: str,
+    error: str,
+) -> None:
+    """Config documents must be valid JSON objects."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ConfigError, match=error):
+        load_run_config(config_path)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error"),
+    [
+        ({"language": ""}, "language"),
+        ({"output_dir": ""}, "output_dir"),
+        ({"env_path": 123}, "env_path"),
+        ({"custom_models_path": 123}, "custom_models_path"),
+        ({"max_tokens": "100"}, "max_tokens"),
+        ({"force": "yes"}, "force"),
+        ({"retry_errors": "yes"}, "retry_errors"),
+        ({"force": True, "retry_errors": True}, "cannot be combined"),
+        ({"metadata": []}, "metadata"),
+        ({"run_id": 123}, "run_id"),
+    ],
+)
+def test_load_run_config_rejects_invalid_field_values(
+    tmp_path: Path,
+    overrides: dict[str, object],
+    error: str,
+) -> None:
+    """Each typed config field rejects values outside its schema."""
+
+    with pytest.raises(ConfigError, match=error):
+        load_run_config(_write_config(tmp_path, **overrides))
+
+
+def test_load_run_config_rejects_empty_command_task(tmp_path: Path) -> None:
+    """The command must provide the task associated with the run."""
+
+    with pytest.raises(ConfigError, match="command task"):
+        load_run_config(_write_config(tmp_path), task="")
 
 
 def test_load_run_config_requires_items_path(tmp_path: Path) -> None:
