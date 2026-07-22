@@ -91,7 +91,6 @@ the text.
 from pathlib import Path
 
 import pandas as pd
-from decodability import get_decodability_objects
 
 
 def load_results(path: Path) -> pd.DataFrame:
@@ -99,38 +98,12 @@ def load_results(path: Path) -> pd.DataFrame:
     return pd.read_json(path, lines=True)
 
 
-def attach_item_metadata(
-    results: pd.DataFrame, items: pd.DataFrame, language: str
-) -> pd.DataFrame:
-    """Join results to per-item metadata and add a lowercase vocabulary set.
-
-    # TODO: we will probably want to push out any normalization such as lowercasing
-    # to the decodability package in the future, rather than doing it here.
-
-    ``items`` must have ``benchmark_item_id``, ``content`` and
-    ``nondecodable_ratio`` columns (e.g.
-    ``tusome_benchmark_items_with_analysis.csv``). Adds a ``vocab`` column —
-    the set of distinct lowercase words in the item's text — used by
-    ``add_word_level_counts`` to derive true negatives.
-    """
-    extract_words = get_decodability_objects(language).extract_words
-    metadata_columns = ["benchmark_item_id", "content", "nondecodable_ratio"]
-    merged = results.merge(items[metadata_columns], on="benchmark_item_id", how="left")
-
-    # TODO: Push out any normalization to extract_words in the future
-    merged["vocab_set"] = merged["content"].apply(
-        lambda content: {word.lower() for word in extract_words(content)}
-    )
-    return merged
-
-
 def add_word_level_confusion_matrix(results: pd.DataFrame) -> pd.DataFrame:
     """Add per-row true/false positive/negative word counts.
 
     A "positive" is a word the model listed as non-decodable.
 
-    Expects ``response_parsed``, ``correct_answer`` and ``vocab`` columns
-    (see ``attach_item_metadata``).
+    Expects ``response_parsed``, ``correct_answer`` and ``vocab_set`` columns
     """
 
     def get_confusion_matrix(row: pd.Series) -> pd.Series:

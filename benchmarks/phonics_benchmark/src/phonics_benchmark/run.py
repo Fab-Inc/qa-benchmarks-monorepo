@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from decodability import get_decodability_objects
 
+from phonics_benchmark.constants import DECODABILITY_REGISTRY
 from phonics_benchmark.llm import call_llm, call_llm_async
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.prompts import get_prompt
@@ -36,13 +36,13 @@ def build_decodability_prompt(
     ``prompt_name`` selects the template in prompts.yaml; ``extra_params`` are
     forwarded to the template for prompt variants that need more placeholders.
     """
-    objs = get_decodability_objects(language)
-    student_knowledge = objs.student_knowledge_model.model_validate(
+    objs = DECODABILITY_REGISTRY[language]
+    student_knowledge = objs["student_knowledge_model"].model_validate(
         benchmark_item["student_knowledge"]
     )
     return get_prompt(
         prompt_name,
-        language=objs.name,
+        language=objs["name"],
         text=benchmark_item["content"],
         student_knowledge=student_knowledge,
         **extra_params,

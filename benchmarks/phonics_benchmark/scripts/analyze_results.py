@@ -39,7 +39,8 @@ def main() -> None:
     results = load_results(RESULTS_PATH)
     items = pd.read_csv(ITEMS_WITH_ANALYSIS_PATH)
 
-    results = attach_item_metadata(results, items, LANGUAGE)
+    metadata_columns = ["benchmark_item_id", "content", "nondecodable_ratio"]
+    results = results.merge(items[metadata_columns], on="benchmark_item_id", how="left")
     results = results.merge(
         items[["benchmark_item_id", "num_nondecodable_words"]],
         on="benchmark_item_id",

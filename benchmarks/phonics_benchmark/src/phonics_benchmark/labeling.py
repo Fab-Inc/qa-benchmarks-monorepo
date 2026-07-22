@@ -11,7 +11,9 @@ from __future__ import annotations
 from functools import partial
 
 import pandas as pd
-from decodability import Aggregation, Measure, annotate_words, get_decodability_objects
+from decodability import Aggregation, Measure, annotate_words
+
+from phonics_benchmark.constants import DECODABILITY_REGISTRY
 
 
 def resolve_decodability_config(
@@ -23,13 +25,14 @@ def resolve_decodability_config(
     looked up in the language's registries. Aggregations with a ``params`` block
     are bound with functools.partial (e.g. weights for a weighted average).
     """
-    objs = get_decodability_objects(language)
-
-    scoring_methods = [objs.scoring_methods[name] for name in config["scoring_methods"]]
+    objs = DECODABILITY_REGISTRY[language]
+    scoring_methods = [
+        objs["scoring_methods"][name] for name in config["scoring_methods"]
+    ]
 
     aggregations: dict[str, Aggregation] = {}
     for output_column, agg in config["aggregations"].items():
-        agg_func = objs.aggregations[agg["name"]]
+        agg_func = objs["aggregations"][agg["name"]]
         params = agg.get("params")
         aggregations[output_column] = (
             partial(agg_func, **params) if params else agg_func
@@ -55,12 +58,16 @@ def label_nondecodable_words(
             f"benchmark_items is missing required column(s): {sorted(missing)}"
         )
 
-    objs = get_decodability_objects(language)
+    objs = DECODABILITY_REGISTRY[language]
     scoring_methods, aggregations = resolve_decodability_config(config, language)
 
+    benchmark_items["vocab_set"] = benchmark_items["content"].apply(
+        lambda content: {word.lower() for word in objs["extract_words"](content)}
+    )
+
     def get_nondecodable_words(benchmark_item: pd.Series) -> list[str]:
-        words = objs.extract_words(benchmark_item.content)
-        student_knowledge = objs.student_knowledge_model.model_validate(
+        words = benchmark_item.vocab_set
+        student_knowledge = objs["student_knowledge_model"].model_validate(
             benchmark_item.student_knowledge
         )
         label_df = annotate_words(
@@ -69,6 +76,9 @@ def label_nondecodable_words(
             student_knowledge=student_knowledge,
             aggregations=aggregations,
         )
+
+        # TODO: push out any normalization such as lowercasing or dedupliocation
+        # to the decodability package in the future
         nondecodable_words = sorted(
             label_df["word"][label_df[score_column] == 0.0]
             .str.lower()

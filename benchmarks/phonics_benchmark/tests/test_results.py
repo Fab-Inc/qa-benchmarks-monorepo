@@ -34,7 +34,6 @@ import pandas as pd
 from phonics_benchmark.results import (
     accuracy_by_nondecodable_count,
     add_word_level_confusion_matrix,
-    attach_item_metadata,
     sample_items_for_inspection,
     summarize_by_model,
 )
@@ -48,17 +47,7 @@ ITEMS = pd.DataFrame(
 )
 
 
-def test_attach_item_metadata_adds_vocab_and_ratio() -> None:
-    """The join brings in nondecodable_ratio and a lowercase vocab set."""
-    results = pd.DataFrame({"benchmark_item_id": ["p1_t1"]})
-
-    merged = attach_item_metadata(results, ITEMS, "sw")
-
-    assert merged.loc[0, "nondecodable_ratio"] == 0.25
-    assert merged.loc[0, "vocab_set"] == {"mama", "na", "paka", "soko"}
-
-
-def test_add_word_level_counts_derives_confusion_counts() -> None:
+def test_add_word_level_confusion_matrix_derives_confusion_counts() -> None:
     """tp/fp/fn/tn are derived from the predicted vs. actual word sets."""
     results = pd.DataFrame(
         {
