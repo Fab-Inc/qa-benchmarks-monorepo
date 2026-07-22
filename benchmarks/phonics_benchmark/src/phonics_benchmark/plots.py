@@ -1,9 +1,4 @@
-"""Inspection plots for the benchmark item distribution and model results.
-
-Kept separate from the run pipeline so it can be used ad hoc for manual analysis
-— e.g. comparing the non-decodable ratio distribution before vs. after filtering,
-or across different filter settings. Isolates the matplotlib dependency here.
-"""
+"""Inspection plots for the benchmark item distribution and model results."""
 
 from __future__ import annotations
 

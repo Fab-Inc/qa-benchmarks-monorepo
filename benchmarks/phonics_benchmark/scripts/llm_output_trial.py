@@ -50,28 +50,12 @@ BENCHMARK_CANDIDATES_PATH = (
     DATA_DIR / "kiswahili" / "tusome_benchmark_item_candidates_with_analysis.csv"
 )
 BENCHMARK_ITEMS_PATH = (
-    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis.csv"
+    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis2.csv"
 )
-STUDENT_KNOWLEDGE_PROFILES_PATH = (
-    DATA_DIR / "kiswahili" / "student_knowledge_profiles.jsonl"
-)
-TEXTS_PATH = DATA_DIR / "kiswahili" / "decodable_texts.jsonl"
 
 # ISO 639 language code; keys the decodability bundle in phonics_benchmark.languages.
 # In the full benchmark this will be a CLI-supplied value.
 LANGUAGE = "sw"
-
-# Decodability scoring config: which per-word scorers and which aggregation(s) to
-# apply. Names are resolved against the language's decodability registries.
-DECODABILITY_CONFIG = {
-    "scoring_methods": [
-        "score_known_graphemes_kiswahili",
-        "score_whole_words_kiswahili",
-    ],
-    "aggregations": {
-        "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
-    },
-}
 
 # Temporary subset of models to experiment with.
 # Use the same model names as in custom_models.yaml.
@@ -122,39 +106,13 @@ def submit_benchmark_item_to_model(
 
 # Max concurrent in-flight LLM calls per model (fdllm retries 429s; it has no
 # concurrency cap, so we set one here).
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 20
 
 # To resume an interrupted run, set this to that run's results JSONL — completed
 # (model, benchmark_item_id) pairs are skipped and new results are appended to it.
 # Set to None for a fresh run.
-RESUME_FROM: Path | None = OUTPUTS_DIR / "20260716T100738Z_results_trial.jsonl"
-
-
-def save_benchmark_item_candidates() -> None:
-    """Build, label, analyse and filter benchmark items; write CSVs + histograms.
-
-    Produces the candidates CSV (all cross-product items with analysis columns)
-    and the filtered items CSV that ``main`` consumes.
-    """
-    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    benchmark_items = build_benchmark_items(STUDENT_KNOWLEDGE_PROFILES_PATH, TEXTS_PATH)
-    benchmark_items["non_decodable_words"] = label_nondecodable_words(
-        benchmark_items, DECODABILITY_CONFIG, LANGUAGE
-    )
-    benchmark_items = add_analysis_columns(benchmark_items, LANGUAGE)
-    benchmark_items.to_csv(BENCHMARK_CANDIDATES_PATH, index=False)
-    save_nondecodable_ratio_histogram(
-        benchmark_items, OUTPUTS_DIR / "nondecodable_ratio_histogram.png"
-    )
-
-    filtered_items = filter_benchmark_items(benchmark_items)
-    save_nondecodable_ratio_histogram(
-        filtered_items,
-        OUTPUTS_DIR / "nondecodable_ratio_histogram_filtered.png",
-        title="Distribution of Non-Decodable Word Ratios (Filtered)",
-    )
-    filtered_items.to_csv(BENCHMARK_ITEMS_PATH, index=False)
+RESUME_FROM: Path | None = None
+# OUTPUTS_DIR / "20260716T100738Z_results_trial.jsonl"
 
 
 def process_model_response_into_result(

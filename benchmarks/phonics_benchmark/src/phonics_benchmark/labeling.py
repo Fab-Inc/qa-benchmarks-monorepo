@@ -41,6 +41,16 @@ def resolve_decodability_config(
     return scoring_methods, aggregations
 
 
+def get_vocabulary_set(benchmark_items: pd.DataFrame, language: str) -> pd.Series:
+    objs = DECODABILITY_REGISTRY[language]
+
+    # TODO: push out any normalization such as lowercasing or deduplication
+    # to the decodability package in the future
+    return benchmark_items["content"].apply(
+        lambda content: {word.lower() for word in objs["extract_words"](content)}
+    )
+
+
 def label_nondecodable_words(
     benchmark_items: pd.DataFrame,
     config: dict,
@@ -50,20 +60,19 @@ def label_nondecodable_words(
 ) -> pd.Series:
     """Return, per benchmark item, the list of words scored as non-decodable.
 
-    Expects the DataFrame to have ``content`` and ``student_knowledge`` columns.
+    Expects the DataFrame to have ``content``, ``student_knowledge``, and ``vocab_set``
+    columns.
     """
-    missing = {"content", "student_knowledge"} - set(benchmark_items.columns)
+    missing = {"content", "student_knowledge", "vocab_set"} - set(
+        benchmark_items.columns
+    )
     if missing:
         raise ValueError(
             f"benchmark_items is missing required column(s): {sorted(missing)}"
         )
 
-    objs = DECODABILITY_REGISTRY[language]
     scoring_methods, aggregations = resolve_decodability_config(config, language)
-
-    benchmark_items["vocab_set"] = benchmark_items["content"].apply(
-        lambda content: {word.lower() for word in objs["extract_words"](content)}
-    )
+    objs = DECODABILITY_REGISTRY[language]
 
     def get_nondecodable_words(benchmark_item: pd.Series) -> list[str]:
         words = benchmark_item.vocab_set
@@ -77,7 +86,7 @@ def label_nondecodable_words(
             aggregations=aggregations,
         )
 
-        # TODO: push out any normalization such as lowercasing or dedupliocation
+        # TODO: push out any normalization such as lowercasing or deduplication
         # to the decodability package in the future
         nondecodable_words = sorted(
             label_df["word"][label_df[score_column] == 0.0]

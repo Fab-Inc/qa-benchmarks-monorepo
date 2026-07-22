@@ -19,7 +19,6 @@ from phonics_benchmark.plots import (
 from phonics_benchmark.results import (
     accuracy_by_nondecodable_count,
     add_word_level_confusion_matrix,
-    attach_item_metadata,
     load_results,
     sample_items_for_inspection,
     summarize_by_model,
