@@ -124,11 +124,14 @@ def run_decodability_cmd(
         min=1,
         help="Number of pending items to evaluate before checkpointing results.",
     ),
-    model_workers: int = typer.Option(
-        1,
+    model_workers: int | None = typer.Option(
+        None,
         "--model-workers",
         min=1,
-        help="Maximum number of models to run concurrently.",
+        help=(
+            "Maximum number of models to run concurrently. "
+            "Defaults to the config value, or 1 without a config."
+        ),
     ),
     force: bool = typer.Option(
         False,
@@ -154,6 +157,7 @@ def run_decodability_cmd(
                 run_config,
                 force=force,
                 retry_errors=retry_errors,
+                model_workers=model_workers,
             )
         else:
             effective_run_id = (
@@ -177,7 +181,7 @@ def run_decodability_cmd(
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,
                 chunk_size=chunk_size,
-                model_workers=model_workers,
+                model_workers=model_workers if model_workers is not None else 1,
                 force=force,
                 retry_errors=retry_errors,
             )
@@ -203,8 +207,9 @@ def _apply_execution_overrides(
     *,
     force: bool,
     retry_errors: bool,
+    model_workers: int | None,
 ) -> BenchmarkRunConfig:
-    """Apply explicitly enabled CLI execution modes to a file config."""
+    """Apply explicitly supplied CLI execution options to a file config."""
 
     effective_force = force or config.force
     effective_retry_errors = retry_errors or config.retry_errors
@@ -214,6 +219,9 @@ def _apply_execution_overrides(
         config,
         force=effective_force,
         retry_errors=effective_retry_errors,
+        model_workers=(
+            model_workers if model_workers is not None else config.model_workers
+        ),
     )
 
 

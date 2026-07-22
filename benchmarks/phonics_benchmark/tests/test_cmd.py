@@ -121,6 +121,52 @@ def test_run_decodability_command_execution_flags_override_config(
     assert run_config.retry_errors is expected_retry_errors
 
 
+@pytest.mark.parametrize(
+    ("cli_args", "expected_model_workers"),
+    [
+        ([], 3),
+        (["--model-workers", "1"], 1),
+        (["--model-workers", "2"], 2),
+    ],
+)
+def test_run_decodability_command_model_workers_overrides_config_when_supplied(
+    runner: CliRunner,
+    tmp_path: Path,
+    cli_args: list[str],
+    expected_model_workers: int,
+) -> None:
+    """The config worker count is retained unless the CLI supplies a value."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "english",
+                "items_path": "items.csv",
+                "models": ["model-a"],
+                "model_workers": 3,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = _run_output(tmp_path / "outputs", "experiment-a", total=1)
+
+    with (
+        patch("phonics_benchmark.cmd.download_default_custom_models"),
+        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
+        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
+        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+    ):
+        result = runner.invoke(
+            app,
+            ["run-decodability", "--config", str(config_path), *cli_args],
+        )
+
+    assert result.exit_code == 0
+    assert run.call_args.args[0].model_workers == expected_model_workers
+
+
 def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
     runner: CliRunner, tmp_path: Path
 ) -> None:
@@ -279,6 +325,7 @@ def test_run_decodability_command_defaults_run_id(
     run_config = run.call_args.args[0]
     assert run_config.run_id == "default"
     assert run_config.items_path == items_path.resolve()
+    assert run_config.model_workers == 1
 
 
 def test_run_decodability_command_timestamped_output_generates_run_id(
