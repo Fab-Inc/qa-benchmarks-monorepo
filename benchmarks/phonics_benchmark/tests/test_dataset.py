@@ -60,6 +60,7 @@ def test_add_analysis_columns_computes_ratio() -> None:
         {
             "content": ["mama na paka soko"],  # 4 words
             "non_decodable_words": [["soko"]],  # 1 non-decodable
+            "vocab_set": [{"mama", "na", "paka", "soko"}],
         }
     )
 
@@ -83,7 +84,14 @@ def test_filter_benchmark_items_respects_thresholds() -> None:
         }
     )
 
-    filtered = filter_benchmark_items(items)
+    filtered = filter_benchmark_items(
+        items,
+        max_zero_nondecodable=20,
+        max_one_nondecodable=40,
+        max_nondecodable_ratio=0.2,
+        sample_size_other=None,
+        random_state=42,
+    )
 
     assert (filtered["nondecodable_ratio"] == 0.0).sum() == 20
     assert (filtered["num_nondecodable_words"] == 1).sum() == 40

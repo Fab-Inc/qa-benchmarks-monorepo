@@ -71,7 +71,7 @@ def filter_benchmark_items(
     max_zero_nondecodable: int = 6,
     max_one_nondecodable: int = 10,
     max_nondecodable_ratio: float = 0.2,
-    sample_size_other: int = 16,
+    sample_size_other: int | None = 16,
     random_state: int = 42,
 ) -> pd.DataFrame:
     """Down-sample to a manageable mix of easy and moderately hard items.
@@ -102,9 +102,12 @@ def filter_benchmark_items(
     mask_too_hard = benchmark_items["nondecodable_ratio"] > max_nondecodable_ratio
 
     mask_other = ~(mask_zero | mask_one | mask_too_hard)
-    benchmark_items = benchmark_items[mask_other].sample(
-        sample_size_other, random_state=random_state
-    )
+    other_items = benchmark_items[mask_other]
+    if sample_size_other is not None and len(other_items) > 0:
+        n = min(sample_size_other, len(other_items))
+        benchmark_items = other_items.sample(n, random_state=random_state)
+    else:
+        benchmark_items = other_items
 
     benchmark_items = pd.concat([zero_nondecodable, one_nondecodable, benchmark_items])
 
