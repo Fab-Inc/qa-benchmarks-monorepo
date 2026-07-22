@@ -1,3 +1,17 @@
+"""Script to generate benchmark items for Kiswahili decodability.
+
+Must run
+``benchmarks/phonics_benchmark/scripts/ingest_benchmark_data_template.py``
+first to produce the student knowledge profiles and decodable texts JSONL files.
+
+Data paths are hard-coded for now but must be parameterized for other
+languages and datasets.
+
+Run this script with:
+    uv run --package phonics-benchmark python \
+        benchmarks/phonics_benchmark/scripts/build_benchmark_items.py
+"""
+
 from pathlib import Path
 
 from phonics_benchmark.dataset import (

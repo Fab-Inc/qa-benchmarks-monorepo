@@ -1,6 +1,11 @@
 """Analyze a benchmark results run: per-model accuracy, confusion, and a
 sample of items for manual inspection across item difficulty.
 
+Must run ``benchmarks/phonics_benchmark/scripts/llm_output_trial.py``
+first to produce benchmark results.
+
+Data paths are hard-coded for now but must be parameterized later.
+
 Run from the repository root with:
 
     uv run --package phonics-benchmark python \

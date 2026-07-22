@@ -7,6 +7,9 @@ and running models). Only runner concerns live here — the pipeline logic itsel
 is in src/ so it can be re-run with different data, filters, decodability config,
 languages, or models.
 
+Must run ``benchmarks/phonics_benchmark/scripts/build_benchmark_items.py`` first
+to produce the benchmark items CSV.
+
 Run this script with:
 uv run --frozen --package phonics-benchmark python \
     benchmarks/phonics_benchmark/scripts/llm_output_trial.py

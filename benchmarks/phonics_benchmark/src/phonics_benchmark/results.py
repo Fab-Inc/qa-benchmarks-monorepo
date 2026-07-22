@@ -87,17 +87,13 @@ recomputed from ``content`` via the language ``extract_words`` rather than trust
 included), whereas confusion counts need the number of distinct word types in
 the text.
 """
+"""Score and aggregate model results against benchmark item metadata."""
 
 from pathlib import Path
 
 import pandas as pd
 
 from phonics_benchmark.utils import require_columns
-
-
-def load_results(path: Path) -> pd.DataFrame:
-    """Load a results JSONL (one row per model x benchmark item)."""
-    return pd.read_json(path, lines=True)
 
 
 @require_columns(["response_parsed", "non_decodable_words", "vocab_set"])
