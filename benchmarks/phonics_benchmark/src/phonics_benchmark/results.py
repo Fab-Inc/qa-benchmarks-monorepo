@@ -103,12 +103,12 @@ def add_word_level_confusion_matrix(results: pd.DataFrame) -> pd.DataFrame:
 
     A "positive" is a word the model listed as non-decodable.
 
-    Expects ``response_parsed``, ``correct_answer`` and ``vocab_set`` columns
+    Expects ``response_parsed``, ``non_decodable_words`` and ``vocab_set`` columns
     """
 
     def get_confusion_matrix(row: pd.Series) -> pd.Series:
         predicted = set(row["response_parsed"])
-        actual = set(row["correct_answer"])
+        actual = set(row["non_decodable_words"])
         perfect_match = predicted == actual
         tp = predicted & actual
         fp = predicted - actual
@@ -140,7 +140,7 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     can have low item-level accuracy but still show whether it over- or
     under-flags words (e.g. high recall, low precision means it flags too
     many words as non-decodable). Expects the output of
-    ``add_word_level_counts``.
+    ``add_word_level_confusion_matrix``.
     """
     summary = results.groupby("model_name").agg(
         n_items=("benchmark_item_id", "count"),

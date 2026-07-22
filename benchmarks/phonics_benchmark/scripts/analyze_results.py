@@ -27,18 +27,29 @@ from phonics_benchmark.results import (
 BENCHMARK_DIR = Path(__file__).parents[1]
 LANGUAGE = "sw"
 
-RESULTS_PATH = BENCHMARK_DIR / "outputs" / "20260716T100738Z_results_trial.jsonl"
+RESULTS_PATH = BENCHMARK_DIR / "outputs" / "20260722T105304Z_results_trial.jsonl"
 ITEMS_WITH_ANALYSIS_PATH = (
-    BENCHMARK_DIR / "data" / "kiswahili" / "tusome_benchmark_items_with_analysis.csv"
+    BENCHMARK_DIR / "data" / "kiswahili" / "tusome_benchmark_items_with_analysis2.csv"
 )
 OUTPUT_DIR = BENCHMARK_DIR / "outputs" / "analysis"
 
 
 def main() -> None:
     results = load_results(RESULTS_PATH)
-    items = pd.read_csv(ITEMS_WITH_ANALYSIS_PATH)
+    items = pd.read_csv(
+        ITEMS_WITH_ANALYSIS_PATH,
+        converters={"vocab_set": eval, "non_decodable_words": eval},
+    )
+    save_dir = OUTPUT_DIR / RESULTS_PATH.stem
+    save_dir.mkdir(parents=True, exist_ok=True)
 
-    metadata_columns = ["benchmark_item_id", "content", "nondecodable_ratio"]
+    metadata_columns = [
+        "benchmark_item_id",
+        "content",
+        "nondecodable_ratio",
+        "vocab_set",
+        "non_decodable_words",
+    ]
     results = results.merge(items[metadata_columns], on="benchmark_item_id", how="left")
     results = results.merge(
         items[["benchmark_item_id", "num_nondecodable_words"]],
@@ -47,25 +58,23 @@ def main() -> None:
     )
     results = add_word_level_confusion_matrix(results)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
     # Per-model accuracy + pooled word-level confusion (precision/recall/f1).
     summary = summarize_by_model(results)
     print("Per-model summary:")
     print(summary.to_string(index=False))
-    summary.to_csv(OUTPUT_DIR / "summary_by_model.csv", index=False)
+    summary.to_csv(save_dir / "summary_by_model.csv", index=False)
 
     # Does accuracy degrade as items get harder (more non-decodable words)?
     accuracy_by_count = accuracy_by_nondecodable_count(results)
     save_accuracy_by_nondecodable_count_plot(
-        accuracy_by_count, OUTPUT_DIR / "accuracy_by_nondecodable_count.png"
+        accuracy_by_count, save_dir / "accuracy_by_nondecodable_count.png"
     )
-    save_confusion_bar_plot(summary, OUTPUT_DIR / "confusion_by_model.png")
+    save_confusion_bar_plot(summary, save_dir / "confusion_by_model.png")
 
     # 2 items from each of <0.05, 0.05-0.1, 0.1-0.2 nondecodable-ratio bins,
     # with every model's response, for manual spot-checking.
     sampled_items = sample_items_for_inspection(
-        items, bin_edges=(0.0, 0.05, 0.1, 0.2), n_per_bin=2
+        items, bin_edges=(0.0, 0.05, 0.1, 0.2), n_per_bin=4
     )
     inspection = sampled_items.merge(
         results[
@@ -84,7 +93,7 @@ def main() -> None:
         on="benchmark_item_id",
         how="left",
     )
-    inspection_path = OUTPUT_DIR / "sampled_items_for_inspection.csv"
+    inspection_path = save_dir / "sampled_items_for_inspection.csv"
     inspection.to_csv(inspection_path, index=False)
     print(f"\nSampled {len(sampled_items)} items x every model -> {inspection_path}")
 

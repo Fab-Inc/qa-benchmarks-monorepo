@@ -83,11 +83,11 @@ def save_confusion_bar_plot(
 
     plt.figure(figsize=(10, 6))
     models = summary_by_model["model_name"]
-    plt.bar(models, summary_by_model["fp"], label="False Positives")
+    plt.bar(models, summary_by_model["fp_count"], label="False Positives")
     plt.bar(
         models,
-        summary_by_model["fn"],
-        bottom=summary_by_model["fp"],
+        summary_by_model["fn_count"],
+        bottom=summary_by_model["fp_count"],
         label="False Negatives",
     )
     plt.title(title)
