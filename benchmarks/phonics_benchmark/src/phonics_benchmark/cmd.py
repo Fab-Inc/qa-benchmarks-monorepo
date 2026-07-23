@@ -200,6 +200,8 @@ def run_decodability_cmd(
         raise typer.Exit(1) from e
 
     _echo_run_output(output)
+    if output["error_count"] > 0:
+        raise typer.Exit(1)
 
 
 def _apply_execution_overrides(

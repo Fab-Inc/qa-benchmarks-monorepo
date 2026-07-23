@@ -72,6 +72,37 @@ def test_run_decodability_command_uses_config(
     assert "Results:" in result.stdout
 
 
+def test_run_decodability_command_fails_when_calls_have_errors(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """The command reports a failing status when any model call failed."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "english",
+                "items_path": "items.csv",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = _run_output(tmp_path / "outputs", "experiment-a", total=2, errors=1)
+
+    with (
+        patch("phonics_benchmark.cmd.download_default_custom_models"),
+        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
+        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
+        patch("phonics_benchmark.cmd.run_benchmark", return_value=output),
+    ):
+        result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
+
+    assert result.exit_code == 1
+    assert "Errors: 1" in result.stdout
+
+
 @pytest.mark.parametrize(
     ("flag", "expected_force", "expected_retry_errors"),
     [
@@ -491,7 +522,13 @@ def _write_items_csv(tmp_path: Path) -> Path:
     return items_path
 
 
-def _run_output(output_dir: Path, run_id: str, *, total: int) -> dict:
+def _run_output(
+    output_dir: Path,
+    run_id: str,
+    *,
+    total: int,
+    errors: int = 0,
+) -> dict:
     run_dir = output_dir / run_id
     return {
         "run_id": run_id,
@@ -506,5 +543,5 @@ def _run_output(output_dir: Path, run_id: str, *, total: int) -> dict:
         "total_expected_results": total,
         "executed_count": total,
         "skipped_count": 0,
-        "error_count": 0,
+        "error_count": errors,
     }

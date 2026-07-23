@@ -74,15 +74,28 @@ def test_call_llm_bypass_does_not_create_a_caller(monkeypatch):
     }
 
 
-@pytest.mark.parametrize("response", [None, SimpleNamespace(Message="")])
-def test_call_llm_rejects_empty_responses(response, tusome_stage_11_item, monkeypatch):
+@pytest.mark.parametrize(
+    ("response", "expected_tokens"),
+    [
+        (None, None),
+        (SimpleNamespace(Message="", TokensUsedCompletion=0), 0),
+    ],
+)
+def test_call_llm_returns_empty_responses(
+    response,
+    expected_tokens,
+    tusome_stage_11_item,
+    monkeypatch,
+):
     caller = Mock()
     caller.call.return_value = response
     monkeypatch.setattr(llm, "get_caller", lambda model: caller)
 
-    with pytest.raises(ValueError, match="LLM response empty for prompt SW-KE-S11"):
-        llm.call_llm(
-            _prompt_for(tusome_stage_11_item),
-            model="test-model",
-            tag=tusome_stage_11_item["benchmark_item_id"],
-        )
+    record = llm.call_llm(
+        _prompt_for(tusome_stage_11_item),
+        model="test-model",
+        tag=tusome_stage_11_item["benchmark_item_id"],
+    )
+
+    assert record["response_text"] == ""
+    assert record["tokens_used_completion"] == expected_tokens

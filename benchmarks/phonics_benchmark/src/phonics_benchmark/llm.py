@@ -33,17 +33,19 @@ def call_llm(
         messages.append(LLMMessage(Role="system", Message=system_prompt))
     messages.append(LLMMessage(Role="user", Message=prompt))
     t0 = time.monotonic()
-    outmsg: LLMMessage = caller.call(
+    outmsg: LLMMessage | None = caller.call(
         messages,
         max_tokens=max_tokens,
         response_schema=response_schema,
     )
     latency_seconds = round(time.monotonic() - t0, 3)
 
-    if not outmsg or not outmsg.Message:
-        raise ValueError(f"LLM response empty for prompt {tag}")
-
-    response_text = outmsg.Message
+    if outmsg is None:
+        response_text = ""
+        tokens_used_completion = None
+    else:
+        response_text = outmsg.Message or ""
+        tokens_used_completion = outmsg.TokensUsedCompletion
 
     timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
 
@@ -53,7 +55,7 @@ def call_llm(
         "prompt": prompt,
         "timestamp_utc": timestamp_utc,
         "max_tokens": max_tokens,
-        "tokens_used_completion": outmsg.TokensUsedCompletion,
+        "tokens_used_completion": tokens_used_completion,
         "latency_seconds": latency_seconds,
         "response_text": response_text,
     }

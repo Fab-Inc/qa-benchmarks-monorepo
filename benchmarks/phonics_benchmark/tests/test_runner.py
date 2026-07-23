@@ -6,7 +6,13 @@ from pathlib import Path
 from threading import Barrier
 from unittest.mock import patch
 
+import httpx
 import pytest
+from anthropic import APIConnectionError as AnthropicAPIConnectionError
+from botocore.exceptions import EndpointConnectionError
+from google.genai.errors import ServerError as GoogleServerError
+from mistralai.exceptions import MistralConnectionException
+from openai import APIConnectionError as OpenAIAPIConnectionError
 from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
@@ -346,6 +352,101 @@ def test_run_from_config_file_provenance_change_keeps_model_cache(
     assert rows[0]["output"] == "first"
 
 
+@pytest.mark.parametrize(
+    "provider_error",
+    [
+        OpenAIAPIConnectionError(request=httpx.Request("POST", "https://example.test")),
+        AnthropicAPIConnectionError(
+            request=httpx.Request("POST", "https://example.test")
+        ),
+        GoogleServerError(
+            503,
+            {"error": {"message": "unavailable", "status": "UNAVAILABLE"}},
+        ),
+        EndpointConnectionError(endpoint_url="https://example.test"),
+        MistralConnectionException("connection failed"),
+    ],
+    ids=["openai", "anthropic", "google", "bedrock", "mistral"],
+)
+def test_run_from_config_file_saves_provider_errors(
+    tmp_path: Path,
+    provider_error: Exception,
+) -> None:
+    """Known FDLLM provider failures are saved as resumable error rows."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    def evaluator(*_args) -> dict:
+        raise provider_error
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    rows = _read_jsonl(output["results_paths"]["model-a"])
+    assert output["executed_count"] == 1
+    assert output["error_count"] == 1
+    assert rows[0]["call_status"] == "error"
+    assert rows[0]["error_type"] == type(provider_error).__name__
+    assert rows[0]["error_message"] == str(provider_error)
+
+
+def test_run_from_config_file_saves_empty_responses_as_errors(tmp_path: Path) -> None:
+    """An empty model response is saved without treating the call as successful."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    output = run_from_config_file(
+        config_path,
+        evaluator=lambda *_args: {
+            "output": "",
+            "timestamp_utc": "20260716T120000_000000Z",
+            "latency_seconds": 1.25,
+        },
+    )
+
+    rows = _read_jsonl(output["results_paths"]["model-a"])
+    assert output["error_count"] == 1
+    assert rows[0]["call_status"] == "error"
+    assert rows[0]["error_type"] == "EmptyLLMResponse"
+    assert "timestamp_utc" not in rows[0]
+    assert "latency_seconds" not in rows[0]
+
+
+@pytest.mark.parametrize(
+    "unexpected_error",
+    [
+        RuntimeError("programming error"),
+        ValueError("programming error"),
+        KeyError("programming error"),
+    ],
+    ids=["runtime", "value", "key"],
+)
+def test_run_from_config_file_propagates_unexpected_evaluator_errors(
+    tmp_path: Path,
+    unexpected_error: Exception,
+) -> None:
+    """Non-provider exceptions are not converted into model-call errors."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+
+    with pytest.raises(type(unexpected_error), match="programming error"):
+        run_from_config_file(
+            config_path,
+            evaluator=lambda *_args: (_ for _ in ()).throw(unexpected_error),
+        )
+
+
 def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None:
     """Changing retry_errors does not change result IDs for cached rows."""
 
@@ -365,7 +466,7 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         _prompt: str,
     ) -> dict:
         if item["item_id"] == "item-1":
-            raise RuntimeError("transient")
+            raise MistralConnectionException("transient")
         return {
             "output": "success",
             "timestamp_utc": "20260716T120000_000000Z",
@@ -423,7 +524,9 @@ def test_retry_errors_preflights_every_model_before_starting_workers(
     )
     run_from_config_file(
         config_path,
-        evaluator=lambda *_args: (_ for _ in ()).throw(RuntimeError("transient")),
+        evaluator=lambda *_args: (_ for _ in ()).throw(
+            MistralConnectionException("transient")
+        ),
     )
 
     config = json.loads(config_path.read_text(encoding="utf-8"))

@@ -15,6 +15,19 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 import pandas as pd
+from anthropic import APIError as AnthropicAPIError
+from botocore.exceptions import (
+    ClientError as BedrockAPIError,
+)
+from botocore.exceptions import (
+    ConnectionError as BedrockConnectionError,
+)
+from botocore.exceptions import (
+    HTTPClientError as BedrockHTTPClientError,
+)
+from google.genai.errors import APIError as GoogleAPIError
+from mistralai.exceptions import MistralAPIException, MistralConnectionException
+from openai import APIError as OpenAIAPIError
 
 from phonics_benchmark.config import (
     BenchmarkRunConfig,
@@ -443,17 +456,20 @@ def _evaluate_item(
         "prompt": prompt,
     }
 
+    # FDLLM propagates provider SDK failures unchanged. Save only those known
+    # call failures here so setup and result-processing bugs fail fast.
     try:
         payload = evaluator(config, model_name, item, prompt)
-        return {
-            **base_row,
-            **payload,
-            "success": True,
-            "call_status": CALL_STATUS_SUCCESS,
-            "error_type": "",
-            "error_message": "",
-        }
-    except Exception as e:
+    except (
+        AnthropicAPIError,
+        BedrockAPIError,
+        BedrockConnectionError,
+        BedrockHTTPClientError,
+        GoogleAPIError,
+        MistralAPIException,
+        MistralConnectionException,
+        OpenAIAPIError,
+    ) as e:
         return {
             **base_row,
             "output": "",
@@ -462,6 +478,25 @@ def _evaluate_item(
             "error_type": type(e).__name__,
             "error_message": str(e),
         }
+
+    if not payload["output"]:
+        return {
+            **base_row,
+            "output": "",
+            "success": False,
+            "call_status": CALL_STATUS_ERROR,
+            "error_type": "EmptyLLMResponse",
+            "error_message": f"LLM response empty for item {item['item_id']}",
+        }
+
+    return {
+        **base_row,
+        **payload,
+        "success": True,
+        "call_status": CALL_STATUS_SUCCESS,
+        "error_type": "",
+        "error_message": "",
+    }
 
 
 def _load_environment(env_path: Path | None) -> Path | None:

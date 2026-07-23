@@ -117,3 +117,8 @@ timing fields. `model_call_id` is the cache identity for the response. Cached ro
 keep an older `config_id` when reused across provenance-only config changes. Result rows
 identify the model by configured model name; the corresponding model config is saved in
 the latest config snapshot, keyed by that name.
+
+The runner saves recognized provider SDK API and transport failures propagated by FDLLM
+as error rows. It also saves an absent or empty model response as an error row. Other
+exceptions, including FDLLM/model setup, response processing, and result persistence
+errors, propagate and stop the affected run instead of being converted into call errors.
