@@ -11,8 +11,9 @@ Must run ``benchmarks/phonics_benchmark/scripts/build_benchmark_items.py`` first
 to produce the benchmark items CSV.
 
 Run this script with:
-uv run --frozen --package phonics-benchmark python \
-    benchmarks/phonics_benchmark/scripts/llm_output_trial.py
+
+    uv run --frozen --package phonics-benchmark python \
+        benchmarks/phonics_benchmark/scripts/llm_output_trial.py
 """
 
 from __future__ import annotations
@@ -53,7 +54,7 @@ BENCHMARK_CANDIDATES_PATH = (
     DATA_DIR / "kiswahili" / "tusome_benchmark_item_candidates_with_analysis.csv"
 )
 BENCHMARK_ITEMS_PATH = (
-    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis2.csv"
+    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis.csv"
 )
 
 # ISO 639 language code; keys the decodability bundle in phonics_benchmark.languages.

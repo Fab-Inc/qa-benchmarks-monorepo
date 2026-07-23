@@ -27,10 +27,10 @@ DATA_DIR = REPO_ROOT / "benchmarks" / "phonics_benchmark" / "data"
 
 OUTPUTS_DIR = Path(__file__).parents[1] / "outputs"
 BENCHMARK_CANDIDATES_PATH = (
-    DATA_DIR / "kiswahili" / "tusome_benchmark_item_candidates_with_analysis2.csv"
+    DATA_DIR / "kiswahili" / "tusome_benchmark_item_candidates_with_analysis.csv"
 )
 BENCHMARK_ITEMS_PATH = (
-    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis2.csv"
+    DATA_DIR / "kiswahili" / "tusome_benchmark_items_with_analysis.csv"
 )
 STUDENT_KNOWLEDGE_PROFILES_PATH = (
     DATA_DIR / "kiswahili" / "student_knowledge_profiles.jsonl"
