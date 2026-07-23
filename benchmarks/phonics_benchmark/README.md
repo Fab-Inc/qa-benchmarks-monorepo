@@ -41,6 +41,13 @@ model name, model config, or max tokens creates new result rows for those calls.
 default model-call limit is 10,000 response tokens; set `max_tokens` in config or pass
 `--max-tokens` to override it.
 
+Use `--retry-errors` only after a normal run has cached every currently planned call.
+Retry mode runs exactly the cached rows whose `call_status` is `error`; it fails before
+starting any model workers if calls are missing or cache statuses are invalid. After
+adding items or models, changing model-call inputs, or interrupting a run before every
+call is recorded, run normally first to execute only the missing calls, then use
+`--retry-errors`.
+
 Before a run starts, the CLI anonymously downloads the latest public
 `custom_models.yaml` from the `fab-open-configs` bucket. Use `--skip-models-download` to
 skip this refresh. The CLI then loads provider keys from the repo-root `.env`, registers

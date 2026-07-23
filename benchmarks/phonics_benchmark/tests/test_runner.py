@@ -2,6 +2,7 @@
 
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 from threading import Barrier
 from unittest.mock import patch
@@ -13,7 +14,7 @@ from botocore.exceptions import EndpointConnectionError
 from google.genai.errors import ServerError as GoogleServerError
 from mistralai.exceptions import MistralConnectionException
 from openai import APIConnectionError as OpenAIAPIConnectionError
-from phonics_benchmark.config import BenchmarkRunConfig, load_run_config
+from phonics_benchmark.config import BenchmarkRunConfig, ConfigError, load_run_config
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
 from phonics_benchmark.results import save_results
@@ -510,6 +511,109 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
     assert second_output["executed_count"] == 1
     assert second_output["skipped_count"] == 1
     assert [row["output"] for row in rows] == ["retried", "success"]
+
+
+def test_retry_errors_rejects_uncached_items_before_starting_workers(
+    tmp_path: Path,
+) -> None:
+    """Retry-only mode does not execute newly added semantic calls."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+        model_workers=2,
+    )
+    run_from_config_file(
+        config_path,
+        evaluator=lambda _config, model, _item, _prompt: {"output": model},
+    )
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b"],
+        items=[
+            {"id": "item-1", "text": "A cat sat."},
+            {"id": "item-2", "text": "The dog ran."},
+        ],
+        model_workers=2,
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["retry_errors"] = True
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    called_models = []
+
+    with pytest.raises(
+        ConfigError,
+        match=r"missing calls by model: model-a \(1\), model-b \(1\)",
+    ):
+        run_from_config_file(
+            config_path,
+            evaluator=lambda _config, model, _item, _prompt: (
+                called_models.append(model) or {"output": "unexpected"}
+            ),
+        )
+
+    assert called_models == []
+
+
+def test_retry_errors_rejects_changed_model_config_before_calling_model(
+    tmp_path: Path,
+) -> None:
+    """Retry-only mode requires the current semantic model-call identities."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+    config = load_run_config(config_path)
+    run_benchmark(
+        config,
+        config_id="config-1",
+        evaluator=lambda *_args: {"output": "first"},
+        model_configs={"model-a": {"Token_Window": 100}},
+    )
+    retry_config = replace(config, retry_errors=True)
+    calls = []
+
+    with pytest.raises(ConfigError, match="Run normally first"):
+        run_benchmark(
+            retry_config,
+            config_id="config-2",
+            evaluator=lambda *_args: calls.append("called") or {"output": "unexpected"},
+            model_configs={"model-a": {"Token_Window": 200}},
+        )
+
+    assert calls == []
+
+
+def test_retry_errors_rejects_invalid_cached_call_status(tmp_path: Path) -> None:
+    """Retry-only mode fails on cache rows that cannot be classified."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "A cat sat."}],
+    )
+    output = run_from_config_file(
+        config_path,
+        evaluator=lambda *_args: {"output": "first"},
+    )
+    results_path = output["results_paths"]["model-a"]
+    rows = _read_jsonl(results_path)
+    rows[0]["call_status"] = "pending"
+    results_path.write_text(json.dumps(rows[0]) + "\n", encoding="utf-8")
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["retry_errors"] = True
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="invalid call_status"):
+        run_from_config_file(
+            config_path,
+            evaluator=lambda *_args: {"output": "unexpected"},
+        )
 
 
 def test_retry_errors_preflights_every_model_before_starting_workers(

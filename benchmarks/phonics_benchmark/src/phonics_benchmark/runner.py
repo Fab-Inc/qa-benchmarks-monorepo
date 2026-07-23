@@ -115,10 +115,16 @@ def run_benchmark(
         model_name: _model_results_path(results_dir, model_name)
         for model_name in config.models
     }
-    _preflight_retry_results(config, results_paths)
+    items_for_run = items.to_dict(orient="records")
+    sanitized_model_configs = _sanitize_model_config(dict(model_configs or {}))
+    _preflight_retry_results(
+        config,
+        results_paths,
+        model_configs=sanitized_model_configs,
+        items=items_for_run,
+    )
 
     run_dir.mkdir(parents=True, exist_ok=True)
-    sanitized_model_configs = _sanitize_model_config(dict(model_configs or {}))
     config_snapshot = {
         "config_id": config_id,
         "source_config_path": str(config.config_path) if config.config_path else None,
@@ -134,7 +140,7 @@ def run_benchmark(
         config_id=config_id,
         config_snapshot_path=config_snapshot_path,
         model_configs=sanitized_model_configs,
-        items=items.to_dict(orient="records"),
+        items=items_for_run,
         results_paths=results_paths,
         resolved_config=resolved_config,
         custom_models_path=custom_models_path,
@@ -254,6 +260,11 @@ def _run_model(
     for planned_item in planned_items:
         result_id = str(planned_item["result_id"])
         existing = rows_by_id.get(result_id)
+        if existing is None and config.retry_errors:
+            raise ConfigError(
+                f"--retry-errors found no cached result for model {model_name} "
+                f"item {planned_item['item']['item_id']}; run normally first."
+            )
         if existing and _should_skip_existing(
             existing, retry_errors=config.retry_errors
         ):
@@ -318,8 +329,11 @@ def _run_model(
 def _preflight_retry_results(
     config: BenchmarkRunConfig,
     results_paths: Mapping[str, Path],
+    *,
+    model_configs: Mapping[str, Any],
+    items: list[dict[str, Any]],
 ) -> None:
-    """Require every model cache before starting any retry-only worker."""
+    """Validate every retry cache before starting any model worker."""
 
     if not config.retry_errors:
         return
@@ -333,6 +347,56 @@ def _preflight_retry_results(
             "No cached results found for "
             + ", ".join(missing_models)
             + "; cannot use --retry-errors."
+        )
+
+    missing_call_counts: dict[str, int] = {}
+    invalid_status_counts: dict[str, int] = {}
+    for model_name in config.models:
+        existing_rows_by_id = _results_by_id(
+            load_results(results_paths[model_name], force=False)
+        )
+        planned_items = _planned_model_items(
+            config=config,
+            model_name=model_name,
+            model_config=model_configs.get(model_name, {}),
+            items=items,
+        )
+        expected_result_ids = [
+            str(planned_item["result_id"]) for planned_item in planned_items
+        ]
+        missing_count = sum(
+            result_id not in existing_rows_by_id for result_id in expected_result_ids
+        )
+        if missing_count:
+            missing_call_counts[model_name] = missing_count
+
+        invalid_status_count = sum(
+            existing_rows_by_id[result_id].get("call_status")
+            not in {CALL_STATUS_ERROR, CALL_STATUS_SUCCESS}
+            for result_id in expected_result_ids
+            if result_id in existing_rows_by_id
+        )
+        if invalid_status_count:
+            invalid_status_counts[model_name] = invalid_status_count
+
+    if missing_call_counts:
+        details = ", ".join(
+            f"{model_name} ({count})"
+            for model_name, count in missing_call_counts.items()
+        )
+        raise ConfigError(
+            "--retry-errors requires cached results for every planned call; "
+            f"missing calls by model: {details}. Run normally first to execute "
+            "new or changed calls."
+        )
+    if invalid_status_counts:
+        details = ", ".join(
+            f"{model_name} ({count})"
+            for model_name, count in invalid_status_counts.items()
+        )
+        raise ConfigError(
+            "--retry-errors found cached rows with invalid call_status values "
+            f"by model: {details}."
         )
 
 
@@ -545,9 +609,9 @@ def _resolve_custom_models_path(custom_models_path: Path | None) -> Path:
 
 
 def _should_skip_existing(row: dict[str, Any], *, retry_errors: bool) -> bool:
-    if row.get("call_status") == CALL_STATUS_SUCCESS:
-        return True
-    return not retry_errors
+    if retry_errors:
+        return row.get("call_status") != CALL_STATUS_ERROR
+    return True
 
 
 def _save_results(
