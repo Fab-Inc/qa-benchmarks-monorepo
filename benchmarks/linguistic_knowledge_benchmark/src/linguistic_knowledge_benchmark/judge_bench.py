@@ -1,7 +1,7 @@
 """
 Linguistic Knowledge Eval Judge Module.
 
-Scores model answers from run_bench using regex (MC)
+Scores model responses from run_bench using regex (MCQ)
 or LLM judge (short_form/true_false).
 """
 
@@ -17,12 +17,12 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 from linguistic_knowledge_benchmark.run_bench import (
-    CACHE_BASE_DIR,
     git_hash,
     load_dataset,
     parse_answer,
     update_log,
 )
+from linguistic_knowledge_benchmark.shared_utils import english_language_name, run_dir
 
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-5-20250929"
 SCORE_METHOD_REGEX = "regex"
@@ -41,9 +41,9 @@ class JudgeResponse(BaseModel):
 def _build_judge_system_prompt(language_name: str) -> str:
     """Build the judge system prompt for a given language."""
     return (
-        f"You are an expert evaluator for {language_name} language knowledge"
-        " questions. You will be given a question, the model's answer, and one"
-        " or more acceptable expected answers."
+        f"You are an expert evaluator for {english_language_name(language_name)}"
+        " language knowledge questions. You will be given a question, the"
+        " model's answer, and one or more acceptable expected answers."
         "\n\nYour task is to determine if the model's answer matches one of"
         " the expected answers. Be strict: only accept answers that match"
         " one of the provided expected answers. Do NOT accept synonyms,"
@@ -73,9 +73,9 @@ JUDGE_FALLBACK_SYSTEM_PROMPT = (
 def score_multiple_choice(
     output: str, expected_answers: list[str]
 ) -> tuple[bool | None, str, str | None]:
-    """Score a multiple-choice answer using regex parsing.
+    """Score a multiple-choice response using regex parsing.
 
-    Uses parse_answer() to extract the answer letter, then compares with
+    Uses parse_answer() to extract the response letter, then compares with
     expected.
 
     Args:
@@ -84,7 +84,7 @@ def score_multiple_choice(
 
     Returns:
         Tuple of (is_correct, justification, parsed_answer). is_correct is None
-        when the answer cannot be parsed. Justification is always empty string
+        when the response cannot be parsed. Justification is always empty string
         since no LLM judge is involved.
     """
     parsed = parse_answer(output)
@@ -124,14 +124,6 @@ def score_true_false_regex(
     return None
 
 
-def _language_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the run directory for a language/run.
-
-    Always resolves under runs/; omitting run_id uses the 'default' run.
-    """
-    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
-
-
 def score_with_llm_judge(
     question: str,
     output: str,
@@ -140,7 +132,7 @@ def score_with_llm_judge(
     judge_caller,
     system_prompt: str,
 ) -> tuple[bool | None, str]:
-    """Score an answer using an LLM judge with structured output.
+    """Score a response using an LLM judge with structured output.
 
     Args:
         question: The original question text
@@ -186,10 +178,11 @@ def judge_results(
     force: bool = False,
     run_id: str | None = None,
 ) -> pd.DataFrame:
-    """Score model answers from the Linguistic Knowledge eval.
+    """Score model responses from the Linguistic Knowledge eval.
 
-    Reads resps_{model_name}.csv from the answers directory, scores each answer,
-    and saves resps_{model_name}_judged.csv to the answers_judged directory.
+    Reads responses_{model_name}.csv from the responses directory, scores each
+    response, and saves responses_judged_{model_name}.csv to the
+    responses_judged directory.
 
     Args:
         model_name: Model whose results to judge
@@ -204,13 +197,13 @@ def judge_results(
     Returns:
         DataFrame with added is_correct and justification columns
     """
-    language_dir = _language_dir(language_name, run_id)
-    input_dir = language_dir / "answers"
-    judged_dir = language_dir / "answers_judged"
+    language_dir = run_dir(language_name, run_id)
+    input_dir = language_dir / "responses"
+    judged_dir = language_dir / "responses_judged"
     judge_system_prompt = _build_judge_system_prompt(language_name)
 
     # Check input file exists
-    input_path = input_dir / f"resps_{model_name}.csv"
+    input_path = input_dir / f"responses_{model_name}.csv"
     if not input_path.exists():
         raise FileNotFoundError(
             f"No results found for {model_name}. "
@@ -219,7 +212,7 @@ def judge_results(
         )
 
     # Check judged cache
-    output_path = judged_dir / f"resps_{model_name}_judged.csv"
+    output_path = judged_dir / f"responses_judged_{model_name}.csv"
     if not force and output_path.exists():
         print(
             f"Judged results already exist for {model_name}. Use --force to re-judge."
@@ -335,8 +328,8 @@ def judge_results(
         language_dir,
         model_name,
         {
-            "answers_judged_timestamp-utc": datetime.now(UTC).isoformat(),
-            "answers_judged_git-hash": git_hash(),
+            "responses_judged_timestamp-utc": datetime.now(UTC).isoformat(),
+            "responses_judged_git-hash": git_hash(),
         },
     )
     print(f"Judged results saved to {output_path}")
@@ -353,10 +346,10 @@ def judge_results_fallback(
     force: bool = False,
     run_id: str | None = None,
 ) -> pd.DataFrame:
-    """Re-judge null MC/TF rows from answers_judged using LLM fallback.
+    """Re-judge null MCQ/TF rows from responses_judged using LLM fallback.
 
-    Reads the existing judged CSV from answers_judged/, copies it to
-    answers_judged_fallback/, and runs the LLM judge only on rows where
+    Reads the existing judged CSV from responses_judged/, copies it to
+    responses_judged_fallback/, and runs the LLM judge only on rows where
     is_correct is null and answer_type is multiple_choice or true_false.
 
     Args:
@@ -372,16 +365,16 @@ def judge_results_fallback(
     Returns:
         DataFrame with added is_correct_fallback and justification_fallback
     """
-    language_dir = _language_dir(language_name, run_id)
-    input_dir = language_dir / "answers_judged"
-    fallback_dir = language_dir / "answers_judged_fallback"
+    language_dir = run_dir(language_name, run_id)
+    input_dir = language_dir / "responses_judged"
+    fallback_dir = language_dir / "responses_judged_fallback"
 
     # Read existing judged CSV
-    input_path = input_dir / f"resps_{model_name}_judged.csv"
+    input_path = input_dir / f"responses_judged_{model_name}.csv"
     if not input_path.exists():
         raise FileNotFoundError(f"No result to judge for {model_name}. ")
 
-    output_path = fallback_dir / f"resps_{model_name}_judged.csv"
+    output_path = fallback_dir / f"responses_judged_{model_name}.csv"
     if not force and output_path.exists():
         print(
             f"Fallback results already exist for {model_name}. Use --force to re-judge."
@@ -394,7 +387,7 @@ def judge_results_fallback(
     if "parsed_answer" not in df.columns:
         df["parsed_answer"] = None
 
-    # Find null is_correct rows that are MC or TF
+    # Find null is_correct rows that are MCQ or TF
     null_mask = df["is_correct"].isna() & df["answer_type"].isin(
         ["multiple_choice", "true_false"]
     )
@@ -414,8 +407,10 @@ def judge_results_fallback(
             language_dir,
             model_name,
             {
-                "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
-                "answers_judged_fallback_git-hash": git_hash(),
+                "responses_judged_fallback_timestamp-utc": datetime.now(
+                    UTC
+                ).isoformat(),
+                "responses_judged_fallback_git-hash": git_hash(),
             },
         )
         return df
@@ -432,7 +427,7 @@ def judge_results_fallback(
     questions = load_dataset(dataset_path)
     question_map = {q["question_id"]: q["question"] for q in questions}
 
-    # Score only null MC/TF rows
+    # Score only null MCQ/TF rows
     for idx in tqdm(
         df[null_mask].index,
         desc=f"Fallback judging {model_name}",
@@ -463,8 +458,8 @@ def judge_results_fallback(
         language_dir,
         model_name,
         {
-            "answers_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
-            "answers_judged_fallback_git-hash": git_hash(),
+            "responses_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
+            "responses_judged_fallback_git-hash": git_hash(),
         },
     )
     print(f"Fallback results saved to {output_path}")
@@ -513,6 +508,6 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
         "accuracy": round(accuracy, 2),
         "scored_count": total_scored,
         "unscored_count": int((~scored_mask).sum()),
-        "accuracy_mc": by_type.get("multiple_choice", 0.0),
+        "accuracy_mcq": by_type.get("multiple_choice", 0.0),
         "accuracy_short_form": by_type.get("short_form", 0.0),
     }

@@ -20,16 +20,16 @@ from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
     EVAL_MODELS,
     RATE_LIMITED_MODELS,
+    english_language_name,
+    run_dir,
 )
 
-CACHE_BASE_DIR = BENCH_DIR / "cache"
 CALL_STATUS_SUCCESS = "success"
 CALL_STATUS_ERROR = "error"
 
 
-# Answer parsing patterns (the LLPK MCQ letter extractor; the only LLPK code
-# reused by Linguistic Knowledge — judge_bench imports parse_answer from here).
-REPAT = [
+# MCQ letter-extraction regexes.
+ANSWER_PATTERNS = [
     r"^\s*([ABCD])(?:[\.(?:\s*\n)]+.*)*$",
     r"^\s*\(([ABCD])\)",  # letter in parentheses, e.g. (C)
     r"^<think>[\s\S]*?</think>[\s\S]*?([ABCD])$",  # for deepseek R1
@@ -38,21 +38,23 @@ REPAT = [
     # for glm 4.1v-9b-thinking
     r"<answer>(?:<\|begin_of_box\|>)?([ABCD])(?:<\|end_of_box\|>)?$",
 ]
-REQ = [re.compile(pat) for pat in REPAT]
+ANSWER_REGEXES = [re.compile(pat) for pat in ANSWER_PATTERNS]
 
 
 def parse_answer(resp: str) -> str | None:
     """
     Parse model response to extract the answer letter (A-D).
     Returns None if no valid answer found.
+
+    judge_bench.py imports this function directly from run_bench.py.
     """
     if pd.isna(resp) or resp is None:
         return None
 
     resp = str(resp).strip()
 
-    for req in REQ:
-        match = req.match(resp)
+    for regex in ANSWER_REGEXES:
+        match = regex.match(resp)
         if match is not None:
             return match.groups()[0]
 
@@ -69,7 +71,7 @@ def _build_system_prompts(language_name: str) -> dict[str, str]:
     """
     prefix = (
         "The following question is written in English and concerns the"
-        f" linguistics of {language_name}. "
+        f" linguistics of {english_language_name(language_name)}. "
     )
     return {
         "multiple_choice": (
@@ -118,17 +120,12 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
-def _run_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the run directory for a language/run."""
-    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
-
-
-def _answers_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the answers directory for a language/run.
+def _responses_dir(language_name: str, run_id: str | None = None) -> Path:
+    """Return the responses directory for a language/run.
 
     Always writes under runs/; omitting run_id uses the 'default' run.
     """
-    return _run_dir(language_name, run_id) / "answers"
+    return run_dir(language_name, run_id) / "responses"
 
 
 def git_hash() -> str | None:
@@ -219,18 +216,18 @@ def run_benchmark(
         retry_errors: Retry rows with persisted call_status="error" in an
             existing cache file
         run_id: Optional run ID; writes under
-            cache/<language>/runs/<run_id>/answers/.
+            cache/<language>/runs/<run_id>/responses/.
             Defaults to 'default' when not specified.
         output_dir: Directory to save results (default:
-            cache/<language>/runs/<run_id>/answers)
+            cache/<language>/runs/<run_id>/responses)
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
         output, latency, total_tokens, completion_tokens, reasoning_tokens
     """
     if output_dir is None:
-        output_dir = _answers_dir(language_name, run_id)
+        output_dir = _responses_dir(language_name, run_id)
     output_dir = Path(output_dir)
-    run_dir = output_dir.parent
+    run_directory = output_dir.parent
 
     # Validate model name
     if model_name not in EVAL_MODELS:
@@ -239,7 +236,7 @@ def run_benchmark(
         raise ValueError(f"Invalid model: {model_name}")
 
     # Check cache
-    cache_path = output_dir / f"resps_{model_name}.csv"
+    cache_path = output_dir / f"responses_{model_name}.csv"
     if not force and cache_path.exists():
         cached_df = pd.read_csv(cache_path)
         cached_error_mask = _error_mask(cached_df)
@@ -338,11 +335,11 @@ def run_benchmark(
     results_df = pd.DataFrame(results)
     results_df["retry_count"] = results_df["retry_count"].fillna(0).astype(int)
     output_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = output_dir / f"resps_{model_name}.csv"
+    cache_path = output_dir / f"responses_{model_name}.csv"
     results_df.to_csv(cache_path, index=False)
-    prefix = "answers_retry" if retry_errors else "answers"
+    prefix = "responses_retry" if retry_errors else "responses"
     update_log(
-        run_dir,
+        run_directory,
         model_name,
         {
             f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),
