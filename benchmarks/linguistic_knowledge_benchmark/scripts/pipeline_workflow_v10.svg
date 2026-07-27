@@ -1,5 +1,5 @@
-<svg width="100%" viewBox="0 0 1740 272" role="img" xmlns="http://www.w3.org/2000/svg">
-<title>Linguistic benchmark pipeline (v9): the build funnels — N per-source digests compress (JSON-only) into one map, fan out to N sharded writer runs, then compress again into one pooled/filtered dataset; assembly is a deterministic script</title>
+<svg width="100%" viewBox="0 0 1740 300" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Linguistic benchmark pipeline (v9): the build funnels — N per-source digests compress (JSON-only) into one map, fan out to N sharded writer runs, then compress again into one pooled/filtered dataset; assembly is a deterministic script. Stage 3b's quota allocation is under revision: a WIP IRT-based allocation may replace the current hard-coded/feature-map quota.</title>
 <style>
   text{font-family:'Anthropic Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
   .h1{font-weight:600;font-size:17px;fill:#2C2C2A}
@@ -199,7 +199,7 @@
 <text class="stag" x="1322" y="98" text-anchor="end">.py</text>
 <text class="skill" x="1186" y="115">deterministic script</text>
 <line class="div" x1="1186" y1="124" x2="1322" y2="124" stroke="#2C2C2A" stroke-opacity=".28"/>
-<text class="ln" x="1186" y="141">hard-coded quota per D×G</text>
+<text class="ln" x="1186" y="141">hard-coded quota per D×G *</text>
 <text class="ln" x="1186" y="157">select · balance · number</text>
 <text class="ln" x="1186" y="173">dataset + backups + gaps</text>
 <text class="ln" x="1186" y="189">reproducible · no LLM</text>
@@ -260,4 +260,7 @@
 <path class="fan" d="M210 140 L231 140" marker-end="url(#arrow)"/>
 <path class="fan" d="M210 169 L231 169" marker-end="url(#arrow)"/>
 <path class="fan" d="M210 198 L231 198" marker-end="url(#arrow)"/>
+
+<!-- FOOTNOTE: 3b allocation is under revision -->
+<text class="lbl" x="24" y="288">* WIP: an IRT-based allocation (see estimate_irt.py) is being explored for Stage 3b and may replace this hard-coded / feature-map quota entirely — not finalized.</text>
 </svg>
