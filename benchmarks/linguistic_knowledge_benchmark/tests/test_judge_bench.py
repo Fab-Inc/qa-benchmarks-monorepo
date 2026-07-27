@@ -438,3 +438,74 @@ def test_compute_summary_uses_fallback_when_present():
     # row0 -> fallback True, row1 -> falls back to is_correct False
     assert summary["scored_count"] == 2
     assert summary["accuracy"] == 50.0
+
+
+# --------------------------------------------------------------------------- #
+# build_detailed
+# --------------------------------------------------------------------------- #
+def test_build_detailed_columns_and_fallback(tmp_path):
+    ds = write_dataset(
+        tmp_path / "ds.json",
+        [
+            {
+                "question_id": 2,
+                "domain": "D2",
+                "grade": "G2",
+                "answer_type": "short_form",
+                "question": "q2",
+                "expected_answers": ["x", "y"],
+            },
+            {
+                "question_id": 1,
+                "domain": "D1",
+                "grade": "G1",
+                "answer_type": "multiple_choice",
+                "question": "q1",
+                "expected_answers": ["A"],
+            },
+        ],
+    )
+    j1 = pd.DataFrame(
+        {"question_id": [1, 2], "output": ["A", "z"], "is_correct": [True, False]}
+    )
+    j2 = pd.DataFrame(
+        {
+            "question_id": [1, 2],
+            "output": ["B", "x"],
+            "is_correct": [None, True],
+            "is_correct_fallback": [True, None],
+        }
+    )
+
+    detailed = judge_bench.build_detailed({"m1": j1, "m2": j2}, ds)
+
+    # Rows ordered by question_id; list expected_answers joined with ", ".
+    assert list(detailed["question_id"]) == [1, 2]
+    assert detailed.loc[0, "expected_answers"] == "A"
+    assert detailed.loc[1, "expected_answers"] == "x, y"
+    # Per-model output + correctness columns.
+    assert detailed.loc[0, "m1_output"] == "A"
+    assert bool(detailed.loc[0, "m1_correct"]) is True
+    assert bool(detailed.loc[1, "m1_correct"]) is False
+    # m2 uses the fallback verdict where present, else the original is_correct.
+    assert bool(detailed.loc[0, "m2_correct"]) is True  # fallback True over None
+    assert bool(detailed.loc[1, "m2_correct"]) is True  # fallback None -> is_correct
+
+
+def test_build_detailed_skips_incomplete_frame(tmp_path):
+    ds = write_dataset(
+        tmp_path / "ds.json",
+        [
+            {
+                "question_id": 1,
+                "domain": "D1",
+                "grade": "G1",
+                "answer_type": "short_form",
+                "question": "q",
+                "expected_answers": ["a"],
+            }
+        ],
+    )
+    detailed = judge_bench.build_detailed({"m1": pd.DataFrame()}, ds)
+    assert list(detailed["question_id"]) == [1]
+    assert "m1_output" not in detailed.columns

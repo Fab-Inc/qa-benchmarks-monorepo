@@ -516,3 +516,61 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
         "accuracy_mc": by_type.get("multiple_choice", 0.0),
         "accuracy_short_form": by_type.get("short_form", 0.0),
     }
+
+
+def build_detailed(
+    judged_by_model: dict[str, pd.DataFrame], dataset_path: str | Path
+) -> pd.DataFrame:
+    """Build a per-question detail table across models.
+
+    One row per question (from the dataset, so every item appears even if a model
+    skipped it), with the expected answer and, for each model, two columns:
+    ``<model>_output`` (the raw model output) and ``<model>_correct`` (True/False,
+    or blank when unscored). Correctness uses the fallback verdict where present,
+    matching ``compute_summary``.
+
+    Args:
+        judged_by_model: model name -> its judged_df (question_id, output,
+            is_correct[, is_correct_fallback]).
+        dataset_path: the eval dataset JSON (question_id, domain, grade, question,
+            answer_type, expected_answers).
+
+    Returns:
+        DataFrame ordered by question_id: metadata columns then per-model columns.
+    """
+    ds = pd.read_json(dataset_path)
+    meta_cols = [
+        c
+        for c in [
+            "question_id",
+            "domain",
+            "grade",
+            "answer_type",
+            "question",
+            "expected_answers",
+        ]
+        if c in ds.columns
+    ]
+    detailed = ds[meta_cols].copy()
+    if "expected_answers" in detailed.columns:
+        detailed["expected_answers"] = detailed["expected_answers"].map(
+            lambda v: ", ".join(map(str, v)) if isinstance(v, list) else v
+        )
+
+    for model_name, jdf in judged_by_model.items():
+        if not {"question_id", "output", "is_correct"}.issubset(jdf.columns):
+            continue  # nothing judged for this model (e.g. an empty result frame)
+        if "is_correct_fallback" in jdf.columns:
+            corr = jdf["is_correct_fallback"].fillna(jdf["is_correct"])
+        else:
+            corr = jdf["is_correct"]
+        per_model = pd.DataFrame(
+            {
+                "question_id": jdf["question_id"].values,
+                f"{model_name}_output": jdf["output"].values,
+                f"{model_name}_correct": corr.values,
+            }
+        )
+        detailed = detailed.merge(per_model, on="question_id", how="left")
+
+    return detailed.sort_values("question_id").reset_index(drop=True)

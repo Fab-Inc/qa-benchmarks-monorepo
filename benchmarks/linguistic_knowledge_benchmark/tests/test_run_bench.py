@@ -327,3 +327,64 @@ def test_run_benchmark_rate_limited_sleeps(tmp_path, monkeypatch):
         output_dir=tmp_path / "out",
     )
     assert sleeps == [5]
+
+
+# --------------------------------------------------------------------------- #
+# git_hash / update_log / _error_mask / retry-error edge cases
+# --------------------------------------------------------------------------- #
+def test_git_hash_returns_none_on_error(monkeypatch, capsys):
+    import subprocess
+
+    def boom(*a, **k):
+        raise OSError("no git here")
+
+    # git_hash imports subprocess lazily, so patch the real module.
+    monkeypatch.setattr(subprocess, "check_output", boom)
+    assert run_bench.git_hash() is None
+    assert "could not read git hash" in capsys.readouterr().err
+
+
+def test_update_log_merges_existing_and_skips_none(tmp_path):
+    (tmp_path / "log.json").write_text(json.dumps({"m": {"a": "1"}}))
+    run_bench.update_log(tmp_path, "m", {"b": "2", "c": None})
+    data = json.loads((tmp_path / "log.json").read_text())
+    assert data["m"] == {"a": "1", "b": "2"}  # merged; None value skipped
+
+
+def test_error_mask_without_call_status_column():
+    mask = run_bench._error_mask(pd.DataFrame({"question_id": [1, 2]}))
+    assert list(mask) == [False, False]
+
+
+def test_run_benchmark_retry_errors_no_error_rows_returns_cached(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "question_id": 1,
+                "output": "A",
+                "call_status": run_bench.CALL_STATUS_SUCCESS,
+            }
+        ]
+    ).to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
+
+    df = run_bench.run_benchmark(
+        VALID_MODEL,
+        language_name="Luganda",
+        dataset_path=tmp_path / "ds.json",
+        output_dir=out,
+        retry_errors=True,
+    )
+    assert df.loc[0, "output"] == "A"
+
+
+def test_run_benchmark_retry_errors_without_cache_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="cannot use --retry-errors"):
+        run_bench.run_benchmark(
+            VALID_MODEL,
+            language_name="Luganda",
+            dataset_path=tmp_path / "ds.json",
+            output_dir=tmp_path / "out",
+            retry_errors=True,
+        )
