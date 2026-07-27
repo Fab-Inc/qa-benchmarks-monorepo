@@ -219,8 +219,10 @@ def _parse_run_config(
         raise ConfigError("'custom_models_path' must be a string when provided")
 
     max_tokens = raw_config.get("max_tokens")
-    if max_tokens is not None and not isinstance(max_tokens, int):
-        raise ConfigError("'max_tokens' must be an integer when provided")
+    if isinstance(max_tokens, bool) or (
+        max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens < 1)
+    ):
+        raise ConfigError("'max_tokens' must be a positive integer when provided")
 
     chunk_size = raw_config.get("chunk_size", 100)
     if isinstance(chunk_size, bool) or (

@@ -69,6 +69,25 @@ def test_load_benchmark_items_reads_composed_csv(tmp_path: Path) -> None:
     assert items.loc[0, "metadata"]["non_decodable_words"] == ["kuku"]
 
 
+def test_load_benchmark_items_rejects_duplicate_ids_after_trimming(
+    tmp_path: Path,
+) -> None:
+    """Whitespace does not allow duplicate benchmark item IDs."""
+
+    items_path = tmp_path / "items.csv"
+    items_path.write_text(
+        (
+            "benchmark_item_id,content,student_knowledge_id,graphemes,whole_words\n"
+            'item-1,First text.,student-1,"[""a""]","[]"\n'
+            ' item-1 ,Second text.,student-2,"[""b""]","[]"\n'
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="duplicate benchmark_item_id.*item-1"):
+        load_benchmark_items(items_path)
+
+
 def test_run_from_config_file_uses_composed_csv(tmp_path: Path) -> None:
     """The runner loads every row from the configured composed items CSV."""
 
@@ -861,19 +880,104 @@ def test_snapshot_model_configs_reads_registered_fdllm_models() -> None:
     }
 
 
-def test_download_default_custom_models_anonymously() -> None:
-    """The shared model registry is refreshed without requiring credentials."""
+def test_download_default_custom_models_anonymously_and_atomically(
+    tmp_path: Path,
+) -> None:
+    """A validated anonymous download atomically replaces the model registry."""
 
-    with patch("fab_benchmark_publisher.download_file") as download_file:
+    destination = tmp_path / "custom_models.yaml"
+    destination.write_text("OldProvider: {}\n", encoding="utf-8")
+
+    def write_downloaded_models(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text(
+            "NewProvider:\n  models: {}\n",
+            encoding="utf-8",
+        )
+
+    with (
+        patch("phonics_benchmark.runner.DEFAULT_CUSTOM_MODELS_PATH", destination),
+        patch(
+            "fab_benchmark_publisher.download_file",
+            side_effect=write_downloaded_models,
+        ) as download_file,
+    ):
         result = download_default_custom_models()
 
-    download_file.assert_called_once_with(
-        bucket_name="fab-open-configs",
-        file_name="custom_models.yaml",
-        write_path=DEFAULT_CUSTOM_MODELS_PATH,
-        require_auth=False,
-    )
-    assert result == DEFAULT_CUSTOM_MODELS_PATH
+    call_args = download_file.call_args.kwargs
+    temporary_path = Path(call_args.pop("write_path"))
+    assert call_args == {
+        "bucket_name": "fab-open-configs",
+        "file_name": "custom_models.yaml",
+        "require_auth": False,
+    }
+    assert temporary_path.parent == destination.parent
+    assert temporary_path != destination
+    assert not temporary_path.exists()
+    assert destination.read_text(encoding="utf-8") == ("NewProvider:\n  models: {}\n")
+    assert result == destination
+
+
+def test_download_default_custom_models_preserves_existing_file_on_failure(
+    tmp_path: Path,
+) -> None:
+    """A failed transfer cannot leave a partial registry at the final path."""
+
+    destination = tmp_path / "custom_models.yaml"
+    destination.write_text("OldProvider: {}\n", encoding="utf-8")
+
+    def fail_after_partial_download(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text("partial", encoding="utf-8")
+        raise ConnectionError("download interrupted")
+
+    with (
+        patch("phonics_benchmark.runner.DEFAULT_CUSTOM_MODELS_PATH", destination),
+        patch(
+            "fab_benchmark_publisher.download_file",
+            side_effect=fail_after_partial_download,
+        ),
+        pytest.raises(ConnectionError, match="interrupted"),
+    ):
+        download_default_custom_models()
+
+    assert destination.read_text(encoding="utf-8") == "OldProvider: {}\n"
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize(
+    ("downloaded_contents", "error"),
+    [
+        ("[", "invalid"),
+        ("[]", "non-empty YAML mapping"),
+    ],
+)
+def test_download_default_custom_models_rejects_invalid_registry(
+    tmp_path: Path,
+    downloaded_contents: str,
+    error: str,
+) -> None:
+    """Invalid downloaded YAML does not replace the existing registry."""
+
+    destination = tmp_path / "custom_models.yaml"
+    destination.write_text("OldProvider: {}\n", encoding="utf-8")
+
+    def write_invalid_download(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text(
+            downloaded_contents,
+            encoding="utf-8",
+        )
+
+    with (
+        patch("phonics_benchmark.runner.DEFAULT_CUSTOM_MODELS_PATH", destination),
+        patch(
+            "fab_benchmark_publisher.download_file",
+            side_effect=write_invalid_download,
+        ),
+        pytest.raises(ConfigError, match=error),
+    ):
+        download_default_custom_models()
+
+    assert destination.read_text(encoding="utf-8") == "OldProvider: {}\n"
+    assert list(tmp_path.iterdir()) == [destination]
 
 
 def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:

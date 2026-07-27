@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import typer
 
@@ -116,6 +117,7 @@ def run_decodability_cmd(
     max_tokens: int | None = typer.Option(
         None,
         "--max-tokens",
+        min=1,
         help="Maximum response tokens for each model call. Defaults to 10,000.",
     ),
     chunk_size: int = typer.Option(
@@ -229,7 +231,8 @@ def _apply_execution_overrides(
 
 def _timestamp_run_id() -> str:
     """Return a filesystem-safe UTC timestamp for non-overwriting runs."""
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    return f"{timestamp}-{uuid4().hex[:8]}"
 
 
 def _parse_models(

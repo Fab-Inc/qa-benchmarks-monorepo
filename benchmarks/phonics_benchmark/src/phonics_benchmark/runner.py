@@ -12,9 +12,11 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, TypedDict
 
 import pandas as pd
+import yaml
 from anthropic import APIError as AnthropicAPIError
 from botocore.exceptions import (
     ClientError as BedrockAPIError,
@@ -590,12 +592,35 @@ def download_default_custom_models() -> Path:
 
     from fab_benchmark_publisher import download_file
 
-    download_file(
-        bucket_name=CUSTOM_MODELS_BUCKET,
-        file_name=CUSTOM_MODELS_FILE_NAME,
-        write_path=DEFAULT_CUSTOM_MODELS_PATH,
-        require_auth=False,
-    )
+    with NamedTemporaryFile(
+        dir=DEFAULT_CUSTOM_MODELS_PATH.parent,
+        prefix=f".{CUSTOM_MODELS_FILE_NAME}.",
+        suffix=".tmp",
+        delete=False,
+    ) as temporary_file:
+        temporary_path = Path(temporary_file.name)
+
+    try:
+        download_file(
+            bucket_name=CUSTOM_MODELS_BUCKET,
+            file_name=CUSTOM_MODELS_FILE_NAME,
+            write_path=temporary_path,
+            require_auth=False,
+        )
+        try:
+            downloaded_models = yaml.safe_load(
+                temporary_path.read_text(encoding="utf-8")
+            )
+        except (UnicodeDecodeError, yaml.YAMLError) as e:
+            raise ConfigError(f"Downloaded custom_models.yaml is invalid: {e}") from e
+        if not isinstance(downloaded_models, dict) or not downloaded_models:
+            raise ConfigError(
+                "Downloaded custom_models.yaml must contain a non-empty YAML mapping"
+            )
+        temporary_path.replace(DEFAULT_CUSTOM_MODELS_PATH)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
     return DEFAULT_CUSTOM_MODELS_PATH
 
 

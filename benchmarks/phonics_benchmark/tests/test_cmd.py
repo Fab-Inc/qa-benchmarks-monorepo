@@ -1,11 +1,13 @@
 """Test cases for the command-line interface."""
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from phonics_benchmark.cmd import app
+from phonics_benchmark.cmd import _timestamp_run_id, app
 from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
 
@@ -391,6 +393,63 @@ def test_run_decodability_command_timestamped_output_generates_run_id(
     assert result.exit_code == 0
     run_config = run.call_args.args[0]
     assert run_config.run_id == "20260622T120000Z"
+
+
+def test_timestamp_run_id_is_precise_and_randomized() -> None:
+    """Timestamped runs include enough entropy to avoid output collisions."""
+
+    with (
+        patch("phonics_benchmark.cmd.datetime") as datetime_mock,
+        patch(
+            "phonics_benchmark.cmd.uuid4",
+            return_value=SimpleNamespace(hex="deadbeef" * 4),
+        ),
+    ):
+        datetime_mock.now.return_value = datetime(
+            2026,
+            7,
+            27,
+            12,
+            34,
+            56,
+            123456,
+            tzinfo=UTC,
+        )
+        run_id = _timestamp_run_id()
+
+    assert run_id == "20260727T123456123456Z-deadbeef"
+
+
+@pytest.mark.parametrize("max_tokens", ["0", "-1"])
+def test_run_decodability_command_rejects_non_positive_max_tokens(
+    runner: CliRunner,
+    tmp_path: Path,
+    max_tokens: str,
+) -> None:
+    """Direct CLI runs require a positive response-token limit."""
+
+    items_path = _write_items_csv(tmp_path)
+    with patch(
+        "phonics_benchmark.cmd.download_default_custom_models"
+    ) as download_models:
+        result = runner.invoke(
+            app,
+            [
+                "run-decodability",
+                "--language",
+                "english",
+                "--models",
+                "model-a",
+                "--items-path",
+                str(items_path),
+                "--max-tokens",
+                max_tokens,
+            ],
+        )
+
+    assert result.exit_code == 2
+    assert "--max-tokens" in result.output
+    download_models.assert_not_called()
 
 
 def test_run_decodability_command_accepts_models_json_list(

@@ -47,6 +47,7 @@ def _load_composed_items_csv(items_path: str | Path) -> pd.DataFrame:
             + ", ".join(sorted(missing_columns))
         )
 
+    source["benchmark_item_id"] = source["benchmark_item_id"].str.strip()
     duplicate_ids = source.loc[
         source["benchmark_item_id"].duplicated(), "benchmark_item_id"
     ].tolist()
