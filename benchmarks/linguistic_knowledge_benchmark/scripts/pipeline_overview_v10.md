@@ -64,7 +64,11 @@ Tier is the tie-breaker throughout: when sources disagree on a fact or its grade
   quota changes. That quota is either **derived proportionally from the 1b feature map**
   (each cell gets a share of the target item count matching its feature density, with
   chosen grades excludable) or a **hard-coded table**. The chat stages oversample; the
-  script selects.
+  script selects. **WIP:** an **IRT-based allocation** is being explored for Stage 3b
+  (selecting/weighting cells by item difficulty and discrimination, building on the
+  Stage-5 `estimate_irt.py` analysis, rather than by feature density alone). This is not
+  finalized — the current feature_map/hard-coded quota approach may be **dropped in
+  favour of it** once validated.
 - **Grounded in sources at capture.** The verbatim example for each fact is quoted
   **once** at the digest (1a), while that single document is open; the writer (2)
   re-verifies forms against its shard's sources. The merge (1b) no longer re-attaches
@@ -132,6 +136,10 @@ dropped) or a hard-coded table — nudges the MCQ/short_form mix and A–D lette
 and assigns sequential `question_id`. Emits the **dataset** (v8 item schema), a ranked
 **backups** pool (for the gate to pull replacements), and a **gap report** of cells left
 under quota.
+
+> **WIP:** a Stage-5 IRT-informed allocation (see `estimate_irt.py`) is being explored
+> as a replacement for this feature_map/hard-coded quota — the allocation approach
+> described above is the *current* state, not necessarily the final one.
 
 **4 · Human Review gate — the real gate** *(in: JSON → out: JSON)* Goal: a linguist / L1
 speaker judges each item — correct? natural? right grade? Accept, fix, or reject.
