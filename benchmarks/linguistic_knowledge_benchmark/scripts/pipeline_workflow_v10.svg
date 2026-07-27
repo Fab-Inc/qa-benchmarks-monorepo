@@ -1,0 +1,263 @@
+<svg width="100%" viewBox="0 0 1740 272" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Linguistic benchmark pipeline (v9): the build funnels — N per-source digests compress (JSON-only) into one map, fan out to N sharded writer runs, then compress again into one pooled/filtered dataset; assembly is a deterministic script</title>
+<style>
+  text{font-family:'Anthropic Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  .h1{font-weight:600;font-size:17px;fill:#2C2C2A}
+  .t{font-weight:600;font-size:12.5px}
+  .skill{font-weight:400;font-size:9.5px;font-style:italic}
+  .ln{font-weight:400;font-size:9.5px;fill:#2C2C2A}
+  .lbl{font-weight:400;font-size:10px;fill:#5F5E5A}
+  .badge{font-weight:700;font-size:9px;fill:#fff}
+  .ptag{font-weight:600;font-style:italic;font-size:8.5px;fill:#534AB7}
+  .stag{font-weight:600;font-style:italic;font-size:8.5px;fill:#5F5E5A}
+  .gray rect{fill:#F1EFE8;stroke:#5F5E5A;stroke-width:.7}.gray .t{fill:#2C2C2A}.gray .skill{fill:#5F5E5A}
+  .purple rect{fill:#EEEDFE;stroke:#534AB7;stroke-width:.7}.purple .t{fill:#26215C}.purple .skill{fill:#534AB7}
+  .teal rect{fill:#E1F5EE;stroke:#0F6E56;stroke-width:.7}.teal .t{fill:#04342C}.teal .skill{fill:#0F6E56}
+  .script rect{fill:#ECEBE6;stroke:#2C2C2A;stroke-width:1.1;stroke-dasharray:5 3}.script .t{fill:#2C2C2A}.script .skill{fill:#2C2C2A}
+  .arr{stroke:#73726c;stroke-width:1.6;fill:none}
+  .fan{stroke:#534AB7;stroke-width:1.4;fill:none;stroke-opacity:.85}
+  .doc{fill:#fff;stroke:#5F5E5A;stroke-width:.7}
+  .pg{fill:#fff;stroke:#534AB7;stroke-width:.7}
+  .pgl{stroke:#534AB7;stroke-width:.6;stroke-opacity:.8}
+  .stackcard{fill:#EEEDFE;stroke:#534AB7;stroke-width:.7;opacity:.5}
+  .wedge{fill:#534AB7;fill-opacity:.11;stroke:#534AB7;stroke-opacity:.55;stroke-width:1}
+  .wtag{font-weight:700;font-size:9px;fill:#534AB7;letter-spacing:.02em}
+  .fdiv{stroke:#2C2C2A;stroke-opacity:.16;stroke-width:1}
+  .foot{font-weight:700;font-size:7px;fill:#8a8983;letter-spacing:.06em}
+  .chip{stroke-width:.8}
+  .chpdf{fill:#F7E6CE;stroke:#B4670A}.txpdf{font-weight:700;font-size:8px;fill:#8f4d00}
+  .chjson{fill:#E7E9F6;stroke:#8079D4}.txjson{font-weight:700;font-size:8px;fill:#2E2A63}
+  .chcsv{fill:#E1F5EE;stroke:#0F6E56}.txcsv{font-weight:700;font-size:8px;fill:#0B5A48}
+  .chno{fill:#DCEFE7;stroke:#0F6E56}.txno{font-weight:700;font-size:7.5px;fill:#0F6E56}
+  .ioar{stroke:#8a8983;stroke-width:1.2;fill:none}
+  .pbar{stroke-width:1.6;stroke-linecap:round}
+  .pbarN{stroke:#534AB7}.pbar1{stroke:#7C7B75}
+  .runN{font-weight:700;font-size:8.5px;fill:#534AB7}
+  .run1{font-weight:600;font-size:8.5px;fill:#6B6A64}
+  @media (prefers-color-scheme: dark){
+    .h1{fill:#ECEAE3}.lbl{fill:#B4B2A9}.arr{stroke:#9c9a92}.ptag{fill:#B9B2F0}.stag{fill:#B4B2A9}.fan{stroke:#9089E0}
+    .doc{fill:#2C2A3A;stroke:#9c9a92}.pg{fill:#2C2A3A;stroke:#9089E0}.pgl{stroke:#9089E0}
+    .script rect{fill:#2A2A28;stroke:#ECEAE3}.script .t{fill:#ECEAE3}.script .skill{fill:#ECEAE3}
+    .stackcard{fill:#2C2A3A;stroke:#9089E0}
+    .wedge{fill:#9089E0;fill-opacity:.16;stroke:#9089E0}.wtag{fill:#B9B2F0}
+    .fdiv{stroke:#ECEAE3}.foot{fill:#9c9a92}
+    .chpdf{fill:#4A3A22;stroke:#D8A24A}.txpdf{fill:#E7BE7C}
+    .chjson{fill:#2E2C46;stroke:#9089E0}.txjson{fill:#C9C4F2}
+    .chcsv{fill:#123A31;stroke:#5EC5A6}.txcsv{fill:#7FD3B8}
+    .chno{fill:#123A31;stroke:#5EC5A6}.txno{fill:#7FD3B8}
+    .ioar{stroke:#9c9a92}
+    .pbarN{stroke:#9089E0}.pbar1{stroke:#9c9a92}.runN{fill:#B9B2F0}.run1{fill:#B4B2A9}
+  }
+</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<text class="h1" x="24" y="34">Linguistic benchmark pipeline</text>
+
+<!-- INPUT -->
+<g class="gray">
+<rect x="24" y="78" width="184" height="182" rx="10"/>
+<text class="lbl" x="38" y="94" style="font-size:8.5px;letter-spacing:.08em">INPUT</text>
+<text class="t" x="38" y="111">Document set</text>
+<text class="skill" x="38" y="126">the inputs (1 … N sources)</text>
+<rect class="doc" x="186" y="100" width="18" height="22" rx="1.5"/>
+<rect class="doc" x="182" y="96" width="18" height="22" rx="1.5"/>
+<rect class="doc" x="178" y="92" width="18" height="22" rx="1.5"/>
+<line class="div" x1="38" y1="135" x2="194" y2="135" stroke="#5F5E5A" stroke-opacity=".32"/>
+<text class="ln" x="38" y="152">grammar · curriculum</text>
+<text class="ln" x="38" y="168">teacher guides · readers</text>
+<text class="ln" x="38" y="184">each source independent</text>
+<line class="fdiv" x1="38" y1="199" x2="194" y2="199"/>
+<text class="foot" x="38" y="213">OUT</text>
+<rect class="chip chpdf" x="62" y="206" width="24" height="13" rx="3"/><text class="txpdf" x="74" y="215.5" text-anchor="middle">PDF</text>
+<text class="run1" x="94" y="216">1 … N files</text>
+</g>
+
+<!-- 1a DIGEST (per source; N parallel runs shown as a stack) -->
+<g class="purple">
+<rect class="stackcard" x="244" y="68" width="184" height="182" rx="10"/>
+<rect class="stackcard" x="239" y="73" width="184" height="182" rx="10"/>
+<rect x="234" y="78" width="184" height="182" rx="10"/>
+<circle cx="252" cy="96" r="9" fill="#534AB7"/>
+<text class="badge" x="252" y="99.5" text-anchor="middle">1a</text>
+<text class="t" x="268" y="100">Digest</text>
+<rect class="pg" x="376" y="88" width="9" height="12" rx="1"/>
+<line class="pgl" x1="378" y1="91.5" x2="383" y2="91.5"/><line class="pgl" x1="378" y1="94.5" x2="383" y2="94.5"/><line class="pgl" x1="378" y1="97.5" x2="381" y2="97.5"/>
+<text class="ptag" x="408" y="98" text-anchor="end">prompt</text>
+<text class="skill" x="248" y="115">Read each source closely</text>
+<line class="div" x1="248" y1="124" x2="404" y2="124" stroke="#534AB7" stroke-opacity=".32"/>
+<text class="ln" x="248" y="141">classify each source by tier</text>
+<text class="ln" x="248" y="157">map it on the D×G grid</text>
+<text class="ln" x="248" y="173">facts + verbatim examples</text>
+<text class="ln" x="248" y="189">locators for every claim</text>
+<line class="fdiv" x1="248" y1="199" x2="404" y2="199"/>
+<text class="foot" x="248" y="213">I/O</text>
+<rect class="chip chpdf" x="270" y="206" width="24" height="13" rx="3"/><text class="txpdf" x="282" y="215.5" text-anchor="middle">PDF</text>
+<path class="ioar" d="M298 213 L308 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="312" y="206" width="28" height="13" rx="3"/><text class="txjson" x="326" y="215.5" text-anchor="middle">JSON</text>
+<line class="pbar pbarN" x1="248" y1="233" x2="248" y2="245"/><line class="pbar pbarN" x1="251.5" y1="233" x2="251.5" y2="245"/><line class="pbar pbarN" x1="255" y1="233" x2="255" y2="245"/>
+<text class="runN" x="262" y="243">N runs · parallel</text>
+</g>
+
+<!-- COMPRESSION 1a -> 1b (N per-source digests -> one map) -->
+<polygon class="wedge" points="418,126 476,169 418,212"/>
+<path class="fan" d="M420 169 L474 169" marker-end="url(#arrow)"/>
+<text class="wtag" x="440" y="118" text-anchor="middle">N→1</text>
+
+<!-- 1b MERGE (JSON only, single run) -->
+<g class="purple">
+<rect x="478" y="78" width="184" height="182" rx="10"/>
+<circle cx="496" cy="96" r="9" fill="#534AB7"/>
+<text class="badge" x="496" y="99.5" text-anchor="middle">1b</text>
+<text class="t" x="512" y="100">Merge</text>
+<rect class="pg" x="620" y="88" width="9" height="12" rx="1"/>
+<line class="pgl" x1="622" y1="91.5" x2="627" y2="91.5"/><line class="pgl" x1="622" y1="94.5" x2="627" y2="94.5"/><line class="pgl" x1="622" y1="97.5" x2="625" y2="97.5"/>
+<text class="ptag" x="652" y="98" text-anchor="end">prompt</text>
+<text class="skill" x="492" y="115">Merge the digests</text>
+<line class="div" x1="492" y1="124" x2="648" y2="124" stroke="#534AB7" stroke-opacity=".32"/>
+<text class="ln" x="492" y="141">combine per-source digests</text>
+<text class="ln" x="492" y="157">merge duplicates, keep sources</text>
+<text class="ln" x="492" y="173">carry examples · order by grade</text>
+<text class="ln" x="492" y="189">subdomain tags · no counts</text>
+<line class="fdiv" x1="492" y1="199" x2="648" y2="199"/>
+<text class="foot" x="492" y="213">I/O</text>
+<rect class="chip chjson" x="512" y="206" width="28" height="13" rx="3"/><text class="txjson" x="526" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M544 213 L554 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="558" y="206" width="28" height="13" rx="3"/><text class="txjson" x="572" y="215.5" text-anchor="middle">JSON</text>
+<rect class="chip chno" x="606" y="206" width="40" height="13" rx="6.5"/><text class="txno" x="626" y="215.5" text-anchor="middle">no PDF</text>
+<line class="pbar pbar1" x1="492" y1="233" x2="492" y2="245"/>
+<text class="run1" x="500" y="243">1 run</text>
+</g>
+
+<!-- EXTENSION 1b -> 2 (one map fans out to N shard runs) -->
+<polygon class="wedge" points="664,169 720,126 720,212"/>
+<path class="fan" d="M666 169 L718 169" marker-end="url(#arrow)"/>
+<text class="wtag" x="692" y="118" text-anchor="middle">1→N</text>
+
+<!-- 2 GENERATE (sharded; N parallel runs shown as a stack) -->
+<g class="purple">
+<rect class="stackcard" x="732" y="68" width="184" height="182" rx="10"/>
+<rect class="stackcard" x="727" y="73" width="184" height="182" rx="10"/>
+<rect x="722" y="78" width="184" height="182" rx="10"/>
+<circle cx="740" cy="96" r="9" fill="#534AB7"/>
+<text class="badge" x="740" y="99.5" text-anchor="middle">2</text>
+<text class="t" x="756" y="100">Generate</text>
+<rect class="pg" x="864" y="88" width="9" height="12" rx="1"/>
+<line class="pgl" x1="866" y1="91.5" x2="871" y2="91.5"/><line class="pgl" x1="866" y1="94.5" x2="871" y2="94.5"/><line class="pgl" x1="866" y1="97.5" x2="869" y2="97.5"/>
+<text class="ptag" x="896" y="98" text-anchor="end">prompt</text>
+<text class="skill" x="736" y="115">Write candidate items</text>
+<line class="div" x1="736" y1="124" x2="892" y2="124" stroke="#534AB7" stroke-opacity=".32"/>
+<text class="ln" x="736" y="141">candidates, once per shard</text>
+<text class="ln" x="736" y="157">oversample · no counts</text>
+<text class="ln" x="736" y="173">grounded on shard sources</text>
+<line class="fdiv" x1="736" y1="199" x2="892" y2="199"/>
+<text class="foot" x="736" y="213">I/O</text>
+<rect class="chip chpdf" x="758" y="206" width="24" height="13" rx="3"/><text class="txpdf" x="770" y="215.5" text-anchor="middle">PDF</text>
+<rect class="chip chjson" x="785" y="206" width="28" height="13" rx="3"/><text class="txjson" x="799" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M817 213 L827 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="831" y="206" width="28" height="13" rx="3"/><text class="txjson" x="845" y="215.5" text-anchor="middle">JSON</text>
+<line class="pbar pbarN" x1="736" y1="233" x2="736" y2="245"/><line class="pbar pbarN" x1="739.5" y1="233" x2="739.5" y2="245"/><line class="pbar pbarN" x1="743" y1="233" x2="743" y2="245"/>
+<text class="runN" x="750" y="243">N runs · parallel</text>
+</g>
+
+<!-- COMPRESSION 2 -> 3a (N shard candidate sets pool into one) -->
+<polygon class="wedge" points="908,126 964,169 908,212"/>
+<path class="fan" d="M910 169 L962 169" marker-end="url(#arrow)"/>
+<text class="wtag" x="930" y="118" text-anchor="middle">N→1</text>
+
+<!-- 3a FILTER / QC (JSON only, single run) -->
+<g class="purple">
+<rect x="966" y="78" width="184" height="182" rx="10"/>
+<circle cx="984" cy="96" r="9" fill="#534AB7"/>
+<text class="badge" x="984" y="99.5" text-anchor="middle">3a</text>
+<text class="t" x="1000" y="100">Filter / QC</text>
+<rect class="pg" x="1108" y="88" width="9" height="12" rx="1"/>
+<line class="pgl" x1="1110" y1="91.5" x2="1115" y2="91.5"/><line class="pgl" x1="1110" y1="94.5" x2="1115" y2="94.5"/><line class="pgl" x1="1110" y1="97.5" x2="1113" y2="97.5"/>
+<text class="ptag" x="1140" y="98" text-anchor="end">prompt</text>
+<text class="skill" x="980" y="115">Pool &amp; quality-check</text>
+<line class="div" x1="980" y1="124" x2="1136" y2="124" stroke="#534AB7" stroke-opacity=".32"/>
+<text class="ln" x="980" y="141">pool all shard candidates</text>
+<text class="ln" x="980" y="157">check vs anti-gaming rules</text>
+<text class="ln" x="980" y="173">flag near-duplicates</text>
+<text class="ln" x="980" y="189">annotate — nothing dropped</text>
+<line class="fdiv" x1="980" y1="199" x2="1136" y2="199"/>
+<text class="foot" x="980" y="213">I/O</text>
+<rect class="chip chjson" x="1000" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1014" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M1032 213 L1042 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="1046" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1060" y="215.5" text-anchor="middle">JSON</text>
+<rect class="chip chno" x="1096" y="206" width="40" height="13" rx="6.5"/><text class="txno" x="1116" y="215.5" text-anchor="middle">no PDF</text>
+<line class="pbar pbar1" x1="980" y1="233" x2="980" y2="245"/>
+<text class="run1" x="988" y="243">1 run</text>
+</g>
+
+<path class="arr" d="M1152 169 L1169 169" marker-end="url(#arrow)"/>
+
+<!-- 3b ASSEMBLE (deterministic script — dashed box) -->
+<g class="script">
+<rect x="1172" y="78" width="164" height="182" rx="10"/>
+<circle cx="1190" cy="96" r="9" fill="#2C2C2A"/>
+<text class="badge" x="1190" y="99.5" text-anchor="middle">3b</text>
+<text class="t" x="1206" y="100">Assemble</text>
+<text class="stag" x="1322" y="98" text-anchor="end">.py</text>
+<text class="skill" x="1186" y="115">deterministic script</text>
+<line class="div" x1="1186" y1="124" x2="1322" y2="124" stroke="#2C2C2A" stroke-opacity=".28"/>
+<text class="ln" x="1186" y="141">hard-coded quota per D×G</text>
+<text class="ln" x="1186" y="157">select · balance · number</text>
+<text class="ln" x="1186" y="173">dataset + backups + gaps</text>
+<text class="ln" x="1186" y="189">reproducible · no LLM</text>
+<line class="fdiv" x1="1186" y1="199" x2="1322" y2="199"/>
+<text class="foot" x="1186" y="213">I/O</text>
+<rect class="chip chjson" x="1206" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1220" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M1238 213 L1248 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="1252" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1266" y="215.5" text-anchor="middle">JSON</text>
+<rect class="chip chno" x="1290" y="206" width="30" height="13" rx="6.5"/><text class="txno" x="1305" y="215.5" text-anchor="middle">no PDF</text>
+<line class="pbar pbar1" x1="1186" y1="233" x2="1186" y2="245"/>
+<text class="run1" x="1194" y="243">1 run · local script</text>
+</g>
+
+<path class="arr" d="M1338 169 L1355 169" marker-end="url(#arrow)"/>
+
+<!-- 4 HUMAN REVIEW GATE -->
+<g class="teal">
+<rect x="1358" y="78" width="184" height="182" rx="10"/>
+<circle cx="1376" cy="96" r="9" fill="#0F6E56"/>
+<text class="badge" x="1376" y="99.5" text-anchor="middle">4</text>
+<text class="t" x="1392" y="100">Human Review gate</text>
+<text class="skill" x="1372" y="115">Review every item</text>
+<line class="div" x1="1372" y1="124" x2="1528" y2="124" stroke="#0F6E56" stroke-opacity=".32"/>
+<text class="ln" x="1372" y="141">linguist · L1 speaker</text>
+<text class="ln" x="1372" y="157">correct? natural? right grade?</text>
+<text class="ln" x="1372" y="173">accept / fix / reject · backups</text>
+<line class="fdiv" x1="1372" y1="199" x2="1528" y2="199"/>
+<text class="foot" x="1372" y="213">I/O</text>
+<rect class="chip chjson" x="1392" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1406" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M1424 213 L1434 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="1438" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1452" y="215.5" text-anchor="middle">JSON</text>
+<line class="pbar pbar1" x1="1372" y1="233" x2="1372" y2="245"/>
+<text class="run1" x="1380" y="243">manual · per item</text>
+</g>
+
+<path class="arr" d="M1544 169 L1561 169" marker-end="url(#arrow)"/>
+
+<!-- 5 EVALUATE -->
+<g class="gray">
+<rect x="1564" y="78" width="160" height="182" rx="10"/>
+<circle cx="1582" cy="96" r="9" fill="#5F5E5A"/>
+<text class="badge" x="1582" y="99.5" text-anchor="middle">5</text>
+<text class="t" x="1598" y="100">Evaluate</text>
+<text class="skill" x="1578" y="115">Run &amp; score models</text>
+<line class="div" x1="1578" y1="124" x2="1710" y2="124" stroke="#5F5E5A" stroke-opacity=".32"/>
+<text class="ln" x="1578" y="141">run models on accepted items</text>
+<text class="ln" x="1578" y="157">score per item &amp; domain</text>
+<line class="fdiv" x1="1578" y1="199" x2="1710" y2="199"/>
+<text class="foot" x="1578" y="213">I/O</text>
+<rect class="chip chjson" x="1598" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1612" y="215.5" text-anchor="middle">JSON</text>
+<path class="ioar" d="M1630 213 L1640 213" marker-end="url(#arrow)"/>
+<rect class="chip chcsv" x="1644" y="206" width="26" height="13" rx="3"/><text class="txcsv" x="1657" y="215.5" text-anchor="middle">CSV</text>
+<line class="pbar pbar1" x1="1578" y1="233" x2="1578" y2="245"/>
+<text class="run1" x="1586" y="243">harness · 1 run</text>
+</g>
+
+<!-- documents fan into the digest -->
+<path class="fan" d="M210 140 L231 140" marker-end="url(#arrow)"/>
+<path class="fan" d="M210 169 L231 169" marker-end="url(#arrow)"/>
+<path class="fan" d="M210 198 L231 198" marker-end="url(#arrow)"/>
+</svg>

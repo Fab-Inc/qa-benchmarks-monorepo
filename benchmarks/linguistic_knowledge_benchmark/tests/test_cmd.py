@@ -316,6 +316,29 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
     assert (tmp_path / "results" / name).exists()
 
 
+def test_timestamp_run_id_is_filesystem_safe() -> None:
+    assert re.fullmatch(r"\d{8}T\d{6}Z", cmd._timestamp_run_id())
+
+
+def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
+    _patch_summary(monkeypatch)
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text(json.dumps({VALID_MODEL: {"answers_git-hash": "deadbee"}}))
+
+    result = runner.invoke(
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+    )
+    assert result.exit_code == 0
+    summary = pd.read_csv(
+        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+    )
+    assert summary.loc[0, "answers_git-hash"] == "deadbee"
+
+
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)

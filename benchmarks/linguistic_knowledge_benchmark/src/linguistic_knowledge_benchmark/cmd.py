@@ -11,6 +11,7 @@ from fab_benchmark_publisher import download_file
 from fdllm import register_models
 
 from linguistic_knowledge_benchmark.judge_bench import (
+    build_detailed,
     compute_summary,
     judge_results,
     judge_results_fallback,
@@ -35,6 +36,10 @@ DATASETS: dict[str, dict] = {
     "kiswahili": {
         "path": DATA_DIR / "linguistic_knowledge_eval_kiswahili.json",
         "language_name": "Kiswahili",
+    },
+    "english": {
+        "path": DATA_DIR / "linguistic_knowledge_eval_english.json",
+        "language_name": "English",
     },
 }
 
@@ -254,7 +259,11 @@ def judge_bench_cmd(
         typer.echo(f"Run ID: {effective_run_id} (no --run-id supplied)")
     typer.echo(f"Judging responses from: {input_dir}")
 
+    # Capture the dataset path now: `entry` is reassigned later when merging log fields.
+    dataset_path = entry["path"]
+
     summaries: list[dict[str, object]] = []
+    judged_by_model: dict[str, pd.DataFrame] = {}
     skipped_models: list[str] = []
 
     for current_model in models_to_judge:
@@ -279,6 +288,7 @@ def judge_bench_cmd(
                 )
             summary = compute_summary(judged_df, current_model)
             summaries.append(summary)
+            judged_by_model[current_model] = judged_df
 
             typer.echo(f"\n{current_model}:")
             typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
@@ -344,6 +354,16 @@ def judge_bench_cmd(
     summary_path = results_dir / summary_name
     summary_df.to_csv(summary_path, index=False)
     typer.echo(f"\nSummary saved to {summary_path}")
+
+    # Detailed breakdown: one row per question, per-model output + correctness.
+    detailed_df = build_detailed(judged_by_model, dataset_path)
+    detailed_name = (
+        f"summary_linguistic-knowledge_{language}"
+        f"_{effective_run_id}{fallback_suffix}_detailed.csv"
+    )
+    detailed_path = results_dir / detailed_name
+    detailed_df.to_csv(detailed_path, index=False)
+    typer.echo(f"Detailed results saved to {detailed_path}")
 
 
 def main() -> None:

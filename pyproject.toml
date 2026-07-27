@@ -53,3 +53,6 @@ select = ["E", "F", "W", "I", "N", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/scripts/*" = ["F401"]
+# The linguistic-knowledge analysis/EDA scripts favour long plotting and f-string
+# lines and single-letter loop vars (A-D letters); exempt those cosmetic rules here.
+"benchmarks/linguistic_knowledge_benchmark/scripts/*" = ["F401", "E501", "E741"]

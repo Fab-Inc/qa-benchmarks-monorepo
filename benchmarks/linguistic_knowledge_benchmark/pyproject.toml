@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
   "fab-benchmark-publisher",
   "fabdata-llm",
+  "girth>=0.8.0",
   "matplotlib>=3.8.0",
   "numpy>=1.26.0",
   "pandas>=2.0.0",

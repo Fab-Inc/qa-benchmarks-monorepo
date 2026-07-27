@@ -9,6 +9,8 @@ data/interim/
 data/processed/
 benchmarks/linguistic_knowledge_benchmark/cache/
 custom_models.yaml
+benchmarks/linguistic_knowledge_benchmark/data/*_workflow
+benchmarks/linguistic_knowledge_benchmark/results/analysis
 
 # ============================================================================
 # Python .gitignore template from
