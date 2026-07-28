@@ -27,11 +27,22 @@ How it selects a trimmed dataset (three goals):
      them, so they are either genuinely hard (they fight saturation) or flawed — either
      way the human-review gate should look at them. (Set --min-pvalue above 0 to drop them.)
   3. Coverage — keep a good spread across domains (D1..D9) and grades by filling a
-     per-domain x grade quota proportional to the discriminating pool (a CEILING per cell).
-The CEILING is a SOFT target: the script reports the resulting top-model accuracy against
-`--ceiling` rather than hard-forcing every model under it (on this data the strongest
-model fails so few items that a hard cap would shrink the set drastically — see the
-printed summary and tune `--target-n` / `--max-pvalue` from there).
+     per-domain x grade quota proportional to the discriminating pool, allocated exactly
+     via largest-remainder rounding (quotas always sum to min(--target-n, pool size) —
+     no off-by-a-few from independent per-cell rounding).
+
+Within each domain x grade cell, items are further ranked by SELECTION STABILITY before
+discrimination/difficulty: `selection_freq` is the fraction of leave-`--leave-out`-out
+model subpanels (all C(n_models, leave_out) of them, each with p-value/discrimination
+recomputed for just that subpanel — no Rasch refit needed) that would independently pick
+this item. Ranking on this first means the kept set favours items that stay competitive
+across many reasonable model panels, not just the exact panel on hand — with only ~10
+model respondents, point-biserial/rank estimates can shift when the panel changes.
+
+The target-n CEILING is a SOFT target: the script reports the resulting top-model
+accuracy against `--ceiling` rather than hard-forcing every model under it (on this data
+the strongest model fails so few items that a hard cap would shrink the set drastically
+— see the printed summary and tune `--target-n` / `--max-pvalue` from there).
 
 It also prints two validation diagnostics (cf. Ramprasath 2026, IRT redundancy analysis):
   * ranking recovery — Spearman rho / Kendall tau-b / top-k agreement between the model
@@ -41,19 +52,26 @@ It also prints two validation diagnostics (cf. Ramprasath 2026, IRT redundancy a
     High median = items genuinely separate models; high Gini (>0.6) = a few items carry
     most of the signal (very reducible), low Gini = signal spread over many items.
 
-Outputs (under --outdir, tagged with --label):
-    irt_items_<label>.csv             per-item difficulty, p-value, point-biserial, flags
-    irt_models_<label>.csv            per-model ability, full vs selected accuracy, ranks
-    irt_selected_ids_<label>.json     the kept question_ids (sorted)
-    irt_selected_dataset_<label>.json the kept items, filtered from --dataset (ready to use)
-    irt_diagnostics_<label>.png       difficulty vs discrimination; item difficulty spread
-    irt_accuracy_shift_<label>.png    per-model accuracy, full set vs selected set
-    irt_coverage_<label>.png          domain x grade counts of the selected set
+Outputs — one directory per run, never overwritten (see --run-id below):
+  <outdir>/irt/<language>_runs/<run-id>/
+    items.csv              per-item difficulty, p-value, point-biserial, selection_freq, flags
+    models.csv              per-model ability, full vs selected accuracy, ranks
+    selected_ids.json       the kept question_ids (sorted)
+    selected_dataset.json   the kept items, filtered from --dataset (ready to use)
+    selected_dataset_cleaned.json  same items, question_id renumbered 1..n (contiguous)
+    diagnostics.png         difficulty vs discrimination; item difficulty spread
+    accuracy_shift.png      per-model accuracy, full set vs selected set
+    coverage.png            domain x grade counts of the selected set
+    selection_freq.png      selection_freq distribution over the candidate pool
+--outdir defaults to results/; --run-id defaults to "default". If any of the above files
+already exist in that run's directory, the script aborts rather than overwrite them —
+pass a different --run-id (or delete the old run's directory) to rerun.
 
-Run (defaults target the Swahili v10 full-dataset run):
-    python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py
-    python .../estimate_irt.py --target-n 150 --min-discrimination 0.10
-    python .../estimate_irt.py --max-pvalue 0.9   # also drop items >90%% of models ace
+Run (--language is mandatory; defaults target that language's v10 full-dataset run):
+    python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language swahili
+    python .../estimate_irt.py --language english --run-id target150 --target-n 150
+    python .../estimate_irt.py --language swahili --max-pvalue 0.9   # also drop items >90%% of models ace
+    python .../estimate_irt.py --language swahili --leave-out 1   # leave-one-out stability instead
 """
 
 from __future__ import annotations
@@ -62,6 +80,8 @@ import argparse
 import json
 import math
 import os
+from datetime import datetime
+from itertools import combinations
 
 import matplotlib
 
@@ -69,6 +89,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from analyze_results import LANGUAGES
 from girth import ability_eap, rasch_mml
 
 # Fixed spine (same order as analyze_results.py / eda_pipeline.py) so empty cells still show.
@@ -77,6 +98,66 @@ GRADES = ["G0", "G1", "G2", "G3", "G4", "G5", "beyond_primary"]
 GRADE_LABEL = {g: ("BP" if g == "beyond_primary" else g) for g in GRADES}
 DISCRIMINATION = 1.0  # Rasch fixes the slope at 1.
 _CORRECT_MAP = {"true": 1, "false": 0, "1": 1, "0": 0}
+
+# The result CSVs use "swahili" (matching cmd.py's DATASETS keys), but the pipeline's
+# working-data directory for that language is named "kiswahili_workflow" — map between them.
+LANGUAGE_WORKFLOW_DIR = {
+    "english": "english_workflow",
+    "swahili": "kiswahili_workflow",
+}
+
+# The run tag differs per language: Swahili's full-pool eval run is tagged
+# "v10-full-dataset" (528 detailed rows -> 307 items scored); English's equivalent run
+# (its whole 377-item stage_3b_dataset_full pool) is simply tagged "default".
+DEFAULT_RUN_LABEL = {
+    "english": "default",
+    "swahili": "v10-full-dataset",
+}
+
+
+def default_paths_for(language: str, root: str) -> dict:
+    run_label = DEFAULT_RUN_LABEL[language]
+    return {
+        "detailed": os.path.join(
+            root,
+            "results",
+            f"summary_linguistic-knowledge_{language}_{run_label}_detailed.csv",
+        ),
+        "dataset": os.path.join(
+            root,
+            "data",
+            LANGUAGE_WORKFLOW_DIR[language],
+            "process",
+            "stage_3b_dataset_full.json",
+        ),
+    }
+
+
+# Fixed filenames written into each run's own directory (see main()'s --run-id / rundir).
+OUTPUT_FILENAMES = [
+    "items.csv",
+    "models.csv",
+    "selected_ids.json",
+    "selected_dataset.json",
+    "selected_dataset_cleaned.json",
+    "diagnostics.png",
+    "accuracy_shift.png",
+    "coverage.png",
+    "selection_freq.png",
+]
+
+
+def _refuse_if_exists(rundir: str, filenames: list[str]) -> None:
+    """Abort rather than silently overwrite a previous run's output files."""
+    if not os.path.isdir(rundir):
+        return
+    clashes = [f for f in filenames if os.path.exists(os.path.join(rundir, f))]
+    if clashes:
+        raise SystemExit(
+            f"refusing to overwrite existing run output in {rundir}:\n"
+            + "\n".join(f"  - {f}" for f in clashes)
+            + "\nUse a different --run-id, or delete these files first."
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -150,9 +231,28 @@ def point_biserial(scored: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # Selection
 # --------------------------------------------------------------------------- #
-def _round_half_up(x: float) -> int:
-    """Round halves up (0.5 -> 1) for non-negative x, matching a spreadsheet ROUND."""
-    return math.floor(x + 0.5)
+def allocate_quotas_lr(cell_counts: pd.Series, target_n: int) -> pd.Series:
+    """Largest-remainder allocation of `target_n` across cells, proportional to
+    `cell_counts` and capped by each cell's availability.
+
+    Unlike independent per-cell rounding, the returned quotas always sum to exactly
+    `min(target_n, cell_counts.sum())`: each cell first gets `floor(share)`, then the
+    leftover seats go one-by-one to the cells with the largest fractional remainder
+    (a stable sort keeps this deterministic for tied remainders).
+    """
+    total_pool = int(cell_counts.sum())
+    n_target = min(target_n, total_pool)
+    if total_pool == 0 or n_target <= 0:
+        return pd.Series(0, index=cell_counts.index, dtype=int)
+
+    raw = cell_counts / total_pool * n_target
+    quotas = np.floor(raw).astype(int)
+    remainder = raw - quotas
+    leftover = n_target - int(quotas.sum())
+    if leftover > 0:
+        order = remainder.sort_values(ascending=False, kind="stable").index
+        quotas.loc[order[:leftover]] += 1
+    return quotas
 
 
 def select_items(
@@ -161,16 +261,19 @@ def select_items(
     min_disc: float,
     max_pvalue: float,
     min_pvalue: float,
+    primary_rank_col: str | None = None,
 ) -> pd.Series:
     """Choose a balanced, discriminating subset. Returns a boolean `selected` Series.
 
     Pool = scored items that are NOT always-right and have p-value within
     [min_pvalue, max_pvalue], keeping either point_biserial >= min_disc OR an always-wrong
     item (no model correct — kept as a hard/anti-saturation candidate for human review).
-    Each domain x grade cell gets a quota proportional to its share of the pool (scaled to
-    target_n, capped by availability). Within a cell, always-wrong items are taken first
-    (scarce, anti-saturation, human-review-gated), then the most discriminating (then
-    hardest) items. Deterministic given the same inputs.
+    Each domain x grade cell gets an exact quota (largest-remainder allocation, see
+    `allocate_quotas_lr`) proportional to its share of the pool, scaled to target_n and
+    capped by availability. Within a cell, always-wrong items are taken first (scarce,
+    anti-saturation, human-review-gated), then — if `primary_rank_col` is given (e.g.
+    "selection_freq") — items ranked highest on that column, then the most discriminating
+    (then hardest) items. Deterministic given the same inputs.
     """
     pool = (
         items["scored"]
@@ -186,22 +289,86 @@ def select_items(
         return selected
 
     cell_counts = pool_items.groupby(["domain", "grade"]).size()
-    for (domain, grade), avail in cell_counts.items():
-        quota = min(avail, _round_half_up(avail / total_pool * target_n))
+    quotas = allocate_quotas_lr(cell_counts, target_n)
+    for (domain, grade), quota in quotas.items():
         if quota <= 0:
             continue
         cell = pool_items[
             (pool_items["domain"] == domain) & (pool_items["grade"] == grade)
         ]
-        # Always-wrong items first, then most discriminating, then hardest, then lowest
-        # p-value, then stable id. Always-wrong discrimination is NaN -> treat as 0.
+        # Always-wrong items first, then (optionally) selection stability, then most
+        # discriminating, then hardest, then lowest p-value, then stable id.
+        # Always-wrong discrimination is NaN -> treat as 0.
         cell = cell.assign(_disc=cell["point_biserial"].fillna(0.0))
-        ranked = cell.sort_values(
-            by=["all_wrong", "_disc", "difficulty_logit", "p_value", "question_id"],
-            ascending=[False, False, False, True, True],
-        )
+        sort_cols = ["all_wrong"]
+        ascending = [False]
+        if primary_rank_col is not None:
+            sort_cols.append(primary_rank_col)
+            ascending.append(False)
+        sort_cols += ["_disc", "difficulty_logit", "p_value", "question_id"]
+        ascending += [False, False, True, True]
+        ranked = cell.sort_values(by=sort_cols, ascending=ascending)
         selected.loc[ranked.index[:quota]] = True
     return selected
+
+
+def _stats_for_columns(
+    meta: pd.DataFrame, matrix: np.ndarray, cols: list[int]
+) -> pd.DataFrame:
+    """Rebuild a per-item stats table (p-value, point-biserial, all-right/-wrong flags)
+    using only the model columns in `cols` — i.e. one leave-`k`-out subpanel.
+
+    No Rasch refit here (see module docstring): `difficulty_logit` is stood in with
+    `-p_value`, which is rank-equivalent for `select_items`'s tie-break under a common
+    Rasch discrimination. The subpanel's own scored mask is recomputed from `cols` alone,
+    since dropping columns can turn a row that was unscored over the full panel into a
+    fully-scored one for this subpanel.
+    """
+    sub = matrix[:, cols]
+    scored_mask = ~np.isnan(sub).any(axis=1)
+    scored = sub[scored_mask].astype(int)
+    n_sub = len(cols)
+
+    items = meta[["question_id", "domain", "grade"]].copy()
+    items["scored"] = scored_mask
+    p_value = np.full(len(items), np.nan)
+    pb = np.full(len(items), np.nan)
+    if scored.shape[0] > 0:
+        p_value[scored_mask] = scored.sum(axis=1) / n_sub
+        pb[scored_mask] = point_biserial(scored)
+    items["p_value"] = p_value
+    items["point_biserial"] = pb
+    items["difficulty_logit"] = -items["p_value"]
+    items["all_right"] = items["scored"] & (items["p_value"] == 1.0)
+    items["all_wrong"] = items["scored"] & (items["p_value"] == 0.0)
+    return items
+
+
+def selection_frequency(
+    meta: pd.DataFrame,
+    matrix: np.ndarray,
+    n_models: int,
+    target_n: int,
+    min_disc: float,
+    max_pvalue: float,
+    min_pvalue: float,
+    leave_out: int = 2,
+) -> pd.Series:
+    """Fraction of leave-`leave_out`-out model subpanels that would select each item.
+
+    Iterates every C(n_models, leave_out) subpanel, recomputes p-value/discrimination
+    for just that subpanel (`_stats_for_columns`), reruns `select_items` on it, and
+    averages how often each item gets picked. An item's `selection_freq` close to 1.0
+    means it keeps getting chosen regardless of exactly which models are on the panel.
+    """
+    omit_sets = list(combinations(range(n_models), leave_out))
+    counts = pd.Series(0, index=meta.index, dtype=int)
+    for omitted in omit_sets:
+        keep = [j for j in range(n_models) if j not in omitted]
+        sub_items = _stats_for_columns(meta, matrix, keep)
+        sel = select_items(sub_items, target_n, min_disc, max_pvalue, min_pvalue)
+        counts += sel.astype(int)
+    return counts / len(omit_sets)
 
 
 # --------------------------------------------------------------------------- #
@@ -448,6 +615,33 @@ def plot_coverage(items: pd.DataFrame, out: str) -> None:
     plt.close(fig)
 
 
+def plot_selection_freq(items: pd.DataFrame, leave_out: int, out: str) -> None:
+    """Distribution of `selection_freq` (leave-`leave_out`-out stability) over the
+    candidate pool, selected items overlaid."""
+    pool = items[items["in_pool"]]
+    bins = np.arange(-0.05, 1.15, 0.1)
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.hist(pool["selection_freq"], bins=bins, color="#dddddd", label="candidate pool")
+    ax.hist(
+        pool.loc[pool["selected"], "selection_freq"],
+        bins=bins,
+        color="#e15759",
+        label="selected",
+    )
+    ax.set_xlabel(f"selection_freq (leave-{leave_out}-out)")
+    ax.set_ylabel("items")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_title(
+        "How often would each item be picked under a different model panel?",
+        fontweight="bold",
+    )
+    ax.legend(frameon=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+
+
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
@@ -458,23 +652,31 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument(
-        "--detailed",
-        default=os.path.join(
-            root,
-            "results",
-            "summary_linguistic-knowledge_swahili_v10-full-dataset_detailed.csv",
-        ),
+        "--language",
+        required=True,
+        choices=LANGUAGES,
+        help="which language's v10 full-dataset run to analyse",
     )
+    # --detailed/--dataset default to that language's v10-full-dataset run (see
+    # default_paths_for above); override individually for a specific run.
+    ap.add_argument("--detailed", default=None)
     ap.add_argument(
         "--dataset",
-        default=os.path.join(
-            root, "data", "kiswahili_workflow", "process", "stage_3b_dataset_full.json"
-        ),
+        default=None,
         help="full item pool to filter into the selected dataset (matched on question_id)",
     )
-    ap.add_argument("--outdir", default=os.path.join(root, "results", "analysis"))
     ap.add_argument(
-        "--label", default="swahili_v10-full-dataset", help="tag for output filenames"
+        "--outdir",
+        default=os.path.join(root, "results"),
+        help="base results dir; this run's files go under "
+        "<outdir>/irt/<language>_runs/<run-id>/",
+    )
+    ap.add_argument(
+        "--run-id",
+        default="default",
+        help="tag for this run's output directory (results/irt/<language>_runs/<run-id>/); "
+        "pass a specific name, or 'timestamp' to auto-generate one (YYYYmmdd-HHMMSS); "
+        "refuses to overwrite an existing run's files — pick a new --run-id instead",
     )
     ap.add_argument(
         "--target-n", type=int, default=150, help="target size of the selected set"
@@ -503,11 +705,31 @@ def main() -> None:
         default=0.0,
         help="drop items fewer than this fraction of models get right",
     )
+    ap.add_argument(
+        "--leave-out",
+        type=int,
+        default=2,
+        help="models omitted per subpanel when computing selection_freq "
+        "(default 2 = leave-two-out; try 1 for leave-one-out)",
+    )
     args = ap.parse_args()
-    os.makedirs(args.outdir, exist_ok=True)
+
+    defaults = default_paths_for(args.language, root)
+    for key in ("detailed", "dataset"):
+        if getattr(args, key) is None:
+            setattr(args, key, defaults[key])
+
+    if args.run_id == "timestamp":
+        args.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    elif os.sep in args.run_id or "/" in args.run_id:
+        raise SystemExit(f"--run-id must be a bare name, not a path: {args.run_id!r}")
+
+    rundir = os.path.join(args.outdir, "irt", f"{args.language}_runs", args.run_id)
+    _refuse_if_exists(rundir, OUTPUT_FILENAMES)
+    os.makedirs(rundir, exist_ok=True)
 
     def out(name: str) -> str:
-        return os.path.join(args.outdir, name)
+        return os.path.join(rundir, name)
 
     meta, models, matrix, scored_mask = load_matrix(args.detailed)
     n_models = len(models)
@@ -544,8 +766,23 @@ def main() -> None:
         | (items["scored"] & items["point_biserial"].isna())
     )
 
+    items["selection_freq"] = selection_frequency(
+        meta,
+        matrix,
+        n_models,
+        args.target_n,
+        args.min_discrimination,
+        args.max_pvalue,
+        args.min_pvalue,
+        args.leave_out,
+    )
     items["selected"] = select_items(
-        items, args.target_n, args.min_discrimination, args.max_pvalue, args.min_pvalue
+        items,
+        args.target_n,
+        args.min_discrimination,
+        args.max_pvalue,
+        args.min_pvalue,
+        primary_rank_col="selection_freq",
     )
     items["in_pool"] = (
         items["scored"]
@@ -570,6 +807,7 @@ def main() -> None:
         "p_value",
         "difficulty_logit",
         "point_biserial",
+        "selection_freq",
         "all_right",
         "all_wrong",
         "boundary",
@@ -580,16 +818,17 @@ def main() -> None:
     items_out["p_value"] = items_out["p_value"].round(3)
     items_out["difficulty_logit"] = items_out["difficulty_logit"].round(3)
     items_out["point_biserial"] = items_out["point_biserial"].round(3)
-    items_out.to_csv(out(f"irt_items_{args.label}.csv"), index=False)
+    items_out["selection_freq"] = items_out["selection_freq"].round(3)
+    items_out.to_csv(out("items.csv"), index=False)
 
     tbl_out = tbl.copy()
     for c in ["ability_logit", "accuracy_full", "accuracy_selected"]:
         tbl_out[c] = tbl_out[c].round(3)
-    tbl_out.to_csv(out(f"irt_models_{args.label}.csv"), index=False)
+    tbl_out.to_csv(out("models.csv"), index=False)
 
     # ---- selected ids + filtered dataset ----
     selected_ids = sorted(int(q) for q in items.loc[items["selected"], "question_id"])
-    with open(out(f"irt_selected_ids_{args.label}.json"), "w", encoding="utf-8") as fh:
+    with open(out("selected_ids.json"), "w", encoding="utf-8") as fh:
         json.dump(selected_ids, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
 
@@ -600,17 +839,25 @@ def main() -> None:
         keep = set(selected_ids)
         subset = [it for it in full if it.get("question_id") in keep]
         subset.sort(key=lambda it: it.get("question_id", 0))
-        with open(
-            out(f"irt_selected_dataset_{args.label}.json"), "w", encoding="utf-8"
-        ) as fh:
+        with open(out("selected_dataset.json"), "w", encoding="utf-8") as fh:
             json.dump(subset, fh, ensure_ascii=False, indent=2)
             fh.write("\n")
         n_selected_dataset = len(subset)
 
+        # Same items, renumbered question_id 1..n so the benchmark ships with a clean,
+        # contiguous id range instead of the original (sparse) Stage-3b ids.
+        cleaned = [
+            {**it, "question_id": new_id} for new_id, it in enumerate(subset, start=1)
+        ]
+        with open(out("selected_dataset_cleaned.json"), "w", encoding="utf-8") as fh:
+            json.dump(cleaned, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+
     # ---- plots ----
-    plot_diagnostics(items, out(f"irt_diagnostics_{args.label}.png"))
-    plot_accuracy_shift(tbl, args.ceiling, out(f"irt_accuracy_shift_{args.label}.png"))
-    plot_coverage(items, out(f"irt_coverage_{args.label}.png"))
+    plot_diagnostics(items, out("diagnostics.png"))
+    plot_accuracy_shift(tbl, args.ceiling, out("accuracy_shift.png"))
+    plot_coverage(items, out("coverage.png"))
+    plot_selection_freq(items, args.leave_out, out("selection_freq.png"))
 
     # ---- console summary ----
     n_sel = int(items["selected"].sum())
@@ -625,9 +872,15 @@ def main() -> None:
         f"models={n_models}  items={len(items)}  unscored(dropped from IRT)={n_unscored}  "
         f"all-right(dropped)={all_right}  all-wrong(kept)={all_wrong}"
     )
+    n_pool = int(items["in_pool"].sum())
+    n_target = min(args.target_n, n_pool)
     print(
-        f"pool={int(items['in_pool'].sum())}  selected={n_sel}  (target {args.target_n})  "
+        f"pool={n_pool}  selected={n_sel}  (target {args.target_n})  "
         f"filtered_dataset={n_selected_dataset}  of which always-wrong={n_sel_wrong}"
+    )
+    print(
+        f"exact quota check: selected == min(target_n, pool) -> {n_sel} == {n_target}  "
+        f"{'OK' if n_sel == n_target else 'MISMATCH'}"
     )
     print(
         f"top accuracy: full={top_full:.1f}%  selected={top_sel:.1f}%  "
@@ -635,6 +888,17 @@ def main() -> None:
     )
     print(
         f"accuracy spread (max-min): full={spread_full:.1f}pp  selected={spread_sel:.1f}pp"
+    )
+
+    # ---- selection stability (leave-`leave_out`-out) ----
+    n_subpanels = math.comb(n_models, args.leave_out)
+    sel_freq = items.loc[items["selected"], "selection_freq"]
+    n_unstable = int((sel_freq < 0.5).sum())
+    print(
+        f"selection stability: leave-{args.leave_out}-out over {n_models} models "
+        f"({n_subpanels} subpanels)  selection_freq among selected: "
+        f"min={sel_freq.min():.2f}  median={sel_freq.median():.2f}  max={sel_freq.max():.2f}  "
+        f"(<0.5 i.e. quota-filled rather than robustly picked: {n_unstable})"
     )
 
     # ---- validation diagnostics (ranking recovery + discrimination concentration) ----
@@ -666,13 +930,15 @@ def main() -> None:
         )
     print("\nWrote:")
     for name in [
-        f"irt_items_{args.label}.csv",
-        f"irt_models_{args.label}.csv",
-        f"irt_selected_ids_{args.label}.json",
-        f"irt_selected_dataset_{args.label}.json",
-        f"irt_diagnostics_{args.label}.png",
-        f"irt_accuracy_shift_{args.label}.png",
-        f"irt_coverage_{args.label}.png",
+        "items.csv",
+        "models.csv",
+        "selected_ids.json",
+        "selected_dataset.json",
+        "selected_dataset_cleaned.json",
+        "diagnostics.png",
+        "accuracy_shift.png",
+        "coverage.png",
+        "selection_freq.png",
     ]:
         print("  ", out(name))
 
