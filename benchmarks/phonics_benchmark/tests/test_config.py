@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from phonics_benchmark.config import (
     ConfigError,
+    apply_execution_overrides,
     config_identity_sha256,
     config_object_sha256,
     config_sha256,
@@ -129,6 +130,55 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
 
     assert config_identity_sha256(original) == config_identity_sha256(retry)
     assert config_object_sha256(original) != config_object_sha256(retry)
+
+
+def test_apply_execution_overrides_preserves_unspecified_values(
+    tmp_path: Path,
+) -> None:
+    """Only explicitly supplied execution options replace config values."""
+
+    config = load_run_config(
+        _write_config(tmp_path, model_workers=3, force=False, retry_errors=False)
+    )
+
+    overridden = apply_execution_overrides(
+        config,
+        force=True,
+        retry_errors=False,
+        model_workers=None,
+    )
+
+    assert overridden.force is True
+    assert overridden.retry_errors is False
+    assert overridden.model_workers == 3
+
+
+def test_apply_execution_overrides_rejects_conflicting_modes(tmp_path: Path) -> None:
+    """Config and supplied execution modes must remain mutually exclusive."""
+
+    config = load_run_config(_write_config(tmp_path, force=True))
+
+    with pytest.raises(ConfigError, match="cannot be combined"):
+        apply_execution_overrides(
+            config,
+            force=False,
+            retry_errors=True,
+            model_workers=None,
+        )
+
+
+def test_apply_execution_overrides_validates_model_workers(tmp_path: Path) -> None:
+    """Overrides cannot bypass the config's worker-count invariant."""
+
+    config = load_run_config(_write_config(tmp_path))
+
+    with pytest.raises(ConfigError, match="model_workers"):
+        apply_execution_overrides(
+            config,
+            force=False,
+            retry_errors=False,
+            model_workers=0,
+        )
 
 
 def test_config_sha256_hashes_exact_file_contents(tmp_path: Path) -> None:

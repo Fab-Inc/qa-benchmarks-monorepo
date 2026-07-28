@@ -38,16 +38,8 @@ def load_results(file_name: str | Path, *, force: bool = False) -> pd.DataFrame:
 def save_results(
     results: pd.DataFrame,
     file_name: str | Path,
-    config_representation: dict[str, Any],
-    run_id: str,
-    custom_models_path: str | Path | None,
 ) -> Path:
-    """Persist benchmark results.
-
-    This is the persistence boundary for future result storage. For now it writes
-    JSONL locally and accepts the run/config/model metadata that a richer
-    backend will need.
-    """
+    """Persist benchmark results as local JSONL."""
 
     path = Path(file_name)
     path.parent.mkdir(parents=True, exist_ok=True)

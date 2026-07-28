@@ -72,6 +72,19 @@ def run_from_config_file(
     """Load a run config file and execute it without downloading model config."""
 
     config = load_run_config(config_path)
+    return execute_run(config, evaluator=evaluator)
+
+
+def execute_run(
+    config: BenchmarkRunConfig,
+    *,
+    evaluator: Callable[
+        [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
+    ]
+    | None = None,
+) -> RunOutput:
+    """Prepare provenance and model state, then execute a validated run config."""
+
     config_id = config_identity_sha256(config)
     model_configs = None
     if evaluator is None:
@@ -97,7 +110,8 @@ def run_benchmark(
 ) -> RunOutput:
     """Execute a phonics benchmark run from a validated config.
 
-    Callers using the default FDLLM evaluator should call
+    Normal callers should use execute_run. Direct callers using the default
+    FDLLM evaluator must call
     prepare_fdllm_for_run(config), then pass a model_configs snapshot from
     snapshot_model_configs(config.models), before entering this function.
     """
@@ -144,8 +158,6 @@ def run_benchmark(
         model_configs=sanitized_model_configs,
         items=items_for_run,
         results_paths=results_paths,
-        resolved_config=resolved_config,
-        custom_models_path=custom_models_path,
         evaluator=evaluator,
     )
     executed_count = sum(result["executed_count"] for result in model_outputs)
@@ -184,8 +196,6 @@ def _run_models(
     model_configs: Mapping[str, Any],
     items: list[dict[str, Any]],
     results_paths: Mapping[str, Path],
-    resolved_config: dict[str, Any],
-    custom_models_path: Path,
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
@@ -201,8 +211,6 @@ def _run_models(
             "model_config": model_configs.get(model_name, {}),
             "items": deepcopy(items),
             "results_path": results_paths[model_name],
-            "resolved_config": resolved_config,
-            "custom_models_path": custom_models_path,
             "evaluator": evaluator,
         }
         for model_name in config.models
@@ -228,8 +236,6 @@ def _run_model(
     model_config: Mapping[str, Any],
     items: list[dict[str, Any]],
     results_path: Path,
-    resolved_config: dict[str, Any],
-    custom_models_path: Path,
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
@@ -302,22 +308,10 @@ def _run_model(
             executed_count += 1
 
         results = _ordered_results(rows_by_id, expected_result_ids)
-        _save_results(
-            results_path,
-            results,
-            config=config,
-            resolved_config=resolved_config,
-            custom_models_path=custom_models_path,
-        )
+        save_results(results, results_path)
     if stale_result_count and not pending_items:
         results = _ordered_results(rows_by_id, expected_result_ids)
-        _save_results(
-            results_path,
-            results,
-            config=config,
-            resolved_config=resolved_config,
-            custom_models_path=custom_models_path,
-        )
+        save_results(results, results_path)
 
     results = _ordered_results(rows_by_id, expected_result_ids)
     return {
@@ -637,23 +631,6 @@ def _should_skip_existing(row: dict[str, Any], *, retry_errors: bool) -> bool:
     if retry_errors:
         return row.get("call_status") != CALL_STATUS_ERROR
     return True
-
-
-def _save_results(
-    results_path: Path,
-    results: pd.DataFrame,
-    *,
-    config: BenchmarkRunConfig,
-    resolved_config: dict[str, Any],
-    custom_models_path: Path | None,
-) -> None:
-    save_results(
-        results,
-        results_path,
-        resolved_config,
-        config.run_id,
-        custom_models_path,
-    )
 
 
 def _results_by_id(results: pd.DataFrame) -> dict[str, dict[str, Any]]:

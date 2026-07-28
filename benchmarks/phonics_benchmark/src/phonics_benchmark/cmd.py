@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Sequence
-from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -11,18 +10,15 @@ import typer
 
 from phonics_benchmark.config import (
     DECODABILITY_TASK,
-    BenchmarkRunConfig,
     ConfigError,
+    apply_execution_overrides,
     build_run_config,
-    config_identity_sha256,
     load_run_config,
 )
 from phonics_benchmark.runner import (
     RunOutput,
     download_default_custom_models,
-    prepare_fdllm_for_run,
-    run_benchmark,
-    snapshot_model_configs,
+    execute_run,
 )
 
 app = typer.Typer(
@@ -155,7 +151,7 @@ def run_decodability_cmd(
                 config,
                 task=DECODABILITY_TASK,
             )
-            run_config = _apply_execution_overrides(
+            run_config = apply_execution_overrides(
                 run_config,
                 force=force,
                 retry_errors=retry_errors,
@@ -185,13 +181,7 @@ def run_decodability_cmd(
 
         if not skip_models_download:
             download_default_custom_models()
-        prepare_fdllm_for_run(run_config)
-        model_configs = snapshot_model_configs(run_config.models)
-        output = run_benchmark(
-            run_config,
-            config_id=config_identity_sha256(run_config),
-            model_configs=model_configs,
-        )
+        output = execute_run(run_config)
     except (ConfigError, FileNotFoundError) as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
@@ -199,29 +189,6 @@ def run_decodability_cmd(
     _echo_run_output(output)
     if output["error_count"] > 0:
         raise typer.Exit(1)
-
-
-def _apply_execution_overrides(
-    config: BenchmarkRunConfig,
-    *,
-    force: bool,
-    retry_errors: bool,
-    model_workers: int | None,
-) -> BenchmarkRunConfig:
-    """Apply explicitly supplied CLI execution options to a file config."""
-
-    effective_force = force or config.force
-    effective_retry_errors = retry_errors or config.retry_errors
-    if effective_force and effective_retry_errors:
-        raise ConfigError("'force' and 'retry_errors' cannot be combined")
-    return replace(
-        config,
-        force=effective_force,
-        retry_errors=effective_retry_errors,
-        model_workers=(
-            model_workers if model_workers is not None else config.model_workers
-        ),
-    )
 
 
 def _timestamp_run_id() -> str:

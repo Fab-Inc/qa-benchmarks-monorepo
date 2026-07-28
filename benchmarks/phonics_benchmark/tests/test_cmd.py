@@ -49,27 +49,16 @@ def test_run_decodability_command_uses_config(
         patch(
             "phonics_benchmark.cmd.download_default_custom_models"
         ) as download_models,
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run") as prepare,
-        patch(
-            "phonics_benchmark.cmd.snapshot_model_configs",
-            return_value={"model-a": {"Api_Interface": "OpenAI"}},
-        ) as snapshot,
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
 
     assert result.exit_code == 0
     download_models.assert_called_once_with()
-    prepare.assert_called_once()
-    snapshot.assert_called_once_with(["model-a"])
     run.assert_called_once()
     run_config = run.call_args.args[0]
     assert run_config.models == ["model-a"]
     assert run_config.items_path == (tmp_path / "items.csv").resolve()
-    assert "fdllm_context" not in run.call_args.kwargs
-    assert run.call_args.kwargs["model_configs"] == {
-        "model-a": {"Api_Interface": "OpenAI"}
-    }
     assert "Run ID: experiment-a" in result.stdout
     assert "Results:" in result.stdout
 
@@ -95,9 +84,7 @@ def test_run_decodability_command_fails_when_calls_have_errors(
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output),
+        patch("phonics_benchmark.cmd.execute_run", return_value=output),
     ):
         result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
 
@@ -139,9 +126,7 @@ def test_run_decodability_command_execution_flags_override_config(
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -187,9 +172,7 @@ def test_run_decodability_command_model_workers_overrides_config_when_supplied(
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -255,12 +238,7 @@ def test_run_decodability_command_uses_cli_args(
         patch(
             "phonics_benchmark.cmd.download_default_custom_models"
         ) as download_models,
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run") as prepare,
-        patch(
-            "phonics_benchmark.cmd.snapshot_model_configs",
-            return_value={"model-a": {}, "model-b": {}},
-        ) as snapshot,
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -292,8 +270,6 @@ def test_run_decodability_command_uses_cli_args(
 
     assert result.exit_code == 0
     download_models.assert_called_once_with()
-    prepare.assert_called_once()
-    snapshot.assert_called_once_with(["model-a", "model-b"])
     run.assert_called_once()
     run_config = run.call_args.args[0]
     assert run_config.run_id == "experiment-a"
@@ -308,7 +284,6 @@ def test_run_decodability_command_uses_cli_args(
     assert run_config.chunk_size == 25
     assert run_config.model_workers == 2
     assert run_config.force is True
-    assert "config_id" in run.call_args.kwargs
     assert "Run ID: experiment-a" in result.stdout
 
 
@@ -399,9 +374,7 @@ def test_run_decodability_command_defaults_run_id(
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -434,9 +407,7 @@ def test_run_decodability_command_timestamped_output_generates_run_id(
     with (
         patch("phonics_benchmark.cmd._timestamp_run_id", return_value=output["run_id"]),
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -524,9 +495,7 @@ def test_run_decodability_command_accepts_models_json_list(
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run"),
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output) as run,
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -551,7 +520,7 @@ def test_run_decodability_command_accepts_models_json_list(
 def test_run_decodability_command_preflights_registered_models(
     runner: CliRunner, tmp_path: Path
 ) -> None:
-    """Model registration errors are reported before the runner starts."""
+    """Model registration errors are reported before benchmark execution."""
 
     items_path = _write_items_csv(tmp_path)
     with (
@@ -559,10 +528,9 @@ def test_run_decodability_command_preflights_registered_models(
             "phonics_benchmark.cmd.download_default_custom_models"
         ) as download_models,
         patch(
-            "phonics_benchmark.cmd.prepare_fdllm_for_run",
+            "phonics_benchmark.cmd.execute_run",
             side_effect=ConfigError("Configured model(s) are not registered: model-a"),
-        ) as prepare,
-        patch("phonics_benchmark.cmd.run_benchmark") as run,
+        ) as run,
     ):
         result = runner.invoke(
             app,
@@ -579,8 +547,7 @@ def test_run_decodability_command_preflights_registered_models(
 
     assert result.exit_code == 1
     download_models.assert_called_once_with()
-    prepare.assert_called_once()
-    run.assert_not_called()
+    run.assert_called_once()
     assert "not registered" in result.stderr
 
 
@@ -596,9 +563,7 @@ def test_run_decodability_command_can_skip_models_download(
         patch(
             "phonics_benchmark.cmd.download_default_custom_models"
         ) as download_models,
-        patch("phonics_benchmark.cmd.prepare_fdllm_for_run") as prepare,
-        patch("phonics_benchmark.cmd.snapshot_model_configs", return_value={}),
-        patch("phonics_benchmark.cmd.run_benchmark", return_value=output),
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
         result = runner.invoke(
             app,
@@ -616,7 +581,7 @@ def test_run_decodability_command_can_skip_models_download(
 
     assert result.exit_code == 0
     download_models.assert_not_called()
-    prepare.assert_called_once()
+    run.assert_called_once()
 
 
 def test_run_decodability_help_does_not_download_models(runner: CliRunner) -> None:

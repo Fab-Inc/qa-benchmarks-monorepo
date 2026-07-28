@@ -14,7 +14,12 @@ from botocore.exceptions import EndpointConnectionError
 from google.genai.errors import ServerError as GoogleServerError
 from mistralai.exceptions import MistralConnectionException
 from openai import APIConnectionError as OpenAIAPIConnectionError
-from phonics_benchmark.config import BenchmarkRunConfig, ConfigError, load_run_config
+from phonics_benchmark.config import (
+    BenchmarkRunConfig,
+    ConfigError,
+    config_identity_sha256,
+    load_run_config,
+)
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
 from phonics_benchmark.results import save_results
@@ -22,6 +27,7 @@ from phonics_benchmark.runner import (
     DEFAULT_CUSTOM_MODELS_PATH,
     download_default_custom_models,
     evaluate_item_with_fdllm,
+    execute_run,
     prepare_fdllm_for_run,
     run_benchmark,
     run_from_config_file,
@@ -86,6 +92,58 @@ def test_load_benchmark_items_rejects_duplicate_ids_after_trimming(
 
     with pytest.raises(ConfigError, match="duplicate benchmark_item_id.*item-1"):
         load_benchmark_items(items_path)
+
+
+def test_execute_run_owns_identity_and_default_model_setup(tmp_path: Path) -> None:
+    """The orchestration boundary prepares FDLLM and run provenance."""
+
+    config = load_run_config(_write_config(tmp_path))
+    expected_output = {"run_id": config.run_id}
+    model_configs = {"model-a": {"Api_Interface": "OpenAI"}}
+
+    with (
+        patch("phonics_benchmark.runner.prepare_fdllm_for_run") as prepare,
+        patch(
+            "phonics_benchmark.runner.snapshot_model_configs",
+            return_value=model_configs,
+        ) as snapshot,
+        patch(
+            "phonics_benchmark.runner.run_benchmark",
+            return_value=expected_output,
+        ) as run,
+    ):
+        output = execute_run(config)
+
+    assert output == expected_output
+    prepare.assert_called_once_with(config)
+    snapshot.assert_called_once_with(config.models)
+    run.assert_called_once_with(
+        config,
+        config_id=config_identity_sha256(config),
+        evaluator=None,
+        model_configs=model_configs,
+    )
+
+
+def test_execute_run_skips_fdllm_setup_for_supplied_evaluator(
+    tmp_path: Path,
+) -> None:
+    """Injected evaluators do not require the FDLLM model registry."""
+
+    config = load_run_config(_write_config(tmp_path))
+    evaluator = lambda *_args: {"output": "first"}  # noqa: E731
+
+    with (
+        patch("phonics_benchmark.runner.prepare_fdllm_for_run") as prepare,
+        patch("phonics_benchmark.runner.snapshot_model_configs") as snapshot,
+        patch("phonics_benchmark.runner.run_benchmark", return_value={}) as run,
+    ):
+        execute_run(config, evaluator=evaluator)
+
+    prepare.assert_not_called()
+    snapshot.assert_not_called()
+    assert run.call_args.kwargs["evaluator"] is evaluator
+    assert run.call_args.kwargs["model_configs"] is None
 
 
 def test_run_from_config_file_uses_composed_csv(tmp_path: Path) -> None:
@@ -1109,7 +1167,7 @@ def test_default_evaluator_uses_configured_max_tokens(tmp_path: Path) -> None:
 
 
 def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> None:
-    """The runner passes config metadata to the result persistence seam."""
+    """The runner persists each model's results through the result seam."""
 
     custom_models_path = tmp_path / "custom_models.yaml"
     custom_models_path.write_text("models: []", encoding="utf-8")
@@ -1127,10 +1185,7 @@ def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> N
         )
 
     save.assert_called()
-    _, _, config_representation, run_id, custom_models_arg = save.call_args.args
-    assert config_representation["language"] == "english"
-    assert run_id == "experiment-a"
-    assert custom_models_arg == custom_models_path.resolve()
+    assert len(save.call_args.args) == 2
     assert save.call_args.args[1].name == "resps_model-a.jsonl"
 
 

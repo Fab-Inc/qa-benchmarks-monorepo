@@ -18,13 +18,7 @@ def test_save_results_writes_jsonl_atomically(tmp_path: Path) -> None:
         ]
     )
 
-    saved_path = save_results(
-        results,
-        results_path,
-        config_representation={"language": "english"},
-        run_id="experiment-a",
-        custom_models_path=None,
-    )
+    saved_path = save_results(results, results_path)
 
     assert saved_path == results_path
     rows = [

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +103,31 @@ def config_identity_sha256(config: BenchmarkRunConfig) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def apply_execution_overrides(
+    config: BenchmarkRunConfig,
+    *,
+    force: bool,
+    retry_errors: bool,
+    model_workers: int | None,
+) -> BenchmarkRunConfig:
+    """Apply explicitly supplied execution options to a validated config."""
+
+    effective_force = force or config.force
+    effective_retry_errors = retry_errors or config.retry_errors
+    if effective_force and effective_retry_errors:
+        raise ConfigError("'force' and 'retry_errors' cannot be combined")
+    return replace(
+        config,
+        force=effective_force,
+        retry_errors=effective_retry_errors,
+        model_workers=(
+            _validate_model_workers(model_workers)
+            if model_workers is not None
+            else config.model_workers
+        ),
+    )
 
 
 def load_run_config(
@@ -240,13 +265,7 @@ def _parse_run_config(
     ):
         raise ConfigError("'chunk_size' must be a positive integer or null")
 
-    model_workers = raw_config.get("model_workers", 1)
-    if (
-        isinstance(model_workers, bool)
-        or not isinstance(model_workers, int)
-        or model_workers < 1
-    ):
-        raise ConfigError("'model_workers' must be a positive integer")
+    model_workers = _validate_model_workers(raw_config.get("model_workers", 1))
 
     force = raw_config.get("force", False)
     if not isinstance(force, bool):
@@ -327,6 +346,12 @@ def _validate_config_models(value: Any) -> list[str]:
             raise ConfigError(f"Model names must be unique; duplicate: {model_name}")
         models.append(model_name)
     return models
+
+
+def _validate_model_workers(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ConfigError("'model_workers' must be a positive integer")
+    return value
 
 
 def _parse_run_id(value: Any) -> str:
