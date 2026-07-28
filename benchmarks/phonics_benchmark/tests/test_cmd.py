@@ -315,7 +315,7 @@ def test_run_decodability_command_uses_cli_args(
 def test_run_decodability_command_requires_cli_args_without_config(
     runner: CliRunner,
 ) -> None:
-    """The CLI reports missing direct-run options when no config is supplied."""
+    """Direct runs use the shared config validation for required fields."""
 
     with patch(
         "phonics_benchmark.cmd.download_default_custom_models"
@@ -324,7 +324,69 @@ def test_run_decodability_command_requires_cli_args_without_config(
 
     assert result.exit_code == 1
     download_models.assert_not_called()
-    assert "Missing required options" in result.stderr
+    assert "Missing required run fields: language, models, items_path" in result.stderr
+
+
+def test_run_decodability_command_preserves_missing_items_path_for_validation(
+    runner: CliRunner,
+) -> None:
+    """A missing CLI path remains None instead of becoming a path named 'None'."""
+
+    with patch(
+        "phonics_benchmark.cmd.download_default_custom_models"
+    ) as download_models:
+        result = runner.invoke(
+            app,
+            [
+                "run-decodability",
+                "--language",
+                "english",
+                "--models",
+                "model-a",
+            ],
+        )
+
+    assert result.exit_code == 1
+    download_models.assert_not_called()
+    assert "Missing required run fields: items_path" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("models", "error"),
+    [
+        ("model-a,model-a", "duplicate: model-a"),
+        ("model-a,,model-b", "non-empty strings"),
+        ('["model-a", 1]', "string name"),
+    ],
+)
+def test_run_decodability_command_uses_config_model_validation(
+    runner: CliRunner,
+    tmp_path: Path,
+    models: str,
+    error: str,
+) -> None:
+    """CLI model syntax is translated without bypassing config semantics."""
+
+    items_path = _write_items_csv(tmp_path)
+    with patch(
+        "phonics_benchmark.cmd.download_default_custom_models"
+    ) as download_models:
+        result = runner.invoke(
+            app,
+            [
+                "run-decodability",
+                "--language",
+                "english",
+                "--models",
+                models,
+                "--items-path",
+                str(items_path),
+            ],
+        )
+
+    assert result.exit_code == 1
+    download_models.assert_not_called()
+    assert error in result.stderr
 
 
 def test_run_decodability_command_defaults_run_id(

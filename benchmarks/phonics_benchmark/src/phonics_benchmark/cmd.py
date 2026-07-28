@@ -165,12 +165,7 @@ def run_decodability_cmd(
             effective_run_id = (
                 _timestamp_run_id() if timestamped_output and run_id is None else run_id
             )
-            model_names = _parse_models(models, model)
-            _validate_cli_run_args(
-                language=language,
-                models=model_names,
-                items_path=items_path,
-            )
+            model_names = _parse_cli_models(models, model)
             run_config = build_run_config(
                 run_id=effective_run_id,
                 language=language,
@@ -235,25 +230,20 @@ def _timestamp_run_id() -> str:
     return f"{timestamp}-{uuid4().hex[:8]}"
 
 
-def _parse_models(
+def _parse_cli_models(
     models: str | None,
     repeated_models: Sequence[str] | None,
-) -> list[str]:
-    parsed = []
-    if models:
+) -> list[object]:
+    """Translate supported CLI model syntax without applying config semantics."""
+    parsed: list[object] = []
+    if models is not None:
         parsed.extend(_parse_models_value(models))
     if repeated_models:
         parsed.extend(repeated_models)
-
-    unique_models = []
-    for model in parsed:
-        model_name = model.strip()
-        if model_name and model_name not in unique_models:
-            unique_models.append(model_name)
-    return unique_models
+    return parsed
 
 
-def _parse_models_value(value: str) -> list[str]:
+def _parse_models_value(value: str) -> list[object]:
     stripped = value.strip()
     if not stripped:
         return []
@@ -262,31 +252,10 @@ def _parse_models_value(value: str) -> list[str]:
             raw_models = json.loads(stripped)
         except json.JSONDecodeError as e:
             raise ConfigError(f"Invalid JSON for --models: {e}") from e
-        if not isinstance(raw_models, list) or not all(
-            isinstance(model, str) for model in raw_models
-        ):
-            raise ConfigError("--models JSON value must be an array of strings")
+        if not isinstance(raw_models, list):
+            raise ConfigError("--models JSON value must be an array")
         return raw_models
-    return [model.strip() for model in stripped.split(",") if model.strip()]
-
-
-def _validate_cli_run_args(
-    *,
-    language: str | None,
-    models: Sequence[str] | None,
-    items_path: Path | None,
-) -> None:
-    missing = []
-    if not language:
-        missing.append("--language")
-    if not models:
-        missing.append("--models")
-    if items_path is None:
-        missing.append("--items-path")
-    if missing:
-        raise ConfigError(
-            "Missing required options for CLI-driven run: " + ", ".join(missing)
-        )
+    return stripped.split(",")
 
 
 def _echo_run_output(output: RunOutput) -> None:

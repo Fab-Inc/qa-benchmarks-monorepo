@@ -133,12 +133,12 @@ def load_run_config(
 def build_run_config(
     *,
     run_id: str | None,
-    language: str,
+    language: str | None,
     output_dir: str | Path,
-    models: list[str],
+    models: list[object],
     base_dir: Path,
     task: str,
-    items_path: str | Path,
+    items_path: str | Path | None,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
@@ -155,7 +155,7 @@ def build_run_config(
         "language": language,
         "output_dir": str(output_dir),
         "models": models,
-        "items_path": str(items_path),
+        "items_path": str(items_path) if items_path is not None else None,
         "env_path": str(env_path) if env_path else None,
         "custom_models_path": str(custom_models_path) if custom_models_path else None,
         "max_tokens": max_tokens,
@@ -182,9 +182,19 @@ def _parse_run_config(
 ) -> BenchmarkRunConfig:
     run_id = _parse_run_id(raw_config.get("run_id"))
 
+    required_fields = ("language", "models", "items_path")
+    missing_fields = [
+        field_name
+        for field_name in required_fields
+        if raw_config.get(field_name) is None
+        or (field_name == "models" and raw_config.get(field_name) == [])
+    ]
+    if missing_fields:
+        raise ConfigError("Missing required run fields: " + ", ".join(missing_fields))
+
     language = raw_config.get("language")
     if not isinstance(language, str) or not language.strip():
-        raise ConfigError("Config must include a non-empty 'language'")
+        raise ConfigError("'language' must be a non-empty string")
 
     if not isinstance(task, str) or not task.strip():
         raise ConfigError("The command task must be a non-empty string")
@@ -204,11 +214,11 @@ def _parse_run_config(
         raise ConfigError("'output_dir' must be a non-empty string")
 
     models_raw = raw_config.get("models")
-    models = _parse_models(models_raw)
+    models = _validate_config_models(models_raw)
 
     items_path = raw_config.get("items_path")
     if not isinstance(items_path, str) or not items_path.strip():
-        raise ConfigError("Config must include a non-empty 'items_path'")
+        raise ConfigError("'items_path' must be a non-empty string")
 
     env_path = raw_config.get("env_path")
     if env_path is not None and not isinstance(env_path, str):
@@ -299,24 +309,23 @@ def _resolve_path(value: str, base_dir: Path) -> Path:
     return path.resolve()
 
 
-def _parse_models(value: Any) -> list[str]:
+def _validate_config_models(value: Any) -> list[str]:
     if not isinstance(value, list) or not value:
-        raise ConfigError("Config must include a non-empty 'models' list")
+        raise ConfigError("'models' must be a non-empty list")
 
     models = []
     for model in value:
-        if isinstance(model, str) and model.strip():
-            model_name = model.strip()
-            if model_name in models:
-                raise ConfigError(
-                    f"Config models must be unique; duplicate: {model_name}"
-                )
-            models.append(model_name)
-            continue
-        raise ConfigError(
-            "Each model must be a string name. Provider parameters belong in "
-            "custom_models.yaml."
-        )
+        if not isinstance(model, str):
+            raise ConfigError(
+                "Each model must be a string name. Provider parameters belong in "
+                "custom_models.yaml."
+            )
+        model_name = model.strip()
+        if not model_name:
+            raise ConfigError("Model names must be non-empty strings")
+        if model_name in models:
+            raise ConfigError(f"Model names must be unique; duplicate: {model_name}")
+        models.append(model_name)
     return models
 
 

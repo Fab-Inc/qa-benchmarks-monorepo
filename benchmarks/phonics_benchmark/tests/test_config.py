@@ -75,6 +75,19 @@ def test_load_run_config_requires_non_empty_models(tmp_path: Path) -> None:
         load_run_config(config_path)
 
 
+def test_load_run_config_reports_all_missing_required_fields(tmp_path: Path) -> None:
+    """File configs use the same centralized required-field validation."""
+
+    config_path = tmp_path / "run.json"
+    config_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(
+        ConfigError,
+        match="Missing required run fields: language, models, items_path",
+    ):
+        load_run_config(config_path)
+
+
 def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
     """A missing run_id defaults to the reusable default run."""
 
