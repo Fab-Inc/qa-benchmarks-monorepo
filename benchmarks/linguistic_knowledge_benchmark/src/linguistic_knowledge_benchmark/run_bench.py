@@ -144,9 +144,11 @@ def git_hash() -> str | None:
         return None
 
 
-def update_log(run_dir: Path, model_name: str, fields: dict[str, str | None]) -> None:
+def update_log(
+    run_directory: Path, model_name: str, fields: dict[str, str | None]
+) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
-    log_path = run_dir / "log.json"
+    log_path = run_directory / "log.json"
     log_data: dict = {}
     if log_path.exists():
         with open(log_path, encoding="utf-8") as _f:
