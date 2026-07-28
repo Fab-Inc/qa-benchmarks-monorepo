@@ -2,6 +2,9 @@
 
 Config-driven benchmark harness for phonics experiments.
 
+For an end-to-end walkthrough of config and direct runs, cache reuse, error retries, and
+adding models, see the [CLI tutorial](docs/cli-tutorial.md).
+
 ## Run Decodability
 
 ```bash
@@ -29,6 +32,15 @@ defaults to `default`; when supplied, it must use only alphanumeric characters a
 hyphens. Use `--timestamped-output` to generate a UTC timestamp run ID for a
 non-overwriting run. The command records the task as `decodability`; task selection is
 not a config option.
+
+`--run-id` and `--timestamped-output` apply only to direct CLI runs. With `--config`,
+the `run_id` and `output_dir` come from the config file; the CLI execution overrides are
+limited to `--force`, `--retry-errors`, and `--model-workers`. To create and retain a
+fresh set of responses, use a new run ID in direct mode, or copy a config and change its
+`run_id` or `output_dir`. A new run directory has no local cache, so all planned calls
+execute even when their semantic model-call identities match another run. Use `--force`
+to rerun calls in the existing run directory only when replacing its current responses
+is intended.
 
 Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
 set `"chunk_size": null` in a config file to save once after each model. Models run
