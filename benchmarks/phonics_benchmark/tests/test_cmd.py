@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from click import unstyle
 from phonics_benchmark.cmd import _timestamp_run_id, app
 from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
@@ -481,7 +482,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
         )
 
     assert result.exit_code == 2
-    assert "--max-tokens" in result.output
+    assert "--max-tokens" in unstyle(result.output)
     download_models.assert_not_called()
 
 
