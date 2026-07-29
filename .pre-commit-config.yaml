@@ -42,11 +42,13 @@ repos:
         entry: uv run --frozen end-of-file-fixer
         language: system
         types: [text]
+        exclude: ^custom_models\.yaml$
       - id: trailing-whitespace
         name: Trim trailing whitespace
         entry: uv run --frozen trailing-whitespace-fixer
         language: system
         types: [text]
+        exclude: ^custom_models\.yaml$
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.24.2
     hooks:
