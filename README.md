@@ -122,6 +122,39 @@ publish_records(
 
 This writes to `gs://$BUCKET_NAME/$FILE_PREFIX/PHONICS/leaderboard_data.json`.
 
+### GCP local setup
+
+To publish results to GCS from your local machine, you need the
+[gcloud CLI](https://cloud.google.com/sdk/docs/install). Once installed, run:
+
+```sh
+gcloud auth application-default login
+```
+
+This stores user credentials that `google-auth` will use to impersonate the project's
+service account. Then set `GOOGLE_CLOUD_IMPERSONATE_SERVICE_ACCOUNT` in the repo-root
+`.env` — ask the project leads for the service account email. No code changes are needed;
+`google-auth` reads this env var automatically when `Client()` is called. In production,
+GitHub Actions handles authentication directly and this env var is not used.
+
+Each benchmark has its own GCS bucket. Bucket config lives in a benchmark-specific `.env`
+file rather than the repo root. For the phonics benchmark:
+
+```sh
+cp benchmarks/phonics_benchmark/.env.example benchmarks/phonics_benchmark/.env
+```
+
+Then fill in `BUCKET_NAME` (ask the project leads for the value).
+
+To verify your full GCS setup, run the integration tests:
+
+```sh
+uv run pytest -m integration
+```
+
+The tests load both `.env` files automatically. A passing run confirms your credentials
+can reach the bucket.
+
 ### Common development commands:
 
 ```sh
