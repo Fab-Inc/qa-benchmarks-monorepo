@@ -1,4 +1,7 @@
-"""Integration tests — require real GCS credentials. Run with: uv run pytest -m integration"""
+"""
+Integration tests — require real GCS credentials.
+Run with: uv run pytest -m integration
+"""
 
 import os
 

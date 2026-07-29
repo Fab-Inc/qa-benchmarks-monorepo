@@ -133,12 +133,12 @@ gcloud auth application-default login
 
 This stores user credentials that `google-auth` will use to impersonate the project's
 service account. Then set `GOOGLE_CLOUD_IMPERSONATE_SERVICE_ACCOUNT` in the repo-root
-`.env` — ask the project leads for the service account email. No code changes are needed;
-`google-auth` reads this env var automatically when `Client()` is called. In production,
-GitHub Actions handles authentication directly and this env var is not used.
+`.env` — ask the project leads for the service account email. No code changes are
+needed; `google-auth` reads this env var automatically when `Client()` is called. In
+production, GitHub Actions handles authentication directly and this env var is not used.
 
-Each benchmark has its own GCS bucket. Bucket config lives in a benchmark-specific `.env`
-file rather than the repo root. For the phonics benchmark:
+Each benchmark has its own GCS bucket. Bucket config lives in a benchmark-specific
+`.env` file rather than the repo root. For the phonics benchmark:
 
 ```sh
 cp benchmarks/phonics_benchmark/.env.example benchmarks/phonics_benchmark/.env
