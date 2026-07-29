@@ -1,11 +1,13 @@
 """Test cases for the command-line interface."""
 
+import json
+import re
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 from conftest import VALID_MODEL
-from linguistic_knowledge_benchmark import cmd
+from linguistic_knowledge_benchmark import cmd, shared_utils
 from typer.testing import CliRunner
 
 
@@ -29,6 +31,10 @@ def test_help_lists_commands(runner: CliRunner) -> None:
 def test_datasets_map_is_parameterized() -> None:
     for entry in cmd.DATASETS.values():
         assert {"path", "language_name"} <= entry.keys()
+
+
+def test_timestamp_run_id_format() -> None:
+    assert re.match(r"^\d{8}T\d{6}Z$", cmd._timestamp_run_id())
 
 
 # --------------------------------------------------------------------------- #
@@ -168,7 +174,7 @@ def _patch_summary(monkeypatch):
         lambda df, model: {
             "model": model,
             "accuracy": 80.0,
-            "accuracy_mc": 90.0,
+            "accuracy_mcq": 90.0,
             "accuracy_short_form": 70.0,
         },
     )
@@ -207,7 +213,7 @@ def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
 
 def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
     _patch_summary(monkeypatch)
     result = runner.invoke(
@@ -220,8 +226,35 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
     )
     assert summary_path.exists()
     df = pd.read_csv(summary_path)
-    assert "answers_timestamp-utc" in df.columns
-    assert "answers_judged_git-hash" in df.columns
+    assert "responses_timestamp-utc" in df.columns
+    assert "responses_judged_git-hash" in df.columns
+
+
+def test_judge_bench_standard_reads_existing_log_for_provenance(
+    runner, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
+    _patch_summary(monkeypatch)
+
+    run_dir = tmp_path / "luganda" / "runs" / "default"
+    run_dir.mkdir(parents=True)
+    (run_dir / "log.json").write_text(
+        json.dumps(
+            {VALID_MODEL: {"responses_timestamp-utc": "2020-01-01T00:00:00+00:00"}}
+        )
+    )
+
+    result = runner.invoke(
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+    )
+    assert result.exit_code == 0
+    summary_path = (
+        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+    )
+    df = pd.read_csv(summary_path)
+    assert df.loc[0, "responses_timestamp-utc"] == "2020-01-01T00:00:00+00:00"
 
 
 def test_judge_bench_run_id_writes_run_specific_summary(
@@ -285,7 +318,7 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
 
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )
@@ -302,9 +335,9 @@ def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> 
 
 def test_judge_bench_reports_empty_directory(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
-    # The answers directory exists but holds no result files for the model.
-    (tmp_path / "luganda" / "runs" / "default" / "answers").mkdir(parents=True)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    # The responses directory exists but holds no result files for the model.
+    (tmp_path / "luganda" / "runs" / "default" / "responses").mkdir(parents=True)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )

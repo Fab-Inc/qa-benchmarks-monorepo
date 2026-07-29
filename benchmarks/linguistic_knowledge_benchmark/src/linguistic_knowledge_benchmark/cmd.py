@@ -15,12 +15,13 @@ from linguistic_knowledge_benchmark.judge_bench import (
     judge_results,
     judge_results_fallback,
 )
-from linguistic_knowledge_benchmark.run_bench import CACHE_BASE_DIR, run_benchmark
+from linguistic_knowledge_benchmark.run_bench import run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
     DATA_DIR,
     EVAL_MODELS,
     REPO_ROOT,
+    run_dir,
 )
 
 # Add a new language by adding an entry here and dropping its JSON in data/.
@@ -31,9 +32,9 @@ DATASETS: dict[str, dict] = {
         "path": DATA_DIR / "linguistic_knowledge_eval_luganda.json",
         "language_name": "Luganda",
     },
-    "swahili": {
-        "path": DATA_DIR / "linguistic_knowledge_eval_swahili.json",
-        "language_name": "Swahili",
+    "kiswahili": {
+        "path": DATA_DIR / "linguistic_knowledge_eval_kiswahili.json",
+        "language_name": "Kiswahili",
     },
 }
 
@@ -97,13 +98,13 @@ def run_bench_cmd(
     retry_errors: bool = typer.Option(
         False,
         "--retry-errors",
-        help="Retry only rows with call_status=error in an existing answers CSV",
+        help="Retry only rows with call_status=error in an existing responses CSV",
     ),
     run_id: str | None = typer.Option(
         None,
         "--run-id",
         help=(
-            "Write/read answers under cache/<language>/runs/<run-id>/. "
+            "Write/read responses under cache/<language>/runs/<run-id>/. "
             "Alphanumeric and hyphens only. Defaults to 'default'."
         ),
     ),
@@ -209,13 +210,13 @@ def judge_bench_cmd(
         help=(
             "Use LLM judge as fallback for MCQ/true-false rows where "
             "regex parsing failed (is_correct is null). Reads from "
-            "answers_judged/ and writes to answers_judged_fallback/."
+            "responses_judged/ and writes to responses_judged_fallback/."
         ),
     ),
 ) -> None:
     """Judge Linguistic Knowledge evaluation results.
 
-    Scores MC answers with regex and short_form/true_false with an LLM judge.
+    Scores MCQ responses with regex and short_form/true_false with an LLM judge.
     If --model is not provided, judges all models that have step 1 results.
     """
     if language not in DATASETS:
@@ -240,12 +241,10 @@ def judge_bench_cmd(
     mode = "fallback" if judge_fallback else "standard"
     effective_run_id = run_id or "default"
     # Report the directory this mode actually reads from: standard judging reads
-    # the raw run-bench answers, while --judge-fallback re-scores the already-judged
-    # CSVs, so its source is answers_judged/ (produced by a prior standard pass).
-    input_subdir = "answers_judged" if judge_fallback else "answers"
-    input_dir = (
-        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / input_subdir
-    )
+    # the raw run-bench responses, while --judge-fallback re-scores the already-judged
+    # CSVs, so its source is responses_judged/ (produced by a prior standard pass).
+    input_subdir = "responses_judged" if judge_fallback else "responses"
+    input_dir = run_dir(language, effective_run_id) / input_subdir
 
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
     typer.echo(f"Judge model: {judge_model}")
@@ -253,7 +252,7 @@ def judge_bench_cmd(
         typer.echo(f"Run ID: {effective_run_id}")
     else:
         typer.echo(f"Run ID: {effective_run_id} (no --run-id supplied)")
-    typer.echo(f"Judging answers from: {input_dir}")
+    typer.echo(f"Judging responses from: {input_dir}")
 
     summaries: list[dict[str, object]] = []
     skipped_models: list[str] = []
@@ -283,7 +282,7 @@ def judge_bench_cmd(
 
             typer.echo(f"\n{current_model}:")
             typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
-            typer.echo(f"  MC accuracy: {summary['accuracy_mc']}%")
+            typer.echo(f"  MCQ accuracy: {summary['accuracy_mcq']}%")
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
 
         except FileNotFoundError:
@@ -317,22 +316,20 @@ def judge_bench_cmd(
 
     results_dir = BENCH_DIR / "results"
     results_dir.mkdir(exist_ok=True)
-    log_path = (
-        CACHE_BASE_DIR / language.lower() / "runs" / effective_run_id / "log.json"
-    )
+    log_path = run_dir(language, effective_run_id) / "log.json"
     log_data: dict[str, dict[str, str | None]] = {}
     if log_path.exists():
         with open(log_path, encoding="utf-8") as _f:
             log_data = json.load(_f)
     log_fields = [
-        "answers_timestamp-utc",
-        "answers_git-hash",
-        "answers_retry_timestamp-utc",
-        "answers_retry_git-hash",
-        "answers_judged_timestamp-utc",
-        "answers_judged_git-hash",
-        "answers_judged_fallback_timestamp-utc",
-        "answers_judged_fallback_git-hash",
+        "responses_timestamp-utc",
+        "responses_git-hash",
+        "responses_retry_timestamp-utc",
+        "responses_retry_git-hash",
+        "responses_judged_timestamp-utc",
+        "responses_judged_git-hash",
+        "responses_judged_fallback_timestamp-utc",
+        "responses_judged_fallback_git-hash",
     ]
     for s in summaries:
         entry = log_data.get(str(s.get("model", "")), {})
