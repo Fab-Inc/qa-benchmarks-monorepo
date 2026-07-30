@@ -39,23 +39,23 @@ can go in **series or in parallel**.
 
 **How to run**
 
-1. **1a:** fresh chat, **attach the document set** for this run, paste the 1a block,
-   save the JSON. (Repeat with a different set for a comparison run.)
-1. **1b:** if 1a was run in several passes, first **manually concatenate the per-run
-   digest JSONs into one file** — that single combined digest is the input to 1b. Then
-   fresh chat; **attach the combined 1a digest as a JSON file** (no source PDFs), paste
-   the 1b block, save the `feature_map`. A JSON-to-JSON merge that carries examples
-   through.
-1. **2:** for each **shard** (a subset of the cited sources that fits context), new
-   chat; attach that shard's source PDFs **and the `feature_map` JSON file**, paste the
-   stage 2 block, save the candidate array. Repeat over shards until every source has
-   been covered.
-1. **3a:** new chat, no sources; **attach the Stage 2 candidate arrays** — this can be
-   several JSON files (one per shard run) or a single JSON file (if Stage 2 ran only
-   once, or you concatenated the shard outputs into one) — paste the 3a block, save the
-   annotated pool (QC verdicts + dup groups).
-1. **3b:** run `stage_3b_assemble_v10.py` on the 3a pool to produce the final dataset,
-   backups, and gap report.
+- **1a:** fresh chat, **attach the document set** for this run, paste the 1a block, save
+  the JSON. (Repeat with a different set for a comparison run.)
+- **1b:** if 1a was run in several passes, first **manually concatenate the per-run
+  digest JSONs into one file** — that single combined digest is the input to 1b. Then
+  fresh chat; **attach the combined 1a digest as a JSON file** (no source PDFs), paste
+  the 1b block, save the `feature_map`. A JSON-to-JSON merge that carries examples
+  through.
+- **2:** for each **shard** (a subset of the cited sources that fits context), new chat;
+  attach that shard's source PDFs **and the `feature_map` JSON file**, paste the stage 2
+  block, save the candidate array. Repeat over shards until every source has been
+  covered.
+- **3a:** new chat, no sources; **attach the Stage 2 candidate arrays** — this can be
+  several JSON files (one per shard run) or a single JSON file (if Stage 2 ran only
+  once, or you concatenated the shard outputs into one) — paste the 3a block, save the
+  annotated pool (QC verdicts + dup groups).
+- **3b:** run `stage_3b_assemble_v10.py` on the 3a pool to produce the final dataset,
+  backups, and gap report.
 
 ______________________________________________________________________
 
