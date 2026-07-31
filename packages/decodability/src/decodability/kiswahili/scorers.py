@@ -1,6 +1,4 @@
-from primerpro import Word
-
-from decodability.kiswahili.definitions import primerpro_settings
+from decodability.kiswahili.definitions import get_graphemes
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 
 
@@ -17,13 +15,7 @@ def score_known_graphemes_kiswahili(
     if not taught_graphemes:
         return 0.0
 
-    primerpro_word = Word(word, primerpro_settings)
-    grapheme_symbols = [
-        primerpro_word.get_grapheme(index).symbol.lower()
-        for index in range(primerpro_word.grapheme_count())
-    ]
-
-    if any(grapheme not in taught_graphemes for grapheme in grapheme_symbols):
+    if any(grapheme not in taught_graphemes for grapheme in get_graphemes(word)):
         return 0.0
 
     return 1.0

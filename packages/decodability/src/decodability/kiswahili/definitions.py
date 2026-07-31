@@ -1,6 +1,8 @@
 """Shared configurations for Kiswahili decodability analysis."""
 
-from primerpro import Consonant, GraphemeInventory, Settings, Vowel
+from enum import Enum
+
+from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
 
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
@@ -39,10 +41,84 @@ KISWAHILI_VOWEL_GPCS = [
     ("u", "u"),
 ]
 
-VALID_GRAPHEMES: set[str] = {
-    # TODO: is it ok to normalize to lowercase here?
-    symbol.lower()
-    for symbol, _ in KISWAHILI_CONSONANT_GPCS + KISWAHILI_VOWEL_GPCS
+VALID_CONSONANTS = {symbol for symbol, _ in KISWAHILI_CONSONANT_GPCS}
+
+VALID_VOWELS = {symbol for symbol, _ in KISWAHILI_VOWEL_GPCS}
+
+VALID_GRAPHEMES: set[str] = VALID_CONSONANTS | VALID_VOWELS
+
+
+class ClusterPattern(Enum):
+    """Enum for Kiswahili consonant cluster patterns."""
+
+    PRENASALISED_M = '"m" + consonant'
+    PRENASALISED_N = '"n" + consonant'
+    LABIALISED_GLIDE = 'consonant + "w"'
+    PALATALISED_GLIDE = 'consonant + "y"'
+    # MIGHT NEED TO CREATE another enum that doesn't include the following
+    M_LABIALISED_GLIDE = '"m" + consonant + "w"'
+    N_LABIALISED_GLIDE = '"n" + consonant + "w"'
+    M_PALATALISED_GLIDE = '"m" + consonant + "y"'
+    N_PALATALISED_GLIDE = '"n" + consonant + "y"'
+
+
+ILLEGAL_COMBINATIONS: dict[ClusterPattern, set[str]] = {
+    ClusterPattern.PRENASALISED_M: set(),
+    ClusterPattern.PRENASALISED_N: {"g", "y", "ng", "ng'", "ny"},
+    ClusterPattern.LABIALISED_GLIDE: {"w"},
+    ClusterPattern.PALATALISED_GLIDE: {"y", "ny", "n"},
+}
+
+
+VALID_CLUSTERS: dict[ClusterPattern, set[str]] = {
+    ClusterPattern.PRENASALISED_M: {
+        "m" + c
+        for c in VALID_CONSONANTS
+        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
+    },
+    ClusterPattern.PRENASALISED_N: {
+        "n" + c
+        for c in VALID_CONSONANTS
+        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
+    },
+    ClusterPattern.LABIALISED_GLIDE: {
+        c + "w"
+        for c in VALID_CONSONANTS
+        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.PALATALISED_GLIDE: {
+        c + "y"
+        for c in VALID_CONSONANTS
+        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+    },
+    ClusterPattern.M_LABIALISED_GLIDE: {
+        "m" + c + "w"
+        for c in VALID_CONSONANTS
+        if c
+        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
+        | ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.N_LABIALISED_GLIDE: {
+        "n" + c + "w"
+        for c in VALID_CONSONANTS
+        if c
+        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
+        | ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.M_PALATALISED_GLIDE: {
+        "m" + c + "y"
+        for c in VALID_CONSONANTS
+        if c
+        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
+        | ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+    },
+    ClusterPattern.N_PALATALISED_GLIDE: {
+        "n" + c + "y"
+        for c in VALID_CONSONANTS
+        if c
+        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
+        | ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+    },
 }
 
 
@@ -66,7 +142,21 @@ def _get_primerpro_settings() -> Settings:
 primerpro_settings: Settings = _get_primerpro_settings()
 
 
+def get_graphemes(word: str) -> list[str]:
+    """Decompose a word into its constituent graphemes using PrimerPro settings.
+
+    Symbols are lowercased: matched graphemes already come back as the
+    inventory's lowercase symbol, but the fallback for characters outside the
+    inventory preserves the input's case.
+    """
+    primerpro_word = Word(text=word, settings=primerpro_settings)
+    return [grapheme.symbol.lower() for grapheme in primerpro_word.graphemes]
+
+
 __all__ = [
+    "ClusterPattern",
     "VALID_GRAPHEMES",
+    "VALID_CONSONANTS",
+    "VALID_CLUSTERS",
     "primerpro_settings",
 ]
