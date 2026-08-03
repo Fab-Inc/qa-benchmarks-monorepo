@@ -87,7 +87,7 @@ def test_rich_progress_logs_each_finished_model_above_the_display() -> None:
         progress.model_finished("model-a")
 
     output = buffer.getvalue()
-    assert "done model-a (2 items)" in output
+    assert "done model-a (2 items in 0:00:00)" in output
     assert "1 err" in output
 
 

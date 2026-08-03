@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from threading import Lock
 from typing import Protocol, Self
 
@@ -136,15 +137,25 @@ class RichProgress:
             task_id = self._task_ids.pop(model_name)
             error_count = self._error_counts.pop(model_name)
             pending_count = self._pending_counts.pop(model_name)
+        # Read back the row's own timing rather than clocking the model again.
+        task = next(t for t in self._progress.tasks if t.id == task_id)
+        elapsed = task.finished_time if task.finished else task.elapsed
         # Printing through the console puts this above the live region, where it
         # scrolls into terminal history instead of growing the redrawn area.
         summary = (
-            f"done {model_name} ({pending_count} items) {_error_label(error_count)}"
+            f"done {model_name} ({pending_count} items in {_elapsed_label(elapsed)}) "
+            f"{_error_label(error_count)}"
         )
         # Highlighting would colour the counts inside the line at random.
         self._progress.console.print(summary.rstrip(), highlight=False)
         self._progress.remove_task(task_id)
         self._progress.advance(self._overall_task_id)
+
+
+def _elapsed_label(elapsed: float | None) -> str:
+    """Format seconds the way the display's own elapsed column does."""
+
+    return str(timedelta(seconds=max(0, int(elapsed or 0))))
 
 
 def _error_label(error_count: int) -> str:
