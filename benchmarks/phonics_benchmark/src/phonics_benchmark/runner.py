@@ -39,6 +39,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import item_to_dict, load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS, call_llm
+from phonics_benchmark.progress import NullProgress, ProgressReporter
 from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import load_results, save_results
 
@@ -68,11 +69,12 @@ def run_from_config_file(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    progress: ProgressReporter | None = None,
 ) -> RunOutput:
     """Load a run config file and execute it without downloading model config."""
 
     config = load_run_config(config_path)
-    return execute_run(config, evaluator=evaluator)
+    return execute_run(config, evaluator=evaluator, progress=progress)
 
 
 def execute_run(
@@ -82,6 +84,7 @@ def execute_run(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    progress: ProgressReporter | None = None,
 ) -> RunOutput:
     """Prepare provenance and model state, then execute a validated run config."""
 
@@ -95,6 +98,7 @@ def execute_run(
         config_id=config_id,
         evaluator=evaluator,
         model_configs=model_configs,
+        progress=progress,
     )
 
 
@@ -107,6 +111,7 @@ def run_benchmark(
     ]
     | None = None,
     model_configs: Mapping[str, Any] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> RunOutput:
     """Execute a phonics benchmark run from a validated config.
 
@@ -114,10 +119,15 @@ def run_benchmark(
     FDLLM evaluator must call
     prepare_fdllm_for_run(config), then pass a model_configs snapshot from
     snapshot_model_configs(config.models), before entering this function.
+
+    Progress events are discarded unless a progress reporter is supplied. The
+    caller owns starting and stopping the reporter around this function.
     """
 
     if evaluator is None:
         evaluator = evaluate_item_with_fdllm
+    if progress is None:
+        progress = NullProgress()
 
     custom_models_path = _resolve_custom_models_path(config.custom_models_path)
     resolved_config = config.to_resolved_dict()
@@ -159,6 +169,7 @@ def run_benchmark(
         items=items_for_run,
         results_paths=results_paths,
         evaluator=evaluator,
+        progress=progress,
     )
     executed_count = sum(result["executed_count"] for result in model_outputs)
     skipped_count = sum(result["skipped_count"] for result in model_outputs)
@@ -199,6 +210,7 @@ def _run_models(
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
+    progress: ProgressReporter,
 ) -> list[_ModelRunOutput]:
     """Run model workers serially or with bounded model-level concurrency."""
 
@@ -212,6 +224,7 @@ def _run_models(
             "items": deepcopy(items),
             "results_path": results_paths[model_name],
             "evaluator": evaluator,
+            "progress": progress,
         }
         for model_name in config.models
     ]
@@ -239,6 +252,7 @@ def _run_model(
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
+    progress: ProgressReporter,
 ) -> _ModelRunOutput:
     """Run every pending item for one model, sequentially and with checkpoints."""
 
@@ -288,6 +302,7 @@ def _run_model(
             }
         )
 
+    progress.model_started(model_name, len(pending_items))
     executed_count = 0
     for chunk in _chunked(pending_items, config.chunk_size):
         for pending in chunk:
@@ -306,12 +321,17 @@ def _run_model(
             )
             rows_by_id[result_id] = row
             executed_count += 1
+            progress.item_finished(
+                model_name,
+                error=row["call_status"] == CALL_STATUS_ERROR,
+            )
 
         results = _ordered_results(rows_by_id, expected_result_ids)
         save_results(results, results_path)
     if stale_result_count and not pending_items:
         results = _ordered_results(rows_by_id, expected_result_ids)
         save_results(results, results_path)
+    progress.model_finished(model_name)
 
     results = _ordered_results(rows_by_id, expected_result_ids)
     return {
