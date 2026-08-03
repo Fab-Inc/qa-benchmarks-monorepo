@@ -5,7 +5,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from threading import Barrier
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
@@ -122,6 +122,7 @@ def test_execute_run_owns_identity_and_default_model_setup(tmp_path: Path) -> No
         config_id=config_identity_sha256(config),
         evaluator=None,
         model_configs=model_configs,
+        progress=None,
     )
 
 
@@ -308,6 +309,60 @@ def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> N
         "model-a": ["item-1", "item-2"],
         "model-b": ["item-1", "item-2"],
     }
+
+
+def test_run_from_config_file_reports_progress_per_model(tmp_path: Path) -> None:
+    """Each model brackets its own items, flagging the ones that failed."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[
+            {"id": "item-1", "text": "A cat sat."},
+            {"id": "item-2", "text": "The dog ran."},
+        ],
+    )
+    progress = MagicMock()
+
+    run_from_config_file(
+        config_path,
+        evaluator=lambda _config, _model, item, _prompt: {
+            "output": "" if item["item_id"] == "item-2" else "ok"
+        },
+        progress=progress,
+    )
+
+    assert progress.method_calls == [
+        call.model_started("model-a", 2),
+        call.item_finished("model-a", error=False),
+        call.item_finished("model-a", error=True),
+        call.model_finished("model-a"),
+    ]
+
+
+def test_run_from_config_file_progress_counts_only_pending_items(
+    tmp_path: Path,
+) -> None:
+    """Cached results are excluded from the reported total, not counted then skipped."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[
+            {"id": "item-1", "text": "A cat sat."},
+            {"id": "item-2", "text": "The dog ran."},
+        ],
+    )
+    evaluator = lambda *_args: {"output": "ok"}  # noqa: E731
+    run_from_config_file(config_path, evaluator=evaluator)
+
+    progress = MagicMock()
+    run_from_config_file(config_path, evaluator=evaluator, progress=progress)
+
+    assert progress.method_calls == [
+        call.model_started("model-a", 0),
+        call.model_finished("model-a"),
+    ]
 
 
 def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:

@@ -1,6 +1,7 @@
 """Command-line interface for the phonics benchmark."""
 
 import json
+import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +17,7 @@ from phonics_benchmark.config import (
     build_run_config,
     load_run_config,
 )
+from phonics_benchmark.progress import NullProgress, ProgressReporter, RichProgress
 from phonics_benchmark.runner import (
     RunOutput,
     download_default_custom_models,
@@ -143,6 +145,14 @@ def run_decodability_cmd(
         "--retry-errors",
         help="Retry only existing result rows with call_status=error.",
     ),
+    progress: bool = typer.Option(
+        True,
+        "--progress/--no-progress",
+        help=(
+            "Show a live progress bar per model on stderr. "
+            "Always off when stderr is not a terminal."
+        ),
+    ),
 ) -> None:
     """Run the decodability benchmark from a config file or CLI options."""
 
@@ -182,7 +192,8 @@ def run_decodability_cmd(
 
         if not skip_models_download:
             download_default_custom_models()
-        output = execute_run(run_config)
+        with _build_progress(enabled=progress) as reporter:
+            output = execute_run(run_config, progress=reporter)
     except (ConfigError, FileNotFoundError) as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
@@ -190,6 +201,13 @@ def run_decodability_cmd(
     _echo_run_output(output)
     if output["error_count"] > 0:
         raise typer.Exit(1)
+
+
+def _build_progress(*, enabled: bool) -> ProgressReporter:
+    """Return live bars only when asked for and stderr can render them."""
+    if not enabled or not sys.stderr.isatty():
+        return NullProgress()
+    return RichProgress()
 
 
 def _timestamp_run_id() -> str:
