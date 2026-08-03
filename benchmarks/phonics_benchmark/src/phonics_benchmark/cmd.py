@@ -4,6 +4,7 @@ import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import typer
@@ -200,9 +201,9 @@ def _timestamp_run_id() -> str:
 def _parse_cli_models(
     models: str | None,
     repeated_models: Sequence[str] | None,
-) -> list[object]:
+) -> list[Any]:
     """Translate supported CLI model syntax without applying config semantics."""
-    parsed: list[object] = []
+    parsed: list[Any] = []
     if models is not None:
         parsed.extend(_parse_models_value(models))
     if repeated_models:
@@ -210,7 +211,7 @@ def _parse_cli_models(
     return parsed
 
 
-def _parse_models_value(value: str) -> list[object]:
+def _parse_models_value(value: str) -> list[Any]:
     stripped = value.strip()
     if not stripped:
         return []

@@ -160,7 +160,7 @@ def build_run_config(
     run_id: str | None,
     language: str | None,
     output_dir: str | Path,
-    models: list[object],
+    models: list[Any],
     base_dir: Path,
     task: str,
     items_path: str | Path | None,
