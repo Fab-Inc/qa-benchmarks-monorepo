@@ -23,7 +23,7 @@ from phonics_benchmark.runner import (
 
 app = typer.Typer(
     name="phonics-benchmark",
-    help="Run phonics benchmark experiments from config files.",
+    help="Run phonics benchmark experiment from a config file or CLI options.",
 )
 
 
