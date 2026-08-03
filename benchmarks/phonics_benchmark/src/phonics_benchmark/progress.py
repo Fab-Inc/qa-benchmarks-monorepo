@@ -18,6 +18,11 @@ from rich.progress import (
 
 _OVERALL_DESCRIPTION = "[bold]models[/bold]"
 
+# A fixed bar keeps every row well short of the terminal. Full-width rows sit
+# exactly on the wrap boundary, so narrowing the terminal by one column reflows
+# all of them at once and the live display repaints over stale rows.
+_BAR_WIDTH = 30
+
 
 class ProgressReporter(Protocol):
     """Receives model and item lifecycle events from the benchmark runner.
@@ -78,7 +83,7 @@ class RichProgress:
     def __init__(self, model_count: int, *, console: Console | None = None) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
-            BarColumn(bar_width=None),
+            BarColumn(bar_width=_BAR_WIDTH),
             MofNCompleteColumn(),
             TaskProgressColumn(),
             TimeRemainingColumn(compact=True),
