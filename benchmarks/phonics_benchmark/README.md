@@ -53,6 +53,16 @@ model name, model config, or max tokens creates new result rows for those calls.
 default model-call limit is 10,000 response tokens; set `max_tokens` in config or pass
 `--max-tokens` to override it.
 
+Runs display a live progress bar per model on stderr, plus a `models` bar counting
+finished models against the full model list. Each model's bar counts evaluated items
+against that model's pending count, so cached items are excluded, and gains an error
+count once any of its calls fail. The `models` bar advances only as each model
+completes, so it stays at zero while the first models are still running. Because the
+display writes to stderr and the run summary to stdout, redirecting stdout captures the
+summary without the bars. Progress is disabled automatically when stderr is not a
+terminal, such as under CI or redirection; use `--no-progress` to turn it off
+explicitly.
+
 Use `--retry-errors` only after a normal run has cached every currently planned call.
 Retry mode runs exactly the cached rows whose `call_status` is `error`; it fails before
 starting any model workers if calls are missing or cache statuses are invalid. After
