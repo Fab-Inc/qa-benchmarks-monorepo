@@ -62,6 +62,35 @@ def test_rich_progress_labels_only_failing_models() -> None:
     assert output.count("err") == 1
 
 
+def test_rich_progress_display_height_does_not_grow_with_the_model_list() -> None:
+    """Finished models free their row, so only running models hold the display."""
+
+    with _rich_progress(model_count=50) as (progress, _buffer):
+        for index in range(20):
+            model_name = f"model-{index}"
+            progress.model_started(model_name, 1)
+            progress.item_finished(model_name, error=False)
+            progress.model_finished(model_name)
+
+        progress.model_started("model-last", 1)
+        # The overall bar plus the single running model, after 20 completions.
+        assert len(progress._progress.tasks) == 2
+
+
+def test_rich_progress_logs_each_finished_model_above_the_display() -> None:
+    """Removing a model's row keeps its result in scrollback, errors included."""
+
+    with _rich_progress(model_count=2) as (progress, buffer):
+        progress.model_started("model-a", 2)
+        progress.item_finished("model-a", error=True)
+        progress.item_finished("model-a", error=False)
+        progress.model_finished("model-a")
+
+    output = buffer.getvalue()
+    assert "done model-a (2 items)" in output
+    assert "1 err" in output
+
+
 @contextmanager
 def _rich_progress(
     model_count: int = 2,

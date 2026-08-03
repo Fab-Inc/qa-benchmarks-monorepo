@@ -72,12 +72,14 @@ class NullProgress:
 
 
 class RichProgress:
-    """Render a bar per model, plus an overall bar, in one live display.
+    """Render a bar per running model, plus an overall bar, in one live display.
 
-    Model bars are created as workers pick models up, so concurrent workers each
-    get their own row. The overall bar counts finished models against the whole
-    model list, so models still queued for a worker are in its denominator from
-    the start.
+    Model bars are created as workers pick models up and removed once a model
+    finishes, so the display stays as tall as the worker count however long the
+    model list is. Each finished model is logged above the display instead,
+    where the terminal keeps it in scrollback. The overall bar counts finished
+    models against the whole model list, so models still queued for a worker are
+    in its denominator from the start.
     """
 
     def __init__(self, model_count: int, *, console: Console | None = None) -> None:
@@ -93,6 +95,7 @@ class RichProgress:
         self._lock = Lock()
         self._task_ids: dict[str, TaskID] = {}
         self._error_counts: dict[str, int] = {}
+        self._pending_counts: dict[str, int] = {}
         self._overall_task_id = self._progress.add_task(
             _OVERALL_DESCRIPTION,
             total=model_count,
@@ -109,6 +112,7 @@ class RichProgress:
     def model_started(self, model_name: str, pending_count: int) -> None:
         with self._lock:
             self._error_counts[model_name] = 0
+            self._pending_counts[model_name] = pending_count
             self._task_ids[model_name] = self._progress.add_task(
                 model_name,
                 total=pending_count,
@@ -129,8 +133,17 @@ class RichProgress:
 
     def model_finished(self, model_name: str) -> None:
         with self._lock:
-            task_id = self._task_ids[model_name]
-        self._progress.stop_task(task_id)
+            task_id = self._task_ids.pop(model_name)
+            error_count = self._error_counts.pop(model_name)
+            pending_count = self._pending_counts.pop(model_name)
+        # Printing through the console puts this above the live region, where it
+        # scrolls into terminal history instead of growing the redrawn area.
+        summary = (
+            f"done {model_name} ({pending_count} items) {_error_label(error_count)}"
+        )
+        # Highlighting would colour the counts inside the line at random.
+        self._progress.console.print(summary.rstrip(), highlight=False)
+        self._progress.remove_task(task_id)
         self._progress.advance(self._overall_task_id)
 
 
