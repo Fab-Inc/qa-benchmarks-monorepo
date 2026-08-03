@@ -102,8 +102,8 @@ class KiswahiliStudentKnowledge(BaseModel):
         graphemes = ", ".join(f'"{g}"' for g in sorted(self.graphemes))
         clusters = ", ".join(f'"{c}"' for c in sorted(self.clusters))
         cluster_patterns = ", ".join(
-            f'"{p.value}"'
-            for p in sorted(self.cluster_patterns, key=lambda pattern: pattern.value)
+            f'"{p.label}"'
+            for p in sorted(self.cluster_patterns, key=lambda pattern: pattern.label)
         )
         whole_words = ", ".join(f'"{w}"' for w in sorted(self.whole_words))
 

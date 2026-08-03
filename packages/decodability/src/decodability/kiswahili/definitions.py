@@ -42,27 +42,55 @@ KISWAHILI_VOWEL_GPCS = [
 ]
 
 VALID_CONSONANTS = {symbol for symbol, _ in KISWAHILI_CONSONANT_GPCS}
-
 VALID_VOWELS = {symbol for symbol, _ in KISWAHILI_VOWEL_GPCS}
 
 VALID_GRAPHEMES: set[str] = VALID_CONSONANTS | VALID_VOWELS
 
 
 class ClusterPattern(Enum):
-    """Enum for Kiswahili consonant cluster patterns."""
+    """Kiswahili consonant cluster patterns.
 
-    PRENASALISED_M = '"m" + consonant'
-    PRENASALISED_N = '"n" + consonant'
-    LABIALISED_GLIDE = 'consonant + "w"'
-    PALATALISED_GLIDE = 'consonant + "y"'
-    # MIGHT NEED TO CREATE another enum that doesn't include the following
-    M_LABIALISED_GLIDE = '"m" + consonant + "w"'
-    N_LABIALISED_GLIDE = '"n" + consonant + "w"'
-    M_PALATALISED_GLIDE = '"m" + consonant + "y"'
-    N_PALATALISED_GLIDE = '"n" + consonant + "y"'
+    Each member carries two strings:
+    - its ``value`` (a stable ``code``): what is stored in the data files
+    - its ``label``: the human-readable form for display
+    """
+
+    # Declared for type checkers
+    label: str
+
+    PRENASALISED_M = ("prenasalised_m", '"m" + consonant')
+    PRENASALISED_N = ("prenasalised_n", '"n" + consonant')
+    PRENASALISED = ("prenasalised", '"m/n" + consonant')
+
+    LABIALISED_GLIDE = ("labialised_glide", 'consonant + "w"')
+    PALATALISED_GLIDE = ("palatalised_glide", 'consonant + "y"')
+
+    M_LABIALISED_GLIDE = ("m_labialised_glide", '"m" + consonant + "w"')
+    N_LABIALISED_GLIDE = ("n_labialised_glide", '"n" + consonant + "w"')
+    PRENASALISED_LABIALISED_GLIDE = (
+        "prenasalised_labialised_glide",
+        '"m/n" + consonant + "w"',
+    )
+
+    M_PALATALISED_GLIDE = ("m_palatalised_glide", '"m" + consonant + "y"')
+    N_PALATALISED_GLIDE = ("n_palatalised_glide", '"n" + consonant + "y"')
+    PRENASALISED_PALATALISED_GLIDE = (
+        "prenasalised_palatalised_glide",
+        '"m/n" + consonant + "y"',
+    )
+
+    def __new__(cls, code: str, label: str) -> "ClusterPattern":
+        # Split the (code, label) tuple
+        obj = object.__new__(cls)
+        obj._value_ = code
+        obj.label = label
+        return obj
 
 
-ILLEGAL_COMBINATIONS: dict[ClusterPattern, set[str]] = {
+_EXCLUDED_CONSONANTS: dict[ClusterPattern, set[str]] = {
+    # Excluded consonants for each cluster pattern in Kiswahili, either
+    # because they are not valid in that cluster or because they are already
+    # represented by a digraph.
     ClusterPattern.PRENASALISED_M: set(),
     ClusterPattern.PRENASALISED_N: {"g", "y", "ng", "ng'", "ny"},
     ClusterPattern.LABIALISED_GLIDE: {"w"},
@@ -74,52 +102,65 @@ VALID_CLUSTERS: dict[ClusterPattern, set[str]] = {
     ClusterPattern.PRENASALISED_M: {
         "m" + c
         for c in VALID_CONSONANTS
-        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
     },
     ClusterPattern.PRENASALISED_N: {
         "n" + c
         for c in VALID_CONSONANTS
-        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
     },
     ClusterPattern.LABIALISED_GLIDE: {
         c + "w"
         for c in VALID_CONSONANTS
-        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
     },
     ClusterPattern.PALATALISED_GLIDE: {
         c + "y"
         for c in VALID_CONSONANTS
-        if c not in ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
     },
     ClusterPattern.M_LABIALISED_GLIDE: {
         "m" + c + "w"
         for c in VALID_CONSONANTS
         if c
-        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
-        | ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
     },
     ClusterPattern.N_LABIALISED_GLIDE: {
         "n" + c + "w"
         for c in VALID_CONSONANTS
         if c
-        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
-        | ILLEGAL_COMBINATIONS[ClusterPattern.LABIALISED_GLIDE]
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
     },
     ClusterPattern.M_PALATALISED_GLIDE: {
         "m" + c + "y"
         for c in VALID_CONSONANTS
         if c
-        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_M]
-        | ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
     },
     ClusterPattern.N_PALATALISED_GLIDE: {
         "n" + c + "y"
         for c in VALID_CONSONANTS
         if c
-        not in ILLEGAL_COMBINATIONS[ClusterPattern.PRENASALISED_N]
-        | ILLEGAL_COMBINATIONS[ClusterPattern.PALATALISED_GLIDE]
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
     },
 }
+
+VALID_CLUSTERS[ClusterPattern.PRENASALISED] = (
+    VALID_CLUSTERS[ClusterPattern.PRENASALISED_M]
+    | VALID_CLUSTERS[ClusterPattern.PRENASALISED_N]
+)
+VALID_CLUSTERS[ClusterPattern.PRENASALISED_LABIALISED_GLIDE] = (
+    VALID_CLUSTERS[ClusterPattern.M_LABIALISED_GLIDE]
+    | VALID_CLUSTERS[ClusterPattern.N_LABIALISED_GLIDE]
+)
+VALID_CLUSTERS[ClusterPattern.PRENASALISED_PALATALISED_GLIDE] = (
+    VALID_CLUSTERS[ClusterPattern.M_PALATALISED_GLIDE]
+    | VALID_CLUSTERS[ClusterPattern.N_PALATALISED_GLIDE]
+)
 
 
 def _get_primerpro_settings() -> Settings:
@@ -145,9 +186,7 @@ primerpro_settings: Settings = _get_primerpro_settings()
 def get_graphemes(word: str) -> list[str]:
     """Decompose a word into its constituent graphemes using PrimerPro settings.
 
-    Symbols are lowercased: matched graphemes already come back as the
-    inventory's lowercase symbol, but the fallback for characters outside the
-    inventory preserves the input's case.
+    Symbols are lowercased.
     """
     primerpro_word = Word(text=word, settings=primerpro_settings)
     return [grapheme.symbol.lower() for grapheme in primerpro_word.graphemes]

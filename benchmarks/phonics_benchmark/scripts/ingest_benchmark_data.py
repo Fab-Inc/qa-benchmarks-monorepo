@@ -42,6 +42,8 @@ def split_list(value: str) -> list[str]:
 STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
     "sw": {
         "graphemes": split_list,
+        "clusters": split_list,
+        "cluster_patterns": split_list,
         "whole_words": split_list,
     }
 }

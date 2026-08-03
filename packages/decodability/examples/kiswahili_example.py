@@ -25,27 +25,32 @@ Kutazama tukaona moto ukiwaka sana. Waya wa stima uliwaka moto.
 Sote tukawa na wasiwasi sana. Wazima moto wakatokea.
 Mioyo yetu ikatulia, tukaelekea sebuleni tena."""
 
-STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge(
-    graphemes={
-        "a",
-        "u",
-        "i",
-        "o",
-        "e",
-        "m",
-        "k",
-        "t",
-        "n",
-        "s",
-        "b",
-        "y",
-        "z",
-        "g",
-        "d",
-        "j",
-        "r",
-    },
-    whole_words={"mama", "ama", "anaona", "na", "paka"},
+STUDENT_KNOWLEDGE = KiswahiliStudentKnowledge.model_validate(
+    dict(
+        graphemes={
+            "a",
+            "u",
+            "i",
+            "o",
+            "e",
+            "m",
+            "k",
+            "t",
+            "n",
+            "s",
+            "b",
+            "y",
+            "z",
+            "g",
+            "d",
+            "j",
+            "r",
+            "w",
+        },
+        clusters={"kw", "st"},
+        cluster_patterns={"prenasalised"},
+        whole_words={"mama", "ama", "anaona", "na", "paka"},
+    )
 )
 
 

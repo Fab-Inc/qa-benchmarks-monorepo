@@ -173,6 +173,8 @@ class TestKiswahiliClusters:
             (set(), True),
             ({ClusterPattern.PRENASALISED_M}, False),
             ({ClusterPattern.PRENASALISED_M, ClusterPattern.PALATALISED_GLIDE}, False),
+            # A combined pattern covers "mb" too (union of the m- and n- forms).
+            ({ClusterPattern.PRENASALISED}, False),
         ],
     )
     def test_check_clusters_not_covered_by_patterns(
@@ -209,12 +211,15 @@ class TestKiswahiliClusters:
         [
             (ClusterPattern.PRENASALISED_M, 2),
             (ClusterPattern.PRENASALISED_N, 2),
+            (ClusterPattern.PRENASALISED, 2),
             (ClusterPattern.LABIALISED_GLIDE, 2),
             (ClusterPattern.PALATALISED_GLIDE, 2),
             (ClusterPattern.M_LABIALISED_GLIDE, 3),
             (ClusterPattern.N_LABIALISED_GLIDE, 3),
+            (ClusterPattern.PRENASALISED_LABIALISED_GLIDE, 3),
             (ClusterPattern.M_PALATALISED_GLIDE, 3),
             (ClusterPattern.N_PALATALISED_GLIDE, 3),
+            (ClusterPattern.PRENASALISED_PALATALISED_GLIDE, 3),
         ],
     )
     def test_valid_clusters_have_expected_grapheme_count(
@@ -234,6 +239,84 @@ class TestKiswahiliClusters:
             if len(get_graphemes(cluster)) != expected_grapheme_count
         }
         assert not offenders
+
+    def test_every_cluster_pattern_has_valid_clusters(self):
+        """VALID_CLUSTERS is built in stages; no member may be left out."""
+        assert set(VALID_CLUSTERS) == set(ClusterPattern)
+
+
+class TestClusterPatternEnum:
+    """The enum's ``value`` is the data-config contract; ``label`` is display."""
+
+    # The exact set of codes a human expert may write in the jsonl. Pinning it
+    # here means a member rename or a fat-fingered code fails loudly rather than
+    # silently changing what the data files must contain.
+    EXPECTED_CODES = {
+        "prenasalised_m",
+        "prenasalised_n",
+        "prenasalised",
+        "labialised_glide",
+        "palatalised_glide",
+        "m_labialised_glide",
+        "n_labialised_glide",
+        "prenasalised_labialised_glide",
+        "m_palatalised_glide",
+        "n_palatalised_glide",
+        "prenasalised_palatalised_glide",
+    }
+
+    def test_codes_match_contract(self):
+        """Every member's value is the quote-free slug used in the jsonl."""
+        assert {p.value for p in ClusterPattern} == self.EXPECTED_CODES
+
+    def test_labels_are_distinct_and_nonempty(self):
+        """Each member has its own human-readable label for the prompt."""
+        labels = [p.label for p in ClusterPattern]
+        assert all(labels)
+        assert len(set(labels)) == len(labels)
+
+    def test_codes_are_quote_free(self):
+        """Codes must be easy to type in Excel: no double quotes to escape."""
+        assert all('"' not in p.value for p in ClusterPattern)
+
+    @pytest.mark.parametrize(
+        "code, expected_pattern",
+        [
+            ("palatalised_glide", ClusterPattern.PALATALISED_GLIDE),
+            ("prenasalised", ClusterPattern.PRENASALISED),
+        ],
+    )
+    def test_validates_from_config_code(
+        self, code: str, expected_pattern: ClusterPattern
+    ):
+        """A jsonl string code is coerced into the matching enum member.
+
+        model_validate (rather than the constructor) mirrors the real path --
+        jsonl -> dict -> model -- and keeps the string input type-clean.
+        """
+        knowledge = KiswahiliStudentKnowledge.model_validate(
+            {"cluster_patterns": [code]}
+        )
+        assert knowledge.cluster_patterns == {expected_pattern}
+
+    def test_rejects_unknown_config_code(self):
+        """An unrecognised code (e.g. a label leaking into the config) is rejected."""
+        with pytest.raises(ValueError):
+            KiswahiliStudentKnowledge.model_validate(
+                {"cluster_patterns": ['"m" + consonant']}
+            )
+
+    def test_json_round_trip_uses_codes(self):
+        """Serialising for jsonl emits the codes, so it round-trips cleanly."""
+        knowledge = KiswahiliStudentKnowledge(
+            cluster_patterns={ClusterPattern.PRENASALISED}
+        )
+        dumped = knowledge.model_dump(mode="json")
+        assert dumped["cluster_patterns"] == ["prenasalised"]
+        assert (
+            KiswahiliStudentKnowledge.model_validate(dumped).cluster_patterns
+            == knowledge.cluster_patterns
+        )
 
 
 class TestScorers:
