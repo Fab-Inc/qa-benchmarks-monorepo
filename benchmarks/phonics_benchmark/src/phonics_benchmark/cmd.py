@@ -192,7 +192,10 @@ def run_decodability_cmd(
 
         if not skip_models_download:
             download_default_custom_models()
-        with _build_progress(enabled=progress) as reporter:
+        with _build_progress(
+            enabled=progress,
+            model_count=len(run_config.models),
+        ) as reporter:
             output = execute_run(run_config, progress=reporter)
     except (ConfigError, FileNotFoundError) as e:
         typer.echo(f"ERROR: {e}", err=True)
@@ -203,11 +206,11 @@ def run_decodability_cmd(
         raise typer.Exit(1)
 
 
-def _build_progress(*, enabled: bool) -> ProgressReporter:
+def _build_progress(*, enabled: bool, model_count: int) -> ProgressReporter:
     """Return live bars only when asked for and stderr can render them."""
     if not enabled or not sys.stderr.isatty():
         return NullProgress()
-    return RichProgress()
+    return RichProgress(model_count)
 
 
 def _timestamp_run_id() -> str:

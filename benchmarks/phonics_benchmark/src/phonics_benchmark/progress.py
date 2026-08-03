@@ -16,7 +16,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-_OVERALL_DESCRIPTION = "overall"
+_OVERALL_DESCRIPTION = "[bold]models[/bold]"
 
 
 class ProgressReporter(Protocol):
@@ -67,14 +67,15 @@ class NullProgress:
 
 
 class RichProgress:
-    """Render a bar per model, plus a growing overall bar, in one live display.
+    """Render a bar per model, plus an overall bar, in one live display.
 
     Model bars are created as workers pick models up, so concurrent workers each
-    get their own row. The overall total is unknown until every worker has
-    reported its pending count, so it grows as models start.
+    get their own row. The overall bar counts finished models against the whole
+    model list, so models still queued for a worker are in its denominator from
+    the start.
     """
 
-    def __init__(self, *, console: Console | None = None) -> None:
+    def __init__(self, model_count: int, *, console: Console | None = None) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(bar_width=None),
@@ -87,10 +88,9 @@ class RichProgress:
         self._lock = Lock()
         self._task_ids: dict[str, TaskID] = {}
         self._error_counts: dict[str, int] = {}
-        self._overall_total = 0
         self._overall_task_id = self._progress.add_task(
             _OVERALL_DESCRIPTION,
-            total=None,
+            total=model_count,
             errors="",
         )
 
@@ -109,9 +109,6 @@ class RichProgress:
                 total=pending_count,
                 errors="",
             )
-            self._overall_total += pending_count
-            overall_total = self._overall_total
-        self._progress.update(self._overall_task_id, total=overall_total)
 
     def item_finished(self, model_name: str, *, error: bool) -> None:
         with self._lock:
@@ -124,12 +121,12 @@ class RichProgress:
             advance=1,
             errors=_error_label(error_count),
         )
-        self._progress.advance(self._overall_task_id)
 
     def model_finished(self, model_name: str) -> None:
         with self._lock:
             task_id = self._task_ids[model_name]
         self._progress.stop_task(task_id)
+        self._progress.advance(self._overall_task_id)
 
 
 def _error_label(error_count: int) -> str:
