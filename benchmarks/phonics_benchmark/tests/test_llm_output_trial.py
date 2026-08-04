@@ -2,53 +2,58 @@
 
 import json
 
-import pandas as pd
-
 from benchmarks.phonics_benchmark.scripts.llm_output_trial import (
     BENCHMARK_ITEMS_PATH,
     build_decodability_prompt,
     process_model_response_into_result,
 )
 
-EXPECTED_COLUMNS = [
+EXPECTED_KEYS = [
     "benchmark_item_id",
     "language_iso_code",
     "curriculum_stage",
     "grade",
     "content",
     "student_knowledge_id",
-    "graphemes",
-    "whole_words",
+    "student_knowledge",
     "non_decodable_words",
 ]
 
 
+def _load_benchmark_items():
+    with BENCHMARK_ITEMS_PATH.open(encoding="utf-8") as file:
+        return [json.loads(line) for line in file]
+
+
 def test_prepared_trial_dataset_is_complete_and_normalized():
-    benchmark_items = pd.read_csv(BENCHMARK_ITEMS_PATH)
+    benchmark_items = _load_benchmark_items()
 
-    assert benchmark_items.columns.tolist() == EXPECTED_COLUMNS
+    assert all(list(item) == EXPECTED_KEYS for item in benchmark_items)
     assert len(benchmark_items) == 57
-    assert not benchmark_items.isna().any().any()
-    assert benchmark_items["benchmark_item_id"].is_unique
-    assert not {"SW-KE-S17", "SW-KE-S18"} & set(benchmark_items["benchmark_item_id"])
-    assert not {17, 18} & set(benchmark_items["curriculum_stage"])
-    assert not benchmark_items["content"].str.contains("’", regex=False).any()
+    assert all(item["benchmark_item_id"] for item in benchmark_items)
+    item_ids = [item["benchmark_item_id"] for item in benchmark_items]
+    assert len(item_ids) == len(set(item_ids))
+    assert not {"SW-KE-S17", "SW-KE-S18"} & set(item_ids)
+    assert not {17, 18} & {item["curriculum_stage"] for item in benchmark_items}
+    assert all("’" not in item["content"] for item in benchmark_items)
 
-    for column in ("graphemes", "whole_words", "non_decodable_words"):
-        parsed_values = benchmark_items[column].map(json.loads)
-        assert parsed_values.map(lambda value: isinstance(value, list)).all()
-        assert parsed_values.map(
-            lambda value: all(isinstance(item, str) for item in value)
-        ).all()
+    for item in benchmark_items:
+        assert isinstance(item["student_knowledge"], dict)
+        for values in (
+            *item["student_knowledge"].values(),
+            item["non_decodable_words"],
+        ):
+            assert isinstance(values, list)
+            assert all(isinstance(value, str) for value in values)
 
-    negative_control = benchmark_items.loc[
-        benchmark_items["benchmark_item_id"] == "SW-KE-S10-N"
-    ].iloc[0]
-    assert json.loads(negative_control["non_decodable_words"]) == []
+    negative_control = next(
+        item for item in benchmark_items if item["benchmark_item_id"] == "SW-KE-S10-N"
+    )
+    assert negative_control["non_decodable_words"] == []
 
 
 def test_build_decodability_prompt_uses_prepared_case_data():
-    benchmark_item = pd.read_csv(BENCHMARK_ITEMS_PATH).iloc[0]
+    benchmark_item = _load_benchmark_items()[0]
 
     prompt = build_decodability_prompt(benchmark_item, language="sw")
 
@@ -74,7 +79,7 @@ def test_process_model_response_normalizes_words_to_lowercase():
         "benchmark_item_id": "SW-TEST",
         "curriculum_stage": 1,
         "student_knowledge_id": "student-test",
-        "non_decodable_words": '["Kuku", "KAKA"]',
+        "non_decodable_words": ["Kuku", "KAKA"],
     }
 
     result = process_model_response_into_result(call_record, benchmark_item)

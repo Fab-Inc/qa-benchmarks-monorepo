@@ -94,9 +94,10 @@ working directory.
 ### Run the QFB Tusome trial
 
 The checked-in `configs/tusome-llm-trial.json` records the intended model-running
-configuration for the first Kiswahili run. It will become runnable when QFB-202 emits
-the completed JSONL handoff artifact at the configured path. It stores only raw model
-results and call metadata; it does not parse or score them.
+configuration for the first Kiswahili run and points to the checked-in completed JSONL
+version of the existing prepared trial data. This keeps the current trial runnable while
+QFB-202 is updated to emit the same JSONL handoff contract. The runner stores only raw
+model results and call metadata; it does not parse or score them.
 
 From the repository root:
 
@@ -105,13 +106,12 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --config benchmarks/phonics_benchmark/configs/tusome-llm-trial.json
 ```
 
-Once that artifact is available, the models can run concurrently when their
-`custom_models.yaml` entries belong to different provider groups, while calls for each
-model remain sequential. Results are written under
-`benchmarks/phonics_benchmark/outputs/tusome-llm-trial/responses/`. Re-running the same
-command reuses successful cached rows. Set `"force": true` in a copied config to rerun
-all calls, or add `--skip-models-download` to use the existing repo-root
-`custom_models.yaml` without refreshing it.
+The models can run concurrently when their `custom_models.yaml` entries belong to
+different provider groups, while calls for each model remain sequential. Results are
+written under `benchmarks/phonics_benchmark/outputs/tusome-llm-trial/responses/`.
+Re-running the same command reuses successful cached rows. Set `"force": true` in a
+copied config to rerun all calls, or add `--skip-models-download` to use the existing
+repo-root `custom_models.yaml` without refreshing it.
 
 The runner accepts completed JSONL artifacts selected through `items_path` in config or
 `--items-path` with direct CLI options. It does not join or compose benchmark inputs.

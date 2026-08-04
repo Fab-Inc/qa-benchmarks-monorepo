@@ -2,6 +2,7 @@
 
 import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -9,15 +10,12 @@ from phonics_benchmark import llm
 from phonics_benchmark.prompts import build_decodability_prompt
 
 
-def _prompt_for(item: dict[str, str]) -> str:
+def _prompt_for(item: dict[str, Any]) -> str:
     return build_decodability_prompt(
         {
             "benchmark_item_id": item["benchmark_item_id"],
             "content": item["content"],
-            "student_knowledge": {
-                "graphemes": json.loads(item["graphemes"]),
-                "whole_words": json.loads(item["whole_words"]),
-            },
+            "student_knowledge": item["student_knowledge"],
         },
         "sw",
     )
@@ -27,7 +25,9 @@ def test_call_llm_returns_metadata_and_logs_response(
     tusome_stage_11_item, tmp_path, monkeypatch
 ):
     prompt = _prompt_for(tusome_stage_11_item)
-    response_text = tusome_stage_11_item["non_decodable_words"]
+    response_text = json.dumps(
+        tusome_stage_11_item["non_decodable_words"], ensure_ascii=False
+    )
     caller = Mock()
     caller.call.return_value = SimpleNamespace(
         Message=response_text,

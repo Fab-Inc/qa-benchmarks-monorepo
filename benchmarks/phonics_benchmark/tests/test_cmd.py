@@ -1,16 +1,24 @@
 """Test cases for the command-line interface."""
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from click import unstyle
 from phonics_benchmark.cmd import _timestamp_run_id, app
 from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _unstyle(value: str) -> str:
+    """Remove terminal control sequences without depending on external Click."""
+
+    return ANSI_ESCAPE_RE.sub("", value)
 
 
 @pytest.fixture
@@ -485,7 +493,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
         )
 
     assert result.exit_code == 2
-    assert "--max-tokens" in unstyle(result.output)
+    assert "--max-tokens" in _unstyle(result.output)
     download_models.assert_not_called()
 
 
@@ -598,7 +606,7 @@ def test_run_decodability_help_does_not_download_models(runner: CliRunner) -> No
 
     assert result.exit_code == 0
     download_models.assert_not_called()
-    help_text = unstyle(result.output)
+    help_text = _unstyle(result.output)
     assert "JSONL containing" in help_text
     assert "completed benchmark" in help_text
     assert "provider groups to run" in help_text

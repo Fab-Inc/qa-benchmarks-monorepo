@@ -32,7 +32,7 @@ BENCHMARK_ITEMS_PATH = (
     Path(__file__).parents[1]
     / "data"
     / "kiswahili"
-    / "tusome_kenya_llm_trial_cases.csv"
+    / "tusome_kenya_llm_trial_cases.jsonl"
 )
 
 
@@ -58,10 +58,7 @@ def build_decodability_prompt(benchmark_item: Any, language: str) -> str:
         {
             "benchmark_item_id": benchmark_item["benchmark_item_id"],
             "content": benchmark_item["content"],
-            "student_knowledge": {
-                "graphemes": json.loads(benchmark_item["graphemes"]),
-                "whole_words": json.loads(benchmark_item["whole_words"]),
-            },
+            "student_knowledge": benchmark_item["student_knowledge"],
         },
         language,
     )
@@ -97,7 +94,7 @@ def process_model_response_into_result(
         print("WARNING: model response did not match expected pattern")
 
     correct_answer_parsed = [
-        word.lower() for word in json.loads(benchmark_item["non_decodable_words"])
+        word.lower() for word in benchmark_item["non_decodable_words"]
     ]
 
     # Assess perfect one-to-one correspondence ignoring order (dupes must match too)
@@ -124,7 +121,8 @@ def process_model_response_into_result(
 
 def main() -> None:
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
-    benchmark_items = pd.read_csv(BENCHMARK_ITEMS_PATH)
+    with BENCHMARK_ITEMS_PATH.open(encoding="utf-8") as file:
+        benchmark_items = [json.loads(line) for line in file]
 
     # This env setup will be handled by a CLI callback in the full benchmark.
     load_dotenv(REPO_ROOT / ".env")
@@ -141,9 +139,9 @@ def main() -> None:
         rows = (
             benchmark_items
             if max_rows_per_model == 0
-            else benchmark_items.head(max_rows_per_model)
+            else benchmark_items[:max_rows_per_model]
         )
-        for _, benchmark_item in rows.iterrows():
+        for benchmark_item in rows:
             call_record = submit_benchmark_item_to_model(
                 model, benchmark_item, language
             )
