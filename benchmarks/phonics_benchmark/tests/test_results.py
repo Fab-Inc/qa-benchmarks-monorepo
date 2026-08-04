@@ -10,7 +10,7 @@ from phonics_benchmark.results import save_results
 def test_save_results_writes_jsonl_atomically(tmp_path: Path) -> None:
     """The canonical JSONL file is replaced via a temporary sibling file."""
 
-    results_path = tmp_path / "answers" / "resps_model-a.jsonl"
+    results_path = tmp_path / "responses" / "responses_model-a.jsonl"
     results = pd.DataFrame(
         [
             {"result_id": "r1", "output": "first"},

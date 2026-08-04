@@ -11,6 +11,8 @@ import typer
 
 from phonics_benchmark.config import (
     DECODABILITY_TASK,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_MODEL_WORKERS,
     ConfigError,
     apply_execution_overrides,
     build_run_config,
@@ -118,7 +120,7 @@ def run_decodability_cmd(
         help="Maximum response tokens for each model call. Defaults to 10,000.",
     ),
     chunk_size: int = typer.Option(
-        100,
+        DEFAULT_CHUNK_SIZE,
         "--chunk-size",
         min=1,
         help="Number of pending items to evaluate before checkpointing results.",
@@ -129,7 +131,8 @@ def run_decodability_cmd(
         min=1,
         help=(
             "Maximum number of provider groups to run concurrently. "
-            "Defaults to the config value, or 1 without a config."
+            f"Defaults to the config value, or {DEFAULT_MODEL_WORKERS} without "
+            "a config."
         ),
     ),
     force: bool = typer.Option(
@@ -175,7 +178,11 @@ def run_decodability_cmd(
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,
                 chunk_size=chunk_size,
-                model_workers=model_workers if model_workers is not None else 1,
+                model_workers=(
+                    model_workers
+                    if model_workers is not None
+                    else DEFAULT_MODEL_WORKERS
+                ),
                 force=force,
                 retry_errors=retry_errors,
             )

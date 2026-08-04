@@ -96,8 +96,8 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
     config = load_run_config(_write_config(tmp_path))
 
     assert config.run_id == "default"
-    assert config.chunk_size == 100
-    assert config.model_workers == 1
+    assert config.chunk_size == 20
+    assert config.model_workers == 4
 
 
 def test_config_identity_excludes_items_path_and_models(tmp_path: Path) -> None:

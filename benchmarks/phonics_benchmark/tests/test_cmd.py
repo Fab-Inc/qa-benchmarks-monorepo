@@ -396,7 +396,8 @@ def test_run_decodability_command_defaults_run_id(
     run_config = run.call_args.args[0]
     assert run_config.run_id == "default"
     assert run_config.items_path == items_path.resolve()
-    assert run_config.model_workers == 1
+    assert run_config.chunk_size == 20
+    assert run_config.model_workers == 4
 
 
 def test_run_decodability_command_timestamped_output_generates_run_id(
@@ -635,10 +636,10 @@ def _run_output(
         "config_id": "abc123",
         "run_dir": run_dir,
         "config_snapshot_path": run_dir / "config.json",
-        "results_dir": run_dir / "answers",
+        "results_dir": run_dir / "responses",
         "results_paths": {
-            "model-a": run_dir / "answers" / "resps_model-a.jsonl",
-            "model-b": run_dir / "answers" / "resps_model-b.jsonl",
+            "model-a": run_dir / "responses" / "responses_model-a.jsonl",
+            "model-b": run_dir / "responses" / "responses_model-b.jsonl",
         },
         "total_expected_results": total,
         "executed_count": total,

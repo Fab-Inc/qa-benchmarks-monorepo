@@ -73,7 +73,7 @@ def load_run(run_dir: str | Path) -> dict[str, Any]:
     resolved_config = config_snapshot.get("resolved_config", {})
     model_configs = config_snapshot.get("model_configs", {})
 
-    result_files = sorted((resolved_run_dir / "answers").glob("resps_*.jsonl"))
+    result_files = sorted((resolved_run_dir / "responses").glob("responses_*.jsonl"))
     result_frames = []
     for result_file in result_files:
         frame = pd.DataFrame(load_jsonl(result_file))

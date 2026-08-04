@@ -260,6 +260,11 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert output["executed_count"] == 4
     assert output["skipped_count"] == 0
     assert output["error_count"] == 0
+    assert output["results_dir"] == output["run_dir"] / "responses"
+    assert {path.name for path in output["results_paths"].values()} == {
+        "responses_model-a.jsonl",
+        "responses_model-b.jsonl",
+    }
     assert len(rows) == 4
     assert calls == [
         ("sw", "decodability", "model-a", "item-1"),
@@ -280,8 +285,8 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert rows[0]["language"] == "sw"
     assert rows[0]["success"] is True
     assert rows[0]["call_status"] == "success"
-    assert "answers_timestamp-utc" not in rows[0]
-    assert "answers_git-hash" not in rows[0]
+    assert "responses_timestamp-utc" not in rows[0]
+    assert "responses_git-hash" not in rows[0]
     assert "A cat sat." in rows[0]["prompt"]
     assert '- Known graphemes: "a", "t"' in rows[0]["prompt"]
     assert rows[0]["seen_prompt"] == rows[0]["prompt"]
@@ -310,8 +315,8 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
 
     log = json.loads((output["run_dir"] / "log.json").read_text(encoding="utf-8"))
     assert set(log) == {"model-a", "model-b"}
-    assert "answers_timestamp-utc" in log["model-a"]
-    assert log["model-a"]["answers_git-hash"] == "abc123"
+    assert "responses_timestamp-utc" in log["model-a"]
+    assert log["model-a"]["responses_git-hash"] == "abc123"
 
 
 def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> None:
@@ -795,6 +800,11 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
     assert second_output["executed_count"] == 1
     assert second_output["skipped_count"] == 1
     assert [row["output"] for row in rows] == ["retried", "success"]
+    log = json.loads(
+        (second_output["run_dir"] / "log.json").read_text(encoding="utf-8")
+    )
+    assert "responses_retry_timestamp-utc" in log["model-a"]
+    assert "responses_retry_git-hash" in log["model-a"]
 
 
 def test_retry_errors_rejects_uncached_items_before_starting_workers(
@@ -1015,7 +1025,7 @@ def test_explicit_default_max_tokens_keeps_model_cache(tmp_path: Path) -> None:
 
 
 def test_run_from_config_file_uses_safe_model_result_filename(tmp_path: Path) -> None:
-    """Model names with path separators stay inside the answers directory."""
+    """Model names with path separators stay inside the responses directory."""
 
     config_path = _write_config(
         tmp_path,
@@ -1030,7 +1040,7 @@ def test_run_from_config_file_uses_safe_model_result_filename(tmp_path: Path) ->
 
     results_path = output["results_paths"]["provider/model"]
     assert results_path.parent == output["results_dir"]
-    assert results_path.name.startswith("resps_provider_model-")
+    assert results_path.name.startswith("responses_provider_model-")
     assert results_path.name.endswith(".jsonl")
     assert results_path.exists()
 
@@ -1401,7 +1411,7 @@ def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> N
 
     save.assert_called()
     assert len(save.call_args.args) == 2
-    assert save.call_args.args[1].name == "resps_model-a.jsonl"
+    assert save.call_args.args[1].name == "responses_model-a.jsonl"
 
 
 def test_run_from_config_file_checkpoints_after_each_chunk(tmp_path: Path) -> None:

@@ -11,6 +11,8 @@ from typing import Any
 
 DEFAULT_RUN_ID = "default"
 DEFAULT_MAX_TOKENS = 10_000
+DEFAULT_CHUNK_SIZE = 20
+DEFAULT_MODEL_WORKERS = 4
 DECODABILITY_TASK = "decodability"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
@@ -32,8 +34,8 @@ class BenchmarkRunConfig:
     env_path: Path | None = None
     custom_models_path: Path | None = None
     max_tokens: int | None = None
-    chunk_size: int | None = 100
-    model_workers: int = 1
+    chunk_size: int | None = DEFAULT_CHUNK_SIZE
+    model_workers: int = DEFAULT_MODEL_WORKERS
     force: bool = False
     retry_errors: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -174,8 +176,8 @@ def build_run_config(
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
-    chunk_size: int | None = 100,
-    model_workers: int = 1,
+    chunk_size: int | None = DEFAULT_CHUNK_SIZE,
+    model_workers: int = DEFAULT_MODEL_WORKERS,
     force: bool = False,
     retry_errors: bool = False,
     metadata: dict[str, Any] | None = None,
@@ -261,13 +263,15 @@ def _parse_run_config(
     ):
         raise ConfigError("'max_tokens' must be a positive integer when provided")
 
-    chunk_size = raw_config.get("chunk_size", 100)
+    chunk_size = raw_config.get("chunk_size", DEFAULT_CHUNK_SIZE)
     if isinstance(chunk_size, bool) or (
         chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size < 1)
     ):
         raise ConfigError("'chunk_size' must be a positive integer or null")
 
-    model_workers = _validate_model_workers(raw_config.get("model_workers", 1))
+    model_workers = _validate_model_workers(
+        raw_config.get("model_workers", DEFAULT_MODEL_WORKERS)
+    )
 
     force = raw_config.get("force", False)
     if not isinstance(force, bool):

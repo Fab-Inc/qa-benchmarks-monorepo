@@ -136,7 +136,7 @@ def run_benchmark(
     resolved_config["custom_models_path"] = str(custom_models_path)
     resolved_config["items_sha256"] = items_sha256
     run_dir = config.output_dir / config.run_id
-    results_dir = run_dir / "answers"
+    results_dir = run_dir / "responses"
     config_snapshot_path = run_dir / "config.json"
     results_paths = {
         model_name: _model_results_path(results_dir, model_name)
@@ -787,7 +787,7 @@ def _chunked(
 
 
 def _model_results_path(results_dir: Path, model_name: str) -> Path:
-    return results_dir / f"resps_{_model_filename_key(model_name)}.jsonl"
+    return results_dir / f"responses_{_model_filename_key(model_name)}.jsonl"
 
 
 def _model_filename_key(model_name: str) -> str:
@@ -838,7 +838,7 @@ def _update_run_log(
 ) -> None:
     if not executed_models:
         return
-    prefix = "answers_retry" if retry_errors else "answers"
+    prefix = "responses_retry" if retry_errors else "responses"
     fields = {
         f"{prefix}_timestamp-utc": _utc_now(),
         f"{prefix}_git-hash": code_git_hash,

@@ -8,6 +8,6 @@
     "claude-sonnet-4-6"
   ],
   "max_tokens": 30000,
-  "chunk_size": 10,
-  "model_workers": 2
+  "chunk_size": 20,
+  "model_workers": 4
 }

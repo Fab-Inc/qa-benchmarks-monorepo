@@ -20,8 +20,8 @@ phonics-benchmark run-decodability \
   --models gpt-5-mini-2025-08-07-medium,claude-sonnet-4-5-20250929 \
   --items-path path/to/completed-items.jsonl \
   --output-dir results \
-  --chunk-size 100 \
-  --model-workers 2 \
+  --chunk-size 20 \
+  --model-workers 4 \
   --env-path ../../.env \
   --custom-models-path ../../custom_models.yaml
 ```
@@ -42,18 +42,18 @@ execute even when their semantic model-call identities match another run. Use `-
 to rerun calls in the existing run directory only when replacing its current responses
 is intended.
 
-Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
+Runs checkpoint after each `chunk_size` pending items per model. The default is `20`;
 set `"chunk_size": null` in a config file to save once after each model. Items and
 models within one top-level `custom_models.yaml` provider group run sequentially.
 Different provider groups can run concurrently, and `model_workers` caps the number of
-active groups. Cached rows are reused when the benchmark item ID and effective
-provider-call inputs are unchanged, even if provenance-only config fields, operational
-settings, the dataset artifact, or the selected model list change. Unknown future config
-fields are also treated as provenance. Changing `benchmark_item_id`, the rendered
-prompt, model name, sanitized resolved model config, system prompt, or effective
-generation parameters creates a new call identity. The default model-call limit is
-10,000 response tokens; set `max_tokens` in config or pass `--max-tokens` to override
-it.
+active groups; the default cap is `4`. Cached rows are reused when the benchmark item ID
+and effective provider-call inputs are unchanged, even if provenance-only config fields,
+operational settings, the dataset artifact, or the selected model list change. Unknown
+future config fields are also treated as provenance. Changing `benchmark_item_id`, the
+rendered prompt, model name, sanitized resolved model config, system prompt, or
+effective generation parameters creates a new call identity. The default model-call
+limit is 10,000 response tokens; set `max_tokens` in config or pass `--max-tokens` to
+override it.
 
 Use `--retry-errors` only after a normal run has cached every currently planned call.
 Retry mode runs exactly the cached rows whose `call_status` is `error`; it fails before
@@ -80,8 +80,8 @@ working directory.
   "language": "sw",
   "items_path": "path/to/completed-items.jsonl",
   "output_dir": "results",
-  "chunk_size": 100,
-  "model_workers": 2,
+  "chunk_size": 20,
+  "model_workers": 4,
   "models": [
     "gpt-5-mini-2025-08-07-medium",
     "claude-sonnet-4-5-20250929"
@@ -108,7 +108,7 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
 Once that artifact is available, the models can run concurrently when their
 `custom_models.yaml` entries belong to different provider groups, while calls for each
 model remain sequential. Results are written under
-`benchmarks/phonics_benchmark/outputs/tusome-llm-trial/answers/`. Re-running the same
+`benchmarks/phonics_benchmark/outputs/tusome-llm-trial/responses/`. Re-running the same
 command reuses successful cached rows. Set `"force": true` in a copied config to rerun
 all calls, or add `--skip-models-download` to use the existing repo-root
 `custom_models.yaml` without refreshing it.
@@ -125,9 +125,9 @@ Each run writes:
 - `results/<run_id>/config.json`: latest config snapshot with the exact raw config,
   resolved paths, exact-byte `items_sha256`, run-level code git hash, and sanitized
   model configs from FDLLM's registered model state.
-- `results/<run_id>/answers/resps_<model-file-id>.jsonl`: one result per item for each
-  model. The file ID is the model name when it is already filename-safe, or a sanitized
-  hash-suffixed form otherwise.
+- `results/<run_id>/responses/responses_<model-file-id>.jsonl`: one result per item for
+  each model. The file ID is the model name when it is already filename-safe, or a
+  sanitized hash-suffixed form otherwise.
 - `results/<run_id>/log.json`: per-model execution provenance such as timestamp and git
   hash.
 
