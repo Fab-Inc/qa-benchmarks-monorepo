@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_RUN_ID = "default"
+DEFAULT_MAX_TOKENS = 10_000
 DECODABILITY_TASK = "decodability"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
@@ -64,17 +65,13 @@ class BenchmarkRunConfig:
         }
 
     def to_identity_dict(self) -> dict[str, Any]:
-        """Return the semantic run inputs used to identify result rows."""
+        """Return the exact shared call-shaping configuration payload."""
 
-        resolved = self.to_resolved_dict()
-        for operational_key in (
-            "chunk_size",
-            "model_workers",
-            "force",
-            "retry_errors",
-        ):
-            resolved.pop(operational_key, None)
-        return resolved
+        return {
+            "language": self.language,
+            "task": self.task,
+            "max_tokens": effective_max_tokens(self.max_tokens),
+        }
 
 
 def config_sha256(config_path: Path) -> str:
@@ -103,6 +100,16 @@ def config_identity_sha256(config: BenchmarkRunConfig) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def effective_max_tokens(configured_max_tokens: int | None) -> int:
+    """Resolve the maximum-token value actually passed to providers."""
+
+    return (
+        configured_max_tokens
+        if configured_max_tokens is not None
+        else DEFAULT_MAX_TOKENS
+    )
 
 
 def apply_execution_overrides(
@@ -227,11 +234,6 @@ def _parse_run_config(
     if "task" in raw_config:
         raise ConfigError(
             "'task' is selected by the CLI command and must not be set in config"
-        )
-
-    if "data_root" in raw_config:
-        raise ConfigError(
-            "'data_root' is no longer supported; provide a composed 'items_path'"
         )
 
     output_dir = raw_config.get("output_dir", "results")

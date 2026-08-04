@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from phonics_benchmark.config import (
+    DEFAULT_MAX_TOKENS,
     ConfigError,
     apply_execution_overrides,
     config_identity_sha256,
@@ -18,8 +19,8 @@ from phonics_benchmark.config import (
 def _write_config(tmp_path: Path, **overrides: object) -> Path:
     config_path = tmp_path / "run.json"
     config = {
-        "language": "english",
-        "items_path": "items.csv",
+        "language": "sw",
+        "items_path": "items.jsonl",
         "models": ["model-a"],
         **overrides,
     }
@@ -39,8 +40,8 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "../items.csv",
+                "language": "sw",
+                "items_path": "../items.jsonl",
                 "output_dir": "../outputs",
                 "env_path": "../.env",
                 "chunk_size": 50,
@@ -56,9 +57,9 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
     config = load_run_config(config_path)
 
     assert config.run_id == "experiment-a"
-    assert config.language == "english"
+    assert config.language == "sw"
     assert config.task == "decodability"
-    assert config.items_path == (tmp_path / "items.csv").resolve()
+    assert config.items_path == (tmp_path / "items.jsonl").resolve()
     assert config.output_dir == (tmp_path / "outputs").resolve()
     assert config.env_path == env_path.resolve()
     assert config.chunk_size == 50
@@ -99,13 +100,45 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
     assert config.model_workers == 1
 
 
-def test_config_identity_includes_items_path(tmp_path: Path) -> None:
-    """Selecting another composed-item file changes run identity."""
+def test_config_identity_excludes_items_path_and_models(tmp_path: Path) -> None:
+    """Dataset provenance and model selection do not shape shared calls."""
 
-    first = load_run_config(_write_config(tmp_path, items_path="items-a.csv"))
-    second = load_run_config(_write_config(tmp_path, items_path="items-b.csv"))
+    first = load_run_config(
+        _write_config(tmp_path, items_path="items-a.jsonl", models=["model-a"])
+    )
+    second = load_run_config(
+        _write_config(
+            tmp_path,
+            items_path="items-b.jsonl",
+            models=["model-a", "model-b"],
+        )
+    )
 
-    assert config_identity_sha256(first) != config_identity_sha256(second)
+    assert config_identity_sha256(first) == config_identity_sha256(second)
+
+
+def test_config_identity_uses_exact_effective_shared_payload(tmp_path: Path) -> None:
+    omitted_default = load_run_config(_write_config(tmp_path))
+    explicit_default = load_run_config(
+        _write_config(tmp_path, max_tokens=DEFAULT_MAX_TOKENS)
+    )
+    changed_limit = load_run_config(_write_config(tmp_path, max_tokens=123))
+    changed_language = load_run_config(_write_config(tmp_path, language="xx"))
+
+    assert omitted_default.to_identity_dict() == {
+        "language": "sw",
+        "task": "decodability",
+        "max_tokens": DEFAULT_MAX_TOKENS,
+    }
+    assert config_identity_sha256(omitted_default) == config_identity_sha256(
+        explicit_default
+    )
+    assert config_identity_sha256(omitted_default) != config_identity_sha256(
+        changed_limit
+    )
+    assert config_identity_sha256(omitted_default) != config_identity_sha256(
+        changed_language
+    )
 
 
 def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
@@ -251,7 +284,7 @@ def test_load_run_config_requires_items_path(tmp_path: Path) -> None:
 
     config_path = tmp_path / "run.json"
     config_path.write_text(
-        json.dumps({"language": "english", "models": ["model-a"]}),
+        json.dumps({"language": "sw", "models": ["model-a"]}),
         encoding="utf-8",
     )
 
@@ -259,13 +292,14 @@ def test_load_run_config_requires_items_path(tmp_path: Path) -> None:
         load_run_config(config_path)
 
 
-def test_load_run_config_rejects_data_root(tmp_path: Path) -> None:
-    """The runner no longer composes items from language-level data files."""
+def test_load_run_config_preserves_data_root_as_an_unknown_field(
+    tmp_path: Path,
+) -> None:
+    """Legacy or future fields remain provenance without changing execution."""
 
-    config_path = _write_config(tmp_path, data_root="data")
+    config = load_run_config(_write_config(tmp_path, data_root="data"))
 
-    with pytest.raises(ConfigError, match="no longer supported"):
-        load_run_config(config_path)
+    assert config.extra["data_root"] == "data"
 
 
 def test_load_run_config_rejects_task_selected_in_config(tmp_path: Path) -> None:

@@ -64,7 +64,7 @@ def run_decodability_cmd(
         None,
         "--language",
         "-l",
-        help="Language label for the benchmark run and prompt.",
+        help="Language registry key for the benchmark run, for example 'sw'.",
     ),
     models: str | None = typer.Option(
         None,
@@ -88,7 +88,7 @@ def run_decodability_cmd(
         exists=True,
         dir_okay=False,
         readable=True,
-        help="CSV containing already-composed benchmark items.",
+        help="JSONL containing completed benchmark items.",
     ),
     custom_models_path: Path | None = typer.Option(
         None,
@@ -128,7 +128,7 @@ def run_decodability_cmd(
         "--model-workers",
         min=1,
         help=(
-            "Maximum number of models to run concurrently. "
+            "Maximum number of provider groups to run concurrently. "
             "Defaults to the config value, or 1 without a config."
         ),
     ),

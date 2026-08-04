@@ -1,10 +1,13 @@
-import json
 from collections.abc import Mapping
 from functools import cache
 from importlib.resources import files
 from typing import Any
 
 import yaml
+from decodability import DECODABILITY_REGISTRY
+from pydantic import ValidationError
+
+from phonics_benchmark.config import ConfigError
 
 
 @cache
@@ -32,17 +35,29 @@ def build_decodability_prompt(
     item: Mapping[str, Any],
     language: str,
 ) -> str:
-    """Render the decodability prompt for a joined benchmark item."""
+    """Validate language-specific knowledge and render one benchmark prompt."""
 
-    student_knowledge = item["student_knowledge"]
+    try:
+        language_integration = DECODABILITY_REGISTRY[language]
+    except KeyError:
+        raise ConfigError(
+            f"Unknown language registry key '{language}'; available: "
+            f"{sorted(DECODABILITY_REGISTRY)}"
+        ) from None
+
+    try:
+        student_knowledge = language_integration[
+            "student_knowledge_model"
+        ].model_validate(item["student_knowledge"])
+    except ValidationError as e:
+        raise ConfigError(
+            "Invalid student_knowledge for benchmark item "
+            f"'{item['benchmark_item_id']}': {e}"
+        ) from e
+
     return get_prompt(
         "decodability_evaluation",
-        language=language,
-        text=item["text"],
-        known_graphemes=_json_list(student_knowledge.get("graphemes", [])),
-        known_sight_words=_json_list(student_knowledge.get("whole_words", [])),
+        language=language_integration["name"],
+        text=item["content"],
+        student_knowledge=student_knowledge,
     )
-
-
-def _json_list(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False)

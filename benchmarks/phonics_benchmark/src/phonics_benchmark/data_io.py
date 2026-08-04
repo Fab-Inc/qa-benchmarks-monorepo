@@ -6,7 +6,7 @@ import json
 import warnings
 from pathlib import Path
 
-from decodability.kiswahili.models import KiswahiliStudentKnowledge
+from decodability import DECODABILITY_REGISTRY
 from pydantic import ValidationError
 
 from phonics_benchmark.models import (
@@ -14,11 +14,6 @@ from phonics_benchmark.models import (
     DecodableText,
     StudentKnowledge,
 )
-
-# Per-language taught-knowledge validators.
-STUDENT_KNOWLEDGE_MODELS = {
-    "sw": KiswahiliStudentKnowledge,
-}
 
 
 def get_data_dir(language: str, data_root: Path) -> Path:
@@ -142,10 +137,8 @@ def validate_student_knowledge(
     expected to always have a registered validator).
     """
     for profile in profiles:
-        student_knowledge_model = STUDENT_KNOWLEDGE_MODELS.get(
-            profile.language_iso_code
-        )
-        if student_knowledge_model is None:
+        language_integration = DECODABILITY_REGISTRY.get(profile.language_iso_code)
+        if language_integration is None:
             message = (
                 f"No known student_knowledge validator registered for language "
                 f"'{profile.language_iso_code}' (student_knowledge_id "
@@ -155,6 +148,7 @@ def validate_student_knowledge(
                 raise ValueError(message)
             warnings.warn(f"{message}; skipping validation.", stacklevel=2)
             continue
+        student_knowledge_model = language_integration["student_knowledge_model"]
         try:
             student_knowledge_model.model_validate(profile.student_knowledge)
         except ValidationError as exc:

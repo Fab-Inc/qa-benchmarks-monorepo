@@ -1,10 +1,11 @@
 """Tests for the config-driven phonics benchmark runner."""
 
-import csv
 import json
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Lock
+from time import sleep
 from unittest.mock import patch
 
 import httpx
@@ -22,6 +23,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
+from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
     DEFAULT_CUSTOM_MODELS_PATH,
@@ -35,59 +37,110 @@ from phonics_benchmark.runner import (
 )
 
 _CHUNK_SIZE_UNSET = object()
+CONTRACT_FIXTURE = (
+    Path(__file__).parent / "fixtures" / "completed_benchmark_items.jsonl"
+)
 
 
-def test_load_benchmark_items_reads_composed_csv(tmp_path: Path) -> None:
-    """QFB-style composed CSV rows are adapted to the production item shape."""
+def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None:
+    """The loader normalizes call inputs and hashes the bytes it parsed."""
 
-    items_path = tmp_path / "items.csv"
-    items_path.write_text(
-        "\n".join(
-            [
-                (
-                    "benchmark_item_id,language_iso_code,curriculum_stage,content,"
-                    "student_knowledge_id,graphemes,whole_words,non_decodable_words"
-                ),
-                (
-                    'item-1,sw,2,Mama anaona kuku.,student-1,"[""a"", ""m""]",'
-                    '"[""mama""]","[""kuku""]"'
-                ),
-                (
-                    'item-2,sw,4,Tai ni ndege.,student-2,"[""a"", ""i""]",'
-                    '"[]","[""ndege""]"'
-                ),
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
+    items_path = tmp_path / "items.jsonl"
+    artifact = (
+        b'{"benchmark_item_id":"item-1","content":"  Mama anaona kuku.  ",'
+        b'"student_knowledge":{"graphemes":["a","m"],"whole_words":["mama"]},'
+        b'"source_id":"source-1","expected_answer":["kuku"]}\n'
+        b'{"benchmark_item_id":"item-2","content":"Tai ni ndege.",'
+        b'"student_knowledge":{"graphemes":["a","i"],"whole_words":[]}}\n'
     )
+    items_path.write_bytes(artifact)
 
-    items = load_benchmark_items(items_path)
+    items, items_sha256 = load_benchmark_items(items_path)
 
+    assert items_sha256 == sha256(artifact).hexdigest()
     assert len(items) == 2
-    assert items.loc[0, "item_id"] == "item-1"
-    assert items.loc[0, "text"] == "Mama anaona kuku."
-    assert items.loc[0, "student_knowledge"] == {
+    assert items[0]["benchmark_item_id"] == "item-1"
+    assert items[0]["content"] == "  Mama anaona kuku.  "
+    assert items[0]["student_knowledge"] == {
         "graphemes": ["a", "m"],
         "whole_words": ["mama"],
     }
-    assert items.loc[0, "metadata"]["curriculum_stage"] == "2"
-    assert items.loc[0, "metadata"]["non_decodable_words"] == ["kuku"]
+    assert set(items[0]) == {
+        "benchmark_item_id",
+        "content",
+        "student_knowledge",
+    }
 
 
-def test_load_benchmark_items_rejects_duplicate_ids_after_trimming(
+def test_contract_fixture_exposes_completed_execution_envelope() -> None:
+    items, _items_sha256 = load_benchmark_items(CONTRACT_FIXTURE)
+
+    assert [item["benchmark_item_id"] for item in items] == [
+        "bi-SW-KE-S2-tusome-ke-stage-01",
+        "bi-SW-KE-S4-tusome-ke-stage-02",
+    ]
+    assert all(
+        set(item) == {"benchmark_item_id", "content", "student_knowledge"}
+        for item in items
+    )
+
+
+def test_load_benchmark_items_rejects_padded_ids(
     tmp_path: Path,
 ) -> None:
-    """Whitespace does not allow duplicate benchmark item IDs."""
+    """Identifiers are validated without silently changing them."""
 
-    items_path = tmp_path / "items.csv"
-    items_path.write_text(
+    items_path = _write_items_jsonl(
+        tmp_path,
+        [{"id": " item-1 ", "text": "Text."}],
+    )
+
+    with pytest.raises(ConfigError, match="surrounding whitespace"):
+        load_benchmark_items(items_path)
+
+
+@pytest.mark.parametrize(
+    ("contents", "error"),
+    [
+        (b"", "No benchmark items"),
+        (b"\n", "blank JSONL"),
         (
-            "benchmark_item_id,content,student_knowledge_id,graphemes,whole_words\n"
-            'item-1,First text.,student-1,"[""a""]","[]"\n'
-            ' item-1 ,Second text.,student-2,"[""b""]","[]"\n'
+            b'{"benchmark_item_id":"item-1","content":"Text",'
+            b'"student_knowledge":{}}\n\n',
+            "blank JSONL",
         ),
-        encoding="utf-8",
+        (b"not-json\n", "invalid JSON"),
+        (b"[]\n", "must be an object"),
+        (
+            b'{"benchmark_item_id":"item-1","content":" ","student_knowledge":{}}\n',
+            "content",
+        ),
+        (
+            b'{"benchmark_item_id":"item-1","content":"Text","student_knowledge":[]}\n',
+            "student_knowledge",
+        ),
+        (b"\xff", "UTF-8"),
+    ],
+)
+def test_load_benchmark_items_rejects_invalid_artifacts(
+    tmp_path: Path,
+    contents: bytes,
+    error: str,
+) -> None:
+    items_path = tmp_path / "invalid.jsonl"
+    items_path.write_bytes(contents)
+
+    with pytest.raises(ConfigError, match=error):
+        load_benchmark_items(items_path)
+
+
+def test_load_benchmark_items_rejects_duplicate_ids(tmp_path: Path) -> None:
+    items_path = _write_items_jsonl(
+        tmp_path,
+        [
+            {"id": "item-1", "text": "First."},
+            {"id": "item-1", "text": "Second."},
+        ],
     )
 
     with pytest.raises(ConfigError, match="duplicate benchmark_item_id.*item-1"):
@@ -146,38 +199,16 @@ def test_execute_run_skips_fdllm_setup_for_supplied_evaluator(
     assert run.call_args.kwargs["model_configs"] is None
 
 
-def test_run_from_config_file_uses_composed_csv(tmp_path: Path) -> None:
-    """The runner loads every row from the configured composed items CSV."""
+def test_run_from_config_file_uses_completed_jsonl(tmp_path: Path) -> None:
+    """The runner loads every completed JSONL item in artifact order."""
 
-    items_path = tmp_path / "items.csv"
-    items_path.write_text(
-        "\n".join(
-            [
-                (
-                    "benchmark_item_id,content,student_knowledge_id,"
-                    "graphemes,whole_words"
-                ),
-                'item-1,First text.,student-1,"[""a""]","[]"',
-                'item-2,Second text.,student-2,"[""b""]","[]"',
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
-    config_path = tmp_path / "run.json"
-    config_path.write_text(
-        json.dumps(
-            {
-                "language": "kiswahili",
-                "models": ["model-a"],
-                "items_path": "items.csv",
-                "custom_models_path": "custom_models.yaml",
-                "output_dir": "outputs",
-            }
-        ),
-        encoding="utf-8",
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[
+            {"id": "item-1", "text": "First text."},
+            {"id": "item-2", "text": "Second text."},
+        ],
     )
     seen_items = []
 
@@ -187,7 +218,7 @@ def test_run_from_config_file_uses_composed_csv(tmp_path: Path) -> None:
         item: dict,
         _prompt: str,
     ) -> dict:
-        seen_items.append(item["item_id"])
+        seen_items.append(item["benchmark_item_id"])
         return {"output": "[]"}
 
     output = run_from_config_file(config_path, evaluator=evaluator)
@@ -208,9 +239,11 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
         item: dict,
         prompt: str,
     ) -> dict:
-        calls.append((config.language, config.task, model_name, item["item_id"]))
+        calls.append(
+            (config.language, config.task, model_name, item["benchmark_item_id"])
+        )
         return {
-            "output": f"{model_name}:{item['item_id']}",
+            "output": f"{model_name}:{item['benchmark_item_id']}",
             "latency": 0.1,
             "total_tokens": 12,
             "seen_prompt": prompt,
@@ -229,10 +262,10 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert output["error_count"] == 0
     assert len(rows) == 4
     assert calls == [
-        ("english", "decodability", "model-a", "item-1"),
-        ("english", "decodability", "model-a", "item-2"),
-        ("english", "decodability", "model-b", "item-1"),
-        ("english", "decodability", "model-b", "item-2"),
+        ("sw", "decodability", "model-a", "item-1"),
+        ("sw", "decodability", "model-a", "item-2"),
+        ("sw", "decodability", "model-b", "item-1"),
+        ("sw", "decodability", "model-b", "item-2"),
     ]
 
     result_ids = {row["result_id"] for row in rows}
@@ -244,14 +277,17 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
         str(output["config_snapshot_path"])
     }
     assert rows[0]["run_id"] == "experiment-a"
-    assert rows[0]["language"] == "english"
+    assert rows[0]["language"] == "sw"
     assert rows[0]["success"] is True
     assert rows[0]["call_status"] == "success"
     assert "answers_timestamp-utc" not in rows[0]
     assert "answers_git-hash" not in rows[0]
     assert "A cat sat." in rows[0]["prompt"]
-    assert '["a", "t"]' in rows[0]["prompt"]
+    assert '- Known graphemes: "a", "t"' in rows[0]["prompt"]
     assert rows[0]["seen_prompt"] == rows[0]["prompt"]
+    assert "item" not in rows[0]
+    assert "item_id" not in rows[0]
+    assert rows[0]["benchmark_item_id"] == "item-1"
     assert "started_at" not in rows[0]
     assert "completed_at" not in rows[0]
     assert "elapsed_seconds" not in rows[0]
@@ -261,7 +297,11 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert snapshot["code_git_hash"] == "abc123"
     assert snapshot["raw_config"]["run_id"] == "experiment-a"
     assert snapshot["resolved_config"]["items_path"] == str(
-        (tmp_path / "items.csv").resolve()
+        (tmp_path / "items.jsonl").resolve()
+    )
+    assert (
+        snapshot["resolved_config"]["items_sha256"]
+        == sha256((tmp_path / "items.jsonl").read_bytes()).hexdigest()
     )
     assert isinstance(snapshot["model_configs"], dict)
 
@@ -295,10 +335,10 @@ def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> N
         item: dict,
         _prompt: str,
     ) -> dict:
-        calls_by_model[model_name].append(item["item_id"])
-        if item["item_id"] == "item-1":
+        calls_by_model[model_name].append(item["benchmark_item_id"])
+        if item["benchmark_item_id"] == "item-1":
             first_call_barrier.wait()
-        return {"output": f"{model_name}:{item['item_id']}"}
+        return {"output": f"{model_name}:{item['benchmark_item_id']}"}
 
     output = run_from_config_file(config_path, evaluator=evaluator)
 
@@ -308,6 +348,140 @@ def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> N
         "model-a": ["item-1", "item-2"],
         "model-b": ["item-1", "item-2"],
     }
+
+
+def test_models_in_one_provider_group_do_not_overlap(tmp_path: Path) -> None:
+    custom_models_path = tmp_path / "custom_models.yaml"
+    custom_models_path.write_text(
+        '{"shared-provider":{"models":{"model-a":{},"model-b":{}}}}',
+        encoding="utf-8",
+    )
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b"],
+        items=[{"id": "item-1", "text": "Mama."}],
+        custom_models_path=custom_models_path,
+        model_workers=2,
+    )
+    lock = Lock()
+    active_calls = 0
+    maximum_active_calls = 0
+
+    def evaluator(*_args) -> dict:
+        nonlocal active_calls, maximum_active_calls
+        with lock:
+            active_calls += 1
+            maximum_active_calls = max(maximum_active_calls, active_calls)
+        sleep(0.01)
+        with lock:
+            active_calls -= 1
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert output["executed_count"] == 2
+    assert maximum_active_calls == 1
+
+
+def test_model_workers_caps_active_provider_groups(tmp_path: Path) -> None:
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b", "model-c"],
+        items=[{"id": "item-1", "text": "Mama."}],
+        model_workers=2,
+    )
+    lock = Lock()
+    active_calls = 0
+    maximum_active_calls = 0
+
+    def evaluator(*_args) -> dict:
+        nonlocal active_calls, maximum_active_calls
+        with lock:
+            active_calls += 1
+            maximum_active_calls = max(maximum_active_calls, active_calls)
+        sleep(0.02)
+        with lock:
+            active_calls -= 1
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert output["executed_count"] == 3
+    assert maximum_active_calls == 2
+
+
+@pytest.mark.parametrize(
+    ("registry", "error"),
+    [
+        ({"provider-a": {"models": {"other-model": {}}}}, "missing"),
+        (
+            {
+                "provider-a": {"models": {"model-a": {}}},
+                "provider-b": {"models": {"model-a": {}}},
+            },
+            "multiple",
+        ),
+    ],
+)
+def test_selected_models_require_one_provider_group(
+    tmp_path: Path,
+    registry: dict,
+    error: str,
+) -> None:
+    custom_models_path = tmp_path / "custom_models.yaml"
+    custom_models_path.write_text(json.dumps(registry), encoding="utf-8")
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "Mama."}],
+        custom_models_path=custom_models_path,
+    )
+
+    with pytest.raises(ConfigError, match=error):
+        run_from_config_file(
+            config_path,
+            evaluator=lambda *_args: {"output": "unexpected"},
+        )
+
+
+def test_prompts_are_rendered_once_per_item_before_workers(tmp_path: Path) -> None:
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b"],
+        model_workers=2,
+    )
+
+    with patch(
+        "phonics_benchmark.runner.build_decodability_prompt",
+        wraps=build_decodability_prompt,
+    ) as build_prompt:
+        output = run_from_config_file(
+            config_path,
+            evaluator=lambda *_args: {"output": "[]"},
+        )
+
+    assert output["executed_count"] == 4
+    assert build_prompt.call_count == 2
+
+
+def test_unknown_language_fails_before_model_execution(tmp_path: Path) -> None:
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "item-1", "text": "Mama."}],
+    )
+    raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+    raw_config["language"] = "xx"
+    config_path.write_text(json.dumps(raw_config), encoding="utf-8")
+    calls = []
+
+    with pytest.raises(ConfigError, match="Unknown language registry key 'xx'"):
+        run_from_config_file(
+            config_path,
+            evaluator=lambda *_args: calls.append("called") or {"output": "[]"},
+        )
+
+    assert calls == []
 
 
 def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
@@ -379,7 +553,7 @@ def test_run_from_config_file_adding_model_keeps_existing_model_cache(
         evaluator=evaluator,
     )
 
-    assert first_output["config_id"] != second_output["config_id"]
+    assert first_output["config_id"] == second_output["config_id"]
     assert second_output["executed_count"] == 1
     assert second_output["skipped_count"] == 1
     assert called_models == ["model-b"]
@@ -424,10 +598,43 @@ def test_run_from_config_file_provenance_change_keeps_model_cache(
     )
 
     rows = _read_jsonl(second_output["results_paths"]["model-a"])
-    assert first_output["config_id"] != second_output["config_id"]
+    assert first_output["config_id"] == second_output["config_id"]
     assert second_output["executed_count"] == 0
     assert second_output["skipped_count"] == 1
     assert rows[0]["output"] == "first"
+
+
+def test_benchmark_item_id_is_call_identity_and_requires_recomputation(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": "old-item-id", "text": "Mama."}],
+    )
+    first_output = run_from_config_file(
+        config_path,
+        evaluator=lambda *_args: {"output": "first"},
+    )
+    first_row = _read_jsonl(first_output["results_paths"]["model-a"])[0]
+
+    _write_items_jsonl(
+        tmp_path,
+        [{"id": "new-item-id", "text": "Mama."}],
+    )
+    second_output = run_from_config_file(
+        config_path,
+        evaluator=lambda *_args: {"output": "second"},
+    )
+    second_row = _read_jsonl(second_output["results_paths"]["model-a"])[0]
+
+    assert second_output["config_id"] == first_output["config_id"]
+    assert second_output["executed_count"] == 1
+    assert second_output["skipped_count"] == 0
+    assert second_row["model_call_id"] != first_row["model_call_id"]
+    assert second_row["result_id"] != first_row["result_id"]
+    assert second_row["benchmark_item_id"] == "new-item-id"
+    assert second_row["output"] == "second"
 
 
 @pytest.mark.parametrize(
@@ -543,7 +750,7 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         item: dict,
         _prompt: str,
     ) -> dict:
-        if item["item_id"] == "item-1":
+        if item["benchmark_item_id"] == "item-1":
             raise MistralConnectionException("transient")
         return {
             "output": "success",
@@ -574,7 +781,7 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         item: dict,
         _prompt: str,
     ) -> dict:
-        retried_items.append(item["item_id"])
+        retried_items.append(item["benchmark_item_id"])
         return {"output": "retried"}
 
     second_output = run_from_config_file(
@@ -755,7 +962,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
         item: dict,
         _prompt: str,
     ) -> dict:
-        calls.append((config.max_tokens, item["item_id"]))
+        calls.append((config.max_tokens, item["benchmark_item_id"]))
         return {"output": "second"}
 
     second_output = run_from_config_file(
@@ -801,7 +1008,7 @@ def test_explicit_default_max_tokens_keeps_model_cache(tmp_path: Path) -> None:
     )
     second_rows = _read_jsonl(second_output["results_paths"]["model-a"])
 
-    assert first_output["config_id"] != second_output["config_id"]
+    assert first_output["config_id"] == second_output["config_id"]
     assert second_output["executed_count"] == 0
     assert second_output["skipped_count"] == 1
     assert second_rows[0]["model_call_id"] == first_rows[0]["model_call_id"]
@@ -832,7 +1039,9 @@ def test_run_benchmark_writes_supplied_model_configs(tmp_path: Path) -> None:
     """Run snapshots include sanitized model configs supplied by the caller."""
 
     custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
+    custom_models_path.write_text(
+        '{"provider-a":{"models":{"model-a":{}}}}', encoding="utf-8"
+    )
     config_path = _write_config(
         tmp_path,
         models=["model-a"],
@@ -871,7 +1080,9 @@ def test_run_benchmark_recomputes_when_model_config_changes(tmp_path: Path) -> N
     """Model config changes are part of the per-call cache identity."""
 
     custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
+    custom_models_path.write_text(
+        '{"provider-a":{"models":{"model-a":{}}}}', encoding="utf-8"
+    )
     config_path = _write_config(
         tmp_path,
         models=["model-a"],
@@ -1043,11 +1254,11 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
 
     config = BenchmarkRunConfig(
         run_id="experiment-a",
-        language="english",
+        language="sw",
         task="decodability",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
-        items_path=tmp_path / "items.csv",
+        items_path=tmp_path / "items.jsonl",
     )
 
     with (
@@ -1066,14 +1277,16 @@ def test_prepare_fdllm_preserves_explicit_custom_models_path(tmp_path: Path) -> 
     """An explicit model registry remains the pinned registry used by the run."""
 
     custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
+    custom_models_path.write_text(
+        '{"provider-a":{"models":{"model-a":{}}}}', encoding="utf-8"
+    )
     config = BenchmarkRunConfig(
         run_id="experiment-a",
-        language="english",
+        language="sw",
         task="decodability",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
-        items_path=tmp_path / "items.csv",
+        items_path=tmp_path / "items.jsonl",
         custom_models_path=custom_models_path,
     )
 
@@ -1092,11 +1305,11 @@ def test_default_evaluator_uses_qfb_call_record(tmp_path: Path) -> None:
 
     config = BenchmarkRunConfig(
         run_id="experiment-a",
-        language="english",
+        language="sw",
         task="decodability",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
-        items_path=tmp_path / "items.csv",
+        items_path=tmp_path / "items.jsonl",
     )
 
     call_record = {
@@ -1112,7 +1325,7 @@ def test_default_evaluator_uses_qfb_call_record(tmp_path: Path) -> None:
         payload = evaluate_item_with_fdllm(
             config,
             "model-a",
-            {"item_id": "item-1", "text": "A cat sat."},
+            {"benchmark_item_id": "item-1", "content": "A cat sat."},
             "rendered prompt",
         )
 
@@ -1138,11 +1351,11 @@ def test_default_evaluator_uses_configured_max_tokens(tmp_path: Path) -> None:
 
     config = BenchmarkRunConfig(
         run_id="experiment-a",
-        language="english",
+        language="sw",
         task="decodability",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
-        items_path=tmp_path / "items.csv",
+        items_path=tmp_path / "items.jsonl",
         max_tokens=321,
     )
     call_record = {
@@ -1159,7 +1372,7 @@ def test_default_evaluator_uses_configured_max_tokens(tmp_path: Path) -> None:
         evaluate_item_with_fdllm(
             config,
             "model-a",
-            {"item_id": "item-1", "text": "A cat sat."},
+            {"benchmark_item_id": "item-1", "content": "A cat sat."},
             "rendered prompt",
         )
 
@@ -1170,7 +1383,9 @@ def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> N
     """The runner persists each model's results through the result seam."""
 
     custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
+    custom_models_path.write_text(
+        '{"provider-a":{"models":{"model-a":{}}}}', encoding="utf-8"
+    )
     config_path = _write_config(
         tmp_path,
         models=["model-a"],
@@ -1207,7 +1422,7 @@ def test_run_from_config_file_checkpoints_after_each_chunk(tmp_path: Path) -> No
         output = run_from_config_file(
             config_path,
             evaluator=lambda _config, _model, item, _prompt: {
-                "output": item["item_id"]
+                "output": item["benchmark_item_id"]
             },
         )
 
@@ -1215,7 +1430,7 @@ def test_run_from_config_file_checkpoints_after_each_chunk(tmp_path: Path) -> No
     saved_lengths = [len(call.args[0]) for call in save.call_args_list]
     assert saved_lengths == [2, 3]
     rows = _read_jsonl(output["results_paths"]["model-a"])
-    assert [row["item_id"] for row in rows] == ["item-1", "item-2", "item-3"]
+    assert [row["benchmark_item_id"] for row in rows] == ["item-1", "item-2", "item-3"]
 
 
 def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
@@ -1236,7 +1451,7 @@ def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
         output = run_from_config_file(
             config_path,
             evaluator=lambda _config, _model, item, _prompt: {
-                "output": item["item_id"]
+                "output": item["benchmark_item_id"]
             },
         )
 
@@ -1276,40 +1491,30 @@ def _write_config(
             },
         ]
 
-    items_path = tmp_path / "items.csv"
-    fieldnames = [
-        "benchmark_item_id",
-        "content",
-        "student_knowledge_id",
-        "graphemes",
-        "whole_words",
-    ]
-    with items_path.open("w", encoding="utf-8", newline="") as items_file:
-        writer = csv.DictWriter(items_file, fieldnames=fieldnames)
-        writer.writeheader()
-        for index, item in enumerate(items, start=1):
-            student_knowledge = item.get("student_knowledge", {})
-            writer.writerow(
-                {
-                    "benchmark_item_id": item["id"],
-                    "content": item["text"],
-                    "student_knowledge_id": f"student-{index}",
-                    "graphemes": json.dumps(student_knowledge.get("graphemes", [])),
-                    "whole_words": json.dumps(student_knowledge.get("whole_words", [])),
-                }
-            )
+    _write_items_jsonl(tmp_path, items)
+
+    if custom_models_path is None:
+        custom_models_path = tmp_path / "custom_models.yaml"
+        registry_models = list(dict.fromkeys([*models, "model-a", "model-b"]))
+        provider_registry = {
+            f"provider-{index}": {"models": {model_name: {}}}
+            for index, model_name in enumerate(registry_models, start=1)
+        }
+        custom_models_path.write_text(
+            json.dumps(provider_registry),
+            encoding="utf-8",
+        )
 
     config_path = tmp_path / "run.json"
     config = {
         "run_id": "experiment-a",
-        "language": "english",
-        "items_path": "items.csv",
+        "language": "sw",
+        "items_path": "items.jsonl",
         "output_dir": "outputs",
         "models": models,
         "model_workers": model_workers,
+        "custom_models_path": str(custom_models_path),
     }
-    if custom_models_path:
-        config["custom_models_path"] = str(custom_models_path)
     if chunk_size is not _CHUNK_SIZE_UNSET:
         config["chunk_size"] = chunk_size
     config_path.write_text(
@@ -1317,6 +1522,28 @@ def _write_config(
         encoding="utf-8",
     )
     return config_path
+
+
+def _write_items_jsonl(tmp_path: Path, items: list[dict]) -> Path:
+    items_path = tmp_path / "items.jsonl"
+    records = [
+        {
+            "benchmark_item_id": item.get("benchmark_item_id", item.get("id")),
+            "content": item.get("content", item.get("text")),
+            "student_knowledge": item.get(
+                "student_knowledge",
+                {"graphemes": ["a"], "whole_words": []},
+            ),
+            "source_id": f"source-{index}",
+            "student_knowledge_id": f"student-{index}",
+        }
+        for index, item in enumerate(items, start=1)
+    ]
+    items_path.write_text(
+        "".join(json.dumps(record) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    return items_path
 
 
 def _read_jsonl(path: Path) -> list[dict]:

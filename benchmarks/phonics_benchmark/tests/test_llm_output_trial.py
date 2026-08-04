@@ -50,14 +50,11 @@ def test_prepared_trial_dataset_is_complete_and_normalized():
 def test_build_decodability_prompt_uses_prepared_case_data():
     benchmark_item = pd.read_csv(BENCHMARK_ITEMS_PATH).iloc[0]
 
-    prompt = build_decodability_prompt(benchmark_item, language="kiswahili")
+    prompt = build_decodability_prompt(benchmark_item, language="sw")
 
-    assert "language of kiswahili" in prompt
-    assert 'graphemes the student knows are:\n["a", "u", "m", "k"]' in prompt
-    assert (
-        'sight words the student knows are:\n["mama", "ama", "anaona", "na", '
-        '"paka"]' in prompt
-    )
+    assert "language of Kiswahili" in prompt
+    assert '- Known graphemes: "a", "k", "m", "u"' in prompt
+    assert '- Known whole words: "ama", "anaona", "mama", "na", "paka"' in prompt
     assert "Mama anaona kuku na paka." in prompt
     assert "curriculum_stage" not in prompt
     assert benchmark_item["benchmark_item_id"] not in prompt

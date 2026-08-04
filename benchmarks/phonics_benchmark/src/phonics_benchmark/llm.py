@@ -9,7 +9,7 @@ from typing import Any
 from fdllm import LLMMessage, get_caller
 from pydantic import BaseModel
 
-DEFAULT_MAX_TOKENS = 10_000
+from phonics_benchmark.config import DEFAULT_MAX_TOKENS
 
 
 def call_llm(

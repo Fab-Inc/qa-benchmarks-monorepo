@@ -37,8 +37,8 @@ def test_run_decodability_command_uses_config(
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "items.csv",
+                "language": "sw",
+                "items_path": "items.jsonl",
                 "models": ["model-a"],
             }
         ),
@@ -59,7 +59,7 @@ def test_run_decodability_command_uses_config(
     run.assert_called_once()
     run_config = run.call_args.args[0]
     assert run_config.models == ["model-a"]
-    assert run_config.items_path == (tmp_path / "items.csv").resolve()
+    assert run_config.items_path == (tmp_path / "items.jsonl").resolve()
     assert "Run ID: experiment-a" in result.stdout
     assert "Results:" in result.stdout
 
@@ -74,8 +74,8 @@ def test_run_decodability_command_fails_when_calls_have_errors(
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "items.csv",
+                "language": "sw",
+                "items_path": "items.jsonl",
                 "models": ["model-a"],
             }
         ),
@@ -114,8 +114,8 @@ def test_run_decodability_command_execution_flags_override_config(
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "items.csv",
+                "language": "sw",
+                "items_path": "items.jsonl",
                 "models": ["model-a"],
                 "force": False,
                 "retry_errors": False,
@@ -161,8 +161,8 @@ def test_run_decodability_command_model_workers_overrides_config_when_supplied(
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "items.csv",
+                "language": "sw",
+                "items_path": "items.jsonl",
                 "models": ["model-a"],
                 "model_workers": 3,
             }
@@ -194,8 +194,8 @@ def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
         json.dumps(
             {
                 "run_id": "experiment-a",
-                "language": "english",
-                "items_path": "items.csv",
+                "language": "sw",
+                "items_path": "items.jsonl",
                 "models": ["model-a"],
                 "force": True,
             }
@@ -227,10 +227,12 @@ def test_run_decodability_command_uses_cli_args(
     """The decodability command accepts direct command-line options."""
 
     output_dir = tmp_path / "outputs"
-    items_path = tmp_path / "items.csv"
-    items_path.write_text("benchmark_item_id\nitem-1\n", encoding="utf-8")
+    items_path = _write_items_jsonl(tmp_path)
     custom_models_path = tmp_path / "custom_models.yaml"
-    custom_models_path.write_text("models: []", encoding="utf-8")
+    custom_models_path.write_text(
+        '{"provider-a":{"models":{"model-a":{},"model-b":{}}}}',
+        encoding="utf-8",
+    )
     env_path = tmp_path / ".env"
     env_path.write_text("OPENAI_API_KEY=test", encoding="utf-8")
     output = _run_output(output_dir, "experiment-a", total=2)
@@ -248,7 +250,7 @@ def test_run_decodability_command_uses_cli_args(
                 "--run-id",
                 "experiment-a",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a,model-b",
                 "--output-dir",
@@ -274,7 +276,7 @@ def test_run_decodability_command_uses_cli_args(
     run.assert_called_once()
     run_config = run.call_args.args[0]
     assert run_config.run_id == "experiment-a"
-    assert run_config.language == "english"
+    assert run_config.language == "sw"
     assert run_config.output_dir == output_dir.resolve()
     assert run_config.models == ["model-a", "model-b"]
     assert run_config.task == "decodability"
@@ -316,7 +318,7 @@ def test_run_decodability_command_preserves_missing_items_path_for_validation(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
             ],
@@ -343,7 +345,7 @@ def test_run_decodability_command_uses_config_model_validation(
 ) -> None:
     """CLI model syntax is translated without bypassing config semantics."""
 
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
     with patch(
         "phonics_benchmark.cmd.download_default_custom_models"
     ) as download_models:
@@ -352,7 +354,7 @@ def test_run_decodability_command_uses_config_model_validation(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 models,
                 "--items-path",
@@ -371,7 +373,7 @@ def test_run_decodability_command_defaults_run_id(
     """Direct CLI runs can omit --run-id."""
 
     output = _run_output(tmp_path / "results", "default", total=1)
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
@@ -382,7 +384,7 @@ def test_run_decodability_command_defaults_run_id(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
                 "--items-path",
@@ -403,7 +405,7 @@ def test_run_decodability_command_timestamped_output_generates_run_id(
     """--timestamped-output fills run_id when one is not supplied."""
 
     output = _run_output(tmp_path / "results", "20260622T120000Z", total=1)
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
 
     with (
         patch("phonics_benchmark.cmd._timestamp_run_id", return_value=output["run_id"]),
@@ -415,7 +417,7 @@ def test_run_decodability_command_timestamped_output_generates_run_id(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
                 "--items-path",
@@ -462,7 +464,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
 ) -> None:
     """Direct CLI runs require a positive response-token limit."""
 
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
     with patch(
         "phonics_benchmark.cmd.download_default_custom_models"
     ) as download_models:
@@ -471,7 +473,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
                 "--items-path",
@@ -492,7 +494,7 @@ def test_run_decodability_command_accepts_models_json_list(
     """The --models option also accepts a JSON list string."""
 
     output = _run_output(tmp_path / "outputs", "experiment-a", total=2)
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
 
     with (
         patch("phonics_benchmark.cmd.download_default_custom_models"),
@@ -505,7 +507,7 @@ def test_run_decodability_command_accepts_models_json_list(
                 "--run-id",
                 "experiment-a",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 '["model-a", "model-b"]',
                 "--items-path",
@@ -523,7 +525,7 @@ def test_run_decodability_command_preflights_registered_models(
 ) -> None:
     """Model registration errors are reported before benchmark execution."""
 
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
     with (
         patch(
             "phonics_benchmark.cmd.download_default_custom_models"
@@ -538,7 +540,7 @@ def test_run_decodability_command_preflights_registered_models(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
                 "--items-path",
@@ -558,7 +560,7 @@ def test_run_decodability_command_can_skip_models_download(
     """The operational CLI flag suppresses only the shared model-file refresh."""
 
     output = _run_output(tmp_path / "results", "default", total=1)
-    items_path = _write_items_csv(tmp_path)
+    items_path = _write_items_jsonl(tmp_path)
 
     with (
         patch(
@@ -571,7 +573,7 @@ def test_run_decodability_command_can_skip_models_download(
             [
                 "run-decodability",
                 "--language",
-                "english",
+                "sw",
                 "--models",
                 "model-a",
                 "--items-path",
@@ -595,15 +597,26 @@ def test_run_decodability_help_does_not_download_models(runner: CliRunner) -> No
 
     assert result.exit_code == 0
     download_models.assert_not_called()
+    help_text = unstyle(result.output)
+    assert "JSONL containing" in help_text
+    assert "completed benchmark" in help_text
+    assert "provider groups to run" in help_text
 
 
-def _write_items_csv(tmp_path: Path) -> Path:
-    items_path = tmp_path / "items.csv"
+def _write_items_jsonl(tmp_path: Path) -> Path:
+    items_path = tmp_path / "items.jsonl"
     items_path.write_text(
-        (
-            "benchmark_item_id,content,student_knowledge_id,graphemes,whole_words\n"
-            'item-1,A cat sat.,student-1,"[""a""]","[]"\n'
-        ),
+        json.dumps(
+            {
+                "benchmark_item_id": "item-1",
+                "content": "Mama.",
+                "student_knowledge": {
+                    "graphemes": ["a", "m"],
+                    "whole_words": ["mama"],
+                },
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     return items_path

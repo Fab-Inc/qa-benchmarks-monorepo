@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import defaultdict
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -35,10 +36,11 @@ from phonics_benchmark.config import (
     BenchmarkRunConfig,
     ConfigError,
     config_identity_sha256,
+    effective_max_tokens,
     load_run_config,
 )
-from phonics_benchmark.items import item_to_dict, load_benchmark_items
-from phonics_benchmark.llm import DEFAULT_MAX_TOKENS, call_llm
+from phonics_benchmark.items import load_benchmark_items
+from phonics_benchmark.llm import call_llm
 from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import load_results, save_results
 
@@ -49,6 +51,7 @@ DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 DEFAULT_CUSTOM_MODELS_PATH = REPO_ROOT / "custom_models.yaml"
 CUSTOM_MODELS_BUCKET = "fab-open-configs"
 CUSTOM_MODELS_FILE_NAME = "custom_models.yaml"
+SYSTEM_PROMPT: str | None = None
 
 
 RunOutput = dict[str, Any]
@@ -59,6 +62,11 @@ class _ModelRunOutput(TypedDict):
     executed_count: int
     skipped_count: int
     error_count: int
+
+
+class _PreparedItem(TypedDict):
+    item: dict[str, Any]
+    prompt: str
 
 
 def run_from_config_file(
@@ -120,10 +128,13 @@ def run_benchmark(
         evaluator = evaluate_item_with_fdllm
 
     custom_models_path = _resolve_custom_models_path(config.custom_models_path)
+    code_git_hash = git_hash()
+    items, items_sha256 = load_benchmark_items(config.items_path)
+    prepared_items = _prepare_items(items, language=config.language)
+    provider_groups = _provider_groups_for_models(custom_models_path, config.models)
     resolved_config = config.to_resolved_dict()
     resolved_config["custom_models_path"] = str(custom_models_path)
-    code_git_hash = git_hash()
-    items = load_benchmark_items(config.items_path)
+    resolved_config["items_sha256"] = items_sha256
     run_dir = config.output_dir / config.run_id
     results_dir = run_dir / "answers"
     config_snapshot_path = run_dir / "config.json"
@@ -131,13 +142,12 @@ def run_benchmark(
         model_name: _model_results_path(results_dir, model_name)
         for model_name in config.models
     }
-    items_for_run = items.to_dict(orient="records")
     sanitized_model_configs = _sanitize_model_config(dict(model_configs or {}))
     _preflight_retry_results(
         config,
         results_paths,
         model_configs=sanitized_model_configs,
-        items=items_for_run,
+        items=prepared_items,
     )
 
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -156,9 +166,10 @@ def run_benchmark(
         config_id=config_id,
         config_snapshot_path=config_snapshot_path,
         model_configs=sanitized_model_configs,
-        items=items_for_run,
+        items=prepared_items,
         results_paths=results_paths,
         evaluator=evaluator,
+        provider_groups=provider_groups,
     )
     executed_count = sum(result["executed_count"] for result in model_outputs)
     skipped_count = sum(result["skipped_count"] for result in model_outputs)
@@ -174,7 +185,7 @@ def run_benchmark(
         "config_snapshot_path": config_snapshot_path,
         "results_dir": results_dir,
         "results_paths": results_paths,
-        "total_expected_results": len(config.models) * len(items),
+        "total_expected_results": len(config.models) * len(prepared_items),
         "executed_count": executed_count,
         "skipped_count": skipped_count,
         "error_count": error_count,
@@ -188,22 +199,39 @@ def run_benchmark(
     return output
 
 
+def _prepare_items(
+    items: list[dict[str, Any]],
+    *,
+    language: str,
+) -> list[_PreparedItem]:
+    """Validate and render every item before any model execution starts."""
+
+    return [
+        {
+            "item": item,
+            "prompt": build_decodability_prompt(item, language),
+        }
+        for item in items
+    ]
+
+
 def _run_models(
     *,
     config: BenchmarkRunConfig,
     config_id: str,
     config_snapshot_path: Path,
     model_configs: Mapping[str, Any],
-    items: list[dict[str, Any]],
+    items: list[_PreparedItem],
     results_paths: Mapping[str, Path],
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
+    provider_groups: list[list[str]],
 ) -> list[_ModelRunOutput]:
-    """Run model workers serially or with bounded model-level concurrency."""
+    """Run provider groups concurrently and their models sequentially."""
 
-    worker_kwargs = [
-        {
+    worker_kwargs = {
+        model_name: {
             "config": config,
             "config_id": config_id,
             "config_snapshot_path": config_snapshot_path,
@@ -214,17 +242,41 @@ def _run_models(
             "evaluator": evaluator,
         }
         for model_name in config.models
+    }
+    group_worker_kwargs = [
+        [worker_kwargs[model_name] for model_name in model_names]
+        for model_names in provider_groups
     ]
-    if config.model_workers == 1 or len(worker_kwargs) == 1:
-        return [_run_model(**kwargs) for kwargs in worker_kwargs]
+    if config.model_workers == 1 or len(group_worker_kwargs) == 1:
+        group_outputs = [
+            _run_provider_group(model_workers) for model_workers in group_worker_kwargs
+        ]
+    else:
+        max_workers = min(config.model_workers, len(group_worker_kwargs))
+        with ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="phonics-provider",
+        ) as executor:
+            futures = [
+                executor.submit(_run_provider_group, model_workers)
+                for model_workers in group_worker_kwargs
+            ]
+            group_outputs = [future.result() for future in futures]
 
-    max_workers = min(config.model_workers, len(worker_kwargs))
-    with ThreadPoolExecutor(
-        max_workers=max_workers,
-        thread_name_prefix="phonics-model",
-    ) as executor:
-        futures = [executor.submit(_run_model, **kwargs) for kwargs in worker_kwargs]
-        return [future.result() for future in futures]
+    outputs_by_model = {
+        output["model_name"]: output
+        for group_output in group_outputs
+        for output in group_output
+    }
+    return [outputs_by_model[model_name] for model_name in config.models]
+
+
+def _run_provider_group(
+    model_workers: list[dict[str, Any]],
+) -> list[_ModelRunOutput]:
+    """Run all selected models for one provider group without overlap."""
+
+    return [_run_model(**worker) for worker in model_workers]
 
 
 def _run_model(
@@ -234,7 +286,7 @@ def _run_model(
     config_snapshot_path: Path,
     model_name: str,
     model_config: Mapping[str, Any],
-    items: list[dict[str, Any]],
+    items: list[_PreparedItem],
     results_path: Path,
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
@@ -271,7 +323,8 @@ def _run_model(
         if existing is None and config.retry_errors:
             raise ConfigError(
                 f"--retry-errors found no cached result for model {model_name} "
-                f"item {planned_item['item']['item_id']}; run normally first."
+                "item "
+                f"{planned_item['item']['benchmark_item_id']}; run normally first."
             )
         if existing and _should_skip_existing(
             existing, retry_errors=config.retry_errors
@@ -327,7 +380,7 @@ def _preflight_retry_results(
     results_paths: Mapping[str, Path],
     *,
     model_configs: Mapping[str, Any],
-    items: list[dict[str, Any]],
+    items: list[_PreparedItem],
 ) -> None:
     """Validate every retry cache before starting any model worker."""
 
@@ -445,10 +498,10 @@ def evaluate_item_with_fdllm(
     call_record = call_llm(
         prompt,
         model=model_name,
-        system_prompt=None,
+        system_prompt=SYSTEM_PROMPT,
         max_tokens=_effective_max_tokens(config.max_tokens),
         should_log=False,
-        tag=str(item["item_id"]),
+        tag=str(item["benchmark_item_id"]),
     )
     return {
         "output": call_record["response_text"],
@@ -464,16 +517,17 @@ def _planned_model_items(
     config: BenchmarkRunConfig,
     model_name: str,
     model_config: Mapping[str, Any],
-    items: list[dict[str, Any]],
+    items: list[_PreparedItem],
 ) -> list[dict[str, Any]]:
     planned_items = []
-    for item in items:
-        prompt = build_decodability_prompt(item, config.language)
+    for prepared_item in items:
+        item = prepared_item["item"]
+        prompt = prepared_item["prompt"]
         model_call_id = _model_call_id(
+            benchmark_item_id=item["benchmark_item_id"],
             config=config,
             model_name=model_name,
             model_config=model_config,
-            item=item,
             prompt=prompt,
         )
         planned_items.append(
@@ -511,8 +565,7 @@ def _evaluate_item(
         "task": config.task,
         "model": model_name,
         "model_call_id": model_call_id,
-        "item_id": item["item_id"],
-        "item": item_to_dict(item),
+        "benchmark_item_id": item["benchmark_item_id"],
         "prompt": prompt,
     }
 
@@ -546,7 +599,9 @@ def _evaluate_item(
             "success": False,
             "call_status": CALL_STATUS_ERROR,
             "error_type": "EmptyLLMResponse",
-            "error_message": f"LLM response empty for item {item['item_id']}",
+            "error_message": (
+                f"LLM response empty for item {item['benchmark_item_id']}"
+            ),
         }
 
     return {
@@ -625,6 +680,70 @@ def _resolve_custom_models_path(custom_models_path: Path | None) -> Path:
             f"Custom models file not found: {resolved_custom_models_path}"
         )
     return resolved_custom_models_path
+
+
+def _provider_groups_for_models(
+    custom_models_path: Path,
+    model_names: list[str],
+) -> list[list[str]]:
+    """Map selected models to their unique top-level provider groups."""
+
+    try:
+        raw_registry = yaml.safe_load(custom_models_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
+        raise ConfigError(
+            f"Could not read custom models YAML {custom_models_path}: {e}"
+        ) from e
+    if not isinstance(raw_registry, Mapping) or not raw_registry:
+        raise ConfigError(
+            f"Custom models YAML {custom_models_path} must contain a non-empty mapping"
+        )
+
+    memberships: dict[str, list[str]] = defaultdict(list)
+    for provider_group, provider_config in raw_registry.items():
+        if not isinstance(provider_config, Mapping):
+            raise ConfigError(
+                f"Provider group '{provider_group}' in {custom_models_path} "
+                "must be an object"
+            )
+        models = provider_config.get("models")
+        if models is None:
+            continue
+        if not isinstance(models, Mapping):
+            raise ConfigError(
+                f"Provider group '{provider_group}' in {custom_models_path} "
+                "must define 'models' as an object"
+            )
+        for model_name in models:
+            if isinstance(model_name, str):
+                memberships[model_name].append(str(provider_group))
+
+    missing = [model_name for model_name in model_names if not memberships[model_name]]
+    ambiguous = {
+        model_name: memberships[model_name]
+        for model_name in model_names
+        if len(memberships[model_name]) > 1
+    }
+    if missing:
+        raise ConfigError(
+            "Selected model(s) are missing from custom_models.yaml provider groups: "
+            + ", ".join(missing)
+        )
+    if ambiguous:
+        details = ", ".join(
+            f"{model_name} ({', '.join(groups)})"
+            for model_name, groups in ambiguous.items()
+        )
+        raise ConfigError(
+            "Selected model(s) belong to multiple custom_models.yaml provider "
+            f"groups: {details}"
+        )
+
+    groups_by_name: dict[str, list[str]] = {}
+    for model_name in model_names:
+        provider_group = memberships[model_name][0]
+        groups_by_name.setdefault(provider_group, []).append(model_name)
+    return list(groups_by_name.values())
 
 
 def _should_skip_existing(row: dict[str, Any], *, retry_errors: bool) -> bool:
@@ -757,31 +876,28 @@ def git_hash() -> str | None:
 
 def _model_call_id(
     *,
+    benchmark_item_id: str,
     config: BenchmarkRunConfig,
     model_name: str,
     model_config: Mapping[str, Any],
-    item: Mapping[str, Any],
     prompt: str,
 ) -> str:
     return _sha256_json(
         {
-            "item": item_to_dict(item),
-            "language": config.language,
-            "max_tokens": _effective_max_tokens(config.max_tokens),
+            "benchmark_item_id": benchmark_item_id,
+            "generation_parameters": {
+                "max_tokens": _effective_max_tokens(config.max_tokens),
+            },
             "model": model_name,
             "model_config": model_config,
             "prompt": prompt,
-            "task": config.task,
+            "system_prompt": SYSTEM_PROMPT,
         }
     )
 
 
 def _effective_max_tokens(configured_max_tokens: int | None) -> int:
-    return (
-        configured_max_tokens
-        if configured_max_tokens is not None
-        else DEFAULT_MAX_TOKENS
-    )
+    return effective_max_tokens(configured_max_tokens)
 
 
 def _result_id(*, model_call_id: str) -> str:

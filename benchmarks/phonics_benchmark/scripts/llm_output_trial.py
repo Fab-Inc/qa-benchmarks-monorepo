@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from fdllm import register_models
 from phonics_benchmark.llm import call_llm
 from phonics_benchmark.parsing import parse_word_list
-from phonics_benchmark.prompts import get_prompt
+from phonics_benchmark.prompts import build_decodability_prompt as build_prompt
 
 REPO_ROOT = Path(__file__).parents[3]
 OUTPUTS_DIR = Path(__file__).parents[1] / "outputs"
@@ -49,17 +49,21 @@ models = [
 # option to end loop early for quicker tests; set to 0 to disable
 max_rows_per_model = 10
 
-language = "kiswahili"  # hardcoded for now, in reality will be CLI-supplied value
+language = "sw"  # hardcoded registry key; in reality this is CLI-supplied
 
 
 def build_decodability_prompt(benchmark_item: Any, language: str) -> str:
     """Render the decodability prompt for a prepared benchmark item."""
-    return get_prompt(
-        "decodability_evaluation",
-        language=language,
-        text=benchmark_item["content"],
-        known_graphemes=benchmark_item["graphemes"],
-        known_sight_words=benchmark_item["whole_words"],
+    return build_prompt(
+        {
+            "benchmark_item_id": benchmark_item["benchmark_item_id"],
+            "content": benchmark_item["content"],
+            "student_knowledge": {
+                "graphemes": json.loads(benchmark_item["graphemes"]),
+                "whole_words": json.loads(benchmark_item["whole_words"]),
+            },
+        },
+        language,
     )
 
 

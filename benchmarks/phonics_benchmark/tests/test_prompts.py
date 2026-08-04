@@ -1,26 +1,30 @@
 """Tests for loading and rendering packaged prompts."""
 
 import pytest
+from decodability.kiswahili import KiswahiliStudentKnowledge
+from phonics_benchmark.config import ConfigError
 from phonics_benchmark.prompts import build_decodability_prompt, get_prompt
 
 
-def test_get_prompt_renders_generated_tusome_item(tusome_stage_11_item):
-    prompt = get_prompt(
-        "decodability_evaluation",
-        language="kiswahili",
-        text=tusome_stage_11_item["content"],
-        known_graphemes=tusome_stage_11_item["graphemes"],
-        known_sight_words=tusome_stage_11_item["whole_words"],
+def test_get_prompt_formats_student_knowledge_with_str() -> None:
+    student_knowledge = KiswahiliStudentKnowledge(
+        graphemes={"a", "m", "n"},
+        whole_words={"mama"},
     )
 
-    assert "language of kiswahili" in prompt
-    assert tusome_stage_11_item["content"] in prompt
-    assert tusome_stage_11_item["graphemes"] in prompt
-    assert tusome_stage_11_item["whole_words"] in prompt
-    assert "ng'ombe" in prompt
+    prompt = get_prompt(
+        "decodability_evaluation",
+        language="Kiswahili",
+        text="Mama anaona kuku.",
+        student_knowledge=student_knowledge,
+    )
+
+    assert "language of Kiswahili" in prompt
+    assert str(student_knowledge) in prompt
+    assert "Mama anaona kuku." in prompt
 
 
-def test_get_prompt_rejects_unknown_prompt_name():
+def test_get_prompt_rejects_unknown_prompt_name() -> None:
     with pytest.raises(KeyError) as error:
         get_prompt("not-a-real-prompt")
 
@@ -28,21 +32,44 @@ def test_get_prompt_rejects_unknown_prompt_name():
     assert "decodability_evaluation" in str(error.value)
 
 
-def test_build_decodability_prompt_adapts_joined_benchmark_item() -> None:
-    """The production adapter renders the QFB prompt from joined item fields."""
-
+def test_build_decodability_prompt_uses_registered_language_integration() -> None:
     prompt = build_decodability_prompt(
         {
-            "text": "Mama anaona kuku.",
+            "benchmark_item_id": "item-1",
+            "content": "Mama anaona kuku.",
             "student_knowledge": {
                 "graphemes": ["a", "m", "n"],
-                "whole_words": ["mama"],
+                "whole_words": ["MAMA"],
             },
         },
-        "kiswahili",
+        "sw",
     )
 
-    assert "language of kiswahili" in prompt
-    assert 'graphemes the student knows are:\n["a", "m", "n"]' in prompt
-    assert 'sight words the student knows are:\n["mama"]' in prompt
+    assert "language of Kiswahili" in prompt
+    assert '- Known graphemes: "a", "m", "n"' in prompt
+    assert '- Known whole words: "mama"' in prompt
     assert "Mama anaona kuku." in prompt
+
+
+def test_build_decodability_prompt_rejects_unknown_language() -> None:
+    with pytest.raises(ConfigError, match="Unknown language registry key 'xx'"):
+        build_decodability_prompt(
+            {
+                "benchmark_item_id": "item-1",
+                "content": "Text.",
+                "student_knowledge": {},
+            },
+            "xx",
+        )
+
+
+def test_build_decodability_prompt_reports_invalid_student_knowledge() -> None:
+    with pytest.raises(ConfigError, match="student_knowledge.*item-1"):
+        build_decodability_prompt(
+            {
+                "benchmark_item_id": "item-1",
+                "content": "Text.",
+                "student_knowledge": {"graphemes": ["not-valid"]},
+            },
+            "sw",
+        )

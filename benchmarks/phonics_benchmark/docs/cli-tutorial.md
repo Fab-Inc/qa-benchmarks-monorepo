@@ -10,21 +10,22 @@ which deliberately tests the default anonymous download.
 
 ## Prepare an isolated one-item run
 
-Create a temporary output directory and a one-row composed benchmark CSV:
+Create a temporary output directory and copy one completed benchmark item from the
+contract fixture:
 
 ```bash
 PHONICS_MANUAL_OUTPUT_DIR="$(mktemp -d /tmp/phonics-manual.XXXXXX)"
 export PHONICS_MANUAL_OUTPUT_DIR
 
-head -n 2 \
-  benchmarks/phonics_benchmark/data/kiswahili/tusome_kenya_llm_trial_cases.csv \
-  > "$PHONICS_MANUAL_OUTPUT_DIR/items.csv"
+head -n 1 \
+  benchmarks/phonics_benchmark/tests/fixtures/completed_benchmark_items.jsonl \
+  > "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl"
 
 cat > "$PHONICS_MANUAL_OUTPUT_DIR/config.json" <<EOF
 {
   "run_id": "config-smoke",
-  "language": "kiswahili",
-  "items_path": "$PHONICS_MANUAL_OUTPUT_DIR/items.csv",
+  "language": "sw",
+  "items_path": "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl",
   "output_dir": "$PHONICS_MANUAL_OUTPUT_DIR",
   "models": ["gemini-3.1-pro-preview"],
   "max_tokens": 1000,
@@ -72,9 +73,9 @@ The first command makes one Gemini call:
 ```bash
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id direct-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --skip-models-download
@@ -91,9 +92,9 @@ provider error row and exit with status 1:
 GEMINI_API_KEY=definitely-invalid \
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id retry-error-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --skip-models-download \
@@ -105,9 +106,9 @@ Retry that exact error using the real key from `.env` or the environment:
 ```bash
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id retry-error-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --skip-models-download \
@@ -123,9 +124,9 @@ Start with one Gemini call:
 ```bash
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id add-model-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --skip-models-download
@@ -137,10 +138,10 @@ no cached row:
 ```bash
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id add-model-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
   --model claude-sonnet-4-6 \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --model-workers 2 \
@@ -153,10 +154,10 @@ Run normally with both models:
 ```bash
 uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --run-id add-model-smoke \
-  --language kiswahili \
+  --language sw \
   --model gemini-3.1-pro-preview \
   --model claude-sonnet-4-6 \
-  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.csv" \
+  --items-path "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
   --output-dir "$PHONICS_MANUAL_OUTPUT_DIR" \
   --max-tokens 1000 \
   --model-workers 2 \

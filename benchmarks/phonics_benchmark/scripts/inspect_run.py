@@ -156,7 +156,12 @@ results.head()
 errors[
     [
         column
-        for column in ("model", "item_id", "error_type", "error_message")
+        for column in (
+            "model",
+            "benchmark_item_id",
+            "error_type",
+            "error_message",
+        )
         if column in errors
     ]
 ]

@@ -16,9 +16,9 @@ The same command can also be driven directly from CLI options:
 ```bash
 phonics-benchmark run-decodability \
   --run-id decodability-smoke-test \
-  --language kiswahili \
+  --language sw \
   --models gpt-5-mini-2025-08-07-medium,claude-sonnet-4-5-20250929 \
-  --items-path path/to/composed-items.csv \
+  --items-path path/to/completed-items.jsonl \
   --output-dir results \
   --chunk-size 100 \
   --model-workers 2 \
@@ -43,15 +43,17 @@ to rerun calls in the existing run directory only when replacing its current res
 is intended.
 
 Runs checkpoint after each `chunk_size` pending items per model. The default is `100`;
-set `"chunk_size": null` in a config file to save once after each model. Models run
-sequentially by default. Set `model_workers` in config or pass `--model-workers` to run
-multiple models concurrently; calls within each model remain sequential. Cached rows are
-reused when the model-call inputs are unchanged, even if provenance-only config fields,
-operational settings, or the model list change. Unknown future config fields are also
-treated as provenance. Changing model-call inputs such as the item payload, prompt,
-model name, model config, or max tokens creates new result rows for those calls. The
-default model-call limit is 10,000 response tokens; set `max_tokens` in config or pass
-`--max-tokens` to override it.
+set `"chunk_size": null` in a config file to save once after each model. Items and
+models within one top-level `custom_models.yaml` provider group run sequentially.
+Different provider groups can run concurrently, and `model_workers` caps the number of
+active groups. Cached rows are reused when the benchmark item ID and effective
+provider-call inputs are unchanged, even if provenance-only config fields, operational
+settings, the dataset artifact, or the selected model list change. Unknown future config
+fields are also treated as provenance. Changing `benchmark_item_id`, the rendered
+prompt, model name, sanitized resolved model config, system prompt, or effective
+generation parameters creates a new call identity. The default model-call limit is
+10,000 response tokens; set `max_tokens` in config or pass `--max-tokens` to override
+it.
 
 Use `--retry-errors` only after a normal run has cached every currently planned call.
 Retry mode runs exactly the cached rows whose `call_status` is `error`; it fails before
@@ -75,8 +77,8 @@ working directory.
 ```json
 {
   "run_id": "decodability-smoke-test",
-  "language": "kiswahili",
-  "items_path": "path/to/composed-items.csv",
+  "language": "sw",
+  "items_path": "path/to/completed-items.jsonl",
   "output_dir": "results",
   "chunk_size": 100,
   "model_workers": 2,
@@ -91,10 +93,10 @@ working directory.
 
 ### Run the QFB Tusome trial
 
-The checked-in `configs/tusome-llm-trial.json` reproduces the model-running part of
-`scripts/llm_output_trial.py`: it runs all 57 composed Tusome cases with
-`gemini-3.1-pro-preview` and `claude-sonnet-4-6`, using the script's 30,000-token limit.
-It stores only raw model results and call metadata; it does not parse or score them.
+The checked-in `configs/tusome-llm-trial.json` records the intended model-running
+configuration for the first Kiswahili run. It will become runnable when QFB-202 emits
+the completed JSONL handoff artifact at the configured path. It stores only raw model
+results and call metadata; it does not parse or score them.
 
 From the repository root:
 
@@ -103,25 +105,26 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
   --config benchmarks/phonics_benchmark/configs/tusome-llm-trial.json
 ```
 
-The command makes 114 model calls on the first uncached run, running the two models
-concurrently while keeping each model's 57 calls sequential. It writes one JSONL file
-per model under `benchmarks/phonics_benchmark/outputs/tusome-llm-trial/answers/`.
-Re-running the same command reuses successful cached rows. Set `"force": true` in a
-copied config to rerun all calls, or add `--skip-models-download` to use the existing
-repo-root `custom_models.yaml` without refreshing it.
+Once that artifact is available, the models can run concurrently when their
+`custom_models.yaml` entries belong to different provider groups, while calls for each
+model remain sequential. Results are written under
+`benchmarks/phonics_benchmark/outputs/tusome-llm-trial/answers/`. Re-running the same
+command reuses successful cached rows. Set `"force": true` in a copied config to rerun
+all calls, or add `--skip-models-download` to use the existing repo-root
+`custom_models.yaml` without refreshing it.
 
-The runner accepts only already-composed QFB-style CSV files, selected through
-`items_path` in config or `--items-path` with direct CLI options. It does not join or
-compose benchmark inputs. The CSV must contain `benchmark_item_id`, `content`,
-`student_knowledge_id`, `graphemes`, and `whole_words`; the two knowledge columns must
-be JSON arrays of strings. Each row is rendered with the packaged decodability prompt
-and sent to FDLLM as the user message.
+The runner accepts completed JSONL artifacts selected through `items_path` in config or
+`--items-path` with direct CLI options. It does not join or compose benchmark inputs.
+Each line must be an object containing a non-empty `benchmark_item_id`, non-whitespace
+`content`, and object-valued `student_knowledge`. Additional dataset-owned fields are
+accepted and ignored. The selected language registry validates `student_knowledge`,
+provides the display name, and controls its string representation in the shared prompt.
 
 Each run writes:
 
 - `results/<run_id>/config.json`: latest config snapshot with the exact raw config,
-  resolved paths, run-level code git hash, and sanitized model configs from FDLLM's
-  registered model state.
+  resolved paths, exact-byte `items_sha256`, run-level code git hash, and sanitized
+  model configs from FDLLM's registered model state.
 - `results/<run_id>/answers/resps_<model-file-id>.jsonl`: one result per item for each
   model. The file ID is the model name when it is already filename-safe, or a sanitized
   hash-suffixed form otherwise.
@@ -129,13 +132,15 @@ Each run writes:
   hash.
 
 Each result row includes `result_id`, `run_id`, `config_id`, `model_call_id`,
-`config_path`, `config_snapshot_path`, `model`, `item_id`, `prompt`, raw `output`, and
-call status fields. Successful model calls also include the effective `max_tokens`,
+`config_path`, `config_snapshot_path`, `model`, `benchmark_item_id`, `prompt`, raw
+`output`, and call status fields. Successful model calls also include `max_tokens`,
 completion-token count, QFB `timestamp_utc`, and `latency_seconds`. Error rows omit
 timing fields. `model_call_id` is the cache identity for the response. Cached rows may
-keep an older `config_id` when reused across provenance-only config changes. Result rows
-identify the model by configured model name; the corresponding model config is saved in
-the latest config snapshot, keyed by that name.
+be reused across provenance-only changes because `config_id` and `model_call_id` remain
+stable. Result rows identify the model by configured model name; the corresponding model
+config is saved in the latest config snapshot, keyed by that name. Dataset-owned source
+references, expected answers, annotations, and the normalized item object are not copied
+into raw results.
 
 The runner saves recognized provider SDK API and transport failures propagated by FDLLM
 as error rows. It also saves an absent or empty model response as an error row. Other

@@ -6,16 +6,20 @@ from unittest.mock import Mock
 
 import pytest
 from phonics_benchmark import llm
-from phonics_benchmark.prompts import get_prompt
+from phonics_benchmark.prompts import build_decodability_prompt
 
 
 def _prompt_for(item: dict[str, str]) -> str:
-    return get_prompt(
-        "decodability_evaluation",
-        language="kiswahili",
-        text=item["content"],
-        known_graphemes=item["graphemes"],
-        known_sight_words=item["whole_words"],
+    return build_decodability_prompt(
+        {
+            "benchmark_item_id": item["benchmark_item_id"],
+            "content": item["content"],
+            "student_knowledge": {
+                "graphemes": json.loads(item["graphemes"]),
+                "whole_words": json.loads(item["whole_words"]),
+            },
+        },
+        "sw",
     )
 
 
