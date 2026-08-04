@@ -168,6 +168,7 @@ activemq-data/
 
 # Environments
 .env
+benchmarks/**/.env
 .envrc
 .venv
 env/
