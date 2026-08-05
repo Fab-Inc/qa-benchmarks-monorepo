@@ -1,4 +1,9 @@
-"""Report words from the Ultimate Phonics lessons the parser cannot cover."""
+"""
+The script identifies words from the Ultimate Phonics lessons that the parser cannot
+cover. This is useful in identifying gaps in the GPC inventory,
+issues with the parser's implementation or potential errors in the phoneme alignments
+from CMUdict.
+"""
 
 import json
 
