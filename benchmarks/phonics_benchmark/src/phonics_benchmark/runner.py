@@ -840,8 +840,8 @@ def _update_run_log(
         return
     prefix = "responses_retry" if retry_errors else "responses"
     fields = {
-        f"{prefix}_timestamp-utc": _utc_now(),
-        f"{prefix}_git-hash": code_git_hash,
+        f"{prefix}_timestamp_utc": _utc_now(),
+        f"{prefix}_git_hash": code_git_hash,
     }
     for model_name in sorted(executed_models):
         update_log(run_dir, model_name, fields)

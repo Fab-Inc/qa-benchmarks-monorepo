@@ -285,8 +285,8 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert rows[0]["language"] == "sw"
     assert rows[0]["success"] is True
     assert rows[0]["call_status"] == "success"
-    assert "responses_timestamp-utc" not in rows[0]
-    assert "responses_git-hash" not in rows[0]
+    assert "responses_timestamp_utc" not in rows[0]
+    assert "responses_git_hash" not in rows[0]
     assert "A cat sat." in rows[0]["prompt"]
     assert '- Known graphemes: "a", "t"' in rows[0]["prompt"]
     assert rows[0]["seen_prompt"] == rows[0]["prompt"]
@@ -315,8 +315,8 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
 
     log = json.loads((output["run_dir"] / "log.json").read_text(encoding="utf-8"))
     assert set(log) == {"model-a", "model-b"}
-    assert "responses_timestamp-utc" in log["model-a"]
-    assert log["model-a"]["responses_git-hash"] == "abc123"
+    assert "responses_timestamp_utc" in log["model-a"]
+    assert log["model-a"]["responses_git_hash"] == "abc123"
 
 
 def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> None:
@@ -803,8 +803,8 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
     log = json.loads(
         (second_output["run_dir"] / "log.json").read_text(encoding="utf-8")
     )
-    assert "responses_retry_timestamp-utc" in log["model-a"]
-    assert "responses_retry_git-hash" in log["model-a"]
+    assert "responses_retry_timestamp_utc" in log["model-a"]
+    assert "responses_retry_git_hash" in log["model-a"]
 
 
 def test_retry_errors_rejects_uncached_items_before_starting_workers(
