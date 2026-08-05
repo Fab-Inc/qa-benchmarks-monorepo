@@ -22,6 +22,9 @@ benchmarks/*/data/*/**
 !benchmarks/*/data/*/templates/
 !benchmarks/*/data/*/templates/**
 
+# Auto-downloaded ~40 MB CMU G2P alignments cache
+packages/decodability/src/decodability/english/data/g2p.json
+
 # ============================================================================
 # Python .gitignore template from
 # https://github.com/github/gitignore/blob/main/Python.gitignore
