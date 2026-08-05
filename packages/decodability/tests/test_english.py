@@ -1,8 +1,19 @@
+import json
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 from decodability import rowwise
+from decodability.english import load_g2p_alignments as g2p_mod
 from decodability.english.aggregators import aggregate_scores_upl_curriculum
+from decodability.english.extract_phonemes import (
+    _normalize_phonemes,
+    arpabet_to_ipa,
+    get_word_phonemes,
+    phoneme_arpabet_lookup,
+)
 from decodability.english.extract_words import extract_words_english
+from decodability.english.gpc_parser import GPC, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.scorers import (
     score_known_gpcs_english,
@@ -153,3 +164,96 @@ class TestEnglishAggregators:
         final_scores = rowwise(aggregate_scores_upl_curriculum)(df, score_columns)
 
         pd.testing.assert_series_equal(final_scores, pd.Series([1.0, 0.0, 1.0]))
+
+
+class TestPhonemeArpabetLookup:
+    def test_unknown_arpabet_phoneme_raises(self):
+        with pytest.raises(ValueError, match="Unknown ARPABET phoneme"):
+            phoneme_arpabet_lookup("QQ9")
+
+    def test_arpabet_to_ipa_flattens_pipe_separated(self):
+        # 'X|Y' encodes a multi-phoneme grapheme like x -> K|S
+        assert arpabet_to_ipa("K|S") == "ks"
+
+
+class TestNormalizePhonemes:
+    def test_hw_collapses_to_w(self):
+        """/hw/ → /w/ (whip)."""
+        assert _normalize_phonemes(("h", "w", "ɪ", "p")) == ("w", "ɪ", "p")
+
+    @pytest.mark.parametrize(
+        "phonemes, expected",
+        [
+            # /ɪ/+/r/ in coda position → /i/+/r/
+            (("b", "ɪ", "r"), ("b", "i", "r")),
+            (("b", "ɪ", "r", "d"), ("b", "i", "r", "d")),
+            # /ɪ/+/r/ before a vowel is preserved (mirror)
+            (("m", "ɪ", "r", "ɚ"), ("m", "ɪ", "r", "ɚ")),
+        ],
+    )
+    def test_pre_r_laxing_reversal(
+        self, phonemes: tuple[str, ...], expected: tuple[str, ...]
+    ):
+        assert _normalize_phonemes(phonemes) == expected
+
+
+class TestGetWordPhonemes:
+    def test_unknown_word_raises(self):
+        with pytest.raises(ValueError, match="Word not found in alignments"):
+            get_word_phonemes("qqzzxx_not_a_real_word")
+
+
+class TestLoadG2PAlignments:
+    def test_downloads_when_cache_missing(self, tmp_path, monkeypatch):
+        """First-run branch: fetch from URL and write the cache."""
+        payload = {"cat": {"phonemes": ["K", "AE1", "T"]}}
+        fake_path = tmp_path / "g2p.json"
+        monkeypatch.setattr(g2p_mod, "_G2P_PATH", fake_path)
+
+        class FakeResponse:
+            def read(self):
+                return json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with patch.object(g2p_mod, "urlopen", return_value=FakeResponse()):
+            result = g2p_mod.load_g2p_alignments()
+
+        assert result == payload
+        assert fake_path.exists()
+
+
+class TestGPCValidation:
+    @pytest.mark.parametrize(
+        "grapheme, phonemes",
+        [
+            ("", ("k",)),
+            ("a", ()),
+        ],
+    )
+    def test_gpc_requires_grapheme_and_phonemes(
+        self, grapheme: str, phonemes: tuple[str, ...]
+    ):
+        with pytest.raises(ValueError, match="grapheme and at least one phoneme"):
+            GPC(id="x", grapheme=grapheme, phonemes=phonemes)
+
+    def test_gpc_rejects_more_than_one_split(self):
+        with pytest.raises(ValueError, match="two-part split graphemes only"):
+            GPC(id="x", grapheme="a-b-c", phonemes=("k",))
+
+
+class TestParseGpcsValidation:
+    def test_max_split_gap_must_be_positive(self):
+        with pytest.raises(ValueError, match="max_split_gap must be at least one"):
+            parse_gpcs("cat", ("k", "æ", "t"), (), max_split_gap=0)
+
+
+class TestScorersEmptyKnowledge:
+    def test_score_whole_words_english_returns_0_when_no_taught_whole_words(self):
+        """Empty whole_words set short-circuits to 0.0."""
+        student = EnglishStudentKnowledge()
+        assert score_whole_words_english("cat", student) == 0.0

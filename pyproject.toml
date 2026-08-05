@@ -36,6 +36,13 @@ primerpro = { workspace = true }
 decodability = { workspace = true }
 fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
+[tool.coverage.run]
+omit = [
+  # Developer-only scripts (diagnostics and one-off data extraction)
+  "packages/decodability/src/decodability/english/constrained_gpc_parser.py",
+  "packages/decodability/src/decodability/english/extract_phonics_word_lists.py",
+]
+
 [tool.coverage.report]
 show_missing = true
 skip_covered = true

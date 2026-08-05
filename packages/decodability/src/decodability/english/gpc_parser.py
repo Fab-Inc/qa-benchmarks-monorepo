@@ -1,7 +1,6 @@
 """Small constrained parser for spelling-to-phoneme correspondences.
-
-The caller supplies an already-tokenized pronunciation.  The parser only answers the
-alignment question: which inventory GPCs cover every letter and every phoneme?
+The parser only answers the alignment question: which inventory GPCs cover
+every letter and every phoneme?
 """
 
 from __future__ import annotations
