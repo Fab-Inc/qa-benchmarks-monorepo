@@ -2,20 +2,22 @@
 
 import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from phonics_benchmark import llm
-from phonics_benchmark.prompts import get_prompt
+from phonics_benchmark.prompts import build_decodability_prompt
 
 
-def _prompt_for(item: dict[str, str]) -> str:
-    return get_prompt(
-        "decodability_evaluation",
-        language="kiswahili",
-        text=item["content"],
-        known_graphemes=item["graphemes"],
-        known_sight_words=item["whole_words"],
+def _prompt_for(item: dict[str, Any]) -> str:
+    return build_decodability_prompt(
+        {
+            "benchmark_item_id": item["benchmark_item_id"],
+            "content": item["content"],
+            "student_knowledge": item["student_knowledge"],
+        },
+        "sw",
     )
 
 
@@ -23,7 +25,9 @@ def test_call_llm_returns_metadata_and_logs_response(
     tusome_stage_11_item, tmp_path, monkeypatch
 ):
     prompt = _prompt_for(tusome_stage_11_item)
-    response_text = tusome_stage_11_item["non_decodable_words"]
+    response_text = json.dumps(
+        tusome_stage_11_item["non_decodable_words"], ensure_ascii=False
+    )
     caller = Mock()
     caller.call.return_value = SimpleNamespace(
         Message=response_text,
@@ -74,15 +78,28 @@ def test_call_llm_bypass_does_not_create_a_caller(monkeypatch):
     }
 
 
-@pytest.mark.parametrize("response", [None, SimpleNamespace(Message="")])
-def test_call_llm_rejects_empty_responses(response, tusome_stage_11_item, monkeypatch):
+@pytest.mark.parametrize(
+    ("response", "expected_tokens"),
+    [
+        (None, None),
+        (SimpleNamespace(Message="", TokensUsedCompletion=0), 0),
+    ],
+)
+def test_call_llm_returns_empty_responses(
+    response,
+    expected_tokens,
+    tusome_stage_11_item,
+    monkeypatch,
+):
     caller = Mock()
     caller.call.return_value = response
     monkeypatch.setattr(llm, "get_caller", lambda model: caller)
 
-    with pytest.raises(ValueError, match="LLM response empty for prompt SW-KE-S11"):
-        llm.call_llm(
-            _prompt_for(tusome_stage_11_item),
-            model="test-model",
-            tag=tusome_stage_11_item["benchmark_item_id"],
-        )
+    record = llm.call_llm(
+        _prompt_for(tusome_stage_11_item),
+        model="test-model",
+        tag=tusome_stage_11_item["benchmark_item_id"],
+    )
+
+    assert record["response_text"] == ""
+    assert record["tokens_used_completion"] == expected_tokens

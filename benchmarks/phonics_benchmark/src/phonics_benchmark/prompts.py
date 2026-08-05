@@ -1,7 +1,13 @@
+from collections.abc import Mapping
 from functools import cache
 from importlib.resources import files
+from typing import Any
 
 import yaml
+from decodability import DECODABILITY_REGISTRY
+from pydantic import ValidationError
+
+from phonics_benchmark.config import ConfigError
 
 
 @cache
@@ -23,3 +29,35 @@ def get_prompt(name: str, **kwargs: object) -> str:
             f"Unknown prompt '{name}'; available: {sorted(prompts)}"
         ) from None
     return template.format(**kwargs)
+
+
+def build_decodability_prompt(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    """Validate language-specific knowledge and render one benchmark prompt."""
+
+    try:
+        language_integration = DECODABILITY_REGISTRY[language]
+    except KeyError:
+        raise ConfigError(
+            f"Unknown language registry key '{language}'; available: "
+            f"{sorted(DECODABILITY_REGISTRY)}"
+        ) from None
+
+    try:
+        student_knowledge = language_integration[
+            "student_knowledge_model"
+        ].model_validate(item["student_knowledge"])
+    except ValidationError as e:
+        raise ConfigError(
+            "Invalid student_knowledge for benchmark item "
+            f"'{item['benchmark_item_id']}': {e}"
+        ) from e
+
+    return get_prompt(
+        "decodability_evaluation",
+        language=language_integration["name"],
+        text=item["content"],
+        student_knowledge=student_knowledge,
+    )
