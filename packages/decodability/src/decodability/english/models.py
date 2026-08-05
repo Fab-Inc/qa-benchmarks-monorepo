@@ -27,16 +27,3 @@ class EnglishStudentKnowledge(BaseModel):
     def lowercase_whole_words(cls, whole_words: set[str]) -> set[str]:
         """Lowercase all whole words to ensure consistency."""
         return {word.lower() for word in whole_words}
-
-    def __str__(self) -> str:
-        """Return a string representation of the EnglishStudentKnowledge instance."""
-        gpcs = ", ".join(f'"{g}"' for g in sorted(self.gpcs))
-        whole_words = ", ".join(f'"{w}"' for w in sorted(self.whole_words))
-
-        if not self.gpcs:
-            gpcs = "None"
-
-        if not self.whole_words:
-            whole_words = "None"
-
-        return f"- Known GPCs: {gpcs}\n- Known whole words: {whole_words}"
