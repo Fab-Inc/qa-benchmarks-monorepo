@@ -1,5 +1,16 @@
+import os
+from functools import cache
+
 from decodability.english.definitions import ARPABET_TO_IPA, VOWEL_INITIALS
-from decodability.english.load_g2p_alignments import alignments
+
+
+@cache
+def load_g2p():
+    # Lazy: G2p() loads a seq2seq model + NLTK data on first construction.
+    os.environ.setdefault("NLTK_DISABLE_IMPORT_SECURITY", "1")
+    from g2p_en import G2p
+
+    return G2p()
 
 
 def phoneme_arpabet_lookup(phoneme: str) -> str:
@@ -12,27 +23,22 @@ def phoneme_arpabet_lookup(phoneme: str) -> str:
     raise ValueError(f"Unknown ARPABET phoneme: {phoneme}")
 
 
-def arpabet_to_ipa(phoneme: str) -> str:
-    """Convert an ARPABET phoneme (e.g. 'AH0', 'K|S') to IPA."""
-    return "".join(phoneme_arpabet_lookup(p) for p in phoneme.split("|"))
-
-
 def _normalize_phonemes(phonemes: tuple[str, ...]) -> tuple[str, ...]:
-    """Apply dialect normalizations expected by the UPL inventory.
+    """Bridge CMU's phonetic transcription to the UFLI inventory's categories.
 
-    - Collapses /hw/ → /w/ (the aspirated wh-cluster, merged with /w/ in
-      most General American speech) so words like ``whip`` — encoded as
-      /hwɪp/ — match ``wh → w`` in the inventory.
-    - Undoes CMU's pre-r laxing of long-e: /ɪ/ + /r/ → /i/ + /r/ when the
-      /r/ is in coda position (word-final or before a consonant). This
-      lets ``beer, ear, beard, clear`` match the ``ee → i``/``ea → i``
-      GPCs the phonics program teaches. /ɪ/+/r/ before a vowel (``mirror,
+    - /ɚ/ → /ə/ + /r/: CMU emits a single r-colored schwa for ``er, ir, ur,
+      -ar (unstressed), -or (unstressed), -ture`` endings. The inventory
+      decomposes these into ``ə + r``, so we split the phoneme to match.
+    - /ɪ/ + /r/ → /i/ + /r/ when the /r/ is in coda position (word-final
+      or before a consonant): undoes CMU's pre-r laxing so ``beer, cheer,
+      deer, steer`` match ``ee → i``. /ɪ/+/r/ before a vowel (``mirror,
       spirit``) is preserved.
     """
     result: tuple[str, ...] = ()
     i = 0
     while i < len(phonemes):
-        if phonemes[i] == "h" and i + 1 < len(phonemes) and phonemes[i + 1] == "w":
+        if phonemes[i] == "ɚ":
+            result += ("ə", "r")
             i += 1
             continue
         if (
@@ -50,19 +56,12 @@ def _normalize_phonemes(phonemes: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def get_word_phonemes(word: str) -> tuple[str, ...]:
-    """Get the IPA phonemes for a word, one phoneme per list item.
+    """Return the IPA phonemes for a word, one phoneme per tuple item.
 
-    Multi-phoneme graphemes in the alignments (encoded as ``'X|Y'`` — e.g.
-    ``x -> K|S``) are flattened into individual entries so the output can
-    be passed straight to ``parse_gpcs``. Silent ``_`` markers are dropped
-    and dialect normalizations (e.g. /hw/ → /w/) are applied.
+    Uses ``g2p_en`` — CMUdict for in-vocab words, a seq2seq fallback for
+    OOV — and applies dialect normalizations expected by the UFLI
+    inventory.
     """
-    if word not in alignments:
-        raise ValueError(f"Word not found in alignments: '{word}'")
-    phonemes: tuple[str, ...] = ()
-    for arpa in alignments[word]["phonemes"]:
-        for part in arpa.split("|"):
-            if part == "_":
-                continue
-            phonemes += (phoneme_arpabet_lookup(part),)
+    arpabet = load_g2p()(word)
+    phonemes = tuple(phoneme_arpabet_lookup(token) for token in arpabet)
     return _normalize_phonemes(phonemes)

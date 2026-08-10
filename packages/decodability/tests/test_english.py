@@ -1,15 +1,9 @@
-import json
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 from decodability import rowwise
-from decodability.english import load_g2p_alignments as g2p_mod
 from decodability.english.aggregators import aggregate_scores_upl_curriculum
 from decodability.english.extract_phonemes import (
     _normalize_phonemes,
-    arpabet_to_ipa,
-    get_word_phonemes,
     phoneme_arpabet_lookup,
 )
 from decodability.english.extract_words import extract_words_english
@@ -74,7 +68,7 @@ class TestScorers:
                 [("s", ("s",)), ("m", ("m",)), ("k", ("k",))],
                 0.0,
             ),
-            ("fifth", [("f", ("f",)), ("i", ("ɪ",)), ("th", ("θ",))], 0.0),
+            ("fifth", [("f", ("f",)), ("i", ("ɪ",)), ("th", ("θ",))], 1.0),
         ],
     )
     def test_score_known_gpcs_english(
@@ -171,16 +165,8 @@ class TestPhonemeArpabetLookup:
         with pytest.raises(ValueError, match="Unknown ARPABET phoneme"):
             phoneme_arpabet_lookup("QQ9")
 
-    def test_arpabet_to_ipa_flattens_pipe_separated(self):
-        # 'X|Y' encodes a multi-phoneme grapheme like x -> K|S
-        assert arpabet_to_ipa("K|S") == "ks"
-
 
 class TestNormalizePhonemes:
-    def test_hw_collapses_to_w(self):
-        """/hw/ → /w/ (whip)."""
-        assert _normalize_phonemes(("h", "w", "ɪ", "p")) == ("w", "ɪ", "p")
-
     @pytest.mark.parametrize(
         "phonemes, expected",
         [
@@ -188,7 +174,7 @@ class TestNormalizePhonemes:
             (("b", "ɪ", "r"), ("b", "i", "r")),
             (("b", "ɪ", "r", "d"), ("b", "i", "r", "d")),
             # /ɪ/+/r/ before a vowel is preserved (mirror)
-            (("m", "ɪ", "r", "ɚ"), ("m", "ɪ", "r", "ɚ")),
+            (("m", "ɪ", "r", "ə", "r"), ("m", "ɪ", "r", "ə", "r")),
         ],
     )
     def test_pre_r_laxing_reversal(
@@ -196,35 +182,19 @@ class TestNormalizePhonemes:
     ):
         assert _normalize_phonemes(phonemes) == expected
 
-
-class TestGetWordPhonemes:
-    def test_unknown_word_raises(self):
-        with pytest.raises(ValueError, match="Word not found in alignments"):
-            get_word_phonemes("qqzzxx_not_a_real_word")
-
-
-class TestLoadG2PAlignments:
-    def test_downloads_when_cache_missing(self, tmp_path, monkeypatch):
-        """First-run branch: fetch from URL and write the cache."""
-        payload = {"cat": {"phonemes": ["K", "AE1", "T"]}}
-        fake_path = tmp_path / "g2p.json"
-        monkeypatch.setattr(g2p_mod, "_G2P_PATH", fake_path)
-
-        class FakeResponse:
-            def read(self):
-                return json.dumps(payload).encode()
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                return False
-
-        with patch.object(g2p_mod, "urlopen", return_value=FakeResponse()):
-            result = g2p_mod.load_g2p_alignments()
-
-        assert result == payload
-        assert fake_path.exists()
+    @pytest.mark.parametrize(
+        "phonemes, expected",
+        [
+            # /ɚ/ splits to /ə/+/r/ (sister, taller, picture)
+            (("s", "ɪ", "s", "t", "ɚ"), ("s", "ɪ", "s", "t", "ə", "r")),
+            (("t", "ɔ", "l", "ɚ"), ("t", "ɔ", "l", "ə", "r")),
+            (("p", "ɪ", "k", "tʃ", "ɚ"), ("p", "ɪ", "k", "tʃ", "ə", "r")),
+            # Mid-word /ɚ/ (mirror) splits too
+            (("m", "ɪ", "r", "ɚ"), ("m", "ɪ", "r", "ə", "r")),
+        ],
+    )
+    def test_er_split(self, phonemes: tuple[str, ...], expected: tuple[str, ...]):
+        assert _normalize_phonemes(phonemes) == expected
 
 
 class TestGPCValidation:

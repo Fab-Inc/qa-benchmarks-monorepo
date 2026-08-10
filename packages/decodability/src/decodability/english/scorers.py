@@ -1,10 +1,10 @@
-from decodability.english.definitions import UPL_GPC_INVENTORY
+from decodability.english.definitions import UFLI_GPC_INVENTORY
 from decodability.english.extract_phonemes import get_word_phonemes
 from decodability.english.gpc_parser import GPC, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 
 GPC_INVENTORY = tuple(
-    GPC(gpc_id, grapheme, phonemes) for gpc_id, grapheme, phonemes in UPL_GPC_INVENTORY
+    GPC(gpc_id, grapheme, phonemes) for gpc_id, grapheme, phonemes in UFLI_GPC_INVENTORY
 )
 
 

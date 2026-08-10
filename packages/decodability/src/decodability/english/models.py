@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from decodability.english.definitions import UPL_GPC_PAIRS
+from decodability.english.definitions import UFLI_GPC_PAIRS
 
 
 class EnglishStudentKnowledge(BaseModel):
@@ -14,11 +14,11 @@ class EnglishStudentKnowledge(BaseModel):
         gpcs: list[tuple[str, tuple[str, ...]]],
     ) -> list[tuple[str, tuple[str, ...]]]:
         """Check that every GPC is taught in the UPL inventory."""
-        invalid = [g for g in gpcs if tuple(g) not in UPL_GPC_PAIRS]
+        invalid = [g for g in gpcs if tuple(g) not in UFLI_GPC_PAIRS]
         if invalid:
             raise ValueError(
                 f"Not taught GPCs: {invalid}. "
-                "Only GPCs from UPL_GPC_INVENTORY are allowed."
+                "Only GPCs from UFLI_GPC_INVENTORY are allowed."
             )
         return gpcs
 

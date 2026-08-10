@@ -4,16 +4,17 @@ import json
 import re
 from collections import defaultdict
 from io import BytesIO
+from pathlib import Path
 from urllib.request import urlopen
 
 from pypdf import PdfReader
 
-from decodability.english.paths import DATA_DIR
-
 _PDF_URL = (
     "https://s3.amazonaws.com/sl-us-standard/resources/ultimate-phonics-word-lists.pdf"
 )
-_OUT_PATH = DATA_DIR / "ultimate_phonics_word_lists.json"
+_OUT_PATH = (
+    Path(__file__).resolve().parent / "data" / "ultimate_phonics_word_lists.json"
+)
 _HEADER_RE = re.compile(r"LESSON\s+(\d+)\s*-\s*Word List", re.IGNORECASE)
 
 

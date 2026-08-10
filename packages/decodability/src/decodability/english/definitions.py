@@ -46,250 +46,169 @@ ARPABET_TO_IPA = {
 
 VOWEL_INITIALS = set("aeiouæɑɔɛɪʊʌəɚɝ")
 
-# NOTE: The working inventory of GPCs is derived from the Ultimate Phonics reading
-# program's GPC inventory (Lessons 1-209) for testing purposes. It is likely to be
-# replaced by the expert vetted inventory from UFLI Foundations scope and sequence.
+"""
+GPC progression aligned with UFLI Foundations' scope and sequence.
+"""
 
-"""Ultimate Phonics reading program aligned GPC inventory (Lessons 1-209).
-CMUdict-based phoneme transcriptions are normalized to match the phonics
-program's expectations."""
-UPL_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
-    # === Short Vowels (Lessons 2-12) ===
-    ("UP001", "a", ("æ",)),  # cat, sat, hat
-    ("UP002", "i", ("ɪ",)),  # sit, pin, big
-    ("UP003", "u", ("ʌ",)),  # cup, but, run
-    ("UP004", "e", ("ɛ",)),  # bed, get, pen
-    ("UP005", "o", ("ɑ",)),  # hot, pot, dog
-    # === Single Consonants (Lesson 1) ===
-    ("UP006", "b", ("b",)),  # bat, bin, bed
-    ("UP007", "c", ("k",)),  # cat, cup, cap
-    ("UP008", "d", ("d",)),  # dad, dip, dog
-    ("UP009", "f", ("f",)),  # fit, fun, fat
-    ("UP010", "g", ("g",)),  # got, gap, gas
-    ("UP011", "h", ("h",)),  # hat, him, hid
-    ("UP012", "j", ("dʒ",)),  # jam, jet, jab
-    ("UP013", "k", ("k",)),  # kit, keg, kid
-    ("UP014", "l", ("l",)),  # let, lip, lit
-    ("UP015", "m", ("m",)),  # mat, men, map
-    ("UP016", "n", ("n",)),  # nap, net, nod
-    ("UP017", "p", ("p",)),  # pat, pin, pot
-    ("UP018", "r", ("r",)),  # run, red, rat
-    ("UP019", "s", ("s",)),  # sat, sip, sun
-    ("UP020", "t", ("t",)),  # tap, tin, top
-    ("UP021", "v", ("v",)),  # van, vet, vat
-    ("UP022", "w", ("w",)),  # wet, win, wag
-    ("UP023", "x", ("k", "s")),  # fox, box, six — 2 phonemes
-    ("UP024", "y", ("j",)),  # yes, yet, yam
-    ("UP025", "z", ("z",)),  # zip, zoo, zap
-    # === Consonant Digraphs & Trigraphs (Lessons 52-65) ===
-    ("UP026", "sh", ("ʃ",)),  # ship, shop, fish, rush
-    ("UP027", "ch", ("tʃ",)),  # chip, much, lunch, branch
-    ("UP028", "tch", ("tʃ",)),  # catch, match, itch, sketch
-    ("UP029", "th", ("θ",)),  # thin, bath, math, cloth
-    ("UP030", "th", ("ð",)),  # that, them, this, smooth
-    ("UP031", "wh", ("w",)),  # when, whip, whiz, which
-    ("UP032", "ck", ("k",)),  # back, duck, kick, rock
-    # === Double Consonants (Lessons 66-69) ===
-    ("UP033", "ff", ("f",)),  # off, puff, cliff, staff
-    ("UP034", "ss", ("s",)),  # miss, fuss, dress, boss
-    ("UP035", "ll", ("l",)),  # bell, fill, dull, skill
-    ("UP036", "bb", ("b",)),  # ebb, rabbit
-    ("UP037", "gg", ("g",)),  # egg, bigger
-    ("UP038", "dd", ("d",)),  # add, odd
-    ("UP039", "nn", ("n",)),  # inn, penny, Ann
-    ("UP040", "tt", ("t",)),  # butt, mutt, kitten
-    ("UP041", "zz", ("z",)),  # buzz, fuzz, jazz, fizz
-    # === qu, ng, nk (Lessons 70-80) ===
-    ("UP042", "qu", ("k", "w")),  # quit, quiz, queen — 2 phonemes
-    ("UP043", "ng", ("ŋ",)),  # ring, song, sing, hung
-    ("UP044", "nk", ("ŋ", "k")),  # ink, think, bank — 2 phonemes
-    # === Vowel Digraphs (Lessons 82-106) ===
-    ("UP045", "ee", ("i",)),  # see, bee, tree, sleep, green
-    ("UP046", "ea", ("i",)),  # eat, sea, read, teach, dream
-    ("UP047", "oo", ("u",)),  # moon, food, boot, room, zoo
-    ("UP048", "oo", ("ʊ",)),  # book, cook, look, good, foot
-    ("UP049", "ai", ("eɪ",)),  # rain, wait, train, paint, sail
-    ("UP050", "air", ("ɛ", "r")),  # air, hair, fair, chair, stair
-    ("UP051", "ay", ("eɪ",)),  # day, play, say, stay, gray
-    ("UP052", "oa", ("oʊ",)),  # boat, coat, road, toast, float
-    ("UP053", "oar", ("ɔ", "r")),  # oar, soar, roar, board, hoard
-    ("UP054", "ou", ("aʊ",)),  # out, loud, house, cloud, pound
-    ("UP055", "ow", ("aʊ",)),  # cow, now, town, brown, crowd
-    ("UP056", "aw", ("ɔ",)),  # saw, draw, lawn, crawl, hawk
-    ("UP057", "au", ("ɔ",)),  # Paul, haul, fault, launch, sauce
-    ("UP058", "oy", ("ɔɪ",)),  # boy, toy, joy, enjoy
-    ("UP059", "oi", ("ɔɪ",)),  # oil, coin, join, point, soil
-    # === Ending Patterns (Lessons 108-124) ===
-    ("UP060", "se", ("z",)),  # house, goose, geese, breeze
-    ("UP061", "se", ("s",)),  # moose, rinse, sense, tense
-    ("UP062", "ce", ("s",)),  # dance, fence, prince, peace
-    ("UP063", "ge", ("dʒ",)),  # large, change, range, lounge
-    ("UP064", "ve", ("v",)),  # have, give, live, love, glove
-    ("UP065", "s", ("z",)),  # is, has, as, please, raise
-    # === Suffixes (Lessons 116-122) ===
-    ("UP066", "ed", ("ɪ", "d")),  # [CMU] needed — lesson /ɛd/, CMU /ɪd/
-    ("UP067", "ed", ("d",)),  # filled, played, cleaned
-    ("UP068", "ed", ("t",)),  # asked, jumped, missed
-    ("UP069", "ful", ("f", "ʊ", "l")),  # [CMU] helpful — lesson /fəl/, CMU /fʊl/
-    # === Multisyllable Patterns (Lessons 125-145) ===
-    ("UP070", "a", ("ə",)),  # away, about, banana — vowel reduction
-    ("UP071", "al", ("ə", "l")),  # medal, animal, capital
-    ("UP072", "er", ("ɚ",)),  # after, winter, dinner, better
-    ("UP073", "le", ("ə", "l")),  # table, little, apple, puzzle
-    ("UP074", "tle", ("ə", "l")),  # castle, whistle, bristle — silent t
-    ("UP075", "y", ("i",)),  # happy, funny, candy, family
-    ("UP076", "ly", ("l", "i")),  # badly, softly, quickly
-    # === Soft C and G (Lessons 148-155) ===
-    ("UP077", "c", ("s",)),  # cent, city, cell, pencil
-    ("UP078", "g", ("dʒ",)),  # gem, giant, gentle, magic
-    ("UP079", "age", ("ɪ", "dʒ")),  # image, manage, village, package
-    ("UP080", "dge", ("dʒ",)),  # bridge, badge, fudge, judge
-    # === Split Digraphs (Lessons 156-171) ===
-    ("UP081", "a-e", ("eɪ",)),  # make, cake, name, game, brave
-    ("UP082", "i-e", ("aɪ",)),  # time, like, five, ride, smile
-    ("UP083", "o-e", ("oʊ",)),  # home, bone, joke, hope, note
-    ("UP084", "u-e", ("u",)),  # rule, rude, June, tube, flute
-    ("UP085", "u-e", ("j", "u")),  # use, fuse, cube, cute, mule
-    ("UP086", "e-e", ("i",)),  # eve, here, these, theme, Pete
-    ("UP087", "are", ("ɛ", "r")),  # bare, care, dare, share, square
-    ("UP088", "ore", ("ɔ", "r")),  # more, bore, core, score, store
-    # === Open Syllable Vowels (Lessons 172-183) ===
-    ("UP089", "a", ("eɪ",)),  # able, baby, table, basic, April
-    ("UP090", "e", ("i",)),  # be, she, he, begin, even, zebra
-    ("UP091", "i", ("aɪ",)),  # item, ivy, tiger, spider, Friday
-    ("UP092", "o", ("oʊ",)),  # open, over, bonus, pony, tomato
-    ("UP093", "u", ("j", "u")),  # unit, music, human, pupil, menu
-    ("UP094", "u", ("u",)),  # flu, tuna, duty, truly, super
-    ("UP095", "i", ("i",)),  # piano, radio, patio, medium
-    # === More Long Vowels (Lessons 184-209) ===
-    ("UP096", "ie", ("i",)),  # chief, field, thief, believe
-    ("UP097", "ie", ("aɪ",)),  # die, lie, pie, tie, tries
-    ("UP098", "ei", ("i",)),  # seize, ceiling, receive, deceive
-    ("UP099", "ey", ("i",)),  # key, donkey, chimney, hockey
-    ("UP100", "y", ("aɪ",)),  # cry, fly, dry, sky, try, July
-    ("UP101", "igh", ("aɪ",)),  # high, night, light, right, bright
-    ("UP102", "oe", ("oʊ",)),  # toe, foe, doe, hoe, goes
-    ("UP103", "ow", ("oʊ",)),  # own, low, grow, snow, throw
-    ("UP104", "ou", ("oʊ",)),  # pour, four, court, soul, shoulder
-    ("UP105", "ue", ("u",)),  # true, blue, clue, glue, avenue
-    ("UP106", "ue", ("j", "u")),  # cue, hue, value, rescue
-    ("UP107", "ew", ("u",)),  # new, drew, grew, crew, threw
-    ("UP108", "ew", ("j", "u")),  # few, mew, hew, pew, skew
-    ("UP109", "ui", ("u",)),  # fruit, juice, suit, cruise
-    ("UP110", "ou", ("u",)),  # soup, group, youth, route
-    ("UP111", "eigh", ("eɪ",)),  # eight, weigh, weight, freight
-    ("UP112", "ei", ("eɪ",)),  # vein, rein, reindeer
-    ("UP113", "ey", ("eɪ",)),  # hey, prey, grey, obey, convey
-    # === R-Controlled Syllables (Lessons 210-225) ===
-    ("UP114", "ar", ("ɑ", "r")),  # car, park, farm, art, garden
-    ("UP115", "ir", ("ɚ",)),  # bird, girl, stir, dirt, circle
-    ("UP116", "or", ("ɔ", "r")),  # fork, corn, horse, doctor
-    ("UP117", "ur", ("ɚ",)),  # fur, burn, nurse, church, purple
-    ("UP118", "ear", ("ɚ",)),  # earth, earn, learn, search
-    ("UP119", "wor", ("w", "ɚ")),  # word, work, worm, world, worse
-    ("UP120", "war", ("w", "ɔ", "r")),  # war, warm, warn, award
-    ("UP121", "quar", ("k", "w", "ɔ", "r")),  # quart, quarter, quarrel
-    # === More Short Vowels (Lessons 226-239) ===
-    ("UP122", "all", ("ɔ", "l")),  # ball, call, tall, wall, small
-    ("UP123", "al", ("ɔ", "l")),  # also, always, almost, salt
-    ("UP124", "alk", ("ɔ", "k")),  # talk, walk, chalk, stalk
-    ("UP125", "a", ("ɑ",)),  # want, wash, watch, water — after w/qu
-    ("UP126", "ea", ("ɛ",)),  # bread, head, dead, weather
-    ("UP127", "ear", ("ɛ", "r")),  # bear, pear, tear, wear, swear
-    ("UP128", "y", ("ɪ",)),  # gym, myth, system, symbol
-    ("UP129", "ous", ("ə", "s")),  # famous, nervous, curious
-    ("UP130", "ou", ("ʌ",)),  # touch, double, trouble, country
-    ("UP131", "our", ("ɚ",)),  # journey, courage, nourish
-    ("UP132", "o", ("ʌ",)),  # mother, brother, come, some, love
-    # === Silent Letters & Advanced (Lessons 240-262) ===
-    ("UP133", "oo", ("ʌ",)),  # blood, flood — rare irregular
-    ("UP134", "gh", ("f",)),  # enough, cough, rough, tough
-    ("UP135", "ough", ("ɔ",)),  # thought, bought, fought, brought
-    ("UP136", "sc", ("s",)),  # scene, scent, science, scissors
-    ("UP137", "wr", ("r",)),  # wrap, write, wrong, wrist
-    ("UP138", "kn", ("n",)),  # knee, knit, know, knock, knife
-    ("UP139", "gn", ("n",)),  # gnat, gnaw, gnu, gnome, sign
-    ("UP140", "ign", ("aɪ", "n")),  # sign, design, assign, resign
-    ("UP141", "mb", ("m",)),  # bomb, lamb, limb, climb, thumb
-    ("UP142", "mn", ("m",)),  # autumn, column, hymn, solemn
-    ("UP143", "bt", ("t",)),  # debt, doubt
-    ("UP144", "ps", ("s",)),  # psalm, psychology
-    ("UP145", "lk", ("k",)),  # talk, walk, folk — silent l
-    ("UP146", "lf", ("f",)),  # half, calf — silent l
-    ("UP147", "lm", ("m",)),  # calm, palm, balm — silent l
-    ("UP148", "ch", ("k",)),  # school, echo, ache, stomach
-    ("UP149", "ph", ("f",)),  # phone, photo, graph, elephant
-    ("UP150", "ch", ("ʃ",)),  # chef, machine, brochure
-    ("UP151", "tion", ("ʃ", "ə", "n")),  # action, nation, station
-    ("UP152", "sion", ("ʃ", "ə", "n")),  # mansion, mission, passion
-    ("UP153", "sion", ("ʒ", "ə", "n")),  # vision, decision, television
-    ("UP154", "ci", ("ʃ",)),  # special, social, official
-    ("UP155", "ti", ("ʃ",)),  # patient, partial, caution
-    ("UP156", "ture", ("tʃ", "ɚ")),  # picture, nature, future
-    ("UP158", "i", ("ə",)),  # verify, animal, pencil
-    ("UP159", "e", ("ə",)),  # taken, open, item
-    ("UP160", "o", ("ə",)),  # official, lemon, common
-    ("UP161", "u", ("ə",)),  # supply, circus, lettuce
-    ("UP162", "o", ("ɔ",)),  # [CMU] dog, log — cot-caught unmerged
-    ("UP163", "ze", ("z",)),  # breeze, freeze, sneeze, squeeze
-    ("UP164", "the", ("ð",)),  # breathe, bathe, soothe
-    ("UP165", "aw", ("ɑ",)),  # [CMU] law, raw — cot-caught merged
-    ("UP166", "pp", ("p",)),  # hopped, stopped, slipped, trapped
-    ("UP167", "mm", ("m",)),  # humming, swimming, hammer
-    ("UP168", "es", ("ɪ", "z")),  # [CMU] misses, dishes — CMU /ɪz/ not /ɛz/
-    ("UP169", "'s", ("z",)),  # he's, she's, who's — after voiced
-    ("UP170", "'s", ("s",)),  # it's, let's, that's, what's — after voiceless
-    ("UP171", "'d", ("d",)),  # I'd, he'd, we'd, you'd
-    ("UP172", "'m", ("m",)),  # I'm
-    ("UP173", "'ll", ("l",)),  # I'll, he'll, we'll, they'll
-    ("UP174", "'ve", ("v",)),  # I've, we've, you've
-    ("UP175", "'re", ("r",)),  # you're, they're
-    ("UP176", "'re", ("ɚ",)),  # [CMU] we're — r-colored syllable
-    ("UP177", "n't", ("n", "t")),  # didn't, aren't, weren't
-    ("UP178", "n't", ("ə", "n", "t")),  # [CMU] hasn't, wouldn't — schwa inserted
-    ("UP179", "n't", ("ə", "n")),  # [CMU] hadn't, doesn't — schwa + silent t
-    ("UP180", "e", ("ɪ",)),  # [CMU] given, jacket — weak vowel merger
-    ("UP181", "ng", ("ŋ", "g")),  # [CMU] finger, anger — lesson /ŋ/, CMU /ŋg/
-    ("UP182", "rr", ("r",)),  # berry, carry, sorry — double consonant class
-    ("UP183", "a", ("ɛ",)),  # [CMU] carry, marry, parent — Mary-marry-merry merger
-    ("UP184", "x", ("k",)),  # excel, except, excite — before soft c
-    ("UP185", "ire", ("aɪ", "ɚ")),  # tire, entire, desire, require
-    ("UP186", "ure", ("j", "ʊ", "r")),  # pure, cure — yod + short u + r
-    ("UP187", "ure", ("j", "ɚ")),  # figure — reduced yod + r-colored
-    ("UP188", "dg", ("dʒ",)),  # budget, gadget, midget, badger
-    ("UP189", "ar", ("ɚ",)),  # Lesson 213 unstressed -ar: beggar, dollar, hazard
-    ("UP190", "or", ("ɚ",)),  # Lesson 219 unstressed -or: actor, doctor, favor
-    ("UP191", "our", ("ɔ", "r")),  # Lesson 197: four, court, course, source
-    ("UP192", "al", ("ɔ", "l")),  # Lesson 227: always, waltz, salt
-    ("UP193", "a", ("ɔ",)),  # Lesson 229 a=/ŏ/ after w: want, watch, water
-    ("UP194", "wor", ("w", "ɚ")),  # Lesson 223: worry, word, world
-    ("UP195", "y-e", ("aɪ",)),  # Lesson 190 magic-e on y: type, style
-    ("UP196", "ia", ("aɪ",)),  # Lesson 182 split vowel pairs: dial, trial
-    ("UP197", "u", ("ʊ",)),  # Lesson 231 u = short oo: put, push, bull, full
-    ("UP198", "ous", ("ə", "s")),  # Lesson 236 ous = /us/: fabulous, curious
-    ("UP199", "wr", ("r",)),  # Lesson 242 wr = /r/: writhe, write, wreck
-    ("UP200", "augh", ("ɔ",)),  # Lesson 246 gh silent: caught, taught, daughter
-    ("UP201", "augh", ("æ", "f")),  # Lesson 246 gh = /f/: laugh, laughter
-    ("UP202", "aigh", ("eɪ",)),  # Lesson 246 gh silent: straight, straighten
-    ("UP203", "ough", ("aʊ",)),  # Lesson 246 gh silent: bough
-    ("UP204", "ough", ("ɔ", "f")),  # Lesson 246 gh = /f/: cough, trough
-    ("UP205", "gh", ("g",)),  # Lesson 249 silent h: ghost, ghastly, ghetto
-    ("UP206", "gu", ("g",)),  # Lesson 250 silent u: guess, guilt, guitar, guide
-    ("UP207", "gue", ("g",)),  # Lesson 250 silent ue: league, vague, rogue
-    ("UP208", "ui", ("ɪ",)),  # Lesson 251 silent u: build, biscuit, circuit
-    ("UP209", "ie", ("ɛ",)),  # Lesson 251 silent i: friend, friendly
-    ("UP210", "sten", ("s", "ə", "n")),  # Lesson 249 silent t: soften, listen, fasten
-    ("UP211", "tion", ("ʃ", "ə", "n")),  # Lesson 255 tion = /shun/: direction
-    ("UP212", "sion", ("ʃ", "ə", "n")),  # Lesson 257 sion = /shun/: mission
-    ("UP213", "ssion", ("ʃ", "ə", "n")),  # Lesson 257 ssion = /shun/: mission, passion
-    ("UP214", "cian", ("ʃ", "ə", "n")),  # Lesson 259 cian = /shun/: physician, musician
-    ("UP215", "rh", ("r",)),  # Lesson 249 silent h: rhyme, rhythm
-    ("UP216", "ture", ("ʃ", "ɚ")),  # [CMU] fracture — CMU drops /t/ from /tʃɚ/
-    ("UP217", "tion", ("tʃ", "ə", "n")),  # [CMU] intention — CMU /tʃ/ not /ʃ/
-    ("UP218", "sion", ("tʃ", "ə", "n")),  # [CMU] expansion — CMU /tʃ/ not /ʃ/
-    ("UP219", "y", ("ə",)),  # physician, crystal, myth — schwa-class extension
+UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
+    ("G001", "a", ("æ",)),
+    ("G002", "m", ("m",)),
+    ("G003", "s", ("s",)),
+    ("G004", "t", ("t",)),
+    ("G005", "p", ("p",)),
+    ("G006", "f", ("f",)),
+    ("G007", "i", ("ɪ",)),
+    ("G008", "n", ("n",)),
+    ("G010", "o", ("ɑ",)),
+    ("G011", "d", ("d",)),
+    ("G012", "c", ("k",)),
+    ("G013", "u", ("ʌ",)),
+    ("G014", "g", ("g",)),
+    ("G015", "b", ("b",)),
+    ("G016", "e", ("ɛ",)),
+    ("G017", "s", ("s",)),
+    ("G018", "s", ("z",)),
+    ("G019", "k", ("k",)),
+    ("G020", "h", ("h",)),
+    ("G021", "r", ("r",)),
+    ("G022", "l", ("l",)),
+    ("G023", "w", ("w",)),
+    ("G024", "j", ("dʒ",)),
+    ("G025", "y", ("j",)),
+    ("G026", "x", ("k", "s")),
+    ("G027", "qu", ("k", "w")),
+    ("G028", "v", ("v",)),
+    ("G029", "z", ("z",)),
+    ("G030", "ff", ("f",)),
+    ("G031", "ll", ("l",)),
+    ("G032", "ss", ("s",)),
+    ("G033", "zz", ("z",)),
+    ("G034", "all", ("ɔ", "l")),
+    ("G035", "oll", ("oʊ", "l")),
+    ("G036", "ull", ("ʊ", "l")),
+    ("G037", "ck", ("k",)),
+    ("G038", "sh", ("ʃ",)),
+    ("G039", "th", ("ð",)),
+    ("G040", "th", ("θ",)),
+    ("G041", "ch", ("tʃ",)),
+    ("G042", "wh", ("w",)),
+    ("G043", "ph", ("f",)),
+    ("G044", "ng", ("ŋ",)),
+    ("G045", "nk", ("ŋ", "k")),
+    ("G046", "a-e", ("eɪ",)),  # split digraph
+    ("G047", "i-e", ("aɪ",)),  # split digraph
+    ("G048", "o-e", ("oʊ",)),  # split digraph
+    ("G049", "e-e", ("i",)),  # split digraph
+    ("G050", "u-e", ("u",)),  # split digraph
+    ("G051", "u-e", ("j", "u")),  # split digraph (yod)
+    ("G052", "ce", ("s",)),  # soft c + silent e (_ce)
+    ("G053", "ge", ("dʒ",)),  # soft g + silent e (_ge)
+    ("G054", "ve", ("v",)),  # words don't end in v (-ve)
+    ("G055", "es", ("ə", "z")),
+    ("G056", "ed", ("t",)),
+    ("G057", "ed", ("d",)),
+    ("G058", "ed", ("ə", "d")),
+    ("G059", "ing", ("ɪ", "ŋ")),
+    ("G060", "a", ("eɪ",)),  # open syllable
+    ("G061", "e", ("i",)),  # open syllable
+    ("G062", "i", ("aɪ",)),  # open syllable
+    ("G063", "o", ("oʊ",)),  # open syllable
+    ("G064", "u", ("j", "u")),  # open syllable
+    ("G065", "u", ("u",)),  # open syllable
+    ("G066", "tch", ("tʃ",)),
+    ("G067", "dge", ("dʒ",)),
+    ("G068", "ild", ("aɪ", "l", "d")),
+    ("G069", "old", ("oʊ", "l", "d")),
+    ("G070", "ind", ("aɪ", "n", "d")),
+    ("G071", "olt", ("oʊ", "l", "t")),
+    ("G072", "ost", ("oʊ", "s", "t")),
+    ("G073", "y", ("aɪ",)),
+    ("G074", "y", ("i",)),
+    ("G075", "le", ("ə", "l")),  # -le syllable ending
+    ("G076", "ar", ("ɑ", "r")),
+    ("G077", "or", ("ɔ", "r")),
+    ("G078", "ore", ("ɔ", "r")),
+    ("G079", "er", ("ə", "r")),
+    ("G080", "ir", ("ə", "r")),
+    ("G081", "ur", ("ə", "r")),
+    ("G082", "or", ("ə", "r")),  # or after w (unstressed)
+    ("G083", "ai", ("eɪ",)),
+    ("G084", "ay", ("eɪ",)),
+    ("G085", "ee", ("i",)),
+    ("G086", "ea", ("i",)),
+    ("G087", "ey", ("i",)),
+    ("G088", "oa", ("oʊ",)),
+    ("G089", "ow", ("oʊ",)),
+    ("G090", "oe", ("oʊ",)),
+    ("G091", "ie", ("aɪ",)),
+    ("G092", "igh", ("aɪ",)),
+    ("G093", "u", ("ʊ",)),
+    ("G094", "oo", ("ʊ",)),
+    ("G095", "oo", ("u",)),
+    ("G096", "ew", ("u",)),
+    ("G097", "ui", ("u",)),
+    ("G098", "ue", ("u",)),
+    ("G099", "au", ("ɔ",)),
+    ("G100", "aw", ("ɔ",)),
+    ("G101", "augh", ("ɔ",)),
+    ("G102", "ea", ("ɛ",)),
+    ("G103", "a", ("ɑ",)),  # a after w/qu
+    ("G104", "oi", ("ɔɪ",)),
+    ("G105", "oy", ("ɔɪ",)),
+    ("G106", "ou", ("aʊ",)),
+    ("G107", "ow", ("aʊ",)),
+    ("G108", "kn", ("n",)),
+    ("G109", "wr", ("r",)),
+    ("G110", "mb", ("m",)),
+    ("G112", "est", ("ə", "s", "t")),
+    ("G113", "ly", ("l", "i")),
+    ("G114", "less", ("l", "ə", "s")),
+    ("G115", "ful", ("f", "ə", "l")),
+    ("G116", "un", ("ʌ", "n")),
+    ("G117", "pre", ("p", "r", "i")),
+    ("G118", "re", ("r", "i")),
+    ("G119", "dis", ("d", "ɪ", "s")),
+    ("G120", "ied", ("aɪ", "d")),
+    ("G121", "ies", ("aɪ", "z")),
+    ("G122", "ies", ("i", "z")),
+    ("G123", "ar", ("ə", "r")),  # unstressed ar: beggar, dollar
+    ("G125", "air", ("ɛ", "r")),
+    ("G126", "are", ("ɛ", "r")),
+    ("G127", "ear", ("ɛ", "r")),
+    ("G128", "ear", ("ɪ", "r")),
+    ("G129", "ei", ("eɪ",)),
+    ("G130", "eigh", ("eɪ",)),
+    ("G131", "ey", ("eɪ",)),
+    ("G132", "ea", ("eɪ",)),
+    ("G133", "aigh", ("eɪ",)),
+    ("G134", "ew", ("j", "u")),
+    ("G135", "eu", ("j", "u")),
+    ("G136", "ue", ("j", "u")),
+    ("G137", "ou", ("u",)),
+    ("G138", "ough", ("ɔ",)),
+    ("G139", "ough", ("oʊ",)),
+    ("G140", "c", ("s",)),  # c before e, i, y
+    ("G141", "g", ("dʒ",)),  # g before e, i, y
+    ("G142", "ch", ("ʃ",)),
+    ("G143", "ch", ("k",)),
+    ("G144", "gn", ("n",)),
+    ("G145", "gh", ("g",)),
+    ("G146", "st", ("s",)),  # silent t
+    ("G147", "tion", ("ʃ", "ə", "n")),
+    ("G148", "sion", ("ʒ", "ə", "n")),
+    ("G149", "sion", ("ʃ", "ə", "n")),
+    ("G150", "ture", ("tʃ", "ə", "r")),
+    ("G151", "ist", ("ɪ", "s", "t")),
+    ("G152", "ish", ("ɪ", "ʃ")),
+    ("G153", "ness", ("n", "ə", "s")),
+    ("G154", "ment", ("m", "ə", "n", "t")),
+    ("G155", "able", ("ə", "b", "ə", "l")),
+    ("G156", "ible", ("ə", "b", "ə", "l")),
+    ("G157", "bi", ("b", "aɪ")),
+    ("G158", "tri", ("t", "r", "aɪ")),
+    ("G159", "uni", ("j", "u", "n", "i")),
 ]
 
-UPL_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(
-    (grapheme, phonemes) for _, grapheme, phonemes in UPL_GPC_INVENTORY
+UFLI_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(
+    (grapheme, phonemes) for _, grapheme, phonemes in UFLI_GPC_INVENTORY
 )
