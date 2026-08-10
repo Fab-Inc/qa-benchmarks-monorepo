@@ -50,3 +50,101 @@ decodability_evaluation: >-
 
 
   Do not include any explanation, reasoning, or any text before or after the list.
+
+decodability_evaluation_grapheme_breakdown: >-
+  CONTEXT
+
+  You are helping a teacher to determine which words in a text a particular student
+  cannot yet read aloud on their own.
+
+
+  A word is "non-decodable" for a student when the student cannot read it based on what
+  they currently know, neither by recognising it as a whole word they already know, nor
+  by sounding it out from letter-sounds (graphemes) that they already know.
+
+
+  The text is in the language of {language} and slashes (/) have been added to show the
+  grapheme breakdown of each word.
+
+
+  STUDENT KNOWLEDGE
+
+  {student_knowledge}
+
+
+  TEXT
+
+  {text}
+
+
+  TASK
+
+  Identify every unique word in the TEXT that is non-decodable for this
+  student.
+
+
+  OUTPUT
+
+  Respond with only a list of the non-decodable words, formatted exactly
+  like this:
+
+  ["word1", "word2", "word3"]
+
+
+  If all words are decodable, respond with exactly:
+
+  []
+
+
+  Do not include any explanation, reasoning, or any text before or after the list.
+
+decodability_evaluation_valid_graphemes: >-
+  CONTEXT
+
+  You are helping a teacher to determine which words in a text a particular student
+  cannot yet read aloud on their own.
+
+
+  A word is "non-decodable" for a student when the student cannot read it based on what
+  they currently know, neither by recognising it as a whole word they already know, nor
+  by sounding it out from letter-sounds (graphemes) that they already know.
+
+
+  The text is in the language of {language}.
+
+
+  VALID KNOWLEDGE
+
+  {valid_knowledge}
+
+
+  STUDENT KNOWLEDGE
+
+  {student_knowledge}
+
+
+  TEXT
+
+  {text}
+
+
+  TASK
+
+  Identify every unique word in the TEXT that is non-decodable for this
+  student.
+
+
+  OUTPUT
+
+  Respond with only a list of the non-decodable words, formatted exactly
+  like this:
+
+  ["word1", "word2", "word3"]
+
+
+  If all words are decodable, respond with exactly:
+
+  []
+
+
+  Do not include any explanation, reasoning, or any text before or after the list.
