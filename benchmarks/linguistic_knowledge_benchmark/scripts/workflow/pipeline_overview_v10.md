@@ -152,24 +152,24 @@ Stages 1a–3a happen in a **chat window** (ChatGPT / Claude / Gemini): each ste
 or continued conversation where you attach files, paste a prompt, and save the model's
 reply. Stage 3b is a local script; the eval harness is Stage 5.
 
-1. **1a:** fresh chat → attach the document set → paste the 1a prompt → save the
-   per-document digest JSON (with verbatim examples). Sources are independent — run them
-   together, in parallel, or add more later.
-1. **1b:** fresh chat → **attach the 1a digest JSON file** (no PDFs) → paste the 1b
-   prompt → save the `feature_map`.
-1. **2 (per shard):** for each subset of the sources that fits context, new chat →
-   attach that shard's PDFs + the `feature_map` JSON file → paste the 2 prompt → save
-   the candidate array. Repeat until every source has been covered.
-1. **3a:** new chat, no PDFs → attach the concatenated shard arrays → paste the 3a
-   prompt → save the annotated pool.
-1. **3b:** score the QC-passed pool on a panel of models, then run
-   `python estimate_irt.py --language <lang>` → get the selected ids, the renumbered
-   dataset, and per-item / per-model tables + diagnostic plots.
-1. **4:** review every item; rejected items send you back to an earlier stage or to the
-   non-selected pool.
-1. **5:** run the eval harness on the accepted set.
-1. **Compare runs** by diffing the per-document digests and the feature maps across
-   different document sets.
+- **1a:** fresh chat → attach the document set → paste the 1a prompt → save the
+  per-document digest JSON (with verbatim examples). Sources are independent — run them
+  together, in parallel, or add more later.
+- **1b:** fresh chat → **attach the 1a digest JSON file** (no PDFs) → paste the 1b
+  prompt → save the `feature_map`.
+- **2 (per shard):** for each subset of the sources that fits context, new chat → attach
+  that shard's PDFs + the `feature_map` JSON file → paste the 2 prompt → save the
+  candidate array. Repeat until every source has been covered.
+- **3a:** new chat, no PDFs → attach the concatenated shard arrays → paste the 3a prompt
+  → save the annotated pool.
+- **3b:** score the QC-passed pool on a panel of models, then run
+  `python estimate_irt.py --language <lang>` → get the selected ids, the renumbered
+  dataset, and per-item / per-model tables + diagnostic plots.
+- **4:** review every item; rejected items send you back to an earlier stage or to the
+  non-selected pool.
+- **5:** run the eval harness on the accepted set.
+- **Compare runs** by diffing the per-document digests and the feature maps across
+  different document sets.
 
 ## Trade-offs (what to watch)
 
