@@ -42,7 +42,7 @@ The dependency structure is as follows:
 flowchart
   models.py --for data validation--> definitions.py
   scorers.py --for scoring logic--> definitions.py
-  tokenizer.py --for data validation*--> definitions.py
+  extract_words.py --for data validation*--> definitions.py
   aggregators.py --> scorers.py
 ```
 

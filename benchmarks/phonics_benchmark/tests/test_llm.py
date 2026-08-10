@@ -26,7 +26,7 @@ def test_call_llm_returns_metadata_and_logs_response(
 ):
     prompt = _prompt_for(tusome_stage_11_item)
     response_text = json.dumps(
-        tusome_stage_11_item["non_decodable_words"], ensure_ascii=False
+        tusome_stage_11_item["nondecodable_words"], ensure_ascii=False
     )
     caller = Mock()
     caller.call.return_value = SimpleNamespace(

@@ -95,7 +95,7 @@ class TestScorers:
         assert score_whole_words_kiswahili("babu", student_knowledge) == 0.0
 
 
-class TestKiswahiliTokenizer:
+class TestKiswahiliWordExtraction:
     @pytest.mark.parametrize(
         "text, expected",
         [
@@ -109,8 +109,8 @@ class TestKiswahiliTokenizer:
             ),
         ],
     )
-    def test_tokenize_kiswahili(self, text: str, expected: list[str]):
-        """Test the tokenize function."""
+    def test_extract_words_kiswahili(self, text: str, expected: list[str]):
+        """Test the extract_words_kiswahili function."""
         assert extract_words_kiswahili(text) == expected
 
 

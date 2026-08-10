@@ -1,9 +1,9 @@
 """Ingest a language benchmark data-entry workbook into JSONL data files.
 
-Run from the repository root with:
+Run from the repository root with (as an example):
 
     uv run --package phonics-benchmark python \\
-        benchmarks/phonics_benchmark/scripts/ingest_benchmark_data_template.py \\
+        benchmarks/phonics_benchmark/scripts/ingest_benchmark_data.py \\
         --language kiswahili \\
         --workbook path/to/benchmark_template.xlsx
 
@@ -14,15 +14,16 @@ can carry additional expert-context columns without breaking this script.
 Rows with a blank ID column are treated as spacing/notes and skipped.
 """
 
-from __future__ import annotations
-
-import argparse
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-from phonics_benchmark.data_io import get_data_dir
+import typer
+from phonics_benchmark.data_io import validate_student_knowledge, write_dataset
 from phonics_benchmark.models import DecodableText, StudentKnowledge
+
+DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 STUDENT_PROFILES_SHEET = "Student Profiles"
 TEXTS_SHEET = "Texts"
@@ -35,14 +36,14 @@ def split_list(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-# Registry: maps language_iso_code to the fields that belong in student_knowledge
+# Registry: maps language_iso_code -> the fields that belong in student_knowledge,
 # and how to parse each one from a workbook cell string.
 # Add a new entry here when adding support for a new language.
-STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], list[str] | int]]] = {
+STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
     "sw": {
         "graphemes": split_list,
         "whole_words": split_list,
-    },
+    }
 }
 
 
@@ -105,7 +106,7 @@ def preprocess_sheet_data(
 
 def extract_student_profiles(
     df: pd.DataFrame,
-    fields: dict[str, Callable[[str], list[str] | int]],
+    fields: dict[str, Callable[[str], Any]],
 ) -> list[StudentKnowledge]:
     return [
         StudentKnowledge(
@@ -131,34 +132,34 @@ def extract_texts(df: pd.DataFrame) -> list[DecodableText]:
     ]
 
 
-def write_jsonl(records: list, path: Path) -> None:
-    """Write a list of Pydantic model instances to a JSONL file."""
-    with path.open("w", encoding="utf-8") as f:
-        for record in records:
-            f.write(record.model_dump_json())
-            f.write("\n")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--language", required=True, help="Language folder name, e.g. kiswahili"
-    )
-    parser.add_argument(
-        "--workbook", required=True, type=Path, help="Path to the .xlsx template"
-    )
-    parser.add_argument(
+def ingest_benchmark_data(
+    language: str = typer.Option(
+        ...,
+        "--language",
+        "-l",
+        help="Language folder name under the data root, for example 'kiswahili'.",
+    ),
+    workbook: Path = typer.Option(
+        ...,
+        "--workbook",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to the filled-in .xlsx data-entry template.",
+    ),
+    data_root: Path = typer.Option(
+        DEFAULT_DATA_ROOT,
         "--data-root",
-        type=Path,
-        default=Path(__file__).resolve().parents[1] / "data",
-        help="Root data directory (defaults to the package's data/ folder)",
-    )
-    args = parser.parse_args()
-
-    student_df = pd.read_excel(args.workbook, sheet_name=STUDENT_PROFILES_SHEET)
-    texts_df = pd.read_excel(args.workbook, sheet_name=TEXTS_SHEET)
+        file_okay=False,
+        help="Root data directory. Defaults to the package's data/ folder.",
+    ),
+) -> None:
+    """Parse a data-entry workbook into decodable texts and student profiles."""
+    student_df = pd.read_excel(workbook, sheet_name=STUDENT_PROFILES_SHEET)
+    texts_df = pd.read_excel(workbook, sheet_name=TEXTS_SHEET)
 
     student_iso = get_language_iso_code(student_df, f"'{STUDENT_PROFILES_SHEET}' sheet")
+
     student_fields = STUDENT_KNOWLEDGE_FIELDS.get(student_iso)
     if student_fields is None:
         raise ValueError(
@@ -180,18 +181,24 @@ def main() -> None:
     )
 
     profiles = extract_student_profiles(student_df, student_fields)
+    validate_student_knowledge(profiles, strict=True)
     texts = extract_texts(texts_df)
 
-    data_dir = get_data_dir(args.language, args.data_root)
-    profiles_path = data_dir / "student_knowledge_profiles.jsonl"
-    texts_path = data_dir / "decodable_texts.jsonl"
-    write_jsonl(profiles, profiles_path)
-    write_jsonl(texts, texts_path)
+    data_dir = write_dataset(language, data_root, texts=texts, profiles=profiles)
 
-    print(
+    typer.echo(
         f"Wrote {len(profiles)} student knowledge profiles and "
         f"{len(texts)} decodable texts to {data_dir}"
     )
+    typer.echo(
+        "Next: build_benchmark_item_candidates.py to pair them and add analysis "
+        "columns."
+    )
+
+
+def main() -> None:
+    """Entry point."""
+    typer.run(ingest_benchmark_data)
 
 
 if __name__ == "__main__":
