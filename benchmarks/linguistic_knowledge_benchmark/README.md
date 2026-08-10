@@ -6,8 +6,8 @@ its phonics and orthography, morphology, syntax, vocabulary, and phonological aw
 
 **The medium of evaluation is English for every language.** Questions probing a specific
 language are *written in English* (e.g. "What is the plural prefix for nouns describing
-human beings in Luganda?"), not in the language under evaluation. Only the *subject* of
-the questions changes from language to language; the prompt language stays English
+human beings in Kiswahili?"), not in the language under evaluation. Only the *subject*
+of the questions changes from language to language; the prompt language stays English
 throughout.
 
 The goal is a **replicable pipeline across languages**. Every language plugs its own
@@ -37,12 +37,12 @@ The shared framework (domain + difficulty-level mapping) is language-agnostic. E
 language supplies its own components, all evaluated through the same English-medium
 prompts. Fill in a column as each language's components are finalized.
 
-| Component                         | Luganda                                  | Kiswahili                                  | English |
-| --------------------------------- | ---------------------------------------- | ------------------------------------------ | ------- |
-| **Language key** (CLI `-l`)       | `luganda`                                | `kiswahili`                                | _TBD_   |
-| **Dataset file** (`data/`)        | `linguistic_knowledge_eval_luganda.json` | `linguistic_knowledge_eval_kiswahili.json` | _TBD_   |
-| **Question formats** (MCQ / open) | _TBD_                                    | _TBD_                                      | _TBD_   |
-| **Status**                        | Active                                   | Active                                     | Planned |
+| Component                         | Kiswahili                                  | English                                  |
+| --------------------------------- | ------------------------------------------ | ---------------------------------------- |
+| **Language key** (CLI `-l`)       | `kiswahili`                                | `english`                                |
+| **Dataset file** (`data/`)        | `linguistic_knowledge_eval_kiswahili.json` | `linguistic_knowledge_eval_english.json` |
+| **Question formats** (MCQ / open) | `multiple_choice`, `short_form`            | `multiple_choice`, `short_form`          |
+| **Status**                        | Active                                     | Active                                   |
 
 Questions are written in English for every language (see above), so there is no
 per-language "question language" column.
@@ -83,8 +83,8 @@ the following structure:
 }
 ```
 
-Short-form and true/false (TF) questions omit `options`. The `expected_answers` field is
-always a list (multiple acceptable answers are supported for `short_form`).
+Short-form questions omit `options`. The `expected_answers` field is always a list
+(multiple acceptable answers are supported for `short_form`).
 
 There are two `answer_type`s in current datasets, each scored differently (see
 [Scoring](#how-responses-are-scored)):
@@ -94,31 +94,31 @@ There are two `answer_type`s in current datasets, each scored differently (see
 
 > **Note:** this JSON schema is provisional and may change as the benchmark evolves. The
 > judge ([`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)) supports
-> three answer formats — MCQ, true/false (TF), and short-form — but current datasets use
-> only MCQ and short-form. Any dataset must use one of the three per question.
+> two answer formats — MCQ and short-form. Any dataset must use one of the two per
+> question.
 
 ## Key components
 
-| Component                                                               | Purpose                                                                                                                                                                           |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw responses. Holds the answer-type system prompts and the MCQ regex parser (`parse_answer`).                |
-| [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw responses — regex for MCQ/TF, an LLM judge for short-form — plus an optional LLM fallback for unparseable MCQ/TF rows, and accuracy summaries.            |
-| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                    |
-| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `run_dir()` helper, and lists rate-limited models. |
-| [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                             |
-| [`custom_models.yaml`](../../custom_models.yaml)                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                       |
-| [`.env`](.env)                                                          | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                    |
-| [`tests/`](tests/)                                                      | Unit tests for the CLI, runner, and judge.                                                                                                                                        |
+| Component                                                               | Purpose                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw responses. Holds the answer-type system prompts.                                                                                                     |
+| [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw responses — regex for MCQ (`parse_answer_mcq`), an LLM judge (or ensemble of judges, majority vote) for short-form — plus an optional LLM fallback for unparseable MCQ rows, and accuracy summaries. |
+| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                                                               |
+| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `run_dir()` helper, and lists rate-limited models.                                            |
+| [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                                                        |
+| [`custom_models.yaml`](../../custom_models.yaml)                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                                                                  |
+| [`.env`](.env)                                                          | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                                                               |
+| [`tests/`](tests/)                                                      | Unit tests for the CLI, runner, and judge.                                                                                                                                                                                   |
 
 ## Data and output folders
 
 ```text
 benchmarks/linguistic_knowledge_benchmark/
   data/                                 # input datasets (tracked in git)
-    linguistic_knowledge_eval_luganda.json
     linguistic_knowledge_eval_kiswahili.json
+    linguistic_knowledge_eval_english.json
   cache/                                # raw run artifacts (gitignored)
-    <language>/                         # e.g. luganda/, kiswahili/
+    <language>/                         # e.g. kiswahili/, english/
       runs/
         default/                        # outputs when no --run-id is given
           log.json                      # provenance: timestamp + git hash per model per stage
@@ -149,13 +149,14 @@ How outputs flow through the two stages:
 1. **`judge-bench` → `cache/<language>/runs/<run-id>/responses_judged/`** — those
    responses are scored and written to `responses_judged_<model>.csv` (the same rows
    plus `is_correct` / `justification`). With `--judge-fallback`, an extra
-   `responses_judged_fallback/` subfolder is produced for rescued MCQ/TF rows.
-   `log.json` is updated with `responses_judged_timestamp-utc` and
-   `responses_judged_git-hash` (or the `responses_judged_fallback_*` variants).
+   `responses_judged_fallback/` subfolder is produced for rescued MCQ rows. `log.json`
+   is updated with `responses_judged_timestamp-utc` and `responses_judged_git-hash` (or
+   the `responses_judged_fallback_*` variants).
 1. **`judge-bench` → `results/`** — accuracy is aggregated across all judged models into
    `summary_linguistic-knowledge_<language>_<run-id>.csv`, with overall and
-   per-answer-type accuracy. The summary also includes all 8 provenance fields from
-   `log.json` so each row records exactly when and from which commit each model's
+   per-answer-type accuracy. The summary also includes all 10 provenance fields from
+   `log.json` (including `llm_judges`/`llm_judges_fallback`, the judge model(s) used) so
+   each row records exactly when, from which commit, and by which judge(s) each model's
    responses were produced.
 
 For a clean run, supply `--run-id` or `--timestamped-output` to write to a fresh,
@@ -195,8 +196,8 @@ The CLI is invoked through `uv run`:
 uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark <command> [options]
 ```
 
-`--language` is **required** and accepts any registered language key (`luganda`,
-`kiswahili` — see the [table above](#languages-and-their-components)).
+`--language` is **required** and accepts any registered language key (`kiswahili`,
+`english` — see the [table above](#languages-and-their-components)).
 
 ### Stage 1 — collect responses (`run-bench`)
 
@@ -209,7 +210,7 @@ uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark \
 
 # All models in list_models.yaml (omit --model)
 uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark \
-  run-bench --language luganda
+  run-bench --language english
 ```
 
 Options:
@@ -245,21 +246,35 @@ Score the cached responses and write a per-model summary.
 
 ```bash
 uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark \
-  judge-bench --language luganda --model claude-haiku-4-5-20251001
+  judge-bench --language kiswahili --model claude-haiku-4-5-20251001
 ```
 
 Options:
 
 - `-m, --model` — model whose responses to judge. Omit to judge all.
 - `-l, --language` — registered language key (required).
-- `-j, --judge-model` — judge model for short-form responses (default
-  `claude-sonnet-4-5-20250929`).
+- `-j, --judge-model` — judge model to use for short-form responses; repeat for an
+  explicit ensemble (e.g. `-j claude-sonnet-5 -j gpt-5.6-terra`). Overrides
+  `--num-judges`. Defaults to the first `--num-judges` of `DEFAULT_JUDGE_MODELS`
+  (`claude-sonnet-5`, `gpt-5.6-terra`, `gemini-3.6-flash`).
+- `-n, --num-judges` — how many of `DEFAULT_JUDGE_MODELS` to use as independent judges
+  when `--judge-model` isn't given. 1 (default) = single judge; up to 3 for an ensemble
+  with majority-vote scoring plus agreement columns.
 - `-f, --force` — re-judge even if judged results exist.
 - `--run-id` — read/write judged artifacts under `cache/<language>/runs/<run-id>/`. Must
   be alphanumeric and hyphens only (no underscores).
-- `--judge-fallback` — re-evaluate MCQ/true-false rows the regex *couldn't* parse
-  (`is_correct` is null) with the LLM judge. Reads from `responses_judged/`, writes to
+- `--judge-fallback` — re-evaluate MCQ rows the regex *couldn't* parse (`is_correct` is
+  null) with the LLM judge. Reads from `responses_judged/`, writes to
   `responses_judged_fallback/`.
+
+With more than one judge (`--num-judges` > 1 or multiple `--judge-model`), short-form
+`is_correct`/`justification` reflect the majority verdict (ties are left unscored) and
+the primary judge's rationale; `judge_agreement`/`judge_disagreement_flag` summarize
+consensus, and each judge's own verdict lands in
+`is_correct_<judge>`/`justification_<judge>`. Re-judging a model with a cached CSV
+that's missing a requested judge's column (e.g. it was previously judged with a
+different judge or a smaller ensemble) errors out asking for `--force` rather than
+silently mixing judges.
 
 Outputs:
 
@@ -269,27 +284,28 @@ Outputs:
   `cache/<language>/runs/<run-id>/responses_judged_fallback/responses_judged_<model>.csv`
 - Summary across models: `results/summary_linguistic-knowledge_<language>_<run-id>.csv`
   (or `..._<run-id>_fallback.csv` with `--judge-fallback`)
+- Pairwise judge agreement (only with more than one judge):
+  `results/summary_linguistic-knowledge_<language>_<run-id>[_fallback]_judge_agreement.csv`
 
 ### Typical end-to-end flow
 
 ```bash
 # 1. Collect responses for all models
-uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark run-bench -l luganda
+uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark run-bench -l kiswahili
 
 # 2. Score them (regex + LLM judge)
-uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark judge-bench -l luganda
+uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark judge-bench -l kiswahili
 
-# 3. (Optional) Rescue MCQ/TF responses the regex missed
-uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark judge-bench -l luganda --judge-fallback
+# 3. (Optional) Rescue MCQ responses the regex missed
+uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark judge-bench -l kiswahili --judge-fallback
 ```
 
 ## How responses are scored
 
-| Answer type       | Scoring method                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `multiple_choice` | Regex extracts the `A`–`D` letter (`parse_answer`) and compares to the expected letter. Unparseable responses are left `null` (unscored) until `--judge-fallback`. |
-| `short_form`      | An LLM judge compares the response to the accepted `expected_answers`, accepting only capitalization/hyphen/spacing variations — no synonyms or paraphrases.       |
-| `true_false`      | Regex on the first word (`true`/`false`). Supported by the judge but not used in current datasets.                                                                 |
+| Answer type       | Scoring method                                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `multiple_choice` | Regex extracts the `A`–`D` letter (`parse_answer_mcq`) and compares to the expected letter. Unparseable responses are left `null` (unscored) until `--judge-fallback`. |
+| `short_form`      | An LLM judge compares the response to the accepted `expected_answers`, accepting only capitalization/hyphen/spacing variations — no synonyms or paraphrases.           |
 
 Accuracy is computed only over **scored** rows; missing model outputs and still-unparsed
 rows are reported as `unscored_count` rather than counted as wrong. When fallback
@@ -299,7 +315,7 @@ verdict otherwise.
 Judged rows include provenance fields:
 
 - `score_method` — `regex`, `llm_judge`, `llm_fallback`, or `unscored`.
-- `parsed_answer` — the parsed MCQ/true-false response when regex parsing succeeds.
+- `parsed_answer` — the parsed MCQ response when regex parsing succeeds.
 
 This makes strict-format scores distinguishable from responses rescued by the LLM
 fallback.

@@ -8,7 +8,15 @@ import pandas as pd
 import pytest
 from conftest import VALID_MODEL
 from linguistic_knowledge_benchmark import cmd, shared_utils
+from linguistic_knowledge_benchmark.judge_bench import DEFAULT_JUDGE_MODELS
 from typer.testing import CliRunner
+
+# judge-bench defaults to a single judge, DEFAULT_JUDGE_MODELS[0], when no
+# --judge-model/--num-judges is given; mocked judge_results()/judge_results_fallback()
+# return values need this column so the stale-cache judge-column check doesn't
+# flag them as missing the (default) requested judge.
+DEFAULT_JUDGE_COL = f"is_correct_{DEFAULT_JUDGE_MODELS[0]}"
+DEFAULT_JUDGE_FALLBACK_COL = f"is_correct_fallback_{DEFAULT_JUDGE_MODELS[0]}"
 
 
 @pytest.fixture
@@ -48,7 +56,7 @@ def test_run_bench_rejects_unknown_language(runner: CliRunner) -> None:
 
 def test_run_bench_rejects_unknown_model(runner: CliRunner) -> None:
     result = runner.invoke(
-        cmd.app, ["run-bench", "--model", "bogus", "--language", "luganda"]
+        cmd.app, ["run-bench", "--model", "bogus", "--language", "kiswahili"]
     )
     assert result.exit_code == 1
     assert "not found" in result.output
@@ -62,7 +70,7 @@ def test_run_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--run-id",
             "my_run",
         ],
@@ -75,21 +83,21 @@ def test_run_bench_single_model_forwards_params(runner, monkeypatch) -> None:
     mock = MagicMock()
     monkeypatch.setattr(cmd, "run_benchmark", mock)
     result = runner.invoke(
-        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     mock.assert_called_once()
     assert "Run ID: default (no --run-id supplied)" in result.output
     kwargs = mock.call_args.kwargs
     assert kwargs["model_name"] == VALID_MODEL
-    assert kwargs["language_name"] == "Luganda"
+    assert kwargs["language_name"] == "Kiswahili"
     assert kwargs["retry_errors"] is False
 
 
 def test_run_bench_all_models(runner, monkeypatch) -> None:
     mock = MagicMock()
     monkeypatch.setattr(cmd, "run_benchmark", mock)
-    result = runner.invoke(cmd.app, ["run-bench", "--language", "luganda"])
+    result = runner.invoke(cmd.app, ["run-bench", "--language", "kiswahili"])
     assert result.exit_code == 0
     assert mock.call_count == len(cmd.EVAL_MODELS)
 
@@ -104,7 +112,7 @@ def test_run_bench_forwards_retry_and_run_options(runner, monkeypatch) -> None:
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--retry-errors",
             "--run-id",
             "run-123",
@@ -127,7 +135,7 @@ def test_run_bench_timestamped_output_generates_run_id(runner, monkeypatch) -> N
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--timestamped-output",
         ],
     )
@@ -144,7 +152,7 @@ def test_run_bench_rejects_force_with_retry_errors(runner) -> None:
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--force",
             "--retry-errors",
         ],
@@ -158,7 +166,7 @@ def test_run_bench_propagates_error(runner, monkeypatch) -> None:
         cmd, "run_benchmark", MagicMock(side_effect=RuntimeError("kaboom"))
     )
     result = runner.invoke(
-        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 1
     assert "ERROR" in result.output
@@ -188,7 +196,7 @@ def test_judge_bench_rejects_unknown_language(runner: CliRunner) -> None:
 
 def test_judge_bench_rejects_unknown_model(runner: CliRunner) -> None:
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", "bogus", "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", "bogus", "--language", "kiswahili"]
     )
     assert result.exit_code == 1
     assert "not found" in result.output
@@ -202,7 +210,7 @@ def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--run-id",
             "my_run",
         ],
@@ -214,15 +222,19 @@ def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
 def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
+    monkeypatch.setattr(
+        cmd,
+        "judge_results",
+        MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []})),
+    )
     _patch_summary(monkeypatch)
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     assert "Run ID: default (no --run-id supplied)" in result.output
     summary_path = (
-        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
     assert summary_path.exists()
     df = pd.read_csv(summary_path)
@@ -235,10 +247,14 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
 ) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
+    monkeypatch.setattr(
+        cmd,
+        "judge_results",
+        MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []})),
+    )
     _patch_summary(monkeypatch)
 
-    run_dir = tmp_path / "luganda" / "runs" / "default"
+    run_dir = tmp_path / "kiswahili" / "runs" / "default"
     run_dir.mkdir(parents=True)
     (run_dir / "log.json").write_text(
         json.dumps(
@@ -247,11 +263,11 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
     )
 
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     summary_path = (
-        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
     df = pd.read_csv(summary_path)
     assert df.loc[0, "responses_timestamp-utc"] == "2020-01-01T00:00:00+00:00"
@@ -261,7 +277,7 @@ def test_judge_bench_run_id_writes_run_specific_summary(
     runner, monkeypatch, tmp_path
 ) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    judge = MagicMock(return_value=pd.DataFrame())
+    judge = MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []}))
     monkeypatch.setattr(cmd, "judge_results", judge)
     _patch_summary(monkeypatch)
     result = runner.invoke(
@@ -271,7 +287,7 @@ def test_judge_bench_run_id_writes_run_specific_summary(
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--run-id",
             "run-123",
         ],
@@ -280,23 +296,23 @@ def test_judge_bench_run_id_writes_run_specific_summary(
     assert "Run ID: run-123" in result.output
     assert judge.call_args.kwargs["run_id"] == "run-123"
     assert (
-        tmp_path / "results" / "summary_linguistic-knowledge_luganda_run-123.csv"
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_run-123.csv"
     ).exists()
 
 
 def test_judge_bench_all_models(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    judge = MagicMock(return_value=pd.DataFrame())
+    judge = MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []}))
     monkeypatch.setattr(cmd, "judge_results", judge)
     _patch_summary(monkeypatch)
-    result = runner.invoke(cmd.app, ["judge-bench", "--language", "luganda"])
+    result = runner.invoke(cmd.app, ["judge-bench", "--language", "kiswahili"])
     assert result.exit_code == 0
     assert judge.call_count == len(cmd.EVAL_MODELS)
 
 
 def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    fallback = MagicMock(return_value=pd.DataFrame())
+    fallback = MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_FALLBACK_COL: []}))
     monkeypatch.setattr(cmd, "judge_results_fallback", fallback)
     _patch_summary(monkeypatch)
     result = runner.invoke(
@@ -306,13 +322,13 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
             "--model",
             VALID_MODEL,
             "--language",
-            "luganda",
+            "kiswahili",
             "--judge-fallback",
         ],
     )
     assert result.exit_code == 0
     fallback.assert_called_once()
-    name = "summary_linguistic-knowledge_luganda_default_fallback.csv"
+    name = "summary_linguistic-knowledge_kiswahili_default_fallback.csv"
     assert (tmp_path / "results" / name).exists()
 
 
@@ -322,21 +338,151 @@ def test_timestamp_run_id_is_filesystem_safe() -> None:
 
 def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "CACHE_BASE_DIR", tmp_path)
-    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=pd.DataFrame()))
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(
+        cmd,
+        "judge_results",
+        MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []})),
+    )
     _patch_summary(monkeypatch)
-    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
     log_path.parent.mkdir(parents=True)
-    log_path.write_text(json.dumps({VALID_MODEL: {"answers_git-hash": "deadbee"}}))
+    log_path.write_text(json.dumps({VALID_MODEL: {"responses_git-hash": "deadbee"}}))
 
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     summary = pd.read_csv(
-        tmp_path / "results" / "summary_linguistic-knowledge_luganda_default.csv"
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
-    assert summary.loc[0, "answers_git-hash"] == "deadbee"
+    assert summary.loc[0, "responses_git-hash"] == "deadbee"
+
+
+def test_judge_bench_ensemble_errors_on_incomplete_judge_columns(
+    runner, monkeypatch, tmp_path
+) -> None:
+    # Simulates resuming with a bigger ensemble: this model was previously judged
+    # with only "judge-a", so its cached CSV lacks an "is_correct_judge-b" column.
+    stale_df = pd.DataFrame({"is_correct_judge-a": [True, False]})
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=stale_df))
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--judge-model",
+            "judge-a",
+            "--judge-model",
+            "judge-b",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "ERROR" in result.output
+    assert VALID_MODEL in result.output
+    assert "judge-b" in result.output
+    assert not (
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
+    ).exists()
+
+
+def test_judge_bench_fallback_ensemble_checks_fallback_columns(
+    runner, monkeypatch, tmp_path
+) -> None:
+    stale_df = pd.DataFrame({"is_correct_fallback_judge-a": [True, False]})
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results_fallback", MagicMock(return_value=stale_df))
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--judge-fallback",
+            "--judge-model",
+            "judge-a",
+            "--judge-model",
+            "judge-b",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "ERROR" in result.output
+    assert "judge-b" in result.output
+
+
+def test_judge_bench_single_judge_errors_on_mismatched_cached_judge(
+    runner, monkeypatch, tmp_path
+) -> None:
+    # Cache was produced by a different single judge than the one now requested
+    # (e.g. -j claude-sonnet-5 the first time, -j gpt-5.6-terra now): the cached
+    # CSV has no is_correct_<requested judge> column, so this must be caught
+    # rather than silently reused under the wrong judge's name.
+    stale_df = pd.DataFrame({"is_correct_judge-a": [True, False]})
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=stale_df))
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--judge-model",
+            "judge-b",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "ERROR" in result.output
+    assert "judge-b" in result.output
+    assert not (
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
+    ).exists()
+
+
+def test_judge_bench_single_judge_reuses_matching_cached_judge(
+    runner, monkeypatch, tmp_path
+) -> None:
+    # Cache already has a column for the single judge being requested: safe to
+    # reuse without --force.
+    cached_df = pd.DataFrame({"is_correct_judge-a": [True, False]})
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "judge_results", MagicMock(return_value=cached_df))
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--judge-model",
+            "judge-a",
+        ],
+    )
+    assert result.exit_code == 0
+    summary_path = (
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
+    )
+    assert summary_path.exists()
 
 
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
@@ -346,7 +492,7 @@ def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> 
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     assert not (tmp_path / "results").exists()
@@ -360,12 +506,12 @@ def test_judge_bench_reports_empty_directory(runner, monkeypatch, tmp_path) -> N
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     # The responses directory exists but holds no result files for the model.
-    (tmp_path / "luganda" / "runs" / "default" / "responses").mkdir(parents=True)
+    (tmp_path / "kiswahili" / "runs" / "default" / "responses").mkdir(parents=True)
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
     assert "Nothing judged: no result files" in result.output
@@ -377,7 +523,7 @@ def test_judge_bench_propagates_error(runner, monkeypatch, tmp_path) -> None:
         cmd, "judge_results", MagicMock(side_effect=RuntimeError("kaboom"))
     )
     result = runner.invoke(
-        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "luganda"]
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 1
     assert "ERROR" in result.output

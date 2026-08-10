@@ -2,7 +2,7 @@
 
 *Pilot language: Swahili (Standard / Kenya). Target: ~100–150 items.* *Diagram:
 `pipeline_workflow_v10.svg`. Prompts: `process_prompts_chat_ready_v10.md`. Stage 3b
-script: `stage_3b_assemble_v10.py`.* *Stages 1a–3a run by hand in a **chat interface**
+selection script: `estimate_irt.py`.* *Stages 1a–3a run by hand in a **chat interface**
 (ChatGPT, Claude, Gemini) — attach files and paste prompts in the browser; Stage 3b is a
 small local script. This is **not** an API pipeline: no code calls the model, which is
 why each chat stage is a self-contained, copy-pasteable prompt.*
@@ -47,10 +47,10 @@ Tier is the tie-breaker throughout: when sources disagree on a fact or its grade
 - **Same process every run; only the documents change.** Each chat stage is a **single,
   editable, language-agnostic prompt**. To port to a new language you swap the sources
   and the language name — the grid, the JSON shapes, and the rules stay put.
-- **Survey → merge → generate → assemble.** The first two stages only *find and
-  organise* what the sources contain; no questions are written and no counts are set
-  until later. This keeps the build auditable: every item traces back through the
-  feature map to a source locator.
+- **Survey → merge → generate → select.** The first two stages only *find and organise*
+  what the sources contain; no questions are written and no counts are set until later.
+  This keeps the build auditable: every item traces back through the feature map to a
+  source locator.
 - **Per-source attribution → comparable, parallel runs.** The digest is computed **one
   document at a time** (so sources can be processed in parallel or added later), and the
   merge keeps every contributing source visible. Diffing the digests / feature maps of
@@ -58,17 +58,16 @@ Tier is the tie-breaker throughout: when sources disagree on a fact or its grade
 - **Sharded so context never binds.** Both the merge (1b) and the writer (2) are freed
   from holding every PDF at once: 1b works from the digest JSON alone, and 2 runs once
   per **subset** of the sources. This lets the pipeline scale to large document sets.
-- **Quota-driven allocation, done deterministically.** There is no upfront per-cell
-  quota inside the LLM stages; instead a **per-domain×grade quota** in the Stage-3b
-  script decides the final shape — reproducible, diffable, and re-runnable when the
-  quota changes. That quota is either **derived proportionally from the 1b feature map**
-  (each cell gets a share of the target item count matching its feature density, with
-  chosen grades excludable) or a **hard-coded table**. The chat stages oversample; the
-  script selects. **WIP:** an **IRT-based allocation** is being explored for Stage 3b
-  (selecting/weighting cells by item difficulty and discrimination, building on the
-  Stage-5 `estimate_irt.py` analysis, rather than by feature density alone). This is not
-  finalized — the current feature_map/hard-coded quota approach may be **dropped in
-  favour of it** once validated.
+- **IRT-driven selection, scored on a model panel.** There is no hand-tuned quota; the
+  final set is chosen by **Item Response Theory**. Stage 3b runs 3a's QC-passed,
+  de-duplicated pool against a **panel of models** and feeds the per-item results to
+  `estimate_irt.py`, which fits item **difficulty and discrimination** and keeps items
+  to (1) avoid saturation (drop what every model aces), (2) **differentiate** models
+  (favour high-discrimination items), and (3) hold a balanced domain×grade spread (an
+  exact per-cell quota over the discriminating pool). The chat stages oversample; the
+  IRT step selects — reproducibly, and with validation diagnostics (ranking recovery,
+  discrimination concentration) that confirm the trim widened the model spread without
+  scrambling the ranking.
 - **Grounded in sources at capture.** The verbatim example for each fact is quoted
   **once** at the digest (1a), while that single document is open; the writer (2)
   re-verifies forms against its shard's sources. The merge (1b) no longer re-attaches
@@ -127,24 +126,22 @@ shard's candidates, **quality-check** each against the anti-gaming/shape rules, 
 **duplicates** — annotating only, never rewriting or dropping. No sources attached. Adds
 `qc_verdict`, `dup_group_id`, and a within-group `quality_rank` to each candidate.
 
-**3b · Assemble — build the final dataset (script)** *(in: JSON → out: JSON)* Goal: a
-deterministic script (`stage_3b_assemble_v10.py`) that turns the annotated pool into the
-final benchmark. Keeps `qc_verdict.pass` items, collapses each `dup_group_id` to its
-best, fills a **per-domain×grade quota** — either derived proportionally from the 1b
-feature map (`--feature-map`, scaled to `--total-items`, with `--exclude-grades`
-dropped) or a hard-coded table — nudges the MCQ/short_form mix and A–D letter balance,
-and assigns sequential `question_id`. Emits the **dataset** (v8 item schema), a ranked
-**backups** pool (for the gate to pull replacements), and a **gap report** of cells left
-under quota.
-
-> **WIP:** a Stage-5 IRT-informed allocation (see `estimate_irt.py`) is being explored
-> as a replacement for this feature_map/hard-coded quota — the allocation approach
-> described above is the *current* state, not necessarily the final one.
+**3b · Select — build the final dataset with IRT (script)** *(in: CSV + JSON → out:
+JSON)* Goal: a deterministic script (`estimate_irt.py`) that turns the annotated pool
+into the final benchmark by **Item Response Theory**, not a hand-tuned quota. It first
+keeps `qc_verdict.pass` items and collapses each `dup_group_id` to its best, then that
+de-duplicated pool is scored against a **panel of models**; `estimate_irt.py` fits Rasch
+difficulty and a point-biserial discrimination per item and selects a trimmed set that
+(1) avoids saturation, (2) differentiates models, and (3) keeps a balanced domain×grade
+spread (an exact per-cell quota over the discriminating pool). Emits the **selected
+dataset** (renumbered `question_id` 1..n), per-item and per-model tables, and diagnostic
+plots (difficulty × discrimination, per-model accuracy shift, coverage). Non-selected
+pool items remain available to the review gate as backups.
 
 **4 · Human Review gate — the real gate** *(in: JSON → out: JSON)* Goal: a linguist / L1
 speaker judges each item — correct? natural? right grade? Accept, fix, or reject.
 Rejects **loop back** to re-run an earlier stage, or pull a replacement from the
-Stage-3b backups.
+non-selected pool items (scored but not kept by the IRT step).
 
 **5 · Evaluate — run & score** *(in: JSON → out: CSV)* Goal: run models against the
 accepted items with the existing harness; score per item and per domain.
@@ -165,10 +162,11 @@ reply. Stage 3b is a local script; the eval harness is Stage 5.
    the candidate array. Repeat until every source has been covered.
 1. **3a:** new chat, no PDFs → attach the concatenated shard arrays → paste the 3a
    prompt → save the annotated pool.
-1. **3b:** run `python stage_3b_assemble_v10.py --pool <3a pool>` → get the dataset,
-   backups, and gap report.
+1. **3b:** score the QC-passed pool on a panel of models, then run
+   `python estimate_irt.py --language <lang>` → get the selected ids, the renumbered
+   dataset, and per-item / per-model tables + diagnostic plots.
 1. **4:** review every item; rejected items send you back to an earlier stage or to the
-   backups.
+   non-selected pool.
 1. **5:** run the eval harness on the accepted set.
 1. **Compare runs** by diffing the per-document digests and the feature maps across
    different document sets.
@@ -190,9 +188,12 @@ points:
   subsets; a split that separates a feature's corroborating sources changes which shard
   verifies it, and features whose sources span shards are generated more than once
   (extra tokens, a bigger pool for 3a).
-- **The hard-coded quota can't exceed pool supply.** If a cell's quota asks for more
-  items than the QC-passed pool holds, Stage 3b under-fills and reports the gap —
-  coverage still follows the sources, exactly as the digest's `absent`/`thin` cells
+- **IRT selection needs a model-panel run first.** Stage 3b can't select until the whole
+  QC-passed pool has been scored by a panel of models, so it costs one eval pass over
+  the candidates, and the chosen set reflects that panel — the leave-k-out stability
+  score and the ranking-recovery diagnostic flag items a different panel might not pick.
+  Coverage still follows the sources: a domain×grade cell can't fill beyond the
+  discriminating items the pool supplies, exactly as the digest's `absent`/`thin` cells
   predict.
 - **Longer pipeline, more handoffs.** 1a → 1b → 2×N shards → 3a → 3b means more JSON
   boundaries plus a script dependency, so schema drift between steps has more places to

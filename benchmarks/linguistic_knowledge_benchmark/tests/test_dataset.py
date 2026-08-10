@@ -1,16 +1,16 @@
 """Validation tests for the registered dataset JSON files.
 
 Guards against corrupted questions that would otherwise fail silently: scoring
-(score_multiple_choice / score_true_false_regex) only ever reads
-expected_answers[0], so a multiple_choice or true_false question with zero or
-more than one expected answer would have the extra entries silently ignored.
+(score_multiple_choice) only ever reads expected_answers[0], so a
+multiple_choice question with zero or more than one expected answer would
+have the extra entries silently ignored.
 """
 
 import pytest
 from linguistic_knowledge_benchmark.cmd import DATASETS
 from linguistic_knowledge_benchmark.run_bench import load_dataset
 
-VALID_ANSWER_TYPES = {"multiple_choice", "short_form", "true_false"}
+VALID_ANSWER_TYPES = {"multiple_choice", "short_form"}
 
 
 def _all_questions():
@@ -44,38 +44,6 @@ def test_answer_type_is_recognized(language_key, question):
 def test_multiple_choice_has_exactly_one_expected_answer(language_key, question):
     assert len(question["expected_answers"]) == 1
     assert question["expected_answers"][0] in question.get("options", {})
-
-
-def _assert_true_false_valid(question):
-    assert len(question["expected_answers"]) == 1
-    assert question["expected_answers"][0] in ("True", "False")
-
-
-@pytest.mark.parametrize(
-    "language_key, question",
-    [(lang, q) for lang, q in ALL_QUESTIONS if q["answer_type"] == "true_false"],
-    ids=[
-        f"{lang}-{q['question_id']}"
-        for lang, q in ALL_QUESTIONS
-        if q["answer_type"] == "true_false"
-    ],
-)
-def test_true_false_has_exactly_one_expected_answer_of_true_or_false(
-    language_key, question
-):
-    _assert_true_false_valid(question)
-
-
-def test_true_false_invariant_holds_for_a_wellformed_question():
-    """No active dataset currently has true_false questions (see conftest's
-    sample_questions), so the parametrized check above never runs its body.
-    Exercise the same invariant directly against a synthetic true_false
-    question so the check itself stays covered and verified.
-    """
-    from conftest import sample_questions
-
-    question = next(q for q in sample_questions() if q["answer_type"] == "true_false")
-    _assert_true_false_valid(question)
 
 
 @pytest.mark.parametrize(

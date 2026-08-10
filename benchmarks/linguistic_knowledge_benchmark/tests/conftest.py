@@ -64,11 +64,4 @@ def sample_questions() -> list[dict]:
             "answer_type": "short_form",
             "expected_answers": ["kintu"],
         },
-        {
-            "question_id": 3,
-            "domain": "grammar",
-            "question": "Is this true?",
-            "answer_type": "true_false",
-            "expected_answers": ["True"],
-        },
     ]

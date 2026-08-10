@@ -1,0 +1,538 @@
+question_id,domain,grade,answer_type,question,expected_answers,claude-sonnet-4-6_output,claude-sonnet-4-6_correct,claude-haiku-4-5-20251001_output,claude-haiku-4-5-20251001_correct,gemini-3.1-flash-lite-preview_output,gemini-3.1-flash-lite-preview_correct,gpt-4.1_output,gpt-4.1_correct,gpt-5.4-nano-2026-03-17_output,gpt-5.4-nano-2026-03-17_correct,gemma-4-31b-it_output,gemma-4-31b-it_correct,gemma-3-12b-it_output,gemma-3-12b-it_correct,gemini-3.1-pro-preview_output,gemini-3.1-pro-preview_correct,ministral-3-8b-2512_output,ministral-3-8b-2512_correct,mistral-small-2603_output,mistral-small-2603_correct
+1,D1,G0,multiple_choice,In which word do the letters 't' and 'h' NOT spell one single sound?,A,A,True,A,True,A,True,A,True,B,False,A,True,B,False,A,True,B,False,B,False
+2,D1,G0,multiple_choice,In which word do the letters 'ai' spell the vowel sound heard in 'bed'?,B,B,True,B,True,B,True,B,True,B,True,B,True,A,False,B,True,C,False,B,True
+3,D1,G0,multiple_choice,In which word does the grapheme 'ea' spell the same vowel sound as it does in 'break'?,C,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True,B,False,C,True
+4,D1,G0,short_form,How many phonemes does the single letter x represent in the word 'fox'?,"2, two",Two,True,One phoneme (/ks/),False,Two phonemes,True,Two phonemes,True,Two phonemes,True,Two,True,Two.,True,Two,True,2,True,One,False
+5,D1,G0,multiple_choice,In which of these words do the final two letters together spell one single phoneme?,D,D,True,C,False,D,True,D,True,B,False,A,False,C,False,D,True,B,False,B,False
+6,D1,G0,short_form,How many phonemes are there in the word 'shop'?,"3, three",3,True,Four phonemes.,False,Three,True,Three,True,2 phonemes,False,Three,True,Four,False,Three,True,4,False,3,True
+7,D1,G0,short_form,"In English spelling, one particular letter always follows the letter q. Which letter is it?","u, U",u,True,U,True,u,True,The letter u.,True,u,True,u,True,U.,True,U,True,**U**,True,u,True
+8,D1,G0,multiple_choice,Which line shows the correct division of the word 'magnet' into its two syllables?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C,False,A,True
+9,D1,G0,multiple_choice,In which word is the long o sound spelt with a four-letter grapheme?,B,D,False,B,True,B,True,B,True,C,False,B,True,D,False,B,True,B,True,B,True
+10,D1,G0,multiple_choice,In which word does the letter 'i' spell a vowel sound other than the short one heard in 'pin'?,C,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True,B,False,C,True
+11,D1,G1,multiple_choice,In which word does the split digraph u–e spell /juː/ rather than /uː/?,D,D,True,C,False,D,True,D,True,B,False,B,False,B,False,D,True,B,False,B,False
+12,D1,G1,short_form,Write the word for the large grey animal with a trunk.,elephant,elephant,True,Elephant,True,Elephant,True,Elephant,True,Elephant,True,Elephant,True,Elephant,True,Elephant,True,Elephant,True,elephant,True
+13,D1,G1,short_form,Write the word that names the noise a bee makes.,buzz,buzz,True,Buzz,True,Buzz,True,buzz,True,buzz,True,Buzz,True,Buzz,True,Buzz,True,Buzz,True,Buzz,True
+14,D1,G1,multiple_choice,Which word is an exception to the usual doubling of a final consonant letter after a single short vowel?,A,A,True,D,False,A,True,A,True,B,False,A,True,A,True,A,True,C,False,C,False
+15,D1,G1,multiple_choice,In which word does the letter 'n' spell the sound heard at the end of 'sing'?,B,B,True,"To find where 'n' makes the sound at the end of 'sing', I need to identify that sound first.
+
+The sound at the end of 'sing' is the velar nasal /ŋ/ (ng sound).
+
+Let me check each word:
+
+A. hand - 'n' makes /n/ sound (alveolar nasal)
+B. honk - 'n' makes /n/ sound (alveolar nasal), the /ŋ/ sound comes from the 'nk'
+C. bend - 'n' makes /n/ sound (alveolar nasal)
+D. hunt - 'n' makes /n/ sound (alveolar nasal)
+
+Wait, let me reconsider. The question asks where the letter 'n' spells the /ŋ/ sound. In ""honk,"" the letters 'nk' together produce the /ŋ/ sound, but that's 'n' + 'k'.
+
+Actually, in none of these words does a single letter 'n' spell the /ŋ/ sound - they all have the regular /n/ sound. However, ""honk"" comes closest as it contains the /ŋ/ sound within it.
+
+B",True,B,True,B,True,C,False,B,True,C,False,B,True,B,True,B,True
+16,D1,G1,short_form,Write the word for the room in a house where meals are cooked.,kitchen,Kitchen,True,Kitchen,True,Kitchen,True,kitchen,True,Kitchen,True,Kitchen,True,Kitchen,True,Kitchen,True,Kitchen,True,kitchen,True
+17,D1,G1,multiple_choice,Which word spells its final sound with 'ch' rather than 'tch'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True
+18,D1,G1,multiple_choice,Which letter pair is virtually never used at the end of an English word?,D,D,True,D,True,D,True,D,True,A,False,D,True,D,True,D,True,B,False,B,False
+19,D1,G1,multiple_choice,The sound /k/ is spelt with 'k' rather than 'c' before which set of letters?,A,A,True,A,True,A,True,A,True,D,False,A,True,B,False,A,True,C,False,A,True
+20,D1,G1,multiple_choice,"Which word is made of two whole words, each keeping its own spelling?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+21,D1,G1,multiple_choice,In which word do three letters together spell a single sound?,C,A,False,"The answer is **A**.
+
+In ""thrust,"" the three letters ""thr"" together spell a single sound /θr/.",,C,True,C,True,B,False,C,True,A,False,C,True,C,True,C,True
+22,D1,G1,short_form,"Write the name of the day that comes after Sunday, spelt as it should be written in the middle of a sentence.",Monday,Monday,True,monday,False,monday,False,Monday,True,Monday,True,Monday,True,Monday,True,Monday,True,Monday,True,Monday,True
+23,D1,G1,short_form,"Write the correct spelling of the verb meaning 'to hand something over freely', which ends with the /v/ sound.",give,give,True,Give,True,Give,True,give,True,“donate”,False,give,True,Give,True,give,True,**cede**,False,give,True
+24,D1,G1,multiple_choice,Which spelling of the /eɪ/ sound is the one used at the end of an English word?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,A,False,D,True
+25,D1,G1,multiple_choice,Which of these spellings of the /eɪ/ sound occurs in the fewest English words?,A,A,True,A,True,A,True,A,True,B,False,A,True,A,True,A,True,C,False,A,True
+26,D1,G1,multiple_choice,In which of these words does the letter c spell the /ʃ/ sound?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+27,D1,G1,multiple_choice,In which word is the long o sound spelt with a vowel digraph rather than a split digraph?,C,C,True,C,True,C,True,C,True,C,True,C,True,A,False,C,True,B,False,C,True
+28,D1,G1,multiple_choice,In which word do the letters 'ow' spell the same vowel sound as in 'cow'?,D,D,True,D,True,D,True,D,True,B,False,D,True,B,False,D,True,B,False,D,True
+29,D1,G1,multiple_choice,In which of these words does the final letter y spell a vowel sound other than /aɪ/?,A,A,True,"To solve this, I need to identify which word has a final ""y"" that sounds like a vowel other than /aɪ/.
+
+Let me check each word:
+
+A. lady - final ""y"" sounds like /i/ (the vowel sound in ""bee"")
+B. fry - final ""y"" sounds like /aɪ/ (the vowel sound in ""sky"")
+C. July - final ""y"" sounds like /i/ (the vowel sound in ""bee"")
+D. reply - final ""y"" sounds like /aɪ/ (the vowel sound in ""sky"")
+
+Words A and C both have a final ""y"" that sounds like /i/, which is different from /aɪ/. However, the question asks ""which of these words"" (singular), so I need to pick the best answer.
+
+Looking at the context, ""lady"" is the most common word where the final ""y"" clearly represents the /i/ sound.
+
+A",True,A,True,A,True,C,False,A,True,C,False,A,True,C,False,C,False
+30,D1,G1,multiple_choice,In which word do the letters 'oa' spell a vowel sound other than the long one heard in 'goat'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+31,D1,G1,multiple_choice,The invented word 'shars' rhymes with 'stars'. Which real word begins with the same sound as 'shars'?,C,C,True,"To solve this, I need to identify the initial sound of 'shars'.
+
+'Shars' begins with the ""sh"" sound (the consonant cluster /ʃ/).
+
+Looking at the options:
+- A. skate - begins with /sk/ sound
+- B. sand - begins with /s/ sound
+- C. sugar - begins with /ʃ/ sound (the ""sh"" sound)
+- D. chart - begins with /tʃ/ sound
+
+The answer is **C**.",,C,True,C,True,B,False,C,True,A,False,C,True,B,False,C,True
+32,D1,G1,multiple_choice,In which word do the letters 'or' spell the vowel sound heard in 'saw'?,D,D,True,"I need to identify which word has 'or' that sounds like the vowel in 'saw'.
+
+The vowel sound in 'saw' is /ɔ/ (the open back rounded vowel, often called the ""aw"" sound).
+
+Let me check each word:
+
+A. worth - 'or' sounds like /ɜ/ (as in ""er""), not /ɔ/
+B. word - 'or' sounds like /ɜ/ (as in ""er""), not /ɔ/
+C. work - 'or' sounds like /ɜ/ (as in ""er""), not /ɔ/
+D. sort - 'or' sounds like /ɔ/ (the ""aw"" sound, same as in ""saw"")
+
+The answer is **D**.",,D,True,D,True,B,False,D,True,D,True,D,True,B,False,D,True
+33,D1,G1,multiple_choice,Which word contains a different vowel sound from the other three?,A,A,True,"I need to identify which word has a different vowel sound from the other three.
+
+Let me examine the vowel sounds:
+
+A. bury - pronounced /ˈbɛri/ (short 'e' sound followed by 'i')
+B. hurt - pronounced /hɜrt/ (the 'ur' sound, schwa-r or stressed schwa)
+C. curl - pronounced /kɜrl/ (the 'ur' sound, schwa-r or stressed schwa)
+D. burst - pronounced /bɜrst/ (the 'ur' sound, schwa-r or stressed schwa)
+
+Words B, C, and D all contain the same vowel sound (the 'ur' sound with r-coloring, pronounced as /ɜr/).
+
+Word A (bury) has a different vowel sound - it has the short 'e' sound followed by a different vowel glide.
+
+A",True,A,True,A,True,B,False,A,True,B,False,A,True,C,False,D,False
+34,D1,G1,short_form,Write the word for a steep rock face at the edge of the sea.,cliff,Cliff,True,Cliff,True,Cliff,True,Cliff,True,Cliff,True,Cliff,True,Cliff,True,Cliff,True,Cliff,True,cliff,True
+35,D1,G2,short_form,Write the word for a structure built to carry a road across a river.,bridge,Bridge,True,Bridge,True,Bridge,True,Bridge,True,Bridge,True,Bridge,True,Bridge,True,Bridge,True,Bridge,True,bridge,True
+36,D1,G2,short_form,Write the word for a settlement smaller than a town.,village,village,True,Village,True,Village,True,Village,True,Village,True,Village,True,Village,True,Village,True,Village,True,village,True
+37,D1,G2,multiple_choice,In which word does the letter 'g' spell the sound heard at the start of 'jam'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+38,D1,G2,multiple_choice,In which word does the letter 'c' spell /s/?,C,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True,C,True,C,True
+39,D1,G2,short_form,Write the word for the joint in the middle of the leg.,knee,Knee,True,Knee,True,Knee,True,Knee,True,knee,True,Knee,True,Knee,True,Knee,True,Knee,True,knee,True
+40,D1,G2,short_form,Write the word for the piece of furniture with a flat top and legs that is eaten from.,table,Table,True,Table,True,Dining table,False,dining table,False,Table,True,Table,True,Table,True,Table,True,Table,True,Table,True
+41,D1,G2,short_form,Write the word for the bushy-tailed animal that gathers and stores nuts.,squirrel,squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True,Squirrel,True
+42,D1,G2,short_form,Write the word for the thin writing tool whose marks can be rubbed out.,pencil,pencil,True,Pencil,True,Pencil,True,Pencil,True,Eraser lead,False,Pencil,True,Pencil,True,Pencil,True,Pencil.,True,Eraser,False
+43,D1,G2,short_form,Write the past-tense form of the verb 'drop'.,dropped,dropped,True,dropped,True,Dropped,True,dropped,True,Dropped,True,dropped,True,Dropped,True,dropped,True,Dropped,True,dropped,True
+44,D1,G2,short_form,Write the form of the verb 'fix' that is used after 'is'.,fixing,fixed,False,is fixing,False,Fixing,True,being fixed,False,is fixed,False,fixing / fixed,False,Fixed,False,fixing or fixed,False,fixing,True,is fixing,False
+45,D1,G2,short_form,Write the word meaning to travel on foot at an ordinary pace.,walk,Walk,True,walk,True,Walk,True,Walk,True,Walk,True,Walk,True,Walk.,True,Walk,True,**Amble**,False,walk,True
+46,D1,G2,multiple_choice,Which word contains the same vowel sound as 'for'?,D,D,True,"The vowel sound in 'for' is /ɔː/ (the ""aw"" sound).
+
+Checking each option:
+- A. worm - /wɜːm/ (different vowel sound)
+- B. worse - /wɜːs/ (different vowel sound)
+- C. word - /wɜːd/ (different vowel sound)
+- D. warm - /wɔːm/ (same vowel sound as 'for')
+
+D",True,D,True,D,True,A,False,C,False,B,False,D,True,C,False,D,True
+47,D1,G2,short_form,Write the noun formed from the verb 'act'.,action,action,True,Action,True,Action,True,action,True,Action,True,Action,True,Action,True,Action,True,Acting,False,action,True
+48,D1,G2,short_form,Write the form of the verb 'hope' that completes 'She is ___ for good news'.,hoping,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True,hoping,True
+49,D1,G2,short_form,"Write the correct spelling of the word meaning 'not right or not correct', which begins with the /r/ sound.",wrong,wrong,True,Wrong,False,Wrong,False,Wrong,False,incorrect,False,Wrong,False,Wrong,False,Wrong,False,incorrect,False,Incorrect,False
+50,D1,G2,short_form,Write the correct spelling of the verb meaning 'to cook something in hot oil'.,fry,fry,True,Fry,True,Fry,True,Fry,True,Fry,True,fry,True,Fry,True,fry,True,Fry,True,fry,True
+51,D1,G2,multiple_choice,In which of these words does the letter a spell the /ɒ/ sound heard in 'hot'?,A,A,True,A,True,A,True,A,True,B,False,A,True,C,False,A,True,C,False,B,False
+52,D1,G2,short_form,"Write the correct spelling of the word for the long thin creature that burrows in soil, which begins with the /w/ sound.",worm,worm,True,worm,True,Worm,True,worm,True,**Worm**,True,worm,True,Worm,True,worm,True,worm,True,worm,True
+53,D1,G2,short_form,"In standard British punctuation, how many commas are needed in the sentence 'She packed apples oranges and pears'?","1, one",One,True,Two commas,False,Two commas,False,Two commas,False,0 commas,False,Two,False,Two.,False,One,True,Two.,False,2,False
+54,D1,G2,multiple_choice,Which punctuation mark should be written at the end of 'How far did you throw the ball'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+55,D1,G2,multiple_choice,Which of these word strings should be completed with an exclamation mark rather than a question mark?,C,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True,C,True,C,True
+56,D1,G2,multiple_choice,Which pronoun is written with a capital letter wherever it appears in a sentence?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+57,D1,G2,multiple_choice,In which of these words does the letter o spell the /ʌ/ sound?,A,A,True,A,True,A,True,A,True,B,False,A,True,A,True,A,True,C,False,B,False
+58,D1,G2,short_form,Write the past tense of the verb 'play'.,played,played,True,Played,True,Played,True,played,True,played,True,Played,True,Played,True,played,True,Played,True,played,True
+59,D1,G3,short_form,Write the form of the verb 'begin' that is used after 'is'.,beginning,begun,False,Being,False,Beginning,True,beginning,True,begins,False,beginning,True,Beginning,True,beginning,True,begun,False,beginning,True
+60,D1,G3,short_form,Write the past-tense form of the verb 'limit'.,limited,limited,True,Limited,True,Limited,True,limited,True,limited,True,limited,True,Limited,True,limited,True,Limited,True,limited,True
+61,D1,G3,short_form,Write the word meaning twice as much.,double,double,True,Double,True,Double,True,Double,True,Double,True,Double,True,Double.,True,Double,True,Double,True,Double,True
+62,D1,G3,short_form,Write the adjective meaning 'not legal'.,illegal,illegal,True,Illegal,True,Illegal,True,illegal,True,illegal,True,Illegal,True,Illegal,True,Illegal,True,"Illegitimate
+**Illegal**",False,illegal,True
+63,D1,G3,short_form,Write the adjective meaning 'not patient'.,impatient,impatient,True,Impatient,True,Impatient,True,Impatient,True,Impatient,True,Impatient,True,Impatient,True,Impatient,True,**Impatient**,True,impatient,True
+64,D1,G3,short_form,Write the adjective meaning 'not regular'.,irregular,irregular,True,Irregular,True,Irregular,True,irregular,True,Irregular,True,Irregular,True,Irregular,True,Irregular,True,Irregular,True,irregular,True
+65,D1,G3,short_form,Write the word for something valuable that has been hidden or buried.,treasure,Treasure,True,Treasure,True,Treasure,True,Treasure,True,Treasure,True,Treasure,True,Treasure,True,Treasure,True,Treasure,True,treasure,True
+66,D1,G3,short_form,"Write the word for a living being, especially an animal.",creature,creature,True,Creature,True,Creature,True,creature,True,Animal,False,Creature,True,Creature,True,Creature,True,**Creature**,True,creature,True
+67,D1,G3,short_form,Write the noun formed from the verb 'decide'.,decision,decision,True,Decision,True,Decision,True,decision,True,Decision,True,Decision,True,Decision,True,decision,True,Decision,True,decision,True
+68,D1,G3,short_form,Write the noun formed from the verb 'permit'.,permission,permission,True,Permission,True,Permission,True,permission,True,permission,True,Permission / Permit,False,Permission,True,Permission,True,Permission,True,permission,True
+69,D1,G3,short_form,Write the word for a person who performs tricks that look like magic.,magician,Illusionist,False,Magician,True,Magician,True,Magician,True,Magician,True,Magician,True,Magician,True,Magician,True,Magician,True,illusionist,False
+70,D1,G3,multiple_choice,In which word do the letters 'ch' spell /k/?,B,B,True,B,True,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True
+71,D1,G3,multiple_choice,In which word do the letters 'ch' spell /ʃ/?,C,C,True,C,True,C,True,C,True,B,False,C,True,B,False,C,True,B,False,C,True
+72,D1,G3,short_form,Write the adjective meaning 'being the only one of its kind'.,unique,unique,True,Unique,True,Unique,True,Unique,True,exclusive,False,Unique,True,Unique,True,Unique,True,Unique,True,Unique,True
+73,D1,G3,short_form,Write the word for one part of a play showing a single place and time.,scene,Scene,True,Scene,True,Scene,True,scene,True,Scene,True,Scene,True,Scene,True,Scene,True,Scene,True,Scene,True
+74,D1,G3,short_form,Write the word for the number that comes after seven.,eight,eight,True,Eight,True,Eight,True,Eight,True,eight,True,Eight,True,Eight,True,Eight,True,Eight,True,eight,True
+75,D1,G3,short_form,"Write the word meaning 'set apart, not joined to anything else'.",separate,detached,False,Detached,False,Isolated,False,separate,True,separate,True,Detached,False,Isolated,False,Separate,True,Detached,False,isolated,False
+76,D1,G3,short_form,Write the noun formed by adding the suffix -ation to the root 'register'.,registration,Registration,True,Registration,True,Registration,True,Registration,True,registration,True,Registration,True,Registration,True,Registration,True,Registration,True,registration,True
+77,D1,G3,short_form,Write the adjective formed from the noun 'hazard'.,hazardous,hazardous,True,Hazardous,True,Hazardous,True,hazardous,True,hazardous,True,Hazardous,True,Hazardous,True,hazardous,True,Hazardous,True,hazardous,True
+78,D1,G3,short_form,Write the adverb formed from the adjective 'confident'.,confidently,confidently,True,Confidently,True,Confidently,True,Confidently,True,confidently,True,confidently,True,Confidently,True,Confidently,True,**Confidently**,True,confidently,True
+79,D1,G3,short_form,How many morphemes does the word 'unkindly' contain?,"3, three",3,True,Three morphemes.,True,Three,True,Three morphemes,True,3,True,Three,True,Four.,False,Three,True,3,True,3,True
+80,D1,G4,multiple_choice,Which sentence is punctuated correctly?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+81,D1,G4,multiple_choice,"In the sentence 'After the film ended we walked home', where should a comma be placed?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+82,D1,G4,multiple_choice,Which of these is the correct spelling of the adjective meaning 'graceful and stylish'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+83,D1,G4,multiple_choice,Which of these is the correct spelling of the adjective meaning 'not able to happen'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+84,D1,G4,short_form,"Write the word for the ground powder used to make bread, which sounds the same as 'flower'.",flour,flour,True,Flour,True,Flour,True,flour,True,Flour,True,Flour,True,Flour,True,Flour,True,Flour,True,flour,True
+85,D1,G5,short_form,Write the adjective formed from the noun 'space' meaning 'having plenty of room'.,spacious,spacious,True,Spacious,True,Spacious,True,spacious,True,Spacious,True,Spacious,True,Spacious,True,Spacious,True,spacious,True,spacious,True
+86,D1,G5,short_form,"Write the adjective, related to the noun 'anxiety', meaning 'worried'.",anxious,anxious,True,Anxious,True,Anxious,True,anxious,True,anxious,True,Anxious,True,Anxious,True,Anxious,True,Anxious,True,Anxious,True
+87,D1,G5,short_form,"Write the adjective, related to the noun 'confidence', meaning 'meant to be kept secret'.",confidential,confidential,True,Confidential,True,Confidential,True,confidential,True,confidential,True,Confidential,True,Confidential,True,Confidential,True,Confidential,True,Confidential,True
+88,D1,G5,short_form,Write the adjective formed from the verb 'notice' meaning 'easily seen'.,noticeable,noticeable,True,Noticeable,True,Noticeable,True,noticeable,True,noticeable,True,noticeable,True,Noticeable,True,Noticeable,True,noticeable,True,Noticeable,True
+89,D1,G5,short_form,Write the noun formed from the verb 'refer' meaning 'a mention of something'.,reference,reference,True,Reference,True,Reference,True,reference,True,reference,True,Reference,True,Reference,True,Reference,True,Reference,True,reference,True
+90,D1,G5,multiple_choice,Which spelling follows the guidance for joining a prefix ending in a vowel letter to a root beginning with a vowel letter?,D,D,True,C,False,D,True,D,True,C,False,D,True,C,False,D,True,C,False,C,False
+91,D1,G5,short_form,Write the verb meaning 'to be given something'.,receive,receive,True,Receive,True,Receive,True,receive,True,Receive,True,Receive,True,Receive,True,Receive,True,**receive**,True,receive,True
+92,D1,G5,multiple_choice,Which word breaks the rule that 'i' comes before 'e' except after 'c'?,A,A,True,A,True,A,True,A,True,A,True,A,True,D,False,A,True,C,False,A,True
+93,D1,G5,multiple_choice,In which word do the letters 'ough' spell the same sound as in 'though'?,B,B,True,D,False,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True
+94,D1,G5,multiple_choice,Which word contains a letter that is not pronounced?,C,C,True,C,True,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True
+95,D1,G5,short_form,Write the word for the regular repeated pattern of beats in a piece of music.,rhythm,Rhythm,True,Rhythm,True,Rhythm,True,Rhythm,True,Rhythm,True,Beat or Rhythm,False,Rhythm,True,Rhythm,True,Rhythm,True,Meter,False
+96,D1,G5,short_form,Write the correct spelling of the word for a young sheep.,lamb,lamb,True,Lamb,True,Lamb,True,Lamb,True,Lamb,True,Lamb,True,Lamb,True,Lamb,True,Lamb,True,lamb,True
+97,D1,G5,short_form,"Write the correct spelling of the noun meaning 'a clear, glass-like mineral with a regular shape'.",crystal,crystal,True,Crystal,True,Crystal,True,crystal,True,Quartz,False,Crystal,True,Quartz crystal,False,Crystal,True,crystal,True,quartz,False
+98,D1,G5,multiple_choice,"In 'Pepper a black cat from York hid in the shed', where should the opening bracket be placed to mark the parenthesis?",D,D,True,B,False,D,True,D,True,B,False,D,True,B,False,D,True,B,False,C,False
+99,D1,G5,multiple_choice,A pair of commas is needed in 'She decided although she was tired that she would go'. Where does the second comma belong?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B,False,A,True
+100,D1,G5,short_form,How many dashes are needed to mark off the phrase 'my youngest sister' inside the sentence 'Flo my youngest sister is in year three'?,"2, two",2,True,Two dashes,True,Two dashes,True,Two dashes,True,0 dashes,False,Two,True,Two.,True,Two,True,Two.,True,2,True
+101,D1,beyond_primary,multiple_choice,Which mark belongs in the gap in 'It's raining ___ I'm fed up.' if no joining word is used?,B,B,True,B,True,B,True,B,True,D,False,B,True,D,False,B,True,B,True,B,True
+102,D1,beyond_primary,multiple_choice,Which phrase describes a shark that eats people?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+103,D1,beyond_primary,multiple_choice,"Which mark should follow 'three things' in 'Plants cannot live without these three things ___ light, water and nutrients'?",D,D,True,D,True,D.,True,D,True,B,False,D,True,D,True,D,True,B,False,B,False
+104,D1,beyond_primary,multiple_choice,Which single mark can introduce the final comment in 'I ate all the grapes ___ they were delicious'?,A,A,True,A,True,A,True,A,True,D,False,A,True,D,False,A,True,A,True,A,True
+105,D2,G0,multiple_choice,Which word rhymes with 'through'?,B,B,True,B,True,B,True,B,True,C,False,B,True,A,False,B,True,A,False,B,True
+106,D2,G0,multiple_choice,Which word begins with the same sound as 'city'?,C,C,True,C,True,C,True,C,True,A,False,B,False,A,False,C,True,A,False,B,False
+107,D2,G0,multiple_choice,Which pair of consonant sounds differs only in that the first is unvoiced and the second is voiced?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+108,D2,G0,multiple_choice,Which of these words rhymes with 'said'?,A,A,True,A,True,A,True,A,True,D,False,A,True,D,False,A,True,B,False,B,False
+109,D2,G0,multiple_choice,Which pair of words is alliterative?,B,A,False,A,False,C,False,C,False,D,False,A,False,D,False,B,True,B,True,A,False
+110,D2,G0,short_form,How many syllables are there in the word 'umbrella'?,"3, three",Three,True,Three syllables,True,Three syllables,True,Three syllables,True,4 syllables,False,Three,True,Three,True,Three,True,3,True,3,True
+111,D2,G0,multiple_choice,Which of these words ends with a nasal consonant sound?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True
+112,D2,G0,short_form,How many phonemes does the letter pair qu represent in the word 'queen'?,"2, two",Two phonemes (/kw/),True,One phoneme.,False,Two phonemes,True,Two phonemes,True,2 phonemes,True,Two,True,Two.,True,Two,True,One,False,/kw/,False
+113,D2,G0,short_form,How many phonemes are there in the word 'cheese'?,"3, three",4,False,Three phonemes,True,Three,True,3 phonemes,True,3,True,Three,True,Five.,False,Three,True,5,False,3,True
+114,D2,G0,short_form,How many phonemes are there in the word 'street'?,"5, five",6,False,Five phonemes,True,Five,True,5 phonemes,True,5,True,Five,True,Six,False,5,True,6,False,4,False
+115,D2,G1,multiple_choice,How many phonemes does the word 'caught' contain?,D,D,True,D,True,D,True,B,False,C,False,D,True,B,False,D,True,B,False,B,False
+116,D2,G1,multiple_choice,In which word does the plural ending add an extra syllable?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D,False
+117,D2,G1,multiple_choice,In which word do the letters 'er' spell a stressed vowel rather than an unstressed one?,B,B,True,"Looking at each word, I need to identify where 'er' carries stress:
+
+A. **summer** - 'er' is unstressed (SUM-mer)
+B. **verb** - 'er' is stressed (VERB - one syllable word with stress on the vowel)
+C. **sister** - 'er' is unstressed (SIS-ter)
+D. **under** - 'er' is unstressed (UN-der)
+
+In ""verb,"" the 'er' spelling represents the only vowel in the word and carries the primary stress.
+
+**B**",,B,True,B,True,B,True,B,True,C,False,B,True,C,False,B,True
+118,D2,G1,multiple_choice,Which word ends with the unstressed vowel sound /ə/?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+119,D2,G1,short_form,Approximately how many phonemes does English have?,"44, around 44, about 44, 44 phonemes",44,True,44 phonemes,True,44,True,About 44,True,~40 phonemes,False,About 44,True,Fourteen to twenty.,False,44,True,44,True,44,True
+120,D2,G1,multiple_choice,Which of these words contains the phoneme /ʒ/?,D,D,True,D,True,D,True,D,True,C,False,D,True,D,True,D,True,B,False,C,False
+121,D2,G1,multiple_choice,Which of these words contains a schwa?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+122,D2,G1,multiple_choice,Which pair of words shows assonance without rhyming?,B,D,False,B,True,B,True,D,False,A,False,B,True,D,False,B,True,B,True,B,True
+123,D2,G1,multiple_choice,In which pair does the second part rhyme with the first because only the opening sound changes?,C,C,True,"The question asks which pair rhymes because only the opening sound changes (meaning the rest of the word stays the same).
+
+Let me analyze each:
+
+A. criss – cross: ""criss"" /krɪs/ and ""cross"" /krɔs/ - different vowels and consonants, not just opening sound change
+
+B. ping – pong: ""ping"" /pɪŋ/ and ""pong"" /pɔŋ/ - only the vowel changes (ɪ vs ɔ), the opening /p/ and ending /ŋ/ stay the same
+
+C. argy – bargy: ""argy"" /ɑːdʒi/ and ""bargy"" /bɑːdʒi/ - only the opening sound changes from /ɑː/ to /b/, but this is more complex
+
+D. tick – tock: ""tick"" /tɪk/ and ""tock"" /tɑk/ - the vowel changes and the /t/ opening stays, but this is similar to B
+
+The clearest answer is B, where ""ping"" and ""pong"" maintain the same structure (-ing/-ong) with only the vowel (opening sound of the vowel) changing.
+
+B",False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False
+124,D2,G1,multiple_choice,What does the term 'cadence' refer to?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+125,D2,G1,multiple_choice,The invented word 'gloast' rhymes with 'boast'. Which transcription represents it?,A,A,True,A,True,A,True,A,True,B,False,A,True,B,False,A,True,A,True,B,False
+126,D2,G1,multiple_choice,Which word contains the vowel /ɛ/ heard in 'bed'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+127,D2,G1,multiple_choice,Which word contains the same vowel sound as 'snort'?,C,C,True,C,True,C,True,C,True,B,False,C,True,A,False,C,True,C,True,A,False
+128,D2,G1,multiple_choice,Which word contains the same vowel sound as 'boast'?,D,D,True,"To find the word with the same vowel sound as 'boast', I need to identify the vowel sound in 'boast'.
+
+'Boast' contains the /oʊ/ sound (a long 'o' sound, as in ""oh"").
+
+Let me check each option:
+- A. brow - contains /aʊ/ sound (like ""ow"")
+- B. brood - contains /uː/ sound (like ""oo"")
+- C. brought - contains /ɔː/ sound (like ""aw"")
+- D. brooch - contains /oʊ/ sound (like ""oh"")
+
+The answer is **D**.",,D,True,D,True,B,False,D,True,C,False,D,True,B,False,B,False
+129,D2,G1,multiple_choice,Which word contains the same vowel sound as 'cusp'?,A,A,True,"The vowel sound in 'cusp' is /ʌ/, the short ""u"" sound.
+
+Let me check each option:
+A. flood - /ʌ/ (short u sound) ✓
+B. gloom - /u:/ (long oo sound)
+C. brood - /u:/ (long oo sound)
+D. groove - /u:/ (long oo sound)
+
+A",True,A,True,A,True,D,False,A,True,B,False,A,True,B,False,A,True
+130,D2,G1,multiple_choice,In which word is the final letter 's' pronounced /z/?,B,B,True,B,True,B,True,B,True,A,False,B,True,C,False,B,True,B,True,B,True
+131,D2,G2,multiple_choice,Which word contains the phoneme /ʒ/?,C,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True,C,True,C,True
+132,D2,G2,short_form,Write the word for a thick slice of beef cut for grilling.,steak,Steak,True,Steak,True,Steak,True,steak,True,Steak,True,Steak,True,Steak,True,Steak,True,Steak,True,Steak,True
+133,D2,G2,short_form,Write the word for the long-eared animal related to the horse that is used to carry loads.,donkey,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True,Donkey,True
+134,D2,G2,multiple_choice,In which of these words does the ending -ed add an extra syllable to the root?,D,D,True,D,True,D,True,D,True,A,False,D,True,D,True,D,True,B,False,D,True
+135,D2,G2,multiple_choice,In which of these words does the stress fall on the second syllable?,A,A,True,A,True,A,True,A,True,B,False,A,True,B,False,A,True,B,False,B,False
+136,D2,G2,short_form,What is the smallest number of vowel sounds an English syllable can contain?,"1, one",One,True,One,True,One,True,One,True,One,True,Zero,False,One.,True,Zero,False,Zero,False,1,True
+137,D2,G3,multiple_choice,Which word ends with the same sound as 'pleasure'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+138,D2,G3,multiple_choice,In which of these words is the first syllable the stressed one?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+139,D2,G3,multiple_choice,Which of these words ends with the same sound as 'television'?,D,D,True,D,True,D,True,D,True,B,False,D,True,B,False,D,True,C,False,B,False
+140,D2,G3,multiple_choice,Which of these words ends with the sound /ʃən/ rather than /ʒən/?,A,A,True,A,True,A,True,A,True,A,True,A,True,C,False,A,True,C,False,A,True
+141,D2,G4,multiple_choice,Which of these words ends with the sound /ʃəs/?,B,B,True,A,False,B,True,B,True,D,False,B,True,A,False,B,True,B,True,B,True
+142,D2,G4,multiple_choice,Which of these words ends with the sound /ʃəl/?,C,C,True,A,False,C,True,C,True,A,False,C,True,B,False,C,True,B,False,C,True
+143,D2,G5,multiple_choice,In which word is a /z/ sound heard in the final syllable?,D,D,True,D,True,D,True,D.,True,B,False,D,True,B,False,D,True,B,False,D,True
+144,D3,G0,short_form,Write the plural form of the noun 'goose'.,geese,geese,True,Geese,True,Geese,True,geese,True,Geese,True,Geese,True,Geese,True,geese,True,Geese,True,geese,True
+145,D3,G1,short_form,Write the plural form of the noun 'potato'.,potatoes,potatoes,True,Potatoes,True,Potatoes,True,potatoes,True,potatoes,True,potatoes,True,Potatoes,True,potatoes,True,Potatoes,True,potatoes,True
+146,D3,G1,multiple_choice,Which noun forms its plural with '-es'?,A,A,True,A,True,A,True,A,True,A,True,A,True,C,False,A,True,B,False,A,True
+147,D3,G1,short_form,Write the plural form of the noun 'mouse'.,mice,mice,True,Mice,True,Mice,True,mice,True,Mice,True,Mice,True,Mice,True,Mice,True,mice,True,mice,True
+148,D3,G1,multiple_choice,Which of these nouns refers to more than one thing?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+149,D3,G1,short_form,Write the plural form of the noun 'wish'.,wishes,wishes,True,Wishes,True,Wishes,True,wishes,True,wishes,True,wishes,True,Wishes,True,wishes,True,Wishes,True,wishes,True
+150,D3,G2,short_form,Write the plural form of the noun 'baby'.,babies,babies,True,Babies,True,Babies,True,babies,True,babies,True,Babies,True,Babies,True,babies,True,babies,True,babies,True
+151,D3,G2,short_form,Write the plural form of the noun 'valley'.,valleys,valleys,True,Valleys,True,Valleys,True,valleys,True,Valleys,True,valleys,True,Valleys,True,valleys,True,Valleys,True,valleys,True
+152,D3,G2,short_form,Write the noun formed from the adjective 'happy' with the suffix '-ness'.,happiness,happiness,True,Happiness,True,Happiness,True,Happiness,True,happiness,True,Happiness,True,Happiness,True,happiness,True,happiness,True,happiness,True
+153,D3,G2,short_form,Write the adjective formed from the noun 'penny' with the suffix '-less'.,penniless,Penniless,True,Pennyless,False,Penniless,True,penniless,True,penniless,True,Penniless,True,Penniless,True,Penniless,True,penniless,True,penniless,True
+154,D3,G2,short_form,Write the superlative form of the adjective 'big'.,biggest,biggest,True,biggest,True,Biggest,True,biggest,True,biggest,True,Biggest,True,Biggest,True,biggest,True,biggest,True,biggest,True
+155,D3,G2,short_form,"Write the form of the noun 'girl' that completes 'the ___ bike', where the bike belongs to one girl.",girl's,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True,girl's,True
+156,D3,G2,multiple_choice,Which pair shows two forms of the same word rather than two different words?,C,C,True,A,False,C,True,C,True,C,True,C,True,A,False,C,True,A,False,C,True
+157,D3,G2,short_form,Write the plural form of the noun 'loaf'.,loaves,loaves,True,Loaves,True,Loaves,True,loaves,True,loaves,True,Loaves,True,Loaves,True,loaves,True,Loaves,True,loaves,True
+158,D3,G2,short_form,Write the adjective formed by adding the suffix -y to the noun 'smoke'.,smoky,smoky,True,Smoky,True,Smoky,True,Smoky,True,smoky,True,Smoky,True,Smoky,True,smoky,True,Smoky,True,Smoky,True
+159,D3,G3,multiple_choice,Which form shows toys belonging to several boys?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+160,D3,G3,multiple_choice,Which phrase is correct?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+161,D3,G3,short_form,"Write the noun for a person's own signature, formed with the prefix 'auto-'.",autograph,Autograph,True,Autograph,True,Autograph,True,Autograph,True,Autograph,True,Autograph,True,Autograph,True,Autograph,True,Autograph,True,autograph,True
+162,D3,G3,short_form,Write the noun formed from the verb 'admire'.,admiration,admiration,True,Admiration,True,Admiration,True,admiration,True,Admiration,True,Admiration,True,Admiration,True,Admiration,True,Admirer,False,admiration,True
+163,D3,G3,multiple_choice,Which form shows the population belonging to Cyprus?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+164,D3,G3,multiple_choice,Which of these is a bound morpheme?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+165,D3,G3,multiple_choice,In which pair has a completely new word been created rather than a new form of the same word?,D,D,True,"The question asks which pair shows a completely new word being created, rather than just a new form of the same word.
+
+Let me analyze each option:
+
+A. mouse – mice: These are different forms of the same word (singular/plural). Same word, different form.
+
+B. walk – walked: These are different forms of the same word (base verb/past tense). Same word, different form.
+
+C. child – children: These are different forms of the same word (singular/plural). Same word, different form.
+
+D. boy – boyish: ""Boyish"" is a completely new word created by adding the suffix ""-ish"" to ""boy."" This creates a new word (an adjective) from the noun ""boy,"" rather than just creating a new form of the same word.
+
+**D**",,A,False,D,True,C,False,D,True,C,False,D,True,D,True,D,True
+166,D3,G3,multiple_choice,Which of these word orders is grammatical in English?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+167,D3,G4,short_form,"Complete the sentence with the correct possessive form: 'She had forgotten her pen, so I gave her one of ___.'",mine,mine,True,mine,True,mine,True,mine,True,mine,True,mine,True,mine,True,mine,True,mine,True,yours,False
+168,D3,G5,short_form,Write the noun formed from the adjective 'tolerant'.,tolerance,tolerance,True,Tolerance,True,Tolerance,True,tolerance,True,tolerance,True,Tolerance,True,Tolerance,True,Tolerance,True,Tolerance,True,tolerance,True
+169,D3,G5,short_form,Write the noun formed from the adjective 'obedient'.,obedience,obedience,True,Obedience,True,Obedience,True,obedience,True,obedi ence,False,Obedience,True,Obedience,True,Obedience,True,Obedience,True,Obedience,True
+170,D3,G5,short_form,Write the adjective formed from the verb 'rely' meaning 'able to be trusted'.,reliable,reliable,True,reliable,True,Reliable,True,reliable,True,reliable,True,Reliable,True,Reliable,True,reliable,True,reliable,True,reliable,True
+171,D3,beyond_primary,multiple_choice,In which phrase does the possessive form not express ownership?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+172,D4,G0,short_form,Write the simple past-tense form of the verb 'swim'.,swam,swam,True,Swam,True,Swam,True,swam,True,swam,True,swam,True,Swam,True,swam,True,swam,True,swam,True
+173,D4,G0,short_form,Write the simple past-tense form of the verb 'go'.,went,went,True,Went,True,Went,True,went,True,went,True,went,True,Went,True,went,True,went,True,went,True
+174,D4,G0,short_form,Write the simple past-tense form of the verb 'drink'.,drank,drank,True,Drank,True,Drank,True,drank,True,drank,True,drank,True,Drank,True,Drank,True,Drank,True,drank,True
+175,D4,G0,multiple_choice,Which form completes 'I ___ visit my aunt tomorrow.' so that it refers to future time?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+176,D4,G0,short_form,Write the contracted form of 'cannot'.,can't,can't,True,can't,True,Can't,True,can't,True,can't,True,can't,True,Can't,True,can't,True,can't,True,can't,True
+177,D4,G1,multiple_choice,"Which spelling of the past tense is correct, even though the ending sounds like /t/?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,C,False
+178,D4,G1,short_form,"Write the third-person singular present-tense form of the verb 'go', as in 'She ___ home'.",goes,goes,True,goes,True,goes,True,goes,True,goes,True,goes,True,Goes,True,goes,True,goes,True,goes,True
+179,D4,G1,multiple_choice,In which word does 'un-' mean 'undoing' rather than 'not'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+180,D4,G2,short_form,Write the two words that complete 'She ___ loudly all morning yesterday.' using the verb 'drum' in the progressive.,was drumming,was drumming,True,was drumming,True,was drumming,True,was drumming,True,was drumming,True,was drumming,True,was drumming,True,was drumming,True,drummed,False,was drumming,True
+181,D4,G2,multiple_choice,Which form keeps the tense consistent in 'He picked up the ball and ___ it over the fence.'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+182,D4,G2,short_form,Write the form of the verb 'copy' that is used after 'is'.,copying,copied,False,is copying,False,copying,True,copying,True,copied,False,copying / copied,False,Copied,False,"Copying, copied",False,copied,False,copying,True
+183,D4,G2,short_form,"Write the form of the verb 'be' that is used after 'is', as in 'She is ___ helpful'.",being,being,True,being,True,being,True,being,True,is,False,being,True,Being,True,being,True,am,False,being,True
+184,D4,G2,short_form,Write the adverb formed from the adjective 'happy'.,happily,happily,True,Happily,True,Happily,True,Happily,True,happily,True,happily,True,Happily,True,happily,True,happily,True,happily,True
+185,D4,G2,short_form,Write the past tense of the verb 'fly'.,flew,flew,True,flew,True,Flew,True,Flew,True,flew,True,flew,True,Flew,True,flew,True,Flew,True,flew,True
+186,D4,G2,short_form,Write the past tense of the verb 'sit'.,sat,sat,True,Sat,True,Sat,True,sat,True,sat,True,sat,True,Sat,True,sat,True,Sat,True,sat,True
+187,D4,G2,short_form,"Write the noun naming a person who runs, formed from the verb 'run'.",runner,runner,True,Runner,True,Runner,True,Runner,True,Runner,True,Runner,True,Runner,True,Runner,True,Runner,True,runner,True
+188,D4,G2,short_form,Write the words 'did not' as a single contracted word.,didn't,didn't,True,didn't,True,Didn't,True,didn't,True,didn’t,True,didn't,True,Didn't,True,didn't,True,**didn't**,True,Didn't,True
+189,D4,G2,multiple_choice,Which of these sentences is in the simple past rather than the progressive?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+190,D4,G2,multiple_choice,To which of these verbs can -ing be added with no change at all to the spelling of the root?,D,D,True,D,True,D,True,A,False,D,True,D,True,A,False,D,True,C,False,B,False
+191,D4,G3,short_form,Write the adverb formed from the adjective 'final'.,finally,finally,True,Finally,True,Finally,True,Finally,True,Finally,True,Finally,True,Finally,True,finally,True,finally,True,finally,True
+192,D4,G3,short_form,Write the adverb formed from the adjective 'humble'.,humbly,humbly,True,Humbly,True,Humbly,True,Humbly,True,humbly,True,Humbly,True,Humbly,True,Humbly,True,Humbly,True,humbly,True
+193,D4,G3,short_form,Write the adverb formed from the adjective 'basic'.,basically,basically,True,Basically,True,Basically,True,Basically,True,basically,True,Basically,True,Basically,True,basically,True,basically,True,basically,True
+194,D4,G3,short_form,Write the adverb formed from the adjective 'public'.,publicly,publicly,True,Publicly,True,Publicly,True,Publicly,True,publicly,True,publicly,True,Publicly,True,Publicly,True,Publicly,True,publicly,True
+195,D4,G3,short_form,Write the adverb formed from the adjective 'whole'.,wholly,wholly,True,wholly,True,Wholly,True,wholly,True,wholly,True,Wholly,True,Wholly,True,Wholly,True,wholly,True,wholly,True
+196,D4,G3,multiple_choice,Which suffix turns a noun into a verb?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+197,D4,G3,multiple_choice,Which suffix leaves the word class of the root unchanged?,B,B,True,C,False,B,True,B,True,C,False,B,True,D,False,B,True,B,True,C,False
+198,D4,G3,short_form,"Write the word meaning 'not faithful', formed by adding a prefix to 'loyal'.",disloyal,disloyal,True,Disloyal,True,Disloyal,True,disloyal,True,Disloyal,True,disloyal,True,Disloyal,True,disloyal,True,Disloyal,True,disloyal,True
+199,D4,G3,short_form,Write the noun that belongs to the same word family as the verb 'motivate'.,motivation,motivation,True,Motivation,True,Motivation,True,motivation,True,Motivation,True,Motivation,True,Motivation,True,Motivation,True,Motivation,True,motivation,True
+200,D4,G5,short_form,Write the verb formed from the noun 'critic' meaning 'to find fault with'.,"criticise, criticize",criticize,True,criticize,True,Criticize,True,criticize,True,Criticize,True,criticize,True,Criticize,True,Criticize,True,Criticize,True,criticize,True
+201,D4,G5,multiple_choice,Which prefix added to 'behave' gives the meaning 'to behave badly'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+202,D4,G5,multiple_choice,Which word shows the least certainty in 'It ___ rain later.'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+203,D4,G5,short_form,Write the form of 'eat' that completes 'I had ___ breakfast before they arrived.',eaten,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True,eaten,True
+204,D4,beyond_primary,multiple_choice,"In 'He leaves tomorrow', what is the tense of the verb 'leaves'?",A,A,True,A,True,A,True,A,True,A,True,A,True,B,False,A,True,A,True,A,True
+205,D4,beyond_primary,multiple_choice,Which form of 'take' fits both 'has ___' and 'was ___'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+206,D4,beyond_primary,multiple_choice,Which of these verbs is not used as an auxiliary in English?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+207,D4,beyond_primary,short_form,Complete the passive version of 'Rabia broke the mug': 'The mug ___ ___ by Rabia.',was broken,was broken,True,was broken,True,was broken,True,was broken,True,was broken,True,was broken,True,Was broken,True,was broken,True,was broken,True,was broken,True
+208,D4,beyond_primary,multiple_choice,Which verb can replace 'was' in 'The mug was broken by Rabia' to give an alternative passive?,D,D,True,D,True,D,True,D,True,D,True,D,True,C,False,D,True,C,False,D,True
+209,D4,beyond_primary,short_form,Complete the active version of 'The trees are being harmed by pollution': 'Pollution ___ ___ the trees.',is harming,is harming,True,is harming,True,is harming,True,is harming,True,harms directly,False,is harming,True,Harms the.,False,is harming,True,**harms**,False,is harming,True
+210,D4,beyond_primary,short_form,"Complete this sentence as it would be written in very formal English: 'If I ___ to look inside the box, what would I find?'",were,were,True,were,True,were,True,were,True,were to,False,were,True,Were,True,were,True,**were**,True,Were,True
+211,D5,G0,multiple_choice,Which of these strings of words is a complete sentence?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+212,D5,G0,multiple_choice,Which of these opens the sentence correctly?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+213,D5,G2,multiple_choice,Which word is a co-ordinating conjunction?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+214,D5,G2,multiple_choice,Which of these is an expanded noun phrase?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,D,True
+215,D5,G2,multiple_choice,Which sentence is a command?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+216,D5,G2,multiple_choice,Which conjunction completes 'I wanted to buy an apple ___ I forgot my money'?,B,B,True,B,True,B,True,B,True,D,False,B,True,C,False,B,True,B,True,B,True
+217,D5,G2,multiple_choice,Which of these is a grammatical question in Standard English?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+218,D5,G2,short_form,"Complete this statement with a question tag: 'Frogs live in water, ___ ___?'",don't they,don't they,True,don't they,True,don't they,True,don't they,True,don't they,True,don't they,True,Don't they?,True,don't they,True,don't they,True,don't they,True
+219,D5,G3,multiple_choice,In which sentence is 'before' a conjunction rather than a preposition?,D,D,True,D,True,D,True,D,True,B,False,D,True,D,True,D,True,D,True,D,True
+220,D5,G3,multiple_choice,Which word is an adverb expressing cause or result?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+221,D5,G3,multiple_choice,In which sentence is 'since' a preposition?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+222,D5,G3,multiple_choice,Which conjunction completes 'The club will be closed ___ we have finished the repairs' with a meaning of time?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+223,D5,G3,multiple_choice,"In a simple English statement, which position is normally taken by the one performing the action?",D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+224,D5,G3,multiple_choice,Which conjunction completes 'We stayed inside ___ it was raining' so that the rain is the reason?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+225,D5,G4,multiple_choice,Which expansion of 'the teacher' uses a prepositional phrase?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+226,D5,G4,multiple_choice,Which of these sentences opens with a fronted adverbial?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True
+227,D5,G4,multiple_choice,Which of these words can link a following noun phrase to another word in the sentence?,D,D,True,D,True,D,True,D,True,C,False,D,True,A,False,D,True,B,False,B,False
+228,D5,G5,multiple_choice,In which sentence has the relative pronoun been left out?,A,A,True,A,True,A,True,A,True,A,True,A,True,B,False,A,True,A,True,A,True
+229,D5,G5,multiple_choice,Which word indicates possibility rather than certainty?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+230,D5,G5,multiple_choice,Which pair of marks can enclose a parenthesis?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+231,D5,G5,short_form,Complete the sentence with the correct relative pronoun: 'The girl ___ won the race is my cousin.',who,who,True,who,True,who,True,who,True,who,True,who,True,Who,True,who,True,**who**,True,who,True
+232,D5,G5,multiple_choice,In which of these sentences is one clause embedded inside another?,D,D,True,D,True,D,True,A,False,C,False,D,True,D,True,D,True,A,False,D,True
+233,D5,beyond_primary,multiple_choice,Which verb must be followed by an object to complete its meaning?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+234,D5,beyond_primary,multiple_choice,Which sentence contains a punctuation error?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+235,D5,beyond_primary,multiple_choice,"In 'When Seema reached the playground, she greeted her classmates', which is the object of 'reached'?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,C,True
+236,D6,G0,multiple_choice,What does the verb 'bellowed' mean?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+237,D6,G0,multiple_choice,Which word names a category that a cabbage belongs to?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+238,D6,G0,multiple_choice,Someone who is 'thrilled' feels what?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+239,D6,G0,multiple_choice,A sound described as 'shrieking' is what?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+240,D6,G0,multiple_choice,Which of these words belongs to the semantic field of fire?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+241,D6,G0,multiple_choice,What does the word 'startled' mean?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+242,D6,G0,multiple_choice,Which adjective describes a surface covered with small spots or marks?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+243,D6,G1,multiple_choice,In which word does 'un-' mean 'not'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,D,False
+244,D6,G1,multiple_choice,How does the suffix in 'chairs' change the meaning of the word 'chair'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+245,D6,G2,multiple_choice,Which spelling completes 'They left ___ coats behind.'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+246,D6,G2,multiple_choice,Which word sounds exactly the same as 'knight'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+247,D6,G2,multiple_choice,"Which sentence uses 'its' or ""it's"" correctly?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+248,D6,G2,short_form,Write the homophone of 'here' that means 'to perceive a sound'.,hear,hear,True,hear,True,Hear,True,hear,True,hear,True,hear,True,Hear,True,hear,True,hear,True,hear,True
+249,D6,G2,multiple_choice,Which word is related in both spelling and meaning to 'here' and 'where'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,C,False,D,True
+250,D6,G2,multiple_choice,Which word shares both its first three letters and its plural-person meaning with 'they' and 'them'?,A,A,True,A,True,A,True,B,False,A,True,A,True,A,True,A,True,A,True,B,False
+251,D6,G2,multiple_choice,A verb beginning with the prefix 'mis-' names an action done in which way?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+252,D6,G2,multiple_choice,Which of these words can take 'un' in front of it to make another word?,C,C,True,C,True,C,True,C,True,B,False,C,True,D,False,C,True,B,False,B,False
+253,D6,G3,multiple_choice,Which word contains a prefix meaning 'under'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+254,D6,G3,multiple_choice,Which prefix means 'between' or 'among'?,A,A,True,A,True,A.,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+255,D6,G3,multiple_choice,"In the word 'superstructure', what does the first part mean?",B,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+256,D6,G3,multiple_choice,"In the word 'antiseptic', what does the first part mean?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+257,D6,G3,multiple_choice,"In the word 'autobiography', what does the first part mean?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+258,D6,G3,multiple_choice,Which word begins with a prefix meaning 'again'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+259,D6,G3,multiple_choice,In which word does the opening syllable act as a negative prefix?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+260,D6,G3,multiple_choice,Which word belongs to the same word family as 'solve'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+261,D6,G3,multiple_choice,"In the word 'bicycle', what does the first part mean?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+262,D6,G3,multiple_choice,Which pair of words are synonyms?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+263,D6,G3,multiple_choice,Which pair of words are antonyms?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+264,D6,G3,multiple_choice,"In the phrase 'the prime minister', what does 'prime' mean?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+265,D6,G3,short_form,Write the word that sounds the same as 'medal' but means 'to interfere in something'.,meddle,meddle,True,Meddle,True,Meddle,True,meddle,True,meddle,True,meddle,True,Meddle.,True,Meddle,True,Meddle,True,meddle,True
+266,D6,G4,multiple_choice,"In 'Rat was sculling strongly along the river', what does 'sculling' mean?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+267,D6,G4,multiple_choice,"In 'He was murmuring poetry to himself', what does 'murmuring' mean?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+268,D6,G4,multiple_choice,"In 'a keen wind blew off the sea', what does 'keen' mean?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+269,D6,G4,multiple_choice,Which of these words belongs to the same word family as 'motivate'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+270,D6,G5,multiple_choice,What does the word 'aisle' name?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,C,False,D,True
+271,D6,G5,multiple_choice,"If a bus is described as 'stationary', the bus is what?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+272,D6,G5,multiple_choice,"Which word means 'paper, envelopes and similar goods'?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+273,D6,G5,multiple_choice,Which word means 'a basic truth or belief'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+274,D6,G5,multiple_choice,Which word completes 'The weather may ___ our plans.'?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+275,D6,G5,multiple_choice,Which word means 'to change something'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+276,D6,G5,multiple_choice,Which word means 'grieving for someone who has died'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+277,D6,G5,multiple_choice,Which word means 'to go in front of something'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+278,D6,G5,multiple_choice,Which of these words is a synonym of 'vast'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+279,D6,G5,multiple_choice,Which of these words is a synonym of 'unpleasant'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+280,D6,G5,multiple_choice,Which of these words is a synonym of 'agreeable'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+281,D6,G5,multiple_choice,Which of these words is a synonym of 'tiny'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+282,D6,G5,short_form,"In 'We often eat lunch in the park, by the pond and at home', how many separate places are named?","3, three",Three,True,Three places.,True,Three,True,Three places,True,Three places,True,Three,True,Three.,True,Three,True,Three.,True,3,True
+283,D6,beyond_primary,multiple_choice,Which pair of words are synonyms?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+284,D6,beyond_primary,multiple_choice,Which word has two quite unrelated meanings while keeping one spelling and one pronunciation?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+285,D6,beyond_primary,multiple_choice,Which of these words is closest in meaning to 'evident'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+286,D7,G0,multiple_choice,Which word signals that one event happened earlier than another?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+287,D7,G0,multiple_choice,"In 'I searched for a pencil, but no pencil could be found', how is the same thing kept track of?",D,D,True,D,True,D,True,D,True,B,False,D,True,D,True,D,True,C,False,D,True
+288,D7,G3,multiple_choice,The sentences grouped into one paragraph normally share what?,A,A,True,A,True,A.,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+289,D7,G3,multiple_choice,"In 'Sandip introduced me to Rashida. She had forgotten to bring a pen.', who does 'She' refer to?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,C,False,B,True
+290,D7,G4,multiple_choice,Which word replaces the repeated name in 'Rashida had no pen. ___ had forgotten it.'?,C,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True,C,True,C,True
+291,D7,G5,multiple_choice,Which phrase links a sentence to the one before it by signalling time order?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+292,D7,G5,multiple_choice,Which word links one paragraph to another by number?,A,A,True,A,True,A,True,A,True,C,False,A,True,A,True,A,True,A,True,D,False
+293,D7,G5,multiple_choice,Which opening phrase links a sentence back to information already given?,B,B,True,"The answer is **B**.
+
+""According to the forecast"" is a transitional phrase that links back to previously mentioned information (the forecast that was discussed earlier). It explicitly references something already established in the text.
+
+The other options are adverbial phrases that describe manner, time, or circumstances, but they don't function as linking devices to prior information.",,B,True,B,True,B,True,B,True,A,False,B,True,B,True,D,False
+294,D7,G5,short_form,How many sentences are there in 'Camels live in the desert they can survive without food for a long time'?,"2, two",2,True,One sentence.,False,Two sentences.,True,Two sentences,True,2 sentences,True,Two,True,Two.,True,Two sentences,True,2,True,1,False
+295,D7,beyond_primary,multiple_choice,Which phrase signals that a paragraph contrasts with the one before it?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+296,D7,beyond_primary,multiple_choice,"In the exchange 'Where are you going?' 'To school!', which words have been left out of the reply?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,D,True
+297,D7,beyond_primary,multiple_choice,"In 'The girls waved at the boys as they boarded the bus', which word is unclear in what it refers to?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+298,D7,beyond_primary,multiple_choice,Which of these is a layout device rather than a punctuation mark?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+299,D8,G0,multiple_choice,"Which reply is the conventional response to the greeting 'Good morning, how are you?'",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+300,D8,G0,multiple_choice,Which word is the mathematical term rather than an everyday one for the edge of a shape?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+301,D8,G0,multiple_choice,"In many northern English accents, which pair of words rhymes?",A,A,True,A,True,B,False,A,True,A,True,A,True,C,False,A,True,C,False,D,False
+302,D8,G1,multiple_choice,Standard English is best described as which of these?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+303,D8,G1,multiple_choice,Which term is used in some programmes as another name for the split digraph?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+304,D8,G2,multiple_choice,In which set of words does the vowel differ between northern and southern accents of England?,D,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True,B,False,B,False
+305,D8,G2,multiple_choice,"Which of these is a contraction, in which the apostrophe marks omitted letters?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+306,D8,G2,short_form,"Complete this question in Standard English, using the adverb formed from 'quick': 'Can frogs jump ___?'",quickly,quickly,True,quickly,True,quickly,True,quickly,True,quickly,True,quickly,True,Quickly,True,quickly,True,quickly,True,quickly,True
+307,D8,G2,short_form,Complete this question in Standard English: 'Where do frogs ___ from?',come,come,True,come,True,come,True,come,True,come,True,come,True,Come,True,come,True,originate,False,come,True
+308,D8,G3,multiple_choice,Which sentence is non-Standard English?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+309,D8,G4,multiple_choice,Which form is Standard English?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+310,D8,G5,multiple_choice,Which sentence belongs to formal written English?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+311,D8,G5,multiple_choice,Which wording is Standard English in 'I am not as good at ___ as Jay is'?,A,A,True,C,False,A,True,A,True,A,True,A,True,C,False,A,True,C,False,D,False
+312,D8,beyond_primary,multiple_choice,Question tags such as 'isn't he?' are typical of which kind of language?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+313,D8,beyond_primary,multiple_choice,Which single word is the formal equivalent of 'ask for'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+314,D8,beyond_primary,multiple_choice,Which sentence contains a double negative?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+315,D8,beyond_primary,multiple_choice,"In formal writing, which word is the formal alternative to 'buy'?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+316,D8,beyond_primary,multiple_choice,"In formal writing, which word names the money raised by an event such as a school fair?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+317,D8,beyond_primary,multiple_choice,Which of these is the most formal way of asking someone to sit down?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+318,D9,G0,multiple_choice,What is the term for working out a written word from its letter-sound correspondences?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+319,D9,G0,multiple_choice,What is the term for merging separate sounds together into a spoken word?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+320,D9,G0,multiple_choice,What is the term for high-frequency words whose letter-sound links are unusual?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+321,D9,G0,multiple_choice,"Which word class do 'me', 'him' and 'she' belong to?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+322,D9,G0,multiple_choice,"Which word class do 'in', 'on' and 'under' belong to?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+323,D9,G0,multiple_choice,What is the term for the beat units into which a spoken word divides?,A,A,True,A,True,A.,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+324,D9,G0,short_form,What is the term for a grapheme of three letters that spells one phoneme?,"trigraph, a trigraph",Trigraph,True,trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True,Trigraph,True
+325,D9,G0,short_form,What does the abbreviation GPC stand for?,"grapheme-phoneme correspondence, grapheme phoneme correspondence, grapheme-phoneme correspondences",Grapheme-Phoneme Correspondence,True,General Purpose Computer,False,General Purpose Computing,False,grapheme-phoneme correspondence,True,General Practitioners,False,General Phonetic Alphabet,False,Grammatical Phrase Class,False,Grapheme-phoneme correspondence,True,Grapheme-phoneme correspondence,True,Glossing of Personal Correspondence,False
+326,D9,G0,multiple_choice,What does 'segmenting' mean?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+327,D9,G0,short_form,What is the term for turning a spoken word into its written spelling?,"encoding, encode, to encode","Transcription (or orthography)
+
+**Spelling** (or **transcription**)
+
+The term is **transliteration** or more commonly:
+
+**spelling** / **transcription**",False,Transcription,False,Transcription,False,Transcription,False,Transcription,False,Transcription,False,Spelling transcription.,False,Transcription,False,Transcription,False,Spelling,False
+328,D9,G0,multiple_choice,Which term means the same as 'consonant cluster'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+329,D9,G0,multiple_choice,"In the name 'synthetic phonics', the word 'synthetic' comes from a verb meaning what?",D,D,True,D,True,D,True,D,True,B,False,D,True,D,True,D,True,C,False,D,True
+330,D9,G0,multiple_choice,Which of these words has the shape CVC when its sounds are counted?,A,A,True,"I need to identify which word has the CVC (Consonant-Vowel-Consonant) pattern based on sounds (phonemes), not spelling.
+
+Let me analyze each word:
+
+A. ship - /ʃ/ (C) /ɪ/ (V) /p/ (C) = CVC ✓
+
+B. spin - /s/ (C) /p/ (C) /ɪ/ (V) /n/ (C) = CCVC ✗
+
+C. hand - /h/ (C) /æ/ (V) /n/ (C) /d/ (C) = CVCC ✗
+
+D. tree - /t/ (C) /r/ (C) /iː/ (V) = CCV ✗
+
+A",True,A,True,A,True,B,False,A,True,A,True,A,True,C,False,D,False
+331,D9,G0,multiple_choice,Which of these words has the shape CCVC when its sounds are counted?,B,A,False,"To solve this, I need to identify which word has the pattern CCVC (Consonant-Consonant-Vowel-Consonant).
+
+Let me analyze each word:
+
+A. shop: /ʃ/ (C) /ɒ/ (V) /p/ (C) = CVC ✗
+
+B. stop: /s/ (C) /t/ (C) /ɒ/ (V) /p/ (C) = CCVC ✓
+
+C. lamp: /l/ (C) /æ/ (V) /m/ (C) /p/ (C) = CVCC ✗
+
+D. went: /w/ (C) /e/ (V) /n/ (C) /t/ (C) = CVCC ✗
+
+B",True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+332,D9,G0,multiple_choice,Which term is also used for words called 'common exception words'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A,False,C,True
+333,D9,G0,multiple_choice,What is the term for the smallest unit of sound that changes one word into another?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+334,D9,G0,multiple_choice,The letters 'eigh' in 'weight' are an example of what?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C,False,B,False
+335,D9,G1,multiple_choice,"What is the term for a digraph whose two letters are separated by a consonant, as in 'line'?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A,False,B,True
+336,D9,G1,multiple_choice,"In the word 'played', what is the term for the part 'play'?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+337,D9,G1,multiple_choice,Which of these words contains a split digraph?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+338,D9,G1,short_form,What is the name of the punctuation mark written as ? at the end of a sentence?,"question mark, a question mark",Question mark,True,Question mark,True,Question mark,True,Question mark,True,Question mark,True,Question mark,True,Question mark,True,Question mark,True,Interrobang,False,Question mark,True
+339,D9,G1,multiple_choice,Which of these is a pseudo-word: a form that could be an English word but is not one?,A,A,True,A,True,A,True,A,True,B,False,A,True,A,True,A,True,A,True,C,False
+340,D9,G1,short_form,What is the term for two letters that together spell a single phoneme?,"digraph, a digraph",Digraph,True,Digraph,True,Digraph,True,Digraph,True,Digraph,True,Digraph,True,Digraph,True,Digraph,True,Digraph,True,digraph,True
+341,D9,G1,short_form,What is the grammatical term for the form of a noun that refers to more than one?,"plural, the plural",Plural,True,Plural,True,Plural,True,Plural form,True,Plural,True,Plural,True,Plural form,True,Plural,True,Plural,True,Plural,True
+342,D9,G1,short_form,What is the term for a single grapheme having more than one pronunciation?,"alternative pronunciations, alternative pronunciation",Polyphone (or heterophone),False,Heteronym,False,Heterophone,False,Heterophonic grapheme,False,Allophone,False,Polyphony,False,Homographs,False,Polyphony,False,Homophone,False,Polyvalence,False
+343,D9,G1,short_form,What is the term for one phoneme being written with more than one grapheme?,"alternative spellings, alternative spelling","Polygraphic representation (or ""polygraph"")",False,Digraph,False,Digraph,False,Polygraphy,False,Polygraphy,False,Under-specification (or polygraphy),False,Digraph,False,Multigraph,False,**Homophony**,False,Multigraph,False
+344,D9,G2,multiple_choice,What is the term for a sentence that tells someone to do something?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+345,D9,G2,multiple_choice,What is the word class of 'quietly' in 'Luka is practising his song quietly'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+346,D9,G2,short_form,What is the term for a word made up of two root words joined together?,"compound, compound word, a compound word",Compound word,True,Compound word,True,Compound word,True,Compound word,True,Compounding,False,Compound word,True,Compound word,True,Compound word,True,Blending,False,Compound,True
+347,D9,G2,short_form,What is the grammatical term for the verb form used for what has already happened?,"past tense, the past tense, past",Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True,Past tense,True
+348,D9,G2,short_form,What is the name of the mark used between the k and the s in 'Jack's desk'?,"apostrophe, an apostrophe",Apostrophe,True,Apostrophe,True,Apostrophe,True,Apostrophe,True,Apostrophe,True,Apostrophe,True,Apostrophe.,True,Apostrophe,True,Apostrophe,True,Apostrophe,True
+349,D9,G2,multiple_choice,Where in a word is a suffix added?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+350,D9,G2,short_form,What is the technical term for a contraction such as 'can't'?,"elision, an elision",Clitic (or enclitic),False,Clitic or contraction.,False,Portmanteau,False,Clitic contraction,False,Elision,True,Negative contraction,False,Clipping,False,Enclitic,False,Clitic contraction,False,clitic,False
+351,D9,G2,multiple_choice,Which term names the general ability to attend to the sounds of language rather than to meaning?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B,False
+352,D9,G3,multiple_choice,"In 'The bridge over the river is closed', what is the word class of 'over'?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+353,D9,G3,multiple_choice,What is the term for a clause that cannot stand alone as a sentence?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+354,D9,G3,multiple_choice,What is the term for a letter group added to the front of a root word?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,D,True
+355,D9,G3,multiple_choice,What is the other name for speech marks?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+356,D9,G3,multiple_choice,Which of these can stand alone as a word in its own right?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+357,D9,G3,short_form,"What is the term for a word's internal make-up in root words, prefixes and suffixes?",morphology,Morphological structure,False,Morphology,True,Morphology,True,Morphological structure,False,Morphology,True,Morphology,True,Morphology,True,Morphology,True,Morphology,True,morphology,True
+358,D9,G3,multiple_choice,Which of these words is a compound?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+359,D9,G3,multiple_choice,Which of these words belongs to the same word family as 'extend'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,A,False
+360,D9,G3,short_form,What is the term for the way words are organised in a sentence to convey meaning?,syntax,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True,Syntax,True
+361,D9,G3,multiple_choice,What does the term 'semantic' relate to?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+362,D9,G4,multiple_choice,Which term names the word 'mine'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+363,D9,G4,multiple_choice,Which term means the same as 'parts of speech'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+364,D9,G4,multiple_choice,What is the word class of 'every' in the phrase 'every week'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False
+365,D9,G4,multiple_choice,What is 'at the weekend' in 'I'm going to visit my uncle at the weekend'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+366,D9,G4,multiple_choice,What happens to the flow of air when a consonant is produced?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+367,D9,G5,multiple_choice,What is the term for verbs such as 'might' and 'must'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+368,D9,G5,multiple_choice,"In 'The book, which was old, fell', what is the term for 'which was old'?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+369,D9,G5,multiple_choice,What is the term for a sentence that has more than one possible meaning?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+370,D9,G5,short_form,"What is the term for a word or phrase inserted into a sentence and marked off by brackets, dashes or commas?","parenthesis, a parenthesis",Parenthesis,True,Parenthetical expression,True,Parenthetical,True,Parenthesis,True,Parenthetical,True,Parenthesis,True,Parenthetical element,True,Parenthesis,True,Parenthetical,True,parenthetical,True
+371,D9,G5,short_form,"Besides a, e, i, o and u, which letter of the alphabet can represent a vowel sound in English?","y, Y",Y,True,Y,True,Y,True,Y,True,Y,True,y,True,Y,True,Y,True,Y,True,Y,True
+372,D9,beyond_primary,multiple_choice,"In 'The dog chased the cat', which term names 'the cat'?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+373,D9,beyond_primary,multiple_choice,What is the term for the voice used in 'The window was broken'?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True
+374,D9,beyond_primary,multiple_choice,What is the term for two words with opposite meanings?,D,D,True,D,True,D.,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True
+375,D9,beyond_primary,multiple_choice,What is the name of the mark used to show that words have been left out?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+376,D9,beyond_primary,multiple_choice,What is the term for a comparison made using 'like' or 'as'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True
+377,D9,beyond_primary,short_form,What is the name of the punctuation mark written as ; ?,"semi-colon, semicolon, a semi-colon",Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,Semicolon,True,semicolon,True

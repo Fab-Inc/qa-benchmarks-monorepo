@@ -37,6 +37,26 @@ def test_build_judge_system_prompt_normalizes_kiswahili_to_swahili():
 
 
 @pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("A", "A"),
+        ("  C ", "C"),
+        ("(D)", "D"),
+        ("<think>reasoning here</think>B", "B"),
+        ("Some explanation\nB", "B"),
+        ("not an answer at all", None),
+    ],
+)
+def test_parse_answer_mcq_patterns(raw, expected):
+    assert judge_bench.parse_answer_mcq(raw) == expected
+
+
+def test_parse_answer_mcq_handles_nan_and_none():
+    assert judge_bench.parse_answer_mcq(float("nan")) is None
+    assert judge_bench.parse_answer_mcq(None) is None
+
+
+@pytest.mark.parametrize(
     "output, expected, result",
     [("B", ["B"], True), ("A", ["B"], False)],
 )
@@ -50,20 +70,6 @@ def test_score_multiple_choice(output, expected, result):
 
 def test_score_multiple_choice_unparseable_returns_none():
     assert judge_bench.score_multiple_choice("???", ["B"]) == (None, "", None)
-
-
-@pytest.mark.parametrize(
-    "output, expected, result",
-    [("True", ["True"], True), ("false", ["True"], False)],
-)
-def test_score_true_false_regex_parses(output, expected, result):
-    parsed = output.strip().lower().capitalize()
-    assert judge_bench.score_true_false_regex(output, expected) == (result, "", parsed)
-
-
-@pytest.mark.parametrize("bad", ["", "maybe so", float("nan")])
-def test_score_true_false_regex_unparseable(bad):
-    assert judge_bench.score_true_false_regex(bad, ["True"]) is None
 
 
 def test_score_with_llm_judge_success():
@@ -84,6 +90,41 @@ def test_score_with_llm_judge_failure():
     )
     assert ok is None
     assert "Judge error" in just
+
+
+def test_score_with_llm_judges_returns_one_result_per_judge():
+    callers = {
+        "j1": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "a"}))
+        ),
+        "j2": FakeCaller(
+            make_response(json.dumps({"is_correct": False, "justification": "b"}))
+        ),
+    }
+    result = judge_bench.score_with_llm_judges(
+        "q", "out", ["x"], "short_form", callers, system_prompt="sys"
+    )
+    assert result == {"j1": (True, "a"), "j2": (False, "b")}
+
+
+@pytest.mark.parametrize(
+    "verdicts, expected_verdict, expected_agreement",
+    [
+        ([True, True, True], True, 1.0),
+        ([True, True, False], True, 2 / 3),
+        ([False, False, True], False, 2 / 3),
+        ([True, False], None, 0.5),  # exact tie -> unscored, not arbitrarily broken
+        ([None, None], None, None),  # every judge failed
+        ([True, None, None], True, 1.0),  # failed judges don't count against agreement
+    ],
+)
+def test_majority_vote(verdicts, expected_verdict, expected_agreement):
+    verdict, agreement = judge_bench.majority_vote(verdicts)
+    assert verdict is expected_verdict
+    if expected_agreement is None:
+        assert agreement is None
+    else:
+        assert agreement == pytest.approx(expected_agreement)
 
 
 # --------------------------------------------------------------------------- #
@@ -142,18 +183,6 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
             output="kintu",
         ),
         dict(
-            question_id=3,
-            answer_type="true_false",
-            expected_answers="True",
-            output="True",
-        ),
-        dict(
-            question_id=4,
-            answer_type="true_false",
-            expected_answers="True",
-            output="maybe",
-        ),
-        dict(
             question_id=5,
             answer_type="multiple_choice",
             expected_answers="B",
@@ -194,10 +223,6 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     assert df.loc[1, "parsed_answer"] == "B"
     assert bool(df.loc[2, "is_correct"]) is True  # short_form judge
     assert df.loc[2, "score_method"] == judge_bench.SCORE_METHOD_LLM_JUDGE
-    assert bool(df.loc[3, "is_correct"]) is True  # TF regex
-    assert df.loc[3, "parsed_answer"] == "True"
-    assert pd.isna(df.loc[4, "is_correct"])  # TF unparseable
-    assert df.loc[4, "score_method"] == judge_bench.SCORE_METHOD_UNSCORED
     assert pd.isna(df.loc[5, "is_correct"])  # missing output
     assert df.loc[5, "justification"] == "Missing model output"
     assert df.loc[5, "score_method"] == judge_bench.SCORE_METHOD_UNSCORED
@@ -221,6 +246,89 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     assert "responses_judged_timestamp-utc" in entry
     assert entry["responses_judged_git-hash"] == "judge123"
     assert "responses_judged_fallback_timestamp-utc" not in entry
+
+
+def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    responses = _responses_dir(tmp_path)
+    _write_responses(
+        responses,
+        [
+            {
+                "question_id": 1,
+                "answer_type": "short_form",
+                "expected_answers": "kintu",
+                "output": "kintu",
+            }
+        ],
+    )
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
+
+    judges = ["judge-a", "judge-b", "judge-c"]
+    callers = {
+        "judge-a": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "yes-a"}))
+        ),
+        "judge-b": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "yes-b"}))
+        ),
+        "judge-c": FakeCaller(
+            make_response(json.dumps({"is_correct": False, "justification": "no-c"}))
+        ),
+    }
+    monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
+
+    df = judge_bench.judge_results(
+        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+    ).set_index("question_id")
+
+    assert bool(df.loc[1, "is_correct"]) is True  # 2/3 majority
+    assert df.loc[1, "justification"] == "yes-a"  # primary judge's own rationale
+    assert df.loc[1, "judge_agreement"] == pytest.approx(2 / 3)
+    assert bool(df.loc[1, "judge_disagreement_flag"]) is True
+    assert bool(df.loc[1, "is_correct_judge-a"]) is True
+    assert bool(df.loc[1, "is_correct_judge-b"]) is True
+    assert bool(df.loc[1, "is_correct_judge-c"]) is False
+    assert df.loc[1, "justification_judge-c"] == "no-c"
+
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    assert json.loads(log_path.read_text())[VALID_MODEL]["llm_judges"] == judges
+
+
+def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    responses = _responses_dir(tmp_path)
+    _write_responses(
+        responses,
+        [
+            {
+                "question_id": 1,
+                "answer_type": "short_form",
+                "expected_answers": "kintu",
+                "output": "kintu",
+            }
+        ],
+    )
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
+
+    judges = ["judge-a", "judge-b"]
+    callers = {
+        "judge-a": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "yes"}))
+        ),
+        "judge-b": FakeCaller(
+            make_response(json.dumps({"is_correct": False, "justification": "no"}))
+        ),
+    }
+    monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
+
+    df = judge_bench.judge_results(
+        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+    ).set_index("question_id")
+
+    assert pd.isna(df.loc[1, "is_correct"])
+    assert df.loc[1, "judge_agreement"] == 0.5
+    assert bool(df.loc[1, "judge_disagreement_flag"]) is True
 
 
 def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
@@ -378,6 +486,51 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
     assert df.loc[0, "score_method"] == judge_bench.SCORE_METHOD_LLM_FALLBACK
 
 
+def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    judged = _judged_dir(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "question_id": 1,
+                "is_correct": None,
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": "the answer is B",
+            }
+        ]
+    ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
+
+    judges = ["judge-a", "judge-b", "judge-c"]
+    callers = {
+        "judge-a": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "yes-a"}))
+        ),
+        "judge-b": FakeCaller(
+            make_response(json.dumps({"is_correct": True, "justification": "yes-b"}))
+        ),
+        "judge-c": FakeCaller(
+            make_response(json.dumps({"is_correct": False, "justification": "no-c"}))
+        ),
+    }
+    monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
+
+    df = judge_bench.judge_results_fallback(
+        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+    )
+    assert bool(df.loc[0, "is_correct_fallback"]) is True
+    assert df.loc[0, "justification_fallback"] == "yes-a"
+    assert df.loc[0, "judge_agreement_fallback"] == pytest.approx(2 / 3)
+    assert bool(df.loc[0, "judge_disagreement_flag_fallback"]) is True
+    assert bool(df.loc[0, "is_correct_fallback_judge-c"]) is False
+    assert df.loc[0, "justification_fallback_judge-c"] == "no-c"
+
+    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    entry = json.loads(log_path.read_text())[VALID_MODEL]
+    assert entry["llm_judges_fallback"] == judges
+
+
 def test_fallback_judge_not_registered(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     judged = _judged_dir(tmp_path)
@@ -386,8 +539,8 @@ def test_fallback_judge_not_registered(tmp_path, monkeypatch):
             {
                 "question_id": 1,
                 "is_correct": None,
-                "answer_type": "true_false",
-                "expected_answers": "True",
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
                 "output": "unclear",
             }
         ]
@@ -413,7 +566,7 @@ def test_compute_summary_basic():
             {"answer_type": "multiple_choice", "is_correct": True},
             {"answer_type": "multiple_choice", "is_correct": False},
             {"answer_type": "short_form", "is_correct": True},
-            {"answer_type": "true_false", "is_correct": None},
+            {"answer_type": "essay", "is_correct": None},
         ]
     )
     summary = judge_bench.compute_summary(df, "m")
@@ -422,7 +575,7 @@ def test_compute_summary_basic():
     assert summary["unscored_count"] == 1
     assert summary["accuracy"] == round(2 / 3 * 100, 2)
     assert summary["accuracy_mcq"] == 50.0
-    assert "accuracy_true_false" not in summary
+    assert "accuracy_essay" not in summary
 
 
 def test_compute_summary_uses_fallback_when_present():
@@ -444,6 +597,73 @@ def test_compute_summary_uses_fallback_when_present():
     # row0 -> fallback True, row1 -> falls back to is_correct False
     assert summary["scored_count"] == 2
     assert summary["accuracy"] == 50.0
+
+
+def test_compute_summary_no_judge_agreement_columns_returns_none_and_zero():
+    df = pd.DataFrame([{"answer_type": "multiple_choice", "is_correct": True}])
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["judge_agreement_mean"] is None
+    assert summary["judge_disagreement_count"] == 0
+
+
+def test_compute_summary_includes_judge_agreement_stats():
+    df = pd.DataFrame(
+        [
+            {
+                "answer_type": "short_form",
+                "is_correct": True,
+                "judge_agreement": 1.0,
+                "judge_disagreement_flag": False,
+            },
+            {
+                "answer_type": "short_form",
+                "is_correct": True,
+                "judge_agreement": 2 / 3,
+                "judge_disagreement_flag": True,
+            },
+            {
+                "answer_type": "multiple_choice",
+                "is_correct": True,
+                "judge_agreement": None,
+                "judge_disagreement_flag": False,
+            },
+        ]
+    )
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["judge_agreement_mean"] == pytest.approx((1.0 + 2 / 3) / 2, rel=1e-3)
+    assert summary["judge_disagreement_count"] == 1
+
+
+def test_compute_judge_agreement_pairwise():
+    df = pd.DataFrame(
+        {
+            "is_correct_j1": [True, True, False, None],
+            "is_correct_j2": [True, False, False, True],
+        }
+    )
+    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"])
+    assert result.loc["j1", "j1"] == 1.0
+    assert result.loc["j2", "j2"] == 1.0
+    # rows 0,1,2 have both non-null; agree on rows 0,2 -> 2/3
+    assert result.loc["j1", "j2"] == pytest.approx(2 / 3)
+    assert result.loc["j2", "j1"] == pytest.approx(2 / 3)
+
+
+def test_compute_judge_agreement_fallback_columns():
+    df = pd.DataFrame(
+        {
+            "is_correct_fallback_j1": [True, False],
+            "is_correct_fallback_j2": [True, True],
+        }
+    )
+    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"], fallback=True)
+    assert result.loc["j1", "j2"] == 0.5
+
+
+def test_compute_judge_agreement_missing_column_raises():
+    df = pd.DataFrame({"is_correct_j1": [True]})
+    with pytest.raises(KeyError, match="j2"):
+        judge_bench.compute_judge_agreement(df, ["j1", "j2"])
 
 
 # --------------------------------------------------------------------------- #

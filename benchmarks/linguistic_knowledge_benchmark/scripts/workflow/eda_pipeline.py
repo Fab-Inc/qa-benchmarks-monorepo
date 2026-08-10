@@ -23,9 +23,9 @@ not exist until the pipeline has been run); the final-dataset figure also works 
 a plain v8 dataset with no gap_report.
 
 Run:
-    python benchmarks/linguistic_knowledge_benchmark/scripts/eda_pipeline.py --language english
-    python benchmarks/linguistic_knowledge_benchmark/scripts/eda_pipeline.py --language kiswahili
-    python benchmarks/linguistic_knowledge_benchmark/scripts/eda_pipeline.py --language english \
+    python benchmarks/linguistic_knowledge_benchmark/scripts/workflow/eda_pipeline.py --language english
+    python benchmarks/linguistic_knowledge_benchmark/scripts/workflow/eda_pipeline.py --language kiswahili
+    python benchmarks/linguistic_knowledge_benchmark/scripts/workflow/eda_pipeline.py --language english \
         --digest ... --merge ... --candidates ... --pool ... \
         --dataset ... --gap-report ... --backups ... --outdir ...
 
@@ -166,7 +166,9 @@ DIGEST_SOURCES = [
 # simply skipped.
 # --------------------------------------------------------------------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_HERE)  # benchmarks/linguistic_knowledge_benchmark
+_ROOT = os.path.dirname(
+    os.path.dirname(_HERE)
+)  # benchmarks/linguistic_knowledge_benchmark
 
 LANGUAGE_WORKFLOW_DIR = {
     "english": "english_workflow",
@@ -182,7 +184,10 @@ def default_paths_for(language):
         "merge": os.path.join(proc, "stage_1b_merge_all_files.json"),
         "candidates": [os.path.join(proc, "stage_2_merged.json")],
         "pool": [os.path.join(proc, "stage_3a.json")],
-        "dataset": os.path.join(proc, "stage_3b_dataset.json"),
+        # "dataset": os.path.join(proc, "stage_3b_dataset.json"),
+        "dataset": os.path.join(
+            _ROOT, "data", f"linguistic_knowledge_eval_{language}.json"
+        ),
         "gap_report": os.path.join(proc, "stage_3b_gap_report.json"),
         "backups": [os.path.join(proc, "stage_3b_backups.json")],
         "outdir": os.path.join(data, "eda"),

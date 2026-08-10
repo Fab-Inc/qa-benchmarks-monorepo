@@ -1,0 +1,21 @@
+claude-opus-5: Claude Opus 5
+#claude-sonnet-5: Claude Sonnet 5
+claude-haiku-4-5-20251001: Claude Haiku 4.5
+gpt-5.6-sol: GPT-5.6 Sol
+#gpt-5.6-terra: GPT-5.6 Terra
+gpt-5.6-luna: GPT-5.6 Luna
+gpt-5.4-nano-2026-03-17: GPT-5.4 Nano
+gemini-3.1-pro-preview: Gemini 3.1 Pro Preview
+gemini-3.6-flash: Gemini-3.6 Flash
+#gemini-3.5-flash-lite: Gemini-3.5 Flash-Lite
+gemma-4-31b-it: Gemma 4 31B
+gemma-3-12b-it: Gemma 3 12B
+hf-gemma-4-e2b-it-gguf-bf16: Gemma-4 E2B
+mistral-medium-3-5: Mistral Medium 3.5
+mistral-small-2603: Mistral Small
+kimi-k3: Kimi K3
+qwen3.7-max: Qwen3.7 Max
+hf-qwen3-4b: Qwen-3 4B
+#qwen3.5-9b: Qwen3.5 9B
+#deepseek-v4-pro: Deepseek V4 Pro
+grok-4.5: Grok-4.5

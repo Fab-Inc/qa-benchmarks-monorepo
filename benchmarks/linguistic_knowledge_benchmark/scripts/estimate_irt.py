@@ -2,9 +2,11 @@
 """
 Fit Item Response Theory to a Linguistic-Knowledge run and recommend a trimmed set.
 
-Where it sits: this is a Stage-5 *analysis* step. You run every QC-passed, deduplicated
-question (the Stage-3b `dataset_full`) against a panel of models with the eval harness,
-then feed the per-item correctness matrix here to decide which items are worth keeping.
+Where it sits: this IS Stage 3b — the selection step (it replaced the old
+feature-map/hard-coded-quota assembler, stage_3b_assemble_v10.py). You run every
+QC-passed, de-duplicated candidate (3a's pool, collapsed to one item per dup_group)
+against a panel of models with the eval harness, then feed the per-item correctness
+matrix here to select the final dataset.
 
 Input: the DETAILED results CSV (one row per question, produced by `judge-bench`):
     question_id, domain, grade, answer_type, question, expected_answers,
@@ -62,16 +64,22 @@ Outputs — one directory per run, never overwritten (see --run-id below):
     diagnostics.png         difficulty vs discrimination; item difficulty spread
     accuracy_shift.png      per-model accuracy, full set vs selected set
     coverage.png            domain x grade counts of the selected set
+    coverage_comparison.png 5-panel domain x grade coverage: full bank, selected set,
+                            items dropped, plus %% of each domain's and each grade's
+                            own before-cut total that got dropped -- answers "which
+                            domains/grades lost coverage in the cut?" directly (the
+                            printed per-domain coverage table below answers the same
+                            question for domains in text form)
     selection_freq.png      selection_freq distribution over the candidate pool
 --outdir defaults to results/; --run-id defaults to "default". If any of the above files
 already exist in that run's directory, the script aborts rather than overwrite them —
 pass a different --run-id (or delete the old run's directory) to rerun.
 
 Run (--language is mandatory; defaults target that language's v10 full-dataset run):
-    python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language swahili
+    python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language kiswahili
     python .../estimate_irt.py --language english --run-id target150 --target-n 150
-    python .../estimate_irt.py --language swahili --max-pvalue 0.9   # also drop items >90%% of models ace
-    python .../estimate_irt.py --language swahili --leave-out 1   # leave-one-out stability instead
+    python .../estimate_irt.py --language kiswahili --max-pvalue 0.9   # also drop items >90%% of models ace
+    python .../estimate_irt.py --language kiswahili --leave-out 1   # leave-one-out stability instead
 """
 
 from __future__ import annotations
@@ -99,19 +107,19 @@ GRADE_LABEL = {g: ("BP" if g == "beyond_primary" else g) for g in GRADES}
 DISCRIMINATION = 1.0  # Rasch fixes the slope at 1.
 _CORRECT_MAP = {"true": 1, "false": 0, "1": 1, "0": 0}
 
-# The result CSVs use "swahili" (matching cmd.py's DATASETS keys), but the pipeline's
-# working-data directory for that language is named "kiswahili_workflow" — map between them.
+# The result CSVs and cmd.py's DATASETS both key on "kiswahili"; the pipeline's
+# working-data directory for that language is named "kiswahili_workflow" too.
 LANGUAGE_WORKFLOW_DIR = {
     "english": "english_workflow",
-    "swahili": "kiswahili_workflow",
+    "kiswahili": "kiswahili_workflow",
 }
 
-# The run tag differs per language: Swahili's full-pool eval run is tagged
+# The run tag differs per language: Kiswahili's full-pool eval run is tagged
 # "v10-full-dataset" (528 detailed rows -> 307 items scored); English's equivalent run
 # (its whole 377-item stage_3b_dataset_full pool) is simply tagged "default".
 DEFAULT_RUN_LABEL = {
     "english": "default",
-    "swahili": "v10-full-dataset",
+    "kiswahili": "v10-full-dataset",
 }
 
 
@@ -143,6 +151,7 @@ OUTPUT_FILENAMES = [
     "diagnostics.png",
     "accuracy_shift.png",
     "coverage.png",
+    "coverage_comparison.png",
     "selection_freq.png",
 ]
 
@@ -576,30 +585,30 @@ def plot_accuracy_shift(tbl: pd.DataFrame, ceiling: float, out: str) -> None:
     plt.close(fig)
 
 
-def plot_coverage(items: pd.DataFrame, out: str) -> None:
-    """Domain x grade counts of the selected set (heatmap)."""
-    sel = items[items["selected"]]
+def _domain_grade_matrix(df: pd.DataFrame) -> np.ndarray:
+    """Domain x grade item counts for `df`, reindexed onto the fixed DOMAINS/GRADES
+    spine (so empty cells are 0 rather than absent)."""
     mat = (
-        sel.groupby(["domain", "grade"])
+        df.groupby(["domain", "grade"])
         .size()
         .unstack("grade")
         .reindex(index=DOMAINS, columns=GRADES)
     )
-    data = mat.to_numpy(dtype=float)
-    fig, ax = plt.subplots(figsize=(9, 6))
-    im = ax.imshow(np.nan_to_num(data), cmap="Blues", aspect="auto")
+    return np.nan_to_num(mat.to_numpy(dtype=float))
+
+
+def _draw_coverage_heatmap(ax, data: np.ndarray, title: str, cmap: str) -> None:
+    """Shared domain x grade heatmap rendering (axes/ticks/cell-value annotations)."""
+    im = ax.imshow(data, cmap=cmap, aspect="auto", vmin=0)
     ax.set_xticks(range(len(GRADES)))
     ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=9)
     ax.set_yticks(range(len(DOMAINS)))
     ax.set_yticklabels(DOMAINS, fontsize=9)
-    total = int(np.nansum(data))
-    ax.set_title(
-        f"Selected items by domain × grade  (n={total})", fontweight="bold", pad=8
-    )
+    ax.set_title(f"{title}  (n={int(data.sum())})", fontweight="bold", pad=8)
+    vmax = data.max() if data.max() > 0 else 1.0
     for r in range(data.shape[0]):
         for c in range(data.shape[1]):
-            v = data[r, c]
-            n = 0 if np.isnan(v) else int(v)
+            n = int(data[r, c])
             ax.text(
                 c,
                 r,
@@ -607,9 +616,113 @@ def plot_coverage(items: pd.DataFrame, out: str) -> None:
                 ha="center",
                 va="center",
                 fontsize=8,
-                color="#222222" if n < 4 else "white",
+                color="#222222" if data[r, c] < vmax * 0.6 else "white",
             )
+    return im
+
+
+def plot_coverage(items: pd.DataFrame, out: str) -> None:
+    """Domain x grade counts of the selected set (heatmap)."""
+    data = _domain_grade_matrix(items[items["selected"]])
+    fig, ax = plt.subplots(figsize=(9, 6))
+    im = _draw_coverage_heatmap(ax, data, "Selected items by domain × grade", "Blues")
     fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="items")
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+
+
+def _pct_dropped(before_totals: np.ndarray, after_totals: np.ndarray) -> np.ndarray:
+    """% of each row/column's own before-cut total that got dropped; NaN where
+    the before-cut total is 0 (nothing to drop a percentage of)."""
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(
+            before_totals > 0,
+            100.0 * (before_totals - after_totals) / before_totals,
+            np.nan,
+        )
+
+
+def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
+    """Domain x grade heatmap: the full item bank, the selected set, the difference
+    (items dropped per cell), then -- on the right -- each domain's %% dropped and
+    each grade's %% dropped, each proportional to its OWN before-cut total (not the
+    pool total). Those last two panels directly answer "which domains/grades lost
+    coverage in the cut?": the per-cell diff heatmap shows raw counts, which favours
+    large domains/grades just for having more items to lose; normalizing by each
+    one's starting size means a small domain/grade that got wiped out shows up as
+    clearly as a large one.
+
+    `items` is every item that entered this IRT run (scored or not); "before"
+    counts all of them, "after" counts only those with `selected=True`. Since
+    selected is always a subset, the diff panel is >= 0 everywhere (cells never
+    gain items).
+    """
+    before = _domain_grade_matrix(items)
+    after = _domain_grade_matrix(items[items["selected"]])
+    diff = before - after
+
+    pct_dropped_domain = _pct_dropped(before.sum(axis=1), after.sum(axis=1))
+    pct_dropped_grade = _pct_dropped(before.sum(axis=0), after.sum(axis=0))
+
+    fig, axes = plt.subplots(
+        1, 5, figsize=(30, 6), gridspec_kw={"width_ratios": [1, 1, 1, 0.7, 0.7]}
+    )
+    im0 = _draw_coverage_heatmap(axes[0], before, "Full item bank (before)", "Blues")
+    im1 = _draw_coverage_heatmap(axes[1], after, "Selected set (after)", "Blues")
+    im2 = _draw_coverage_heatmap(
+        axes[2], diff, "Dropped in the cut (before − after)", "Reds"
+    )
+    for ax, im in zip(axes[:3], [im0, im1, im2]):
+        fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="items")
+
+    # 4th panel: % of each domain's own before-cut total that got dropped.
+    # Row-aligned with the heatmaps (same DOMAINS order, D1 at top) so a row reads
+    # as one continuous story: before -> after -> raw dropped -> %% of that domain lost.
+    ax = axes[3]
+    y = np.arange(len(DOMAINS))
+    colors = plt.get_cmap("Reds")(
+        np.clip(np.nan_to_num(pct_dropped_domain) / 100.0, 0.15, 1.0)
+    )
+    ax.barh(y, np.nan_to_num(pct_dropped_domain), color=colors)
+    ax.set_yticks(y)
+    ax.set_yticklabels(DOMAINS, fontsize=9)
+    ax.invert_yaxis()  # D1 at top, matching the heatmaps' row order
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("% of domain dropped")
+    ax.set_title(
+        "% dropped\n(of domain's own total)", fontweight="bold", fontsize=10, pad=8
+    )
+    for i, pct in enumerate(pct_dropped_domain):
+        label = "n/a" if np.isnan(pct) else f"{pct:.0f}%"
+        x = 0 if np.isnan(pct) else pct
+        ax.text(x + 2, i, label, va="center", fontsize=8)
+    ax.spines[["top", "right"]].set_visible(False)
+
+    # 5th panel: % of each grade's own before-cut total that got dropped, grade on
+    # the x-axis -- column-aligned with the heatmaps' GRADES order (G0 at left).
+    ax = axes[4]
+    x = np.arange(len(GRADES))
+    colors = plt.get_cmap("Reds")(
+        np.clip(np.nan_to_num(pct_dropped_grade) / 100.0, 0.15, 1.0)
+    )
+    ax.bar(x, np.nan_to_num(pct_dropped_grade), color=colors)
+    ax.set_xticks(x)
+    ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=9)
+    ax.set_ylim(0, 100)
+    ax.set_ylabel("% of grade dropped")
+    ax.set_title(
+        "% dropped\n(of grade's own total)", fontweight="bold", fontsize=10, pad=8
+    )
+    for i, pct in enumerate(pct_dropped_grade):
+        label = "n/a" if np.isnan(pct) else f"{pct:.0f}%"
+        y_ = 0 if np.isnan(pct) else pct
+        ax.text(i, y_ + 2, label, ha="center", fontsize=8)
+    ax.spines[["top", "right"]].set_visible(False)
+
+    fig.suptitle(
+        "Domain × grade coverage: before vs after the IRT cut", fontweight="bold"
+    )
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
@@ -857,6 +970,7 @@ def main() -> None:
     plot_diagnostics(items, out("diagnostics.png"))
     plot_accuracy_shift(tbl, args.ceiling, out("accuracy_shift.png"))
     plot_coverage(items, out("coverage.png"))
+    plot_coverage_comparison(items, out("coverage_comparison.png"))
     plot_selection_freq(items, args.leave_out, out("selection_freq.png"))
 
     # ---- console summary ----
@@ -928,6 +1042,22 @@ def main() -> None:
         print(
             f"  {r['model']:<32} {r['accuracy_full']:5.1f}% -> {r['accuracy_selected']:5.1f}%"
         )
+
+    # ---- per-domain coverage loss (before vs after the cut) ----
+    before_by_domain = items.groupby("domain").size().reindex(DOMAINS, fill_value=0)
+    after_by_domain = (
+        items.loc[items["selected"]]
+        .groupby("domain")
+        .size()
+        .reindex(DOMAINS, fill_value=0)
+    )
+    print("\nper-domain coverage (before -> after, dropped, %kept):")
+    for d in DOMAINS:
+        b, a = int(before_by_domain[d]), int(after_by_domain[d])
+        if b == 0:
+            continue
+        pct_kept = 100.0 * a / b
+        print(f"  {d}  {b:4d} -> {a:4d}   dropped={b - a:4d}   kept={pct_kept:5.1f}%")
     print("\nWrote:")
     for name in [
         "items.csv",
@@ -938,6 +1068,7 @@ def main() -> None:
         "diagnostics.png",
         "accuracy_shift.png",
         "coverage.png",
+        "coverage_comparison.png",
         "selection_freq.png",
     ]:
         print("  ", out(name))

@@ -11,7 +11,9 @@ from fab_benchmark_publisher import download_file
 from fdllm import register_models
 
 from linguistic_knowledge_benchmark.judge_bench import (
+    DEFAULT_JUDGE_MODELS,
     build_detailed,
+    compute_judge_agreement,
     compute_summary,
     judge_results,
     judge_results_fallback,
@@ -29,10 +31,6 @@ from linguistic_knowledge_benchmark.shared_utils import (
 # The medium of evaluation is English for every language: questions are written
 # in English (only their subject changes from language to language).
 DATASETS: dict[str, dict] = {
-    "luganda": {
-        "path": DATA_DIR / "linguistic_knowledge_eval_luganda.json",
-        "language_name": "Luganda",
-    },
     "kiswahili": {
         "path": DATA_DIR / "linguistic_knowledge_eval_kiswahili.json",
         "language_name": "Kiswahili",
@@ -183,11 +181,26 @@ def judge_bench_cmd(
         "-m",
         help="Model name whose results to judge",
     ),
-    judge_model: str = typer.Option(
-        "claude-sonnet-4-5-20250929",
+    judge_model: list[str] = typer.Option(
+        None,
         "--judge-model",
         "-j",
-        help="Model to use as LLM judge",
+        help=(
+            "Judge model to use; repeat for an explicit ensemble "
+            "(e.g. -j model-a -j model-b). Overrides --num-judges. Defaults to "
+            f"the first --num-judges of DEFAULT_JUDGE_MODELS ({DEFAULT_JUDGE_MODELS})."
+        ),
+    ),
+    num_judges: int = typer.Option(
+        1,
+        "--num-judges",
+        "-n",
+        help=(
+            "How many of DEFAULT_JUDGE_MODELS to use as independent judges, when "
+            "--judge-model isn't given. 1 (default) = single judge, "
+            f"DEFAULT_JUDGE_MODELS[0]; up to {len(DEFAULT_JUDGE_MODELS)} for an "
+            "ensemble with majority-vote + agreement columns."
+        ),
     ),
     force: bool = typer.Option(
         False,
@@ -221,7 +234,7 @@ def judge_bench_cmd(
 ) -> None:
     """Judge Linguistic Knowledge evaluation results.
 
-    Scores MCQ responses with regex and short_form/true_false with an LLM judge.
+    Scores MCQ responses with regex and short_form with an LLM judge.
     If --model is not provided, judges all models that have step 1 results.
     """
     if language not in DATASETS:
@@ -242,6 +255,18 @@ def judge_bench_cmd(
     else:
         models_to_judge = list(EVAL_MODELS.keys())
 
+    if judge_model:
+        judge_models = list(judge_model)
+    else:
+        if not 1 <= num_judges <= len(DEFAULT_JUDGE_MODELS):
+            typer.echo(
+                f"ERROR: --num-judges must be between 1 and "
+                f"{len(DEFAULT_JUDGE_MODELS)}.",
+                err=True,
+            )
+            raise typer.Exit(1)
+        judge_models = DEFAULT_JUDGE_MODELS[:num_judges]
+
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
     effective_run_id = run_id or "default"
@@ -252,7 +277,7 @@ def judge_bench_cmd(
     input_dir = run_dir(language, effective_run_id) / input_subdir
 
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
-    typer.echo(f"Judge model: {judge_model}")
+    typer.echo(f"Judge model(s): {', '.join(judge_models)}")
     if run_id:
         typer.echo(f"Run ID: {effective_run_id}")
     else:
@@ -273,7 +298,7 @@ def judge_bench_cmd(
                     model_name=current_model,
                     language_name=entry["language_name"],
                     dataset_path=entry["path"],
-                    judge_model=judge_model,
+                    judge_models=judge_models,
                     force=force,
                     run_id=run_id,
                 )
@@ -282,10 +307,33 @@ def judge_bench_cmd(
                     model_name=current_model,
                     language_name=entry["language_name"],
                     dataset_path=entry["path"],
-                    judge_model=judge_model,
+                    judge_models=judge_models,
                     force=force,
                     run_id=run_id,
                 )
+
+            col_prefix = "is_correct_fallback_" if judge_fallback else "is_correct_"
+            missing_judges = [
+                jm
+                for jm in judge_models
+                if f"{col_prefix}{jm}" not in judged_df.columns
+            ]
+            if missing_judges:
+                typer.echo(
+                    f"\nERROR: {current_model} was already judged but only "
+                    f"has results for {len(judge_models) - len(missing_judges)} "
+                    f"of the {len(judge_models)} requested judge(s) "
+                    f"(missing: {', '.join(missing_judges)}).\n"
+                    "Options:\n"
+                    "  - Re-run with --force to rejudge this model with the "
+                    "requested judge(s).\n"
+                    "  - Re-run with a matching --num-judges (or --judge-model) "
+                    "selection if you don't need a different judge set.\n"
+                    "  - Use a different --run-id to start a fresh run.",
+                    err=True,
+                )
+                raise typer.Exit(1)
+
             summary = compute_summary(judged_df, current_model)
             summaries.append(summary)
             judged_by_model[current_model] = judged_df
@@ -294,7 +342,14 @@ def judge_bench_cmd(
             typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
             typer.echo(f"  MCQ accuracy: {summary['accuracy_mcq']}%")
             typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
+            if len(judge_models) > 1 and summary["judge_agreement_mean"] is not None:
+                typer.echo(
+                    f"  Judge agreement: {summary['judge_agreement_mean']:.2%} "
+                    f"({summary['judge_disagreement_count']} disagreement(s))"
+                )
 
+        except typer.Exit:
+            raise
         except FileNotFoundError:
             skipped_models.append(current_model)
         except Exception as e:
@@ -338,8 +393,10 @@ def judge_bench_cmd(
         "responses_retry_git-hash",
         "responses_judged_timestamp-utc",
         "responses_judged_git-hash",
+        "llm_judges",
         "responses_judged_fallback_timestamp-utc",
         "responses_judged_fallback_git-hash",
+        "llm_judges_fallback",
     ]
     for s in summaries:
         entry = log_data.get(str(s.get("model", "")), {})
@@ -364,6 +421,27 @@ def judge_bench_cmd(
     detailed_path = results_dir / detailed_name
     detailed_df.to_csv(detailed_path, index=False)
     typer.echo(f"Detailed results saved to {detailed_path}")
+
+    # Pairwise judge agreement across every judged row this run, only meaningful
+    # with an ensemble (single-judge agreement is trivially 1.0).
+    if len(judge_models) > 1 and judged_by_model:
+        all_judged = pd.concat(judged_by_model.values(), ignore_index=True)
+        try:
+            agreement_matrix = compute_judge_agreement(
+                all_judged, judge_models, fallback=judge_fallback
+            )
+        except KeyError:
+            agreement_matrix = None
+        if agreement_matrix is not None:
+            typer.echo("\nPairwise judge agreement (across all judged rows this run):")
+            typer.echo(agreement_matrix.round(3).to_string())
+            agreement_name = (
+                f"summary_linguistic-knowledge_{language}"
+                f"_{effective_run_id}{fallback_suffix}_judge_agreement.csv"
+            )
+            agreement_path = results_dir / agreement_name
+            agreement_matrix.to_csv(agreement_path)
+            typer.echo(f"Judge agreement matrix saved to {agreement_path}")
 
 
 def main() -> None:

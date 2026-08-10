@@ -9,41 +9,18 @@ from linguistic_knowledge_benchmark import run_bench, shared_utils
 
 
 # --------------------------------------------------------------------------- #
-# parse_answer
-# --------------------------------------------------------------------------- #
-@pytest.mark.parametrize(
-    "raw, expected",
-    [
-        ("A", "A"),
-        ("  C ", "C"),
-        ("(D)", "D"),
-        ("<think>reasoning here</think>B", "B"),
-        ("Some explanation\nB", "B"),
-        ("not an answer at all", None),
-    ],
-)
-def test_parse_answer_patterns(raw, expected):
-    assert run_bench.parse_answer(raw) == expected
-
-
-def test_parse_answer_handles_nan_and_none():
-    assert run_bench.parse_answer(float("nan")) is None
-    assert run_bench.parse_answer(None) is None
-
-
-# --------------------------------------------------------------------------- #
 # _build_system_prompts
 # --------------------------------------------------------------------------- #
 def test_build_system_prompts_has_all_answer_types():
     prompts = run_bench._build_system_prompts("Luganda")
-    assert set(prompts) == {"multiple_choice", "short_form", "true_false"}
+    assert set(prompts) == {"multiple_choice", "short_form"}
 
 
 def test_build_system_prompts_prefix_gives_language_context_for_all_types():
     prompts = run_bench._build_system_prompts("Luganda")
     # Every answer type is prefixed with English-medium context naming the
     # language the question is about.
-    for answer_type in ("multiple_choice", "short_form", "true_false"):
+    for answer_type in ("multiple_choice", "short_form"):
         assert prompts[answer_type].startswith("The following question")
         assert "Luganda" in prompts[answer_type]
 
@@ -52,7 +29,7 @@ def test_build_system_prompts_normalizes_kiswahili_to_swahili():
     # Kiswahili is the CLI/display name (endonym); prompts stay English-medium
     # and should use the English form "Swahili" instead.
     prompts = run_bench._build_system_prompts("Kiswahili")
-    for answer_type in ("multiple_choice", "short_form", "true_false"):
+    for answer_type in ("multiple_choice", "short_form"):
         assert "Swahili" in prompts[answer_type]
         assert "Kiswahili" not in prompts[answer_type]
 
@@ -159,15 +136,15 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
         output_dir=out,
     )
 
-    assert len(df) == 3
-    assert list(df["output"]) == ["B", "B", "B"]
-    assert list(df["call_status"]) == [run_bench.CALL_STATUS_SUCCESS] * 3
-    assert list(df["error_type"]) == ["", "", ""]
+    assert len(df) == 2
+    assert list(df["output"]) == ["B", "B"]
+    assert list(df["call_status"]) == [run_bench.CALL_STATUS_SUCCESS] * 2
+    assert list(df["error_type"]) == ["", ""]
     assert (out / f"responses_{VALID_MODEL}.csv").exists()
     # expected_answers serialized with the pipe join
     assert df.loc[0, "expected_answers"] == "B"
     # fresh run: no retries
-    assert list(df["retry_count"]) == [0, 0, 0]
+    assert list(df["retry_count"]) == [0, 0]
     # log.json written at run dir level (parent of responses/)
     log_path = out.parent / "log.json"
     assert log_path.exists()
@@ -429,29 +406,6 @@ def test_update_log_merges_existing_and_skips_none(tmp_path):
 def test_error_mask_without_call_status_column():
     mask = run_bench._error_mask(pd.DataFrame({"question_id": [1, 2]}))
     assert list(mask) == [False, False]
-
-
-def test_run_benchmark_retry_errors_no_error_rows_returns_cached(tmp_path):
-    out = tmp_path / "out"
-    out.mkdir()
-    pd.DataFrame(
-        [
-            {
-                "question_id": 1,
-                "output": "A",
-                "call_status": run_bench.CALL_STATUS_SUCCESS,
-            }
-        ]
-    ).to_csv(out / f"resps_{VALID_MODEL}.csv", index=False)
-
-    df = run_bench.run_benchmark(
-        VALID_MODEL,
-        language_name="Luganda",
-        dataset_path=tmp_path / "ds.json",
-        output_dir=out,
-        retry_errors=True,
-    )
-    assert df.loc[0, "output"] == "A"
 
 
 def test_run_benchmark_retry_errors_without_cache_raises(tmp_path):

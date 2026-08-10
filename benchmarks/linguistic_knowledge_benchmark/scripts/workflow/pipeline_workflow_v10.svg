@@ -1,5 +1,5 @@
 <svg width="100%" viewBox="0 0 1740 300" role="img" xmlns="http://www.w3.org/2000/svg">
-<title>Linguistic benchmark pipeline (v9): the build funnels — N per-source digests compress (JSON-only) into one map, fan out to N sharded writer runs, then compress again into one pooled/filtered dataset; assembly is a deterministic script. Stage 3b's quota allocation is under revision: a WIP IRT-based allocation may replace the current hard-coded/feature-map quota.</title>
+<title>Linguistic benchmark pipeline (v10): the build funnels — N per-source digests compress (JSON-only) into one map, fan out to N sharded writer runs, then compress again into one pooled candidate set; Stage 3b selects the final dataset with Item Response Theory (estimate_irt.py), fitting item difficulty and discrimination from a model-panel run.</title>
 <style>
   text{font-family:'Anthropic Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
   .h1{font-weight:600;font-size:17px;fill:#2C2C2A}
@@ -190,25 +190,25 @@
 
 <path class="arr" d="M1152 169 L1169 169" marker-end="url(#arrow)"/>
 
-<!-- 3b ASSEMBLE (deterministic script — dashed box) -->
+<!-- 3b SELECT — IRT (deterministic script — dashed box) -->
 <g class="script">
 <rect x="1172" y="78" width="164" height="182" rx="10"/>
 <circle cx="1190" cy="96" r="9" fill="#2C2C2A"/>
 <text class="badge" x="1190" y="99.5" text-anchor="middle">3b</text>
-<text class="t" x="1206" y="100">Assemble</text>
+<text class="t" x="1206" y="100">Select · IRT</text>
 <text class="stag" x="1322" y="98" text-anchor="end">.py</text>
-<text class="skill" x="1186" y="115">deterministic script</text>
+<text class="skill" x="1186" y="115">IRT-based selection</text>
 <line class="div" x1="1186" y1="124" x2="1322" y2="124" stroke="#2C2C2A" stroke-opacity=".28"/>
-<text class="ln" x="1186" y="141">hard-coded quota per D×G *</text>
-<text class="ln" x="1186" y="157">select · balance · number</text>
-<text class="ln" x="1186" y="173">dataset + backups + gaps</text>
-<text class="ln" x="1186" y="189">reproducible · no LLM</text>
+<text class="ln" x="1186" y="141">score pool on a model panel</text>
+<text class="ln" x="1186" y="157">fit IRT: difficulty × disc.</text>
+<text class="ln" x="1186" y="173">select: spread · coverage</text>
+<text class="ln" x="1186" y="189">selected set + diagnostics</text>
 <line class="fdiv" x1="1186" y1="199" x2="1322" y2="199"/>
 <text class="foot" x="1186" y="213">I/O</text>
-<rect class="chip chjson" x="1206" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1220" y="215.5" text-anchor="middle">JSON</text>
-<path class="ioar" d="M1238 213 L1248 213" marker-end="url(#arrow)"/>
-<rect class="chip chjson" x="1252" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1266" y="215.5" text-anchor="middle">JSON</text>
-<rect class="chip chno" x="1290" y="206" width="30" height="13" rx="6.5"/><text class="txno" x="1305" y="215.5" text-anchor="middle">no PDF</text>
+<rect class="chip chcsv" x="1206" y="206" width="26" height="13" rx="3"/><text class="txcsv" x="1219" y="215.5" text-anchor="middle">CSV</text>
+<path class="ioar" d="M1236 213 L1246 213" marker-end="url(#arrow)"/>
+<rect class="chip chjson" x="1250" y="206" width="28" height="13" rx="3"/><text class="txjson" x="1264" y="215.5" text-anchor="middle">JSON</text>
+<rect class="chip chno" x="1288" y="206" width="32" height="13" rx="6.5"/><text class="txno" x="1304" y="215.5" text-anchor="middle">no PDF</text>
 <line class="pbar pbar1" x1="1186" y1="233" x2="1186" y2="245"/>
 <text class="run1" x="1194" y="243">1 run · local script</text>
 </g>
@@ -261,6 +261,6 @@
 <path class="fan" d="M210 169 L231 169" marker-end="url(#arrow)"/>
 <path class="fan" d="M210 198 L231 198" marker-end="url(#arrow)"/>
 
-<!-- FOOTNOTE: 3b allocation is under revision -->
-<text class="lbl" x="24" y="288">* WIP: an IRT-based allocation (see estimate_irt.py) is being explored for Stage 3b and may replace this hard-coded / feature-map quota entirely — not finalized.</text>
+<!-- FOOTNOTE: 3b IRT selection -->
+<text class="lbl" x="24" y="288">Stage 3b (estimate_irt.py): the QC-passed pool is scored on a panel of models, then items are kept by IRT difficulty × discrimination with a per-domain×grade quota; non-selected items are review backups.</text>
 </svg>

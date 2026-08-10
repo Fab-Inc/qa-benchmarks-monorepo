@@ -1,5 +1,3 @@
-# STAGE 1
-
 ## The model behind this
 
 The pipeline runs over a **document set** — one or many sources — and is the same every
@@ -25,10 +23,12 @@ craft and its own precise instructions:
 - **3a Pool & QC** — *how to combine and quality-check candidates*: merge all shard
   outputs, score each item against the anti-gaming rules, and flag near-duplicates. No
   sources attached; annotate, don't drop.
-- **3b Assemble** — *how to build the final dataset deterministically*: a **script**
-  (not a prompt) that applies a hard-coded per-domain×grade quota and selection rules to
-  3a's annotated pool, emitting the final dataset plus a ranked backup pool and a gap
-  report.
+- **3b Select (IRT)** — *how to pick the final dataset with Item Response Theory*: a
+  **script** (`estimate_irt.py`, not a prompt) that scores 3a's QC-passed, de-duplicated
+  pool on a panel of models, fits IRT (difficulty × discrimination) to the per-item
+  results, and selects the final set to avoid saturation, spread the models out, and
+  keep a balanced domain×grade coverage — emitting the selected dataset (renumbered)
+  plus per-item / per-model tables and diagnostic plots.
 
 Because the digest and plan are explicit and **attributed per source**, you can run the
 pipeline over different document sets and **compare the outputs**:
@@ -54,8 +54,9 @@ can go in **series or in parallel**.
    several JSON files (one per shard run) or a single JSON file (if Stage 2 ran only
    once, or you concatenated the shard outputs into one) — paste the 3a block, save the
    annotated pool (QC verdicts + dup groups).
-1. **3b:** run `stage_3b_assemble_v10.py` on the 3a pool to produce the final dataset,
-   backups, and gap report.
+1. **3b:** score the QC-passed pool on a panel of models, then run `estimate_irt.py` on
+   those results to fit IRT and select the final dataset (selected ids + renumbered
+   dataset + diagnostics).
 
 ______________________________________________________________________
 
@@ -647,12 +648,19 @@ Produce the annotated JSON array now.
 
 ______________________________________________________________________
 
-# STAGE 3b — Assemble the final dataset (script, not a prompt)
+# STAGE 3b — Select the final dataset with IRT (script, not a prompt)
 
-Stage 3b is a deterministic script — `stage_3b_assemble_v10.py` — not a chat prompt. It
-reads the Stage-3a annotated pool and, using a hard-coded per-domain×grade quota table
-plus fixed selection rules (keep `qc_verdict.pass`; one item per `dup_group_id` by
-`quality_rank`; fill each cell to its quota; balance answer types and A-D letters;
-assign sequential `question_id`), emits three things: the final `dataset` (v8 item
-schema), a ranked `backups` pool, and a `gap_report` of cells left under quota. See that
-script's header for the quota table and how to run it.
+Stage 3b is a deterministic script — `estimate_irt.py` — not a chat prompt. First take
+3a's annotated pool, keep `qc_verdict.pass` items and collapse each `dup_group_id` to
+its best (`quality_rank` 1), and run that de-duplicated candidate pool against a panel
+of models with the eval harness. Then feed the per-item correctness matrix to
+`estimate_irt.py`: it fits Item Response Theory (Rasch/1PL difficulty and a corrected
+point-biserial discrimination) per item and selects a trimmed final dataset with three
+goals — (1) no saturation (drop items every model gets right; keep the top model under a
+soft accuracy ceiling), (2) differentiation (favour high-discrimination items so models
+spread out), and (3) coverage (a per-domain×grade quota, largest-remainder allocation,
+proportional to the discriminating pool). It also ranks items by leave-k-out selection
+stability and prints validation diagnostics (ranking recovery, discrimination Gini).
+Outputs the selected question ids, the selected dataset (renumbered 1..n), per-item and
+per-model CSVs, and diagnostic plots. See that script's header for options and how to
+run it.

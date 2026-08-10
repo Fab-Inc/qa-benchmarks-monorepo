@@ -1,0 +1,513 @@
+question_id,domain,grade,answer_type,question,expected_answers,claude-fable-5_output,claude-fable-5_correct,claude-haiku-4-5-20251001_output,claude-haiku-4-5-20251001_correct,claude-opus-5_output,claude-opus-5_correct,claude-sonnet-5_output,claude-sonnet-5_correct,deepseek-v4-pro_output,deepseek-v4-pro_correct,fw-gpt-oss-120b_output,fw-gpt-oss-120b_correct,gemini-3-flash-preview_output,gemini-3-flash-preview_correct,gemini-3.1-pro-preview_output,gemini-3.1-pro-preview_correct,gemini-3.5-flash_output,gemini-3.5-flash_correct,gemini-3.5-flash-lite_output,gemini-3.5-flash-lite_correct,gemini-3.6-flash_output,gemini-3.6-flash_correct,gemma-3-12b-it_output,gemma-3-12b-it_correct,gemma-3-27b_output,gemma-3-27b_correct,gemma-4-26b-a4b-it_output,gemma-4-26b-a4b-it_correct,gemma-4-31b-it_output,gemma-4-31b-it_correct,glm-4.6v_output,glm-4.6v_correct,gpt-4.1-mini_output,gpt-4.1-mini_correct,gpt-4.1-nano_output,gpt-4.1-nano_correct,gpt-5-nano-2025-08-07-medium_output,gpt-5-nano-2025-08-07-medium_correct,gpt-5.4-2026-03-05-medium_output,gpt-5.4-2026-03-05-medium_correct,gpt-5.5-2026-04-23-medium_output,gpt-5.5-2026-04-23-medium_correct,gpt-5.6-luna_output,gpt-5.6-luna_correct,gpt-5.6-sol_output,gpt-5.6-sol_correct,gpt-5.6-terra_output,gpt-5.6-terra_correct,grok-4.5_output,grok-4.5_correct,inkling_output,inkling_correct,jamba-large-1.7_output,jamba-large-1.7_correct,mistral-medium-3-5_output,mistral-medium-3-5_correct,mistral-small-2603_output,mistral-small-2603_correct,qwen3.7-max_output,qwen3.7-max_correct
+1,D1,G1,multiple_choice,"In the written word fedha, the letters d and h together stand for how many consonant sounds?",A,A,True,"To answer this question, I need to consider what sounds ""dh"" represents in Swahili.
+
+In Swahili, ""dh"" is a digraph (two letters) that represents a single consonant sound - the voiced dental fricative /ð/, which is one unified sound.
+
+The answer is **A**.",,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C,False,"
+A",True,C,False,A,True,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C.,False,A,True,A,True,A,True
+2,D1,G1,multiple_choice,"In Swahili orthography, how many distinct speech sounds does the two-letter grapheme 'ny' represent?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+B",True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+3,D1,G1,multiple_choice,"When broken into syllables for reading, which sequence correctly divides the word kutembea?",C,C,True,B,False,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C,True,B,False,"
+B",False,B,False,B,False,B,False,C,True,D,False,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C.,True,B,False,C,True,C,True
+4,D3,G1,short_form,"Based on the noun uwanja ('field'), write the single Swahili word meaning 'at/on the field'.",uwanjani,uwanjani,True,Uwanjani,True,**uwanjani**,True,Uwanjani,True,uwanjani,True,Uwanjani,True,uwanjani,True,Uwanjani,True,Uwanjani,True,uwanjani,True,Uwanjani,True,Uwanjani,True,"
+Uwanjani.
+
+
+
+",True,Uwanjani,True,Uwanjani,True,kuuwanja,False,uwanjani,True,juu ya uwanja,False,uwanjani,True,uwanjani,True,uwanjani,True,uwanjani,True,uwanjani,True,uwanjani,True,uwanjani,True,uwandani,False,uwanjani,True,Kwenye uwanja,False,uwanjani,True,uwanjani,True
+5,D1,G2,short_form,"In the fixed order of the Swahili alphabet (as used on the alphabet chart and in dictionaries), one alphabet unit is listed immediately after the letter n and before the letter ny. Which unit is it?","ng', ng","**ng'** (the digraph with apostrophe, as in *ng'ombe*)",True,ng',True,**ng'**,True,ng',True,ng',True,ng',True,ng',True,Ng',True,ng',True,ng',True,ng',True,Ŋ,False,"
+m.",False,ng',True,ng,True,ng,True,ng',True,o,False,ng',True,ng',True,ng’,True,ng',True,ng',True,ng',True,ng',True,ng',True,p,False,ng',True,ng',True,ng',True
+6,D1,G2,short_form,"In the fixed order of the Swahili alphabet, one single alphabet unit is listed immediately after the letter d and before the letter e. Which unit is it?",dh,**dh**,True,dh,True,**dh**,True,Dh,True,Dh,True,dh,True,dh,True,Dh,True,dh,True,dh,True,dh,True,f.,False,"
+dh sound.",False,Diacritic,False,dh,True,dh,True,dh,True,f,False,dh,True,dh,True,dh,True,dh,True,dh,True,dh,True,dh,True,dh,True,f,False,Dh,True,dh,True,dh,True
+7,D1,G2,multiple_choice,One of these two-letter spellings stands for two sounds pronounced together; the other three each stand for a single consonant sound. Which one stands for two sounds?,D,D,True,C,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"To determine which two-letter spelling stands for two sounds pronounced together rather than a single consonant sound in Swahili:
+
+- **dh** represents a voiced dental fricative (/ð/), which is a single sound.
+- **gh** represents a voiced velar fricative (/ɣ/), which is a single sound.
+- **sh** represents a voiceless postalveolar fricative (/ʃ/), which is a single sound.
+- **bw** represents a labialized bilabial plosive (a combination of a bilabial consonant and a semi-vowel/w glide, pronounced together as two sounds, /bʷ/).
+
+Therefore, the correct choice is D.
+
+D",True,D,True,A,False,"
+D
+",True,C,False,D,True,D,True,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,C,False,A,False,D,True
+8,D1,G2,multiple_choice,"Treating each consonant cluster as one onset, how many syllables does the word 'mwalimu' contain?",A,A,True,"To count the syllables in 'mwalimu', I need to identify each syllable by finding vowels and their associated onsets.
+
+Breaking down 'mwalimu':
+- mw- (consonant cluster treated as one onset) + -a = mwa (1st syllable)
+- l- (onset) + -i = li (2nd syllable)
+- m- (onset) + -u = mu (3rd syllable)
+
+Total: 3 syllables
+
+A",True,A,True,A,True,A. Three,True,A,True,"The word 'mwalimu' is syllabified as **mwa-li-mu**.
+
+1.  **mwa**: The prompt states to treat each consonant cluster as one onset. In this word, the consonant cluster is 'mw'. Therefore, 'mw' is the onset of the first syllable, and 'a' is the nucleus. This forms the first syllable, **mwa**.
+2.  **li**: The onset is 'l' and the nucleus is 'i', forming the second syllable, **li**.
+3.  **mu**: The onset is 'm' and the nucleus is 'u', forming the third syllable, **mu**.
+
+Total number of syllables = 3.
+
+A",True,A,True,A,True,"To determine the number of syllables in the Swahili word 'mwalimu', let's break it down into its constituent syllables.
+
+Swahili is an open-syllable language, meaning that syllables typically end in a vowel. The consonants and vowels alternate as follows:
+1. **mwa-** (treating the consonant cluster 'mw' as one onset followed by the vowel 'a')
+2. **-li-** (consonant 'l' followed by vowel 'i')
+3. **-mu** (consonant 'm' followed by vowel 'u')
+
+Counting these segments, we find three syllables: *mwa-li-mu*.
+
+A",True,A,True,B,False,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B.,False,C,False,A,True,A,True
+9,D1,G3,multiple_choice,Which of these is an initial consonant cluster that occurs in Swahili words?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A,False,"
+B",True,B,True,B,True,C,False,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+10,D1,G3,multiple_choice,Which written word begins with a single nasal sound rather than a nasal followed by a hard g?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,D,False,"
+C",True,C,True,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,D,False,C,True
+11,D1,G4,multiple_choice,Which of these is the correct spelling of the Swahili word meaning 'duck'?,D,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+12,D9,G4,multiple_choice,"In Swahili, which term names the correct spelling of words?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,B,False,B,False,A,True
+13,D3,G4,short_form,The singular noun mwizi means 'thief'. Write its standard plural form (the one taking the wa- class prefix).,wezi,wezi,True,wezi,True,**wezi**,True,wezi,True,wezi,True,wawizi,False,wezi,True,wezi,True,wezi,True,Wezi,True,Wezi,True,wawizi,False,"
+Wawizi.
+
+
+
+",False,Wazizi,False,wezi,True,wawizi,False,wawizi,False,Waizi,False,waizi,False,wezi,True,wezi,True,wezi,True,wezi,True,wezi,True,wezi,True,wezi,True,wizi,False,Waizi,False,Wezi,True,waizi,False
+14,D9,G5,multiple_choice,Which Swahili term names the use of punctuation marks in writing?,B,B,True,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,D,False,"
+B",True,B,True,B,True,B,True,D,False,C,False,C,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,C.,False,C,False,C,False,B,True
+15,D2,G2,short_form,How many vowel sounds does Standard Swahili have?,"5, five, tano",Five,True,Five vowel sounds.,False,Five,True,5,True,five,True,Five,True,Five,True,Five,True,Five,True,Five,True,Five,True,Five.,True,"
+
+Five.",True,Five,True,Five,True,5,True,Five vowels,True,Five,True,Five,True,Five,True,Five,True,Five vowel sounds,True,Five,True,Five,True,five,True,5,True,five,True,Five,True,5,True,Five,True
+16,D2,G3,multiple_choice,How many consonant sounds are pronounced together before the vowel in the syllable 'kwa'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,"
+D",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,D,True,D,True,D,True
+17,D2,G4,multiple_choice,"When the family noun baba ('father') is contracted with the possessive -ako ('your'), what happens to the two adjacent a-vowels?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C,False,"
+A",True,A,True,A,True,A,True,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,C,False,A,True,A,True
+18,D3,G1,short_form,"Using the noun vitabu ('books'), write the Swahili for 'our books'.",vitabu vyetu,vitabu vyetu,True,vitabu vyetu,True,Vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu zetu,False,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,Vitabu vyetu,True,vitabu vyetu,True,Vyetu vitabu,False,"
+Vitabu vyetu.",True,Vitabu vyetu,True,Vitabu vyetu,True,vitabu yetu,False,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu vyetu,True,vitabu yetu,False,vitabu yetu,False,vitabu vyetu,True,vitabu vyetu,True
+19,D3,G1,multiple_choice,The word baba ('father') takes N-class agreement in the possessive. Which form means 'our fathers'?,B,B,True,A,False,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,A,False,"
+B",True,A,False,A,False,B,True,A,False,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+20,D3,G1,multiple_choice,"For the noun kitabu (book), which demonstrative means 'that book' (far from the speaker)?",C,C,True,C,True,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C,True,B,False,"
+C
+",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B.,False,C,True,C,True,C,True
+21,D3,G1,multiple_choice,What is the correct plural of the noun mgonjwa ('sick person')?,D,D,True,"The noun ""mgonjwa"" (sick person) belongs to the M-WA noun class in Swahili.
+
+In the M-WA class:
+- Singular prefix: m-
+- Plural prefix: wa-
+
+Therefore, the plural of ""mgonjwa"" is ""wagonjwa"".
+
+**D**",,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,"
+B",False,D,True,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,D,True,B,False,D,True
+22,D3,G1,short_form,The noun jino means 'tooth'. Write its plural form.,meno,meno,True,meno,True,**meno**,True,meno,True,meno,True,meno,True,meno,True,Meno,True,meno,True,meno,True,Meno,True,Mino.,False,"
+Majiino.",False,meno,True,meno,True,meno,True,meno,True,Meno,True,meno,True,meno,True,meno,True,meno,True,meno,True,meno,True,meno,True,meno,True,mijino,False,Jino,False,Meno,True,meno,True
+23,D3,G1,short_form,Write the plural of the noun gari ('car').,magari,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,Magari,True,"thought
+Thinking Process:
+
+1.  **Analyze the Request:**
+    *   Language: Swahili (linguistics context).
+    *   Task: Write the plural of the noun ""gari"" ('car').
+    *   Constraint: Answer in 1-3 words only. No explanation.
+
+2.  **Identify Swahili grammar for ""gari"":**
+    *   ""gari"" is a noun borrowed from Hindi/English into Swahili.
+    *   Noun class: Ji/Ma class (Class 5/6) or N class (Class 9/10).
+    *   Usually, *gari* (cl. 5) has the plural *magari* (cl. 6).
+    *   Sometimes *gari* is used in both singular and plural (Class 9/10), but *magari* is standard, widely accepted, and the primary plural form in standard Swahili dictionaries (TUKI, Kamusi ya Swahili).
+
+3.  **Formulate the answer:**
+    *   Plural of *gari*: *magari* (or *magari*).
+
+4.  **Check Constraints:**
+    *   1-3 words? Yes (""magari"" is 1 word).
+    *   No explanation? Yes.",False,Magari,True,"
+
+magari",True,Magari,True,magari,True,magari,True,Magari,True,Magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,magari,True,Magari,True,magari,True,magari,True
+24,D3,G1,short_form,The noun chumba means 'room'. Write its plural form.,vyumba,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,Vyumba,True,vyumba,True,Vyumba,True,Vyumba,True,"
+Vyumba.
+
+
+
+",True,Vyumba,True,vyumba,True,vichumba,False,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,vyumba,True,"chumba
+",False,Vyumba,True,vyumba,True,vyumba,True
+25,D3,G1,multiple_choice,The plural noun viti ('chairs') is the subject of a verb. Which subject-agreement prefix does that verb take?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B,False,"
+A",True,D,False,A,True,A,True,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,C,False,A,True
+26,D3,G1,multiple_choice,"For the N-class noun ndizi ('banana(s)'), which word means 'these'?",B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+B",True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,C,False,B,True
+27,D3,G2,multiple_choice,"Swahili distinguishes three demonstratives for a person: one for someone near the speaker, one for someone far from both parties, and one for someone near the person being spoken to. Which form points to the person near the person being spoken to?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+28,D3,G2,multiple_choice,A Swahili possessive stem such as -angu ('my') takes its agreement prefix from which noun?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,"
+A",False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A.,False,D,True,D,True,D,True
+29,D3,G2,short_form,Combine the plural noun vitambaa (cloths) with the colour stem -ekundu to mean 'red cloths'. Write the adjective form only.,vyekundu,vyekundu,True,vitambaa vya ekundu,False,**vyekundu**,True,**vyekundu**,True,vyekundu,True,viekundu,False,vyekundu,True,vyekundu,True,vyekundu,True,vyekundu,True,Vyekundu,True,Vijekundu,False,"
+Vitambaa-chekundu.",False,Vidakundu,False,vyekundu,True,weekundu,False,vyeekundu,False,Vitekundu,False,nyekundu,False,vyekundu,True,vyekundu,True,vyekundu,True,vyekundu,True,vyekundu,True,vyekundu,True,vekundu,False,**ekunde**,False,ekundu,False,viekundu,False,vyekundu,True
+30,D3,G2,multiple_choice,"For the noun miaka (years), which form means 'two years'?",A,A,True,B,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B,False,"
+B",False,D,False,A,True,B,False,B,False,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B.,False,B,False,B,False,A,True
+31,D3,G2,multiple_choice,Which of these nouns exists only in the plural and has no singular form?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,C,False,"
+B",True,B,True,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A.,False,B,True,C,False,B,True
+32,D3,G2,short_form,The noun mama ('mother') is a class-9 (N-class) noun. Write the two-word phrase for 'my mother' using its correct possessive concord.,mama yangu,mama yangu,True,mama yangu,True,**mama yangu**,True,mama yangu,True,mama yangu,True,mama yangu,True,Mama yangu,True,Mama yangu,True,mama yangu,True,Mama yangu,True,Mama yangu,True,Mimi mama,False,"
+Mama yangu.",True,Mama yangu,True,mama yangu,True,mama yangu,True,mama wangu,False,Mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True,mama yangu,True
+33,D3,G3,multiple_choice,"For the noun mtoto ('child', M-/WA class), which word means 'this'?",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+34,D3,G3,multiple_choice,"When 'Ganda hili ni la ndizi' is put into the plural with 'maganda', the associative word 'la' changes to:",D,D,True,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+B",False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,B,False,B,False,D,True
+35,D3,G4,short_form,"Attach the adjective stem '-baya' to agree with the noun 'njia' (path, an N-class noun) and give the resulting adjective form.",mbaya,mbaya,True,njia mbaya,False,**mbaya** (njia mbaya),True,**mbaya**,True,mbaya,True,mbaya,True,mbaya,True,mbaya,True,mbaya,True,mbaya,True,mbaya,True,nj Mabaya,False,"
+mbaya",True,mbaya,True,mbaya,True,njibaya,False,njia mbaya,False,njia nzuri,False,njia mbaya,False,mbaya,True,mbaya,True,njia mbaya,False,mbaya,True,mbaya,True,mbaya,True,mbaya,True,njia-mbaya,False,nbaya,False,baya,False,mbaya,True
+36,D3,G4,short_form,The compound noun mwanamke means 'woman'. Write its plural form.,wanawake,wanawake,True,wanawake,True,**wanawake**,True,wanawake,True,wanawake,True,wanamke,False,wanawake,True,Wanawake,True,wanawake,True,wanawake,True,wanawake,True,Wanawake,True,"
+wanawake",True,Wanawake,True,Wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,wanawake,True,Wanawake,True,Wanawake,True,wanawake,True
+37,D3,G4,short_form,Write the common one-word contracted form of the phrase bibi yake ('his/her grandmother').,bibiye,**bibiye**,True,Bibake,False,**bibiye**,True,**Bibiye**,True,bibiye,True,Bibiyake,False,Bibiye,True,Bibiye,True,Bibiye,True,Bibiyake,False,Bibiye,True,bibo,False,"
+yake.",False,Bibi yake,False,bibiyake,False,bibiyake,False,bibiye,True,bibiake,False,bibiyake,False,bibiye,True,bibiye,True,bibiyake,False,bibiye,True,bibiye,True,bibiye,True,bibike,False,bibiye,True,Nyake,False,Bibi'ake,False,bibiyake,False
+38,D3,G5,multiple_choice,Which of these nouns keeps exactly the same form in the plural?,A,A,True,"To solve this, I need to consider how each noun changes in the plural in Swahili.
+
+A. nyumba (house) - plural is nyumba (same form)
+B. mti (tree) - plural is miti (different form)
+C. kitabu (book) - plural is vitabu (different form)
+D. jiwe (stone) - plural is majiwe (different form)
+
+The answer is **A**.",,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C,False,"
+B",False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B.,False,C,False,B,False,A,True
+39,D3,G5,multiple_choice,Which is the correct plural of the noun 'wimbo' (song)?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+B",True,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A.,False,A,False,B,True,B,True
+40,D3,G5,short_form,Give the plural of the noun 'ubavu' (rib).,mbavu,mbavu,True,mbavu,True,**mbavu**,True,mbavu,True,mbavu,True,vibavu,False,Mbavu,True,mbavu,True,mbavu,True,mbavu,True,Mbavu,True,Mabavu,False,"
+Mabavu.
+
+
+
+",False,Mbavu,True,mbavu,True,mabavu,False,mbavu,True,vimvi,False,mbavu,True,mbavu,True,mbavu,True,mbavu,True,mbavu,True,mbavu,True,mbavu,True,mbavu,True,**mabavu**,False,Mabavu,False,mabavu,False,mbavu,True
+41,D3,G5,multiple_choice,Which of these U-initial nouns is an abstract/mass noun that has no separate counting plural?,C,C,True,"To answer this question, I need to identify which U-initial (U class) noun is an abstract/mass noun that doesn't have a separate counting plural.
+
+Let me consider each option:
+
+A. **ukuta** - ""wall"" (concrete noun, plural: kuta) - has a regular plural
+B. **ubavu** - ""rib"" (concrete noun, plural: mbavu) - has a regular plural
+C. **ugonjwa** - ""illness/disease"" (abstract noun) - this is an abstract mass noun that typically doesn't have a counting plural; you don't count illnesses in the same way
+D. **ufunguo** - ""key"" (concrete noun, plural: funguo) - has a regular plural
+
+The answer is **C**.
+
+C",True,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+42,D1,G5,multiple_choice,Which is the correct written form of the compound noun meaning a 'wolf'?,D,D,True,A,False,D,True,A,False,A,False,A,False,D,True,D,True,D,True,A,False,A,False,A,False,"
+B",False,A,False,A,False,A,False,A,False,B,False,A,False,D,True,A,False,B,False,D,True,A,False,D,True,D,True,A.,False,D,True,B,False,A,False
+43,D3,G5,multiple_choice,Which group word is conventionally used for 'a bunch of bananas' ( wa ndizi)?,A,A,True,B,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D,False,"
+D
+",False,A,True,A,True,D,False,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,C.,False,D,False,A,True,A,True
+44,D3,G5,multiple_choice,Which group word conventionally names a bundle of firewood ( la kuni)?,B,B,True,C,False,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,C,False,"
+A",False,B,True,B,True,D,False,B,True,C,False,C,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,D.,False,D,False,B,True,B,True
+45,D3,G5,short_form,Write the diminutive ('small child') singular form of the noun mtoto ('child').,kitoto,kitoto,True,mtototo,False,**kitoto**,True,kitoto,True,kitoto,True,mtoto mdogo,False,kitoto,True,Kitoto,True,kitoto,True,Kitoto,True,Kitoto,True,Mtoto mdogo,False,"
+
+mtototo.",False,Mtoto mdogo,False,kitoto,True,mtoto mdogo,False,mtototo,False,watoto wa,False,kitoto,True,kitoto,True,kitoto,True,kitoto,True,katoto,False,kitoto,True,kitoto,True,kitoto,True,"mtoto
+",False,mtoto,False,mtototo,False,kitoto,True
+46,D3,G5,short_form,The noun mtu means 'person'. Write its augmentative form meaning 'giant / huge person' (singular).,jitu,**jitu**,True,mtu mkubwa,False,**jitu**,True,jitu,True,jitu,True,mtu mkubwa,False,jitu,True,jitu,True,jitu,True,Jitu,True,Jitu,True,Mtu mkuu,False,"
+Mtu mkuu.
+
+
+
+",False,Jitu,True,mtu mkubwa,False,mwenye-mtu,False,mtumbwi,False,mnyamuwi,False,mtu mkubwa,False,jitu,True,jitu,True,jitu,True,jitu,True,jitu,True,jitu,True,jitu,True,mtuu,False,mtu mkuu,False,mtwana,False,jitu,True
+47,D4,G1,multiple_choice,Which subject prefix on a Swahili verb marks a second-person plural subject ('you all')?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,"
+B",False,C,True,C,True,B,False,C,True,B,False,C,True,C,True,C,True,C,True,C,True,B,False,C,True,C,True,B.,False,B,False,C,True,C,True
+48,D4,G1,short_form,"Write the form of the verb -ona (to see) meaning 'then they saw' (third-person plural, narrative/consecutive).",wakaona,wakaona,True,Wakiona,False,**wakaona**,True,**wakaona**,True,wakaona,True,waliona,False,Wakaona,True,Wakaona,True,Wakaona,True,Wakaona,True,Wakaona,True,Wali-ona,False,"
+
+Waliona.
+",False,Waliiona,False,wakaona,True,wakiona,False,wakaona,True,wali ona,False,waliona,False,wakaona,True,wakaona,True,wakaona,True,wakaona,True,wakaona,True,wakaona,True,wakaona,True,waliona,False,Kakaona,False,waliona,False,wakaona,True
+49,D4,G1,short_form,"Write the form of the verb -piga (to hit) meaning 'he hit him/her' (third-person singular subject, past tense, with a third-person singular human object).",alimpiga,alimpiga,True,alipiga,False,**alimpiga**,True,**alimpiga**,True,alimpiga,True,alimpiga,True,Alimpiga,True,alimpiga,True,Alimpiga,True,Alimpiga,True,Alimpiga,True,Alimpiga.,True,"
+
+Alimpiga.",True,Alimpiga,True,alimpiga,True,alimpiga,True,alimpiga,True,alimpiga,True,alimpiga,True,alimpiga,True,alimpiga,True,Alimpiga,True,alimpiga,True,Alimpiga,True,alimpiga,True,alimpiga,True,-pigiye,False,Alimpiga,True,alimpiga,True,alimpiga,True
+50,D4,G1,short_form,Write the habitual form of the verb -lala (to sleep) meaning 'usually sleeps'.,hulala,hulala,True,hulala,True,**hulala**,True,Hulala,True,hulala,True,analala,False,Hulala,True,hulala,True,hulala,True,"huvuma / hupenda / hulala
+
+*(Wait, the exact habitual prefix in Swahili is **hu-**).*
+
+hulala",False,Hulala,True,Analala.,False,"
+-lala-lala",False,Hulala,True,hulala,True,hulala,True,hula,False,anawalala,False,hulala,True,hulala,True,hulala,True,Hulala,True,hulala,True,hulala,True,hulala,True,hulala,True,-lala,False,Hulala,True,Hu-lala,False,hulala,True
+51,D4,G1,short_form,Write the situative form of the verb -soma (to read) meaning 'when/if she reads' (third-person singular).,akisoma,akisoma,True,akisoma,True,**akisoma**,True,**akisoma**,True,akisoma,True,asome,False,akisoma,True,akisoma,True,akisoma,True,akisoma,True,Akisoma,True,-kitasoma,False,"
+Akisoma.",True,akisoma,True,akisoma,True,kisoma,False,asomosha,False,Anaposoma,False,akisoma,True,akisoma,True,akisoma,True,akisoma,True,akisoma,True,asomapo,False,akisoma,True,akisoma,True,-somaye,False,Asoma,False,sisomapo,False,akisoma,True
+52,D4,G1,short_form,"Write the form of the verb -fika (to arrive) meaning 'they did not arrive' (third-person plural, negative past).",hawakufika,hawakufika,True,Hawakufika,True,**hawakufika**,True,**Hawakufika**,True,hawakufika,True,hawakufika,True,Hawakufika,True,Hawakufika,True,Hawakufika,True,Hawakufika,True,Hawakufika,True,Hawakufika,True,"
+
+Hawakufika.",True,Hawakufika,True,Hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,hawakufika,True,Hawakufika,True,hawakufika,True,hawakufika,True,walifiki,False,Hawakufika,True,Hawakufika,True,hawakufika,True
+53,D4,G1,multiple_choice,"The habitual form of the stem -rudi ('return'), meaning 'usually returns', is:",D,D,True,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D",True,D,True,D,True,B,False,D,True,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,D,True,B,False,D,True
+54,D4,G1,multiple_choice,"In a simple Swahili verb, the three parts occur in which order?",A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D,False,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,C,False,A,True,A,True
+55,D4,G1,short_form,"Write the verb form meaning 'she is studying', built on the stem -soma ('study'), in the present continuous.",anasoma,anasoma,True,anasoma,True,**Anasoma**,True,Anasoma,True,anasoma,True,anasoma,True,anasoma,True,anasoma,True,anasoma,True,Anasoma,True,Anasoma,True,Anasoma,True,"
+
+Anasoma.",True,Anasoma,True,Anasoma,True,nisomaa,False,anasoma,True,anajifunza,False,anasoma,True,anasoma,True,anasoma,True,Anasoma,True,anasoma,True,anasoma,True,anasoma,True,Anasoma,True,ana-soma,False,anasoma,True,anasoma,True,anasoma,True
+56,D4,G2,short_form,"Write the form of the verb -amua (to decide) meaning 'I did not decide' (first-person singular, negative past).",sikuamua,**sikuamua**,True,Si kuamua,True,**Sikuamua**,True,Sikuamua,True,sikuamua,True,sikuamua,True,Sikuamua,True,Sikuamua,True,sikuamua,True,Sikuamua,True,Sikuamua,True,Sieleamui.,False,"
+
+Sikuamua.",True,Sikuamua,True,Sikuamua,True,sikuamua,True,sikamua,False,si kuamua,True,siliamua,False,sikuamua,True,sikuamua,True,Sikuamua,True,Sikuamua,True,sikuamua,True,sikuamua,True,sikuamua,True,sikamua,False,Sikuaamua,False,Sikuamua,True,Sikuamua,True
+57,D4,G2,multiple_choice,The negative of the past-tense verb 'alilima' ('he/she cultivated') is:,B,B,True,D,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"To form the negative of the past-tense verb in Swahili (which uses the `-li-` tense marker), the affirmative tense marker `-li-` is replaced by the negative past marker `-ku-`, and the subject prefix and negative marker are combined (e.g., *a-* + *ha-* becomes *ha-*). Therefore, the negative of *alilima* (""he/she cultivated"") is *hakulima* (""he/she did not cultivate"").
+
+B",True,B,True,B,True,"
+A",False,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+58,D4,G2,short_form,"Write the past-tense verb meaning 'they bought', from the stem -nunua ('buy').",walinunua,walinunua,True,walinunua,True,**walinunua**,True,Walinunua,True,walinunua,True,walinunua,True,Walinunua,True,walinunua,True,Walinunua,True,Walinunua,True,Walinunua,True,Walianunua,False,"
+Walnunua.",False,Walinunua,True,walinunua,True,wanunua,False,Walininua,False,Walnunua,False,walinunua,True,walinunua,True,walinunua,True,walinunua,True,walinunua,True,walinunua,True,walinunua,True,walinunua,True,walinunua,True,wanunua,False,walinunua,True,walinunua,True
+59,D4,G2,short_form,"Write the verb meaning 'I have eaten', from the stem -la ('eat').",nimekula,**Nimekula**,True,Nimeila,False,**Nimekula**,True,Nimekula,True,nimekula,True,nimekula,True,Nimekula,True,Nimekula,True,Nimekula,True,Nimekula,True,Nimekula,True,Nime-la,False,"
+
+Nime kula.
+
+
+
+",False,Nimekula,True,Nimekula,True,nimekula,True,nimepika,False,Nime-la,False,nimela,False,nimekula,True,nimekula,True,Nimekula,True,Nimekula,True,nimekula,True,nimekula,True,nimekula,True,nime-la,False,Nimekula,True,Nimekula,True,Nimekula,True
+60,D4,G3,short_form,Complete the sentence with the correct form of -fyeka (to cut): Jana mama ___ nyasi ('Yesterday mother cut the grass'). Write the verb only.,alifyeka,alifyeka,True,alifyeka,True,**alifyeka**,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,Alifyeka,True,"
+alikata",False,alifyeka,True,alifyeka,True,alifyeka,True,alfyeka,False,fyeka,False,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyeka,True,alifyek,False,alifyeka,True
+61,D4,G3,short_form,Write the form of the verb -palilia (to weed) meaning 'you (singular) will not weed' (negative future).,hutapalilia,**hutapalilia**,True,Hutalipalilia,False,**Hutapalilia**,True,**Hutapalilia**,True,hutapalilia,True,hutapalia,False,hutapalilia,True,hutapalilia,True,hutapalilia,True,Hutapalilia,True,Hutapalilia,True,Utasipalia,False,"
+
+Hutapalia.",False,Hautapalilia,False,Hutapalilia,True,hata palilia,False,huta palilia,True,hutalipali,False,hutapalilia,True,hutapalilia,True,hutapalilia,True,Hutapalilia,True,hutapalilia,True,Hutapalilia,True,hutapalilia,True,hutapalilia,True,utapalilie,False,Hutapalilia,True,Hu-utapalilia,False,hutapalilia,True
+62,D4,G3,short_form,"The affirmative 'I am cooking' is ninapika. Write its negative form, 'I am not cooking'.",sipiki,sipiki,True,Sinipi​ki,False,**Sipiki**,True,**Sipiki**,True,sipiki,True,Sipika,False,sipiki,True,Sipiki,True,sipiki,True,sipiki,True,Sipiki,True,Sihapiki,False,"
+Sipiki.",True,Sipiki,True,sipiki,True,sina pika,False,sipiki,True,siipiki,False,sipika,False,sipiki,True,Sipiki,True,Sipiki,True,Sipiki,True,sipiki,True,sipiki,True,sipiki,True,sinapika,False,sipiki,True,Sipiki,True,Sipiki,True
+63,D4,G4,short_form,The verb ua means 'kill'. Write its passive form meaning 'be killed'.,"uawa, uliwa",**uawa**,True,uawa,True,**uawa**,True,**kuuawa**,False,uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,uliwa,True,uawa,True,Kuuaishwa,False,"
+
+Uuajiwe.",False,Uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,kuuawa,False,uawa,True,uawa,True,uawa,True,uawa,True,uawa,True,Uawa,True,uliwa,True,uawa,True
+64,D4,G4,short_form,"Write the passive form of the verb lima ('cultivate'), meaning 'be cultivated'.",limwa,limwa,True,Limilwa,False,**limwa**,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,Limwa,True,limwa,True,Liwe limelewa,False,"
+
+Limezwa.",False,Limwa,True,limika,False,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limwa,True,limiwa,False,limwa,True,limwa,True
+65,D4,G4,short_form,The verb soma means 'read'. Write its stative form meaning 'be readable'.,someka,someka,True,soma-lika,False,**someka**,True,someka,True,someka,True,kusomika,False,someka,True,someka,True,someka,True,someka,True,someka,True,Somo,False,"
+Somewa.",False,Inasomeka,False,someka,True,kusoma,False,someka,True,somiwa,False,somwa,False,someka,True,someka,True,someka,True,someka,True,someka,True,someka,True,someka,True,likisomavu,False,Somwa,False,someshwa,False,someka,True
+66,D4,G4,short_form,The verb cheka means 'laugh'. Write its causative form meaning 'make (someone) laugh'.,chekesha,chekesha,True,chekeza,False,**chekesha**,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,"
+Chekesha.
+
+
+
+",True,Chekesha,True,chekesha,True,chezesha,False,chekesha,True,Chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,chekesha,True,Chekisha,False,chekesha,True
+67,D4,G4,short_form,"Write the causative form of the verb rudi ('return'), meaning 'send/give back'.",rudisha,rudisha,True,rudisha,True,**rudisha**,True,rudisha,True,rudisha,True,Rudisha,True,Rudisha,True,rudisha,True,rudisha,True,Rudisha,True,rudisha,True,Rudurusha,False,"
+rudisha",True,Rudisha,True,rudisha,True,patia,False,rudisha,True,Rudisha,True,rudisha,True,rudisha,True,rudisha,True,Rudisha,True,rudisha,True,rudisha,True,rudisha,True,rudisha,True,rudisha,True,Rudisha,True,-rudisha,True,rudisha,True
+68,D4,G4,short_form,The verb pika means 'cook'. Write its applicative form meaning 'cook for/with (someone)'.,pikia,**pikia**,True,pikia,True,**pikia**,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,lipika,False,"
+
+pikilia.
+
+
+
+",False,pikie,False,pikia,True,pikia,True,pikia,True,pika kwa,False,kupikia,False,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True,pikia,True
+69,D4,G4,short_form,"Write the negative singular command 'Don't come!', from the stem -ja ('come').","Usije, usije",Usije!,True,Usije!,True,**Usije!**,True,Usije!,True,Usije,True,Usije!,True,Usije!,True,Usije!,True,Usije!,True,Usije,True,Usije!,True,Usije,True,"
+
+Usije!",True,Usije!,True,Usije!,True,Usikae!,False,Usije!,True,Usiji,False,Usije,True,Usije!,True,Usije!,True,Usije!,True,Usije!,True,Usije!,True,Usije!,True,Usije!,True,usije,True,Usijie,False,Usije,True,Usije,True
+70,D4,G5,short_form,"Using the present-indefinite (habitual) -a- marker, write the verb meaning 'I play', from the stem -cheza ('play').",nacheza,**nacheza**,True,Ninacheza,False,**Nacheza**,True,**Ninacheza**,False,nacheza,True,nicheza,False,Nacheza,True,Nacheza,True,nacheza,True,Nacheza,True,Nacheza,True,Nacheza,True,"
+Nacheza.",True,Ninacheza,False,Ninacheza,False,nacheza,True,nacheza,True,Nacheza,True,nacheza,True,nacheza,True,nacheza,True,ninacheza,False,Nacheza,True,nacheza,True,nacheza,True,nacheza,True,nacheza,True,Nacheza,True,nacheza,True,nacheza,True
+71,D4,beyond_primary,multiple_choice,Which marker expresses a past contrary-to-fact condition ('If I had studied...')?,C,C,True,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A,False,"
+A",False,C,True,C,True,A,False,A,False,A,False,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A.,False,A,False,A,False,C,True
+72,D8,beyond_primary,multiple_choice,"Used as a word-initial prefix ka- (rather than an infix), the ka- verb form is characteristic of which style?",D,B,False,B,False,D,True,D,True,D,True,D,True,B,False,D,True,D,True,D,True,D,True,D,True,"
+B",False,B,False,D,True,B,False,B,False,D,True,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+73,D5,G1,short_form,"For the noun ng'ombe (cow), write the relative form meaning 'the cow that grew fat', using the verb -nona (to grow fat) in the past (third-person singular, animate).","aliyenona, ng'ombe aliyenona",ng'ombe aliyenona,True,ng'ombe iliyonona,False,**ng'ombe aliyenona**,True,ng'ombe aliyenona,True,aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,Ng'ombe aliyenona,True,Ng'ombe aliyenona,True,Ng'ombe ilinonyesha,False,"
+Ng'ombe aliyenona.",True,aliyenona,True,ng'ombe aliyonona,False,aliyenona,True,ng’ombe aliyenona,True,Ng'ombe alionona,False,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe aliyenona,True,ng'ombe alinona,False,aliyenona,True,alinonaye,False,ng'ombe aliyenona,True
+74,D5,G1,multiple_choice,Which is the correct Swahili phrase for 'two motorbikes'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,A,True,A,True
+75,D5,G1,multiple_choice,Which is the natural Swahili wording for 'Where is the book?',B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+B",True,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+76,D5,G2,multiple_choice,"For the plural subject wanadamu (humans), which locative copula is correct in 'Where are the humans?'",C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,D,False,"
+C",True,C,True,C,True,C,True,D,False,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+77,D5,G2,short_form,Which two-word phrase begins a Swahili 'why' (reason) question at the start of the clause?,kwa nini,Kwa nini,True,Kwa nini,True,**Kwa nini**,True,**Kwa nini**,True,kwa nini,True,kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,"
+Kwa nini.
+
+
+
+",True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True,kwa nini,True,Kwa nini,True,kwa nini,True,Kwa nini,True,Kwa nini,True,Kwa nini,True
+78,D5,G2,multiple_choice,"In a Swahili noun phrase, where does a descriptive adjective normally stand relative to its noun?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D",True,D,True,D,True,D,True,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+79,D5,G3,multiple_choice,Which form correctly completes 'Kitabu ___ juu ya meza' ('The book is on top of the table')?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D,False,"
+D",False,B,False,B,False,B,False,A,True,D,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B.,False,D,False,D,False,A,True
+80,D5,G3,multiple_choice,Which is the natural Swahili wording for 'goes to the shop quickly'?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,C,False,B,True,C,False,"
+B",True,B,True,B,True,B,True,B,True,C,False,C,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,C,False,B,True
+81,D5,G4,multiple_choice,Which particle correctly completes the fixed expression 'mbali ___ nyumbani' meaning 'far from home'?,C,C,True,B,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,B,False,"
+B",False,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,D.,False,B,False,B,False,C,True
+82,D5,G4,multiple_choice,"In a Swahili passive sentence, the animate doer of the action ('by ...') is introduced by which word?",D,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B,False,"
+A",False,D,True,D,True,D,True,A,False,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A.,False,D,True,A,False,D,True
+83,D5,G5,multiple_choice,"Which subject prefix serves as the impersonal 'it' (as in 'it is raining', 'it is said'), drawn from the N- class?",A,A,True,B,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D,False,"
+B",False,A,True,A,True,A,True,B,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,D,False,A,True
+84,D5,G5,multiple_choice,A conditional 'if' clause in Swahili can pair the word kama with which verbal marker?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+D",False,B,True,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,B,True,D,False,B.,True,B,True,B,True,B,True
+85,D6,G1,multiple_choice,The Swahili day-name Jumapili is built on pili ('two/second'). Which day of the week is Jumapili?,C,C,True,"To answer this question, I need to understand the Swahili naming system for days of the week and what ""pili"" means.
+
+In Swahili, days of the week are named based on Islamic tradition. The week starts on Saturday (Jumamosi - from ""juma"" meaning week, and ""mosi"" meaning first).
+
+The day-names follow this pattern:
+- Jumamosi = Saturday (first day)
+- Jumapili = Sunday (second day) - from ""pili"" (two/second)
+- Jumatatu = Monday (third day) - from ""tatu"" (three)
+- Jumanne = Tuesday (fourth day)
+- Jumatano = Wednesday (fifth day)
+- Ijumaa = Friday (sixth day)
+- Jumamosi is also Saturday
+
+Since ""pili"" means ""two/second,"" and Jumapili is the second day of the Islamic week, Jumapili is Sunday.
+
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,C,True,C,True,C,True,C,True,B,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,B,False,C,True
+86,D6,G1,short_form,Which day of the week is Jumatano?,Wednesday,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,"
+Wednesday.",True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Wednesday,True,Tuesday,False,Wednesday,True,Wednesday.,True
+87,D6,G1,short_form,Which day of the week is Alhamisi?,Thursday,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,"
+Thursday.",True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True,Thursday,True
+88,D6,G1,short_form,What everyday object does the Swahili word 'mshumaa' name?,"candle, a candle",Candle,True,Candle,True,A candle,True,Candle,True,candle,True,Matchstick,False,A candle,True,Candle,True,Candle,True,Candle,True,Candle,True,Candle,True,"
+
+Candle.",True,Candle,True,Candle,True,candle,True,candle,True,candle,True,candle,True,candle,True,candle,True,Candle,True,Candle,True,Candle,True,candle,True,Candle,True,candle,True,Candle,True,candle,True,Candle,True
+89,D6,G2,multiple_choice,Which Swahili word names the number 50?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+90,D6,G2,short_form,"In Swahili kinship terms, what relative is a mjomba?","uncle, maternal uncle, mother's brother",Maternal uncle,True,Maternal uncle,True,Mother's brother (maternal uncle),False,Maternal uncle,True,maternal uncle,True,Maternal aunt (mother’s sister),False,Maternal uncle,True,Maternal uncle,True,Maternal uncle,True,Maternal uncle,True,Maternal uncle,True,Uncle/Aunt,False,"
+
+Mother's brother.
+
+
+
+",True,Maternal uncle,True,Maternal uncle,True,mother's brother,True,maternal uncle,True,uncle,True,uncle,True,maternal uncle,True,Maternal uncle,True,Maternal uncle,True,Maternal uncle,True,Maternal uncle,True,mother's brother,True,Maternal uncle,True,uncle,True,Uncle,True,maternal uncle,True,Maternal uncle,True
+91,D6,G2,multiple_choice,The kinship term shangazi denotes which relative?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,B,False,"
+B",False,A,True,A,True,B,False,B,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True
+92,D6,G2,short_form,Write the Swahili word for the number 30.,thelathini,Thelathini,True,Thelathini,True,Thelathini,True,Thelathini,True,thelathini,True,thelathini,True,thelathini,True,Thelathini,True,thelathini,True,Thelathini,True,Thelathini,True,Tatu kumi,False,"
+
+Thelathini.
+
+
+
+",True,thelathini,True,Thelathini,True,thelathini,True,thelathini,True,The number 30 in Swahili is ' the number 30 in Swahili is 'thelathini'.,False,thelathini,True,thelathini,True,thelathini,True,thelathini,True,thelathini,True,thelathini,True,thelathini,True,thelathini,True,tatuashirini,False,Tatlini,False,Thelathini,True,Thelathini,True
+93,D6,G2,short_form,Write the Swahili name for Saturday (the day Swahili counts as the first of the week).,"Jumamosi, jumamosi",Jumamosi,True,Jumamosi,True,**Jumamosi**,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumapili,False,"
+Jumamosi.
+
+
+
+",True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True,Jumamosi,True
+94,D6,G3,short_form,What is the antonym (kinyume) of the verb panda ('climb/ascend')?,shuka,shuka,True,Shuka (descend/go down),True,**Shuka** (or *teremka*) – 'to descend/get down',False,shuka,True,shuka,True,shuka,True,Shuka,True,Shuka,True,Shuka,True,shuka,True,Shuka (or Teremka),False,Shuka,True,"
+Shuka/tereka.
+
+
+
+",False,Shuka,True,shuka,True,panda,False,shuka,True,kushuka,False,shuka,True,shuka,True,shuka,True,Shuka,True,shuka,True,shuka,True,shuka,True,shuka,True,"panda
+",False,Shuka,True,shuka,True,shuka,True
+95,D6,G3,short_form,What is the antonym (kinyume) of the verb lala ('lie down/sleep')?,amka,**amka** ('wake up'),True,Amka (wake up),True,**Amka** ('wake up'),True,**Amka** (wake up),True,amka,True,Amka,True,Amka,True,Amka,True,Amka,True,Amka,True,Amka,True,Amka,True,"
+Simama.",False,Amka,True,Amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,amka,True,kuamka,False,Amunika,False,amka,True,Amka,True
+96,D6,G3,multiple_choice,The fixed opposite of the verb 'jenga' ('build') is:,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,"
+B",True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A.,False,B,True,B,True,B,True
+97,D6,G3,multiple_choice,"In the Swahili clock, saa saba matches which time on the English clock?",C,C,True,"The Swahili clock system starts counting from 6 a.m. (when the sun rises), which is considered ""saa moja"" (hour one).
+
+To find saa saba (hour seven):
+- Saa moja = 6 a.m.
+- Saa saba = 6 a.m. + 6 hours = 12 p.m. (noon)
+
+However, looking at the options provided, this doesn't match exactly. Let me reconsider the typical Swahili clock convention:
+
+If saa moja starts at 6 a.m.:
+- Saa saba = 6 + 6 = 12 noon (or could be interpreted as 1 p.m. if counting differently)
+
+Given the options, saa saba (7 hours into the Swahili system starting at 6 a.m.) would be 1 o'clock in the afternoon on the English clock.
+
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A,False,"
+A",False,C,True,C,True,A,False,D,False,A,False,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A.,False,C,True,B,False,C,True
+98,D6,G4,multiple_choice,Which word is the antonym of 'mwenyeji'?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+99,D6,G4,multiple_choice,The Swahili word 'tendegu' names which item?,B,B,True,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,A,False,"
+A",False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,C,False,B,True,B,True,B,True,B,True,B,True,B.,True,C,False,C,False,C,False
+100,D6,G4,multiple_choice,Which interjection is conventionally used to express joyful cheering or celebration?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,D,False,C,True
+101,D6,G4,multiple_choice,"The reciprocal verb kosana is built from kosa ('to miss/fail'), but its actual meaning is which?",D,D,True,D,True,D,True,D,True,D,True,B,False,D,True,D,True,D,True,D,True,D,True,A,False,"
+B",False,D,True,D,True,B,False,B,False,B,False,B,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,B,False,D,True,D,True
+102,D6,G5,multiple_choice,Which word is a synonym of 'simanzi'?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,"
+A",True,A,True,A,True,D,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,B,False,A,True
+103,D6,G5,multiple_choice,The expression kupiga mkasi literally means 'to hit the scissors'. Its idiomatic meaning is which?,B,A,False,B,True,A,False,A,False,A,False,B,True,B,True,A,False,B,True,A,False,A,False,A,False,"
+C
+",False,C,False,B,True,A,False,A,False,B,True,B,True,B,True,A,False,B,True,A,False,B,True,A,False,A,False,B.,True,B,True,B,True,A,False
+104,D7,G2,multiple_choice,A Swahili shairi (poem) conventionally opens by doing which of the following?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,A,False,"
+A",False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+105,D7,G4,multiple_choice,"The 'reference' demonstratives huyo, hilo and hicho differ from huyu, hili and hiki in that they point to something that is what?",D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D
+",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,B.,False,D,True,D,True,D,True
+106,D8,G1,short_form,Which single Swahili word is the polite word meaning 'please'?,tafadhali,Tafadhali,True,Tafadhali,True,**Tafadhali**,True,Tafadhali,True,tafadhali,True,tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True,"
+
+Tafadhali.
+
+
+
+",True,Tafadhali,True,Tafadhali,True,tafadhali,True,tafadhali,True,Tafadhali,True,tafadhali,True,tafadhali,True,tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True,tafadhali,True,Tafadhali,True,tafadhali,True,Tafadhali,True,Tafadhali,True,Tafadhali,True
+107,D8,G1,short_form,Write the customary one-word reply to the respectful greeting Shikamoo.,"Marahaba, marahaba",Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba.,True,"
+Marahaba.
+
+
+
+",True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Marahaba,True,Mzee,False,Marahaba,True
+108,D8,G2,short_form,"In Swahili, as a term of address, whom does one call babu?","grandfather, granddad, an old man",Grandfather (or an elderly man),False,Grandfather,True,A grandfather (or any elderly man),False,Grandfather,True,grandfather,True,Grandfather.,True,Grandfather,True,Grandfather,True,Grandfather,True,Grandfather,True,Grandfather,True,Grandfather,True,"
+
+Grandfather/elder.
+
+
+
+",False,Grandfather,True,Grandfather,True,grandfather,True,Grandfather,True,Grandfather,True,grandfather,True,grandfather,True,Grandfather,True,One’s grandfather,True,Grandfather,True,Grandfather,True,grandfather,True,grandfather,True,grandfather,True,Grandfather,True,Grandfather,True,Grandfather,True
+109,D8,G2,short_form,"In the Swahili riddling game, after the challenger says Kitendawili, which single word do the listeners say to invite the riddle?","Tega, tega",**Tega**,True,Kamata,False,**Tega!**,True,Tega,True,Tega,True,Karibu,False,Tega!,True,Tega,True,Tega,True,Tega,True,Tega,True,Hebu sema.,False,"
+Neno.",False,Tega,True,Tega!,True,Sema,False,Tutulize,False,Tafadhali,False,Leta,False,Tega!,True,Tega,True,Tega,True,Tega,True,Tega!,True,Tega,True,Tega,True,**Niko**,False,Chapisho,False,Jibu,False,Tega,True
+110,D8,G2,multiple_choice,"By tradition, a solver who cannot answer a riddle must offer the riddler:",A,A,True,D,False,A,True,C,False,A,True,B,False,A,True,A,True,A,True,A,True,A,True,C,False,"
+B",False,A,True,A,True,C,False,B,False,C,False,C,False,A,True,A,True,D,False,A,True,A,True,A,True,A,True,D.,False,B,False,D,False,C,False
+111,D8,G4,multiple_choice,The polite expression 'kwenda haja ndogo' refers to which act?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C
+",True,C,True,C,True,C,True,C,True,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+112,D8,G4,multiple_choice,What does the proverb 'Mtoto wa nyoka ni nyoka' convey?,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D
+",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D.,True,D,True,D,True,D,True
+113,D8,G4,multiple_choice,Contracted possessives such as mumewe (for mume wake) are especially characteristic of which register?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,A,True,A,True
+114,D8,G5,multiple_choice,"In the fixed character simile for cunning, a person is likened to which animal?",B,B,True,B,True,B,True,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,"
+A",False,B,True,B,True,B,True,B,True,A,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B.,True,B,True,B,True,B,True
+115,D9,G1,short_form,"In Swahili literacy terminology, what unit does the term silabi name? Answer in English.",syllable,Syllable,True,Syllable,True,Syllable,True,Syllable,True,syllable,True,Syllable,True,Syllable,True,Syllable,True,Syllable,True,Syllable,True,Syllable,True,Syllable,True,"
+Syllable.",True,Syllable,True,Syllable,True,syllable,True,Syllable,True,Syllable,True,syllable,True,syllable,True,syllable,True,Syllable,True,Syllable,True,Syllable,True,syllable,True,Syllable,True,**syllable**,True,Syllable,True,syllable,True,Syllable,True
+116,D9,G1,short_form,What is the Swahili term for a word's opposite (its antonym)?,kinyume,**Kinyume**,True,Kinyume,True,"**Kinyume** (pl. *vinyume*) — i.e., *kinyume cha neno*.",True,kinyume,True,kinyume,True,kinyume,True,Kinyume,True,Kinyume,True,Kinyume,True,Kinyume,True,Kinyume,True,Kinyume,True,"
+
+Kinyume.",True,Kinyume,True,Kinyume,True,kinyume,True,Kinyume,True,Neno kinyume,False,neno kinyume,False,kinyume,True,kinyume,True,Kinyume cha neno,False,Kinyume,True,kinyume,True,kinyume,True,Kinyume,True,**upande mwingine**,False,Kinyume,True,kinyume,True,Kinyume,True
+117,D9,G1,short_form,What is the Swahili grammatical term for a 'verb'?,kitenzi,Kitenzi,True,Kitenzi,True,**Kitenzi** (pl. *vitenzi*),True,Kitenzi,True,kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True,Nenda,False,"
+
+Tenzi za kazi.
+
+
+
+",False,Tendo,False,Kitenzi,True,kiwakati,False,Kitenzi,True,Kitenzi,True,kitenzi,True,Kitenzi,True,kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True,kitenzi,True,kitenzi,True,kitenzi,True,Kitenzi,True,Kitenzi,True,Kitenzi,True
+118,D9,G2,short_form,"In Swahili, the act of solving a riddle (kitendawili) is called what?","kutegua, fumbua",**Kutegua** (kutegua kitendawili),True,kutatua kitendawili,False,"**Kutegua (kitendawili)** — ""to unspring/solve the riddle.""",True,kutega kitendawili,False,kutegua,True,kutatua kitendawili,False,Kutegua,True,Kutegua,True,Kutegua,True,Kutegua,True,Kutegua kitendawili,False,Kutatua,False,"
+
+Kufumbua kitendawili.",False,Tega kitendawili,False,Kutegua kitendawili,False,kuchuja,False,kutenda kitendawili,False,Kutatua,False,kutatua kitendawili,False,kutegua,True,Kutegua,True,Kufumbua kitendawili,False,Kutegua kitendawili,False,Kutegua,True,kutegua,True,kutegua kitendawili,False,kuamua kitendawili,False,Kujibu,False,Kutendua,False,Kufumbua,False
+119,D9,G2,multiple_choice,The Swahili term silabi kuu denotes a syllable that is described as which of these?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,"
+C",True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+120,D9,G2,short_form,What is the Swahili term for the act of negating a verb form?,"kukanusha, kanusha",**Kukanusha** (also *ukanushaji*),True,Kukataa,False,**Kukanusha** (ukanushi) – negation,True,Ukanushaji,False,ukanusho,False,kupuuza,False,Ukanusho,False,Ukanusho,False,Ukanusho,False,Ukanushaji,False,Ukanushi,False,Utenzi.,False,"
+Ukanushaji.
+
+
+
+",False,Ukanushi,False,Ukanushi,False,kukata,False,Kufuta tense,False,Negation,False,kukanusha,True,ukanushi,False,Ukanushi,False,Ukanushi wa vitenzi,False,Ukanushi,False,Ukanushaji,False,ukanushaji,False,ukanushi,False,kuhojiwa,False,Kukataa,False,Negation,False,Uhasi,False
+121,D9,G2,multiple_choice,The Swahili term 'tarakimu' refers to:,D,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,"
+D
+",True,D,True,D,True,D,True,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A.,False,D,True,D,True,D,True
+122,D9,G2,short_form,What is the Swahili grammatical term for possessives (words that show ownership)?,vimilikishi,**Vimilikishi** (singular: *kimilikishi*),True,Nyumba possessive adjectives,False,**Vimilikishi** (vivumishi vimilikishi),False,**Vimilikishi**,True,kimilikishi,False,viambishi vya umiliki,False,Vimilikishi,True,Vimilikishi,True,Vimiliki,False,Vumishi cha a-unganifu,False,Kimilikishi,False,Vi-wili,False,"
+Mshirikina/Umiliki.",False,Vivumishi vya kumiliki,False,Vivumishi vimiliki,False,posessif,False,Miliki,False,Kiungo chai,False,sifa ya umiliki,False,Vimilikishi,True,Vimilikishi,True,Vimilikishi,True,Vimilikishi,True,Vivumishi vya kumiliki,False,vimilikishi,True,"Vimiliki/Vimilikiishi? Let's go with ""Vimiliki"" no.
+
+Actually Swahili grammar classifies possessives under ""vimilikishi"". We'll answer ""Vimilikiishi""? Hmm.
+
+Let's answer ""vimilikishi"".vimilikishi",True,"viwakilishi wa
+",False,Miliki,False,- -angu,False,Viwakilishi vya kumiliki,False
+123,D9,G2,short_form,What is the Swahili term for a noun class?,ngeli,Ngeli,True,Nomino-jamii,False,**Ngeli** (ngeli ya nomino),False,Ngeli,True,ngeli,True,Daraja.,False,Ngeli,True,Ngeli,True,Ngeli,True,Ngeli ya nomino,False,Ngeli,True,Sifa.,False,"
+Ngozi za vitu.",False,Ngeli,True,Ngeli,True,ngeli,True,Daraja la nomino,False,Kundi la majina,False,kundi la nomino,False,ngeli,True,ngeli,True,Ngeli,True,Ngeli,True,ngeli ya nomino,False,ngeli,True,ngeli,True,noun class,False,Jina,False,KI/VI,False,Ngeli,True
+124,D9,G2,short_form,What is the Swahili grammatical term for an 'adjective'?,"kivumishi, kisifa",Kivumishi,True,Kielezi,False,Kivumishi (plural: vivumishi),False,Kivumishi,True,kivumishi,True,kivumishi,True,Kivumishi,True,Kivumishi,True,Kivumishi,True,Kivumishi,True,Kivumishi,True,Sifa.,False,"
+
+Sifa.",False,Vivumishi,False,Vivumishi,False,sifa,False,Kitenzi Kielezi,False,Kivumishi,True,sifa,False,kivumishi,True,kivumishi,True,Kivumishi,True,Kivumishi,True,Kivumishi,True,kivumishi,True,kivumishi,True,sifa,False,Kielezi,False,Kivumishi,True,Kivumishi,True
+125,D9,G3,short_form,What is the Swahili grammatical term for prepositions?,vihusishi,Kihusishi (plural: vihusishi),False,Kiambishi awali,False,**Kihusishi** (pl. *vihusishi*),False,Viambishi,False,vihusishi,True,kiambishi,False,Vihusishi,True,Kihusishi,False,Vihusishi,True,Vihusishi,True,Kihusishi,False,Vi-wili.,False,"
+Vihusishi.
+
+
+
+",True,Viunganishi vya mahali,False,Viunganishi,False,Viambishi vya Reli,False,Vihusishi,True,Kati za maneno,False,prepozisheni,False,Vihusishi,True,Vihusishi,True,Vihusishi,True,Vihusishi,True,Vihusishi,True,vihusi,False,Vihusishi,True,**viaini**,False,Vihusishi,True,Vitawala,False,Kihusishi,False
+126,D9,G3,multiple_choice,What is the Swahili grammatical term for adverbs?,A,A,True,A,True,A,True,A,True,A,True,C,False,A,True,A,True,A,True,A,True,A,True,C,False,"
+A",True,A,True,A,True,A,True,A,True,C,False,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,D.,False,D,False,A,True,A,True
+127,D9,G3,short_form,What is the Swahili term for the negated form of a verb (the negation)?,ukanusho,**Kanushi** (also *ukanushi*),False,Ukataaji,False,**Ukanushi** (kukanusha – the negative form),False,Ukanushi,False,kanushi,False,ukomo,False,Ukanusho,True,Ukanushi,False,Ukanushi,False,Kanusho,False,Ukanushi,False,Usi-,False,"
+
+-ha-
+
+
+
+",False,Ukanushi,False,Kukanusha,False,kutokuwa,False,Kifungu cha kanyagio,False,sio,False,kukanusha,False,ukanushi,False,Ukanushi,False,Ukanushaji,False,Ukanushi,False,Ukanushi,False,kikanushi,False,kikanushi,False,**kutoa**,False,Hapana,False,Hapana,False,Hasi,False
+128,D9,G3,short_form,What is the Swahili grammatical term for the subject (the doer) of a sentence?,"kiima, mtenda","**Kiima** (also called *mtenda*, the doer).",True,Subject prefix,False,**Kiima**,True,**Mtenda**,True,mtenda,True,mtenda,True,Kiima,True,Kiima,True,Kiima,True,Mtendaji,False,Kiima,True,Mhuri ya Nomadi,False,"
+
+Mtu/Mtumiaji.",False,Kiima,True,Kiima,True,mwenyeji,False,Mhusika,False,muhimili,False,mtenda,True,Kiima,True,Kiima,True,Kiima,True,Kiima,True,Kiima,True,kiima,True,Kiima,True,mwongozo,False,Mfanyikazi,False,Fanyikazi,False,Kima,False
+129,D9,G4,multiple_choice,The Swahili term 'kihisishi' names which word class?,B,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,B,True,D,False,"
+A",False,B,True,B,True,C,False,B,True,C,False,C,False,B,True,B,True,B,True,B,True,B,True,B,True,B,True,A.,False,C,False,B,True,B,True
+130,D9,G4,multiple_choice,Which Swahili term denotes grammatical agreement (concord) between words in a sentence?,C,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C,True,D,False,"
+C",True,C,True,C,True,C,True,A,False,C,True,A,False,C,True,C,True,C,True,C,True,C,True,C,True,C,True,C.,True,C,True,C,True,C,True
+131,D9,G5,multiple_choice,Which Swahili term names an idiom (a fixed phrase whose meaning is not literal)?,D,D,True,A,False,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A,False,"
+D",True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,D,True,A.,False,A,False,A,False,D,True
+132,D9,G5,multiple_choice,Which Swahili term names a simile?,A,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,"
+A",True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A,True,A.,True,A,True,A,True,A,True
+133,D9,G5,short_form,What is the Swahili term for 'direct speech'?,usemi halisi,Usemi halisi,True,Hotuba ya moja kwa moja,False,**Usemi halisi**,True,Msemo halisi,False,usemi halisi,True,usemi wa moja kwa moja,False,Kauli halisi,False,Usemi halisi,True,Kauli halisi,False,Hotuba ya moja kwa moja,False,Kauli halisi,False,Nukuu ya moja.,False,"
+Hotuba ya moja kwa moja",False,Kauli ya moja kwa moja,False,usemi wa moja,False,mashairi ya moja kwa moja,False,Msemo wa moja kwa moja,False,mannisho,False,moja kwa moja,False,Usemi halisi,True,usemi halisi,True,Usemi halisi,True,Usemi halisi,True,Usemi wa moja-kwa-moja,False,usemi mubashara,False,maneno halisi,False,maongezi moja kwa moja,False,Maneno ya moja kwa moja,False,Maongezi ya moja kwa moja,False,Nukuu,False
+134,D9,G5,short_form,What is the Swahili term for 'reported speech'?,usemi wa taarifa,Usemi wa taarifa,True,Hotuba ya kiujumbe,False,**Usemi wa taarifa** (also called *kauli ya taarifa*),True,Msemo wa taarifa,False,usemi wa taarifa,True,usemi ulioripotiwa,False,Kauli taarifa,False,Usemi taarifa,False,Kauli taarifu,False,Kauli ya taarifa,False,Kauli taarifa,False,Nukuu ya moja.,False,"
+Hotuba isiyo ya moja kwa moja.",False,Kauli ya taarifa,False,Usemi wa ripoti,False,kirejea,False,Usezi,False,Semateni,False,Usemi wa kuripoti,False,usemi wa taarifa,True,Usemi wa taarifa,True,Usemi wa taarifa,True,Usemi wa taarifa,True,Usemi wa taarifa,True,usemi wa taarifa,True,usemi wa taarifa,True,"matamshi
+",False,Kwa maelezo,False,Hadithi,False,Semi iliyoripotiwa,False
+135,D9,G5,short_form,What is the Swahili grammatical term for reduplication (the doubling of a word)?,urudufu,**Uradidi**,False,Kurudia,False,**Uradidi** (also *urudufishaji*),False,Uradidi,False,urudiaji,False,urudufu,True,Uradidi,False,Uradidi,False,Uradidi,False,Radidi,False,Uradidi,False,Kukisia,False,"
+
+Ki-reduplication.",False,Urudiaji,False,Urudishaji,False,kutaja,False,Kimarika,False,mrejesho,False,reduplikasi,False,uradidi,False,Uradidi,False,Uradidi,False,Uradidi,False,Uradidi,False,urudufishaji,False,Urudiaji,False,**kubalio**,False,Utengano,False,kuanzisha,False,Urudufu,True

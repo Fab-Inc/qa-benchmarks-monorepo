@@ -2,7 +2,7 @@
 Linguistic Knowledge Eval Judge Module.
 
 Scores model responses from run_bench using regex (MCQ)
-or LLM judge (short_form/true_false).
+or LLM judge (short_form).
 """
 
 import json
@@ -19,16 +19,51 @@ from tqdm import tqdm
 from linguistic_knowledge_benchmark.run_bench import (
     git_hash,
     load_dataset,
-    parse_answer,
     update_log,
 )
 from linguistic_knowledge_benchmark.shared_utils import english_language_name, run_dir
 
-DEFAULT_JUDGE_MODEL = "claude-sonnet-4-5-20250929"
+# Independent judges spanning different providers
+# Kept to 3 (odd) so majority_vote() never ties.
+DEFAULT_JUDGE_MODELS: list[str] = [
+    "claude-sonnet-5",
+    "gpt-5.6-terra",
+    "gemini-3.6-flash",
+]
 SCORE_METHOD_REGEX = "regex"
 SCORE_METHOD_LLM_JUDGE = "llm_judge"
 SCORE_METHOD_LLM_FALLBACK = "llm_fallback"
 SCORE_METHOD_UNSCORED = "unscored"
+
+# MCQ letter-extraction regexes.
+ANSWER_PATTERNS_MCQ = [
+    r"^\s*([ABCD])(?:[\.(?:\s*\n)]+.*)*$",
+    r"^\s*\(([ABCD])\)",  # letter in parentheses, e.g. (C)
+    r"^<think>[\s\S]*?</think>[\s\S]*?([ABCD])$",  # for deepseek R1
+    r"^## Step 1[\s\S]*?([ABCD])[\.\s]*$",  # for llama 4
+    r'[\s\S]*\n([A-D])"?$',  # for claude 4
+    # for glm 4.1v-9b-thinking
+    r"<answer>(?:<\|begin_of_box\|>)?([ABCD])(?:<\|end_of_box\|>)?$",
+]
+ANSWER_REGEXES_MCQ = [re.compile(pat) for pat in ANSWER_PATTERNS_MCQ]
+
+
+def parse_answer_mcq(resp: str) -> str | None:
+    """
+    Parse a multiple-choice model response to extract the answer letter (A-D).
+    Returns None if no valid answer found.
+    """
+    if pd.isna(resp) or resp is None:
+        return None
+
+    resp = str(resp).strip()
+
+    for regex in ANSWER_REGEXES_MCQ:
+        match = regex.match(resp)
+        if match is not None:
+            return match.groups()[0]
+
+    return None
 
 
 class JudgeResponse(BaseModel):
@@ -50,8 +85,6 @@ def _build_judge_system_prompt(language_name: str) -> str:
         " paraphrases, or alternative forms that are not listed."
         "\n\nThe only acceptable variations are:"
         " capitalization, leading/trailing hyphens, and spacing."
-        "\n\nFor true/false answers, accept 'True'/'False', 'true'/'false',"
-        " 'Yes'/'No', or clear equivalents."
     )
 
 
@@ -59,13 +92,10 @@ JUDGE_FALLBACK_SYSTEM_PROMPT = (
     "You are an expert evaluator. A model was asked a question and its"
     " response could not be parsed by a simple regex."
     "\n\nYou will be given the question, the model's raw response, the"
-    " expected answer, and the answer type (multiple_choice or true_false)."
+    " expected answer, and the answer type (multiple_choice)."
     "\n\nFor multiple-choice: determine if the model's response indicates"
     " the correct letter (A, B, C, or D), even if the response contains"
     " extra explanation or formatting."
-    "\n\nFor true/false: determine if the model's response indicates"
-    " True or False, accepting 'Yes'/'No', 'Correct'/'Incorrect',"
-    " or clear equivalents."
     "\n\nRespond with whether the model's answer is correct."
 )
 
@@ -75,7 +105,7 @@ def score_multiple_choice(
 ) -> tuple[bool | None, str, str | None]:
     """Score a multiple-choice response using regex parsing.
 
-    Uses parse_answer() to extract the response letter, then compares with
+    Uses parse_answer_mcq() to extract the response letter, then compares with
     expected.
 
     Args:
@@ -87,41 +117,11 @@ def score_multiple_choice(
         when the response cannot be parsed. Justification is always empty string
         since no LLM judge is involved.
     """
-    parsed = parse_answer(output)
+    parsed = parse_answer_mcq(output)
     if parsed is None:
         return None, "", None
     expected = expected_answers[0]
     return parsed == expected, "", parsed
-
-
-def score_true_false_regex(
-    output: str, expected_answers: list[str]
-) -> tuple[bool, str, str] | None:
-    """Attempt regex scoring for true/false questions.
-
-    Returns None if the output cannot be reliably parsed,
-    signaling that LLM judge should be used as fallback.
-
-    Args:
-        output: Raw model output string
-        expected_answers: ["True"] or ["False"]
-
-    Returns:
-        Tuple of (is_correct, justification, parsed_answer) or None if unparseable.
-        Justification is always empty string when regex succeeds.
-    """
-    if not output or pd.isna(output):
-        return None
-
-    cleaned = str(output).strip().lower()
-    expected_lower = expected_answers[0].lower()
-
-    first_word = re.split(r"[\s.,;:!]", cleaned)[0]
-    if first_word in ("true", "false"):
-        parsed = first_word.capitalize()
-        return first_word == expected_lower, "", parsed
-
-    return None
 
 
 def score_with_llm_judge(
@@ -138,7 +138,7 @@ def score_with_llm_judge(
         question: The original question text
         output: The model's raw output
         expected_answers: List of acceptable answers
-        answer_type: "short_form", "true_false", or "multiple_choice"
+        answer_type: "short_form" or "multiple_choice"
         judge_caller: fdllm caller instance for the judge model
         system_prompt: System prompt to use for the judge
 
@@ -161,7 +161,7 @@ def score_with_llm_judge(
 
     try:
         response = judge_caller.call(
-            messages, max_tokens=1000, response_schema=JudgeResponse
+            messages, max_tokens=None, response_schema=JudgeResponse
         )
         result = json.loads(response.Message)
         return result["is_correct"], result["justification"]
@@ -169,12 +169,58 @@ def score_with_llm_judge(
         return None, f"Judge error: {e}"
 
 
+def score_with_llm_judges(
+    question: str,
+    output: str,
+    expected_answers: list[str],
+    answer_type: str,
+    judge_callers: dict[str, object],
+    system_prompt: str,
+) -> dict[str, tuple[bool | None, str]]:
+    """Score a response independently with each of several judges.
+
+    Args:
+        judge_callers: judge model name -> fdllm caller instance, in the order the
+            judges should be consulted (iteration order is preserved in the result).
+
+    Returns:
+        judge model name -> (is_correct, justification), one entry per judge in
+        `judge_callers`.
+    """
+    return {
+        model_name: score_with_llm_judge(
+            question, output, expected_answers, answer_type, caller, system_prompt
+        )
+        for model_name, caller in judge_callers.items()
+    }
+
+
+def majority_vote(verdicts: list[bool | None]) -> tuple[bool | None, float | None]:
+    """Majority vote across judge verdicts, ignoring judges whose call failed (None).
+
+    Returns (majority_verdict, agreement): agreement is the fraction of RESPONDING
+    judges that agree with the majority. Both are None if no judge responded; the
+    verdict is None (unscored) on an exact tie, since arbitrarily picking a side
+    would hide a genuine split from the human-review gate.
+    """
+    responded = [v for v in verdicts if v is not None]
+    if not responded:
+        return None, None
+    true_count = sum(responded)
+    false_count = len(responded) - true_count
+    if true_count == false_count:
+        return None, 0.5
+    verdict = true_count > false_count
+    agreement = max(true_count, false_count) / len(responded)
+    return verdict, agreement
+
+
 def judge_results(
     model_name: str,
     *,
     language_name: str,
     dataset_path: Path,
-    judge_model: str = DEFAULT_JUDGE_MODEL,
+    judge_models: list[str] | None = None,
     force: bool = False,
     run_id: str | None = None,
 ) -> pd.DataFrame:
@@ -188,7 +234,14 @@ def judge_results(
         model_name: Model whose results to judge
         language_name: Display name of the language (e.g. "Luganda").
         dataset_path: Path to the dataset JSON file.
-        judge_model: Model to use as LLM judge
+        judge_models: Models to use as independent LLM judges for short_form rows.
+            Defaults to a single judge, DEFAULT_JUDGE_MODELS[:1] (matching the
+            original single-judge behavior/cost); pass more for an ensemble. With
+            more than one, `is_correct`/`justification` reflect the majority
+            verdict (ties are left unscored) and its primary judge's rationale;
+            `judge_agreement`/`judge_disagreement_flag` summarize consensus, and
+            each judge's own verdict lands in
+            `is_correct_<judge>`/`justification_<judge>`.
         force: Force re-judge even if judged results exist
         run_id: Optional run ID; reads/writes under
             cache/<language>/runs/<run_id>/.
@@ -197,6 +250,7 @@ def judge_results(
     Returns:
         DataFrame with added is_correct and justification columns
     """
+    judge_models = judge_models if judge_models else DEFAULT_JUDGE_MODELS[:1]
     language_dir = run_dir(language_name, run_id)
     input_dir = language_dir / "responses"
     judged_dir = language_dir / "responses_judged"
@@ -222,16 +276,18 @@ def judge_results(
     # Load step 1 results
     results_df = pd.read_csv(input_path)
 
-    # Create judge caller only if needed for short_form
+    # Create judge callers only if needed for short_form, fail fast if any judge
+    # model isn't registered (same policy as the old single-judge behavior).
     needs_llm_judge = results_df["answer_type"].isin(["short_form"]).any()
-    judge_caller = None
+    judge_callers: dict[str, object] = {}
     if needs_llm_judge:
-        try:
-            judge_caller = get_caller(judge_model)
-        except NotImplementedError:
-            raise ValueError(
-                f"Judge model '{judge_model}' not registered in custom_models.yaml."
-            ) from None
+        for jm in judge_models:
+            try:
+                judge_callers[jm] = get_caller(jm)
+            except NotImplementedError:
+                raise ValueError(
+                    f"Judge model '{jm}' not registered in custom_models.yaml."
+                ) from None
 
     # Load original dataset to get question text for judge prompts
     questions = load_dataset(dataset_path)
@@ -242,10 +298,27 @@ def judge_results(
     justification_list = []
     score_method_list = []
     parsed_answer_list = []
+    judge_agreement_list: list[float | None] = []
+    judge_disagreement_flag_list: list[bool] = []
+    per_judge_correct: dict[str, list[bool | None]] = {jm: [] for jm in judge_models}
+    per_judge_justification: dict[str, list[str | None]] = {
+        jm: [] for jm in judge_models
+    }
 
-    for _, row in tqdm(
-        results_df.iterrows(), total=len(results_df), desc=f"Judging {model_name}"
-    ):
+    def _append_no_judge_row() -> None:
+        judge_agreement_list.append(None)
+        judge_disagreement_flag_list.append(False)
+        for jm in judge_models:
+            per_judge_correct[jm].append(None)
+            per_judge_justification[jm].append(None)
+
+    # tqdm tracks only the rows that actually go to an LLM judge (short_form);
+    # MCQ rows are scored by regex in this same loop but shouldn't count toward
+    # the bar's total, or it reads as far more LLM calls happening than really are.
+    n_llm_judged = int((results_df["answer_type"] == "short_form").sum())
+    progress = tqdm(total=n_llm_judged, desc=f"Judging {model_name}")
+
+    for _, row in results_df.iterrows():
         output = row["output"]
         expected_answers = str(row["expected_answers"]).split("|")
         answer_type = row["answer_type"]
@@ -260,6 +333,7 @@ def judge_results(
             )
             score_method_list.append(SCORE_METHOD_UNSCORED)
             parsed_answer_list.append(None)
+            _append_no_judge_row()
             continue
 
         # Keep missing outputs as null (unscorable), not incorrect.
@@ -268,6 +342,7 @@ def judge_results(
             justification_list.append("Missing model output")
             score_method_list.append(SCORE_METHOD_UNSCORED)
             parsed_answer_list.append(None)
+            _append_no_judge_row()
             continue
 
         if answer_type == "multiple_choice":
@@ -279,47 +354,60 @@ def judge_results(
                 if parsed_answer is not None
                 else SCORE_METHOD_UNSCORED
             )
-        elif answer_type == "true_false":
-            # Regex only; fallback via --judge-fallback
-            result = score_true_false_regex(output, expected_answers)
-            if result is not None:
-                is_correct, justification, parsed_answer = result
-                score_method = SCORE_METHOD_REGEX
-            else:
-                is_correct, justification = None, ""
-                parsed_answer = None
-                score_method = SCORE_METHOD_UNSCORED
+            _append_no_judge_row()
         elif answer_type == "short_form":
             question_text = question_map.get(question_id, "")
-            is_correct, justification = score_with_llm_judge(
+            per_judge = score_with_llm_judges(
                 question_text,
                 output,
                 expected_answers,
                 answer_type,
-                judge_caller,
+                judge_callers,
                 system_prompt=judge_system_prompt,
             )
+            is_correct, judge_agreement = majority_vote(
+                [v[0] for v in per_judge.values()]
+            )
+            # Primary judge's own rationale, for a single at-a-glance column; the
+            # full per-judge breakdown lives in justification_<judge> below.
+            justification = per_judge[judge_models[0]][1]
             parsed_answer = None
             score_method = (
                 SCORE_METHOD_LLM_JUDGE
                 if is_correct is not None
                 else SCORE_METHOD_UNSCORED
             )
+            judge_agreement_list.append(judge_agreement)
+            judge_disagreement_flag_list.append(
+                judge_agreement is not None and judge_agreement < 1.0
+            )
+            for jm, (verdict, just) in per_judge.items():
+                per_judge_correct[jm].append(verdict)
+                per_judge_justification[jm].append(just)
+            progress.update(1)
         else:
             is_correct = None
             justification = ""
             parsed_answer = None
             score_method = SCORE_METHOD_UNSCORED
+            _append_no_judge_row()
 
         is_correct_list.append(is_correct)
         justification_list.append(justification)
         score_method_list.append(score_method)
         parsed_answer_list.append(parsed_answer)
 
+    progress.close()
+
     results_df["is_correct"] = is_correct_list
     results_df["justification"] = justification_list
     results_df["score_method"] = score_method_list
     results_df["parsed_answer"] = parsed_answer_list
+    results_df["judge_agreement"] = judge_agreement_list
+    results_df["judge_disagreement_flag"] = judge_disagreement_flag_list
+    for jm in judge_models:
+        results_df[f"is_correct_{jm}"] = per_judge_correct[jm]
+        results_df[f"justification_{jm}"] = per_judge_justification[jm]
 
     # Save judged results
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -330,6 +418,7 @@ def judge_results(
         {
             "responses_judged_timestamp-utc": datetime.now(UTC).isoformat(),
             "responses_judged_git-hash": git_hash(),
+            "llm_judges": judge_models,
         },
     )
     print(f"Judged results saved to {output_path}")
@@ -342,21 +431,26 @@ def judge_results_fallback(
     *,
     language_name: str,
     dataset_path: Path,
-    judge_model: str = DEFAULT_JUDGE_MODEL,
+    judge_models: list[str] | None = None,
     force: bool = False,
     run_id: str | None = None,
 ) -> pd.DataFrame:
-    """Re-judge null MCQ/TF rows from responses_judged using LLM fallback.
+    """Re-judge null MCQ rows from responses_judged using LLM fallback.
 
     Reads the existing judged CSV from responses_judged/, copies it to
     responses_judged_fallback/, and runs the LLM judge only on rows where
-    is_correct is null and answer_type is multiple_choice or true_false.
+    is_correct is null and answer_type is multiple_choice.
 
     Args:
         model_name: Model whose results to re-judge
         language_name: Display name of the language (e.g. "Luganda").
         dataset_path: Path to the dataset JSON file.
-        judge_model: Model to use as LLM judge
+        judge_models: Models to use as independent LLM judges. Defaults to a
+            single judge, DEFAULT_JUDGE_MODELS[:1]; see judge_results() for how
+            more than one is combined (same majority-vote/agreement scheme, with
+            `_fallback` column names here: `judge_agreement_fallback`,
+            `judge_disagreement_flag_fallback`,
+            `is_correct_fallback_<judge>`/`justification_fallback_<judge>`).
         force: Force re-judge even if fallback results exist
         run_id: Optional run ID; reads/writes under
             cache/<language>/runs/<run_id>/.
@@ -365,6 +459,7 @@ def judge_results_fallback(
     Returns:
         DataFrame with added is_correct_fallback and justification_fallback
     """
+    judge_models = judge_models if judge_models else DEFAULT_JUDGE_MODELS[:1]
     language_dir = run_dir(language_name, run_id)
     input_dir = language_dir / "responses_judged"
     fallback_dir = language_dir / "responses_judged_fallback"
@@ -387,20 +482,34 @@ def judge_results_fallback(
     if "parsed_answer" not in df.columns:
         df["parsed_answer"] = None
 
-    # Find null is_correct rows that are MCQ or TF
-    null_mask = df["is_correct"].isna() & df["answer_type"].isin(
-        ["multiple_choice", "true_false"]
-    )
+    # Find null is_correct rows that are MCQ
+    null_mask = df["is_correct"].isna() & (df["answer_type"] == "multiple_choice")
     null_count = int(null_mask.sum())
     print(f"  {model_name}: {null_count} null rows to re-evaluate with LLM fallback")
 
     # Initialize fallback columns
     is_correct_fallback: list[bool | None] = [None] * len(df)
-    justification_fallback = [""] * len(df)
+    justification_fallback: list[str | None] = [""] * len(df)
+    judge_agreement_fallback: list[float | None] = [None] * len(df)
+    judge_disagreement_flag_fallback: list[bool] = [False] * len(df)
+    per_judge_correct_fallback: dict[str, list[bool | None]] = {
+        jm: [None] * len(df) for jm in judge_models
+    }
+    per_judge_justification_fallback: dict[str, list[str | None]] = {
+        jm: [None] * len(df) for jm in judge_models
+    }
 
-    if null_count == 0:
+    def _write_fallback_columns() -> None:
         df["is_correct_fallback"] = is_correct_fallback
         df["justification_fallback"] = justification_fallback
+        df["judge_agreement_fallback"] = judge_agreement_fallback
+        df["judge_disagreement_flag_fallback"] = judge_disagreement_flag_fallback
+        for jm in judge_models:
+            df[f"is_correct_fallback_{jm}"] = per_judge_correct_fallback[jm]
+            df[f"justification_fallback_{jm}"] = per_judge_justification_fallback[jm]
+
+    if null_count == 0:
+        _write_fallback_columns()
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
         update_log(
@@ -411,23 +520,26 @@ def judge_results_fallback(
                     UTC
                 ).isoformat(),
                 "responses_judged_fallback_git-hash": git_hash(),
+                "llm_judges_fallback": judge_models,
             },
         )
         return df
 
-    # Create judge caller
-    try:
-        judge_caller = get_caller(judge_model)
-    except NotImplementedError:
-        raise ValueError(
-            f"Judge model '{judge_model}' not registered in custom_models.yaml."
-        ) from None
+    # Create judge callers, fail fast if any judge model isn't registered.
+    judge_callers: dict[str, object] = {}
+    for jm in judge_models:
+        try:
+            judge_callers[jm] = get_caller(jm)
+        except NotImplementedError:
+            raise ValueError(
+                f"Judge model '{jm}' not registered in custom_models.yaml."
+            ) from None
 
     # Load questions for judge prompts
     questions = load_dataset(dataset_path)
     question_map = {q["question_id"]: q["question"] for q in questions}
 
-    # Score only null MCQ/TF rows
+    # Score only null MCQ rows
     for idx in tqdm(
         df[null_mask].index,
         desc=f"Fallback judging {model_name}",
@@ -435,22 +547,29 @@ def judge_results_fallback(
         row = df.loc[idx]
         question_text = question_map.get(row["question_id"], "")
         expected_answers = str(row["expected_answers"]).split("|")
-        result, justification = score_with_llm_judge(
+        per_judge = score_with_llm_judges(
             question_text,
             row["output"],
             expected_answers,
             row["answer_type"],
-            judge_caller,
+            judge_callers,
             system_prompt=JUDGE_FALLBACK_SYSTEM_PROMPT,
         )
+        result, agreement = majority_vote([v[0] for v in per_judge.values()])
         is_correct_fallback[idx] = result
-        justification_fallback[idx] = justification
+        justification_fallback[idx] = per_judge[judge_models[0]][1]
+        judge_agreement_fallback[idx] = agreement
+        judge_disagreement_flag_fallback[idx] = (
+            agreement is not None and agreement < 1.0
+        )
+        for jm, (verdict, just) in per_judge.items():
+            per_judge_correct_fallback[jm][idx] = verdict
+            per_judge_justification_fallback[jm][idx] = just
         df.loc[idx, "score_method"] = (
             SCORE_METHOD_LLM_FALLBACK if result is not None else SCORE_METHOD_UNSCORED
         )
 
-    df["is_correct_fallback"] = is_correct_fallback
-    df["justification_fallback"] = justification_fallback
+    _write_fallback_columns()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_path, index=False)
@@ -460,10 +579,22 @@ def judge_results_fallback(
         {
             "responses_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
             "responses_judged_fallback_git-hash": git_hash(),
+            "llm_judges_fallback": judge_models,
         },
     )
     print(f"Fallback results saved to {output_path}")
     return df
+
+
+def _combine_fallback_priority(df: pd.DataFrame, *cols: str) -> pd.Series | None:
+    """First existing column in `cols` (fallback-pass columns listed first),
+    NaN-filled by the next existing one. None if none of `cols` exist."""
+    combined = None
+    for c in cols:
+        if c not in df.columns:
+            continue
+        combined = df[c] if combined is None else combined.fillna(df[c])
+    return combined
 
 
 def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, object]:
@@ -471,7 +602,9 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
 
     When ``is_correct_fallback`` is present (from ``--judge-fallback``),
     accuracy is computed from the best-available result: fallback where
-    populated, else the original ``is_correct``.
+    populated, else the original ``is_correct``. Judge-agreement stats (present
+    only when short_form/fallback rows were scored by more than one judge) are
+    combined the same way.
 
     Args:
         judged_df: DataFrame with is_correct column (and optionally
@@ -503,6 +636,14 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
         else:
             by_type[atype] = round(subset_scored.sum() / len(subset_scored) * 100, 2)
 
+    agreement = _combine_fallback_priority(
+        judged_df, "judge_agreement_fallback", "judge_agreement"
+    )
+    agreement_scored = agreement[agreement.notna()] if agreement is not None else None
+    disagreement = _combine_fallback_priority(
+        judged_df, "judge_disagreement_flag_fallback", "judge_disagreement_flag"
+    )
+
     return {
         "model": model_name,
         "accuracy": round(accuracy, 2),
@@ -510,7 +651,50 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
         "unscored_count": int((~scored_mask).sum()),
         "accuracy_mcq": by_type.get("multiple_choice", 0.0),
         "accuracy_short_form": by_type.get("short_form", 0.0),
+        "judge_agreement_mean": (
+            round(agreement_scored.mean(), 4)
+            if agreement_scored is not None and len(agreement_scored)
+            else None
+        ),
+        "judge_disagreement_count": (
+            int(disagreement.sum()) if disagreement is not None else 0
+        ),
     }
+
+
+def compute_judge_agreement(
+    judged_df: pd.DataFrame, judge_models: list[str], *, fallback: bool = False
+) -> pd.DataFrame:
+    """Pairwise agreement rate between judges, over rows both judges scored.
+
+    Args:
+        judged_df: a judge_results()/judge_results_fallback() output.
+        judge_models: the judges to compare (their is_correct_<judge>[_fallback]
+            columns must be present).
+        fallback: read the `is_correct_fallback_<judge>` columns instead of
+            `is_correct_<judge>` (i.e. the columns judge_results_fallback() adds).
+
+    Returns:
+        A judge x judge DataFrame (diagonal 1.0 wherever a judge scored anything);
+        NaN where two judges never scored a common row.
+    """
+    prefix = "is_correct_fallback_" if fallback else "is_correct_"
+    cols = {jm: f"{prefix}{jm}" for jm in judge_models}
+    missing = [jm for jm in judge_models if cols[jm] not in judged_df.columns]
+    if missing:
+        raise KeyError(f"judged_df is missing columns for judge(s): {missing}")
+
+    rate = pd.DataFrame(index=judge_models, columns=judge_models, dtype=float)
+    for a in judge_models:
+        for b in judge_models:
+            both = judged_df[cols[a]].notna() & judged_df[cols[b]].notna()
+            if both.sum() == 0:
+                rate.loc[a, b] = float("nan")
+                continue
+            rate.loc[a, b] = (
+                judged_df.loc[both, cols[a]] == judged_df.loc[both, cols[b]]
+            ).mean()
+    return rate
 
 
 def build_detailed(

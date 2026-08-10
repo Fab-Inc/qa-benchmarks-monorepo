@@ -1,11 +1,10 @@
 """
 Linguistic Knowledge Eval Module
 Evaluates LLM performance on language knowledge questions.
-Supports multiple_choice, short_form, and true_false answer types.
+Supports multiple_choice and short_form answer types.
 """
 
 import json
-import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -26,39 +25,6 @@ from linguistic_knowledge_benchmark.shared_utils import (
 
 CALL_STATUS_SUCCESS = "success"
 CALL_STATUS_ERROR = "error"
-
-
-# MCQ letter-extraction regexes.
-ANSWER_PATTERNS = [
-    r"^\s*([ABCD])(?:[\.(?:\s*\n)]+.*)*$",
-    r"^\s*\(([ABCD])\)",  # letter in parentheses, e.g. (C)
-    r"^<think>[\s\S]*?</think>[\s\S]*?([ABCD])$",  # for deepseek R1
-    r"^## Step 1[\s\S]*?([ABCD])[\.\s]*$",  # for llama 4
-    r'[\s\S]*\n([A-D])"?$',  # for claude 4
-    # for glm 4.1v-9b-thinking
-    r"<answer>(?:<\|begin_of_box\|>)?([ABCD])(?:<\|end_of_box\|>)?$",
-]
-ANSWER_REGEXES = [re.compile(pat) for pat in ANSWER_PATTERNS]
-
-
-def parse_answer(resp: str) -> str | None:
-    """
-    Parse model response to extract the answer letter (A-D).
-    Returns None if no valid answer found.
-
-    judge_bench.py imports this function directly from run_bench.py.
-    """
-    if pd.isna(resp) or resp is None:
-        return None
-
-    resp = str(resp).strip()
-
-    for regex in ANSWER_REGEXES:
-        match = regex.match(resp)
-        if match is not None:
-            return match.groups()[0]
-
-    return None
 
 
 def _build_system_prompts(language_name: str) -> dict[str, str]:
@@ -83,10 +49,6 @@ def _build_system_prompts(language_name: str) -> dict[str, str]:
         "short_form": (
             prefix + "Answer the question."
             "\nProvide only the answer in 1-3 words. Do not explain."
-        ),
-        "true_false": (
-            prefix + "Answer the following question with exactly 'True' or 'False'."
-            "\nDo not explain."
         ),
     }
 
@@ -145,7 +107,7 @@ def git_hash() -> str | None:
 
 
 def update_log(
-    run_directory: Path, model_name: str, fields: dict[str, str | None]
+    run_directory: Path, model_name: str, fields: dict[str, str | list[str] | None]
 ) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
     log_path = run_directory / "log.json"
