@@ -3,6 +3,7 @@
 import pandas as pd
 import pytest
 from phonics_benchmark.labeling import (
+    get_grapheme_breakdown,
     label_nondecodable_words,
     resolve_decodability_config,
 )
@@ -105,3 +106,19 @@ def test_label_nondecodable_words_requires_expected_columns() -> None:
         label_nondecodable_words(
             items, CONFIG, "sw", score_column=CONFIG["score_column"]
         )
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Ng'ombe ni mnyama", "ng'/o/m/b/e n/i m/ny/a/m/a"),
+        (
+            "Baba ana wembe, mimi nina embe",
+            "b/a/b/a a/n/a w/e/m/b/e, m/i/m/i n/i/n/a e/m/b/e",
+        ),
+    ],
+)
+def test_grapheme_breakdown_matches_expected(text: str, expected: str) -> None:
+    """The grapheme breakdown of a Kiswahili sentence is as expected."""
+    breakdown = get_grapheme_breakdown(text, "sw")
+    assert breakdown == expected

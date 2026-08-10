@@ -12,6 +12,8 @@ from functools import partial
 
 import pandas as pd
 from decodability import DECODABILITY_REGISTRY, Aggregation, Measure, annotate_words
+from decodability.kiswahili.definitions import primerpro_settings
+from primerpro import Word
 
 from phonics_benchmark.utils import require_columns
 
@@ -101,3 +103,51 @@ def label_nondecodable_words(
         return nondecodable_words
 
     return benchmark_items.apply(get_nondecodable_words, axis=1)
+
+
+def get_grapheme_breakdown(text: str, language: str) -> str:
+    """Return a string showing the grapheme breakdown of a benchmark item."""
+    objs = DECODABILITY_REGISTRY[language]
+    words = {word.lower() for word in objs["extract_words"](text)}
+
+    if language != "sw":
+        raise NotImplementedError(
+            f"Grapheme breakdown is only implemented for Kiswahili, not {language}."
+        )
+
+    word_to_graphemes = {
+        word: "/".join(
+            [
+                grapheme.symbol
+                for grapheme in Word(text=word, settings=primerpro_settings).graphemes
+            ]
+        )
+        for word in words
+    }
+
+    longest_to_shortest_words = sorted(words, key=len, reverse=True)
+
+    text_lower = text.lower()
+    for word in longest_to_shortest_words:
+        graphemes = word_to_graphemes[word]
+        text_lower = text_lower.replace(word, graphemes)
+    return text_lower
+
+
+def get_valid_knowledge_str(language: str) -> str:
+    """Get valid knowledge string representation for the specified language."""
+    if language != "sw":
+        raise NotImplementedError(
+            f"Valid knowledge string is only implemented for Kiswahili, not {language}."
+        )
+
+    inventory = primerpro_settings.grapheme_inventory
+
+    if inventory is None:
+        raise ValueError("Grapheme inventory is not defined in primerpro_settings.")
+
+    vowels_string = ", ".join([grapheme.symbol for grapheme in inventory.vowels])
+    consonants_string = ", ".join(
+        [grapheme.symbol for grapheme in inventory.consonants]
+    )
+    return f"- Vowels: {vowels_string}\n- Consonants: {consonants_string}"
