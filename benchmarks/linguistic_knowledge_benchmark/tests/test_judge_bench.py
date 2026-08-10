@@ -599,73 +599,6 @@ def test_compute_summary_uses_fallback_when_present():
     assert summary["accuracy"] == 50.0
 
 
-def test_compute_summary_no_judge_agreement_columns_returns_none_and_zero():
-    df = pd.DataFrame([{"answer_type": "multiple_choice", "is_correct": True}])
-    summary = judge_bench.compute_summary(df, "m")
-    assert summary["judge_agreement_mean"] is None
-    assert summary["judge_disagreement_count"] == 0
-
-
-def test_compute_summary_includes_judge_agreement_stats():
-    df = pd.DataFrame(
-        [
-            {
-                "answer_type": "short_form",
-                "is_correct": True,
-                "judge_agreement": 1.0,
-                "judge_disagreement_flag": False,
-            },
-            {
-                "answer_type": "short_form",
-                "is_correct": True,
-                "judge_agreement": 2 / 3,
-                "judge_disagreement_flag": True,
-            },
-            {
-                "answer_type": "multiple_choice",
-                "is_correct": True,
-                "judge_agreement": None,
-                "judge_disagreement_flag": False,
-            },
-        ]
-    )
-    summary = judge_bench.compute_summary(df, "m")
-    assert summary["judge_agreement_mean"] == pytest.approx((1.0 + 2 / 3) / 2, rel=1e-3)
-    assert summary["judge_disagreement_count"] == 1
-
-
-def test_compute_judge_agreement_pairwise():
-    df = pd.DataFrame(
-        {
-            "is_correct_j1": [True, True, False, None],
-            "is_correct_j2": [True, False, False, True],
-        }
-    )
-    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"])
-    assert result.loc["j1", "j1"] == 1.0
-    assert result.loc["j2", "j2"] == 1.0
-    # rows 0,1,2 have both non-null; agree on rows 0,2 -> 2/3
-    assert result.loc["j1", "j2"] == pytest.approx(2 / 3)
-    assert result.loc["j2", "j1"] == pytest.approx(2 / 3)
-
-
-def test_compute_judge_agreement_fallback_columns():
-    df = pd.DataFrame(
-        {
-            "is_correct_fallback_j1": [True, False],
-            "is_correct_fallback_j2": [True, True],
-        }
-    )
-    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"], fallback=True)
-    assert result.loc["j1", "j2"] == 0.5
-
-
-def test_compute_judge_agreement_missing_column_raises():
-    df = pd.DataFrame({"is_correct_j1": [True]})
-    with pytest.raises(KeyError, match="j2"):
-        judge_bench.compute_judge_agreement(df, ["j1", "j2"])
-
-
 # --------------------------------------------------------------------------- #
 # build_detailed
 # --------------------------------------------------------------------------- #
@@ -735,3 +668,70 @@ def test_build_detailed_skips_incomplete_frame(tmp_path):
     detailed = judge_bench.build_detailed({"m1": pd.DataFrame()}, ds)
     assert list(detailed["question_id"]) == [1]
     assert "m1_output" not in detailed.columns
+
+
+def test_compute_summary_no_judge_agreement_columns_returns_none_and_zero():
+    df = pd.DataFrame([{"answer_type": "multiple_choice", "is_correct": True}])
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["judge_agreement_mean"] is None
+    assert summary["judge_disagreement_count"] == 0
+
+
+def test_compute_summary_includes_judge_agreement_stats():
+    df = pd.DataFrame(
+        [
+            {
+                "answer_type": "short_form",
+                "is_correct": True,
+                "judge_agreement": 1.0,
+                "judge_disagreement_flag": False,
+            },
+            {
+                "answer_type": "short_form",
+                "is_correct": True,
+                "judge_agreement": 2 / 3,
+                "judge_disagreement_flag": True,
+            },
+            {
+                "answer_type": "multiple_choice",
+                "is_correct": True,
+                "judge_agreement": None,
+                "judge_disagreement_flag": False,
+            },
+        ]
+    )
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["judge_agreement_mean"] == pytest.approx((1.0 + 2 / 3) / 2, rel=1e-3)
+    assert summary["judge_disagreement_count"] == 1
+
+
+def test_compute_judge_agreement_pairwise():
+    df = pd.DataFrame(
+        {
+            "is_correct_j1": [True, True, False, None],
+            "is_correct_j2": [True, False, False, True],
+        }
+    )
+    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"])
+    assert result.loc["j1", "j1"] == 1.0
+    assert result.loc["j2", "j2"] == 1.0
+    # rows 0,1,2 have both non-null; agree on rows 0,2 -> 2/3
+    assert result.loc["j1", "j2"] == pytest.approx(2 / 3)
+    assert result.loc["j2", "j1"] == pytest.approx(2 / 3)
+
+
+def test_compute_judge_agreement_fallback_columns():
+    df = pd.DataFrame(
+        {
+            "is_correct_fallback_j1": [True, False],
+            "is_correct_fallback_j2": [True, True],
+        }
+    )
+    result = judge_bench.compute_judge_agreement(df, ["j1", "j2"], fallback=True)
+    assert result.loc["j1", "j2"] == 0.5
+
+
+def test_compute_judge_agreement_missing_column_raises():
+    df = pd.DataFrame({"is_correct_j1": [True]})
+    with pytest.raises(KeyError, match="j2"):
+        judge_bench.compute_judge_agreement(df, ["j1", "j2"])

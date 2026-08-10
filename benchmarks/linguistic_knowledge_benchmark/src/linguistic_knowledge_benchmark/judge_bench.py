@@ -662,41 +662,6 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
     }
 
 
-def compute_judge_agreement(
-    judged_df: pd.DataFrame, judge_models: list[str], *, fallback: bool = False
-) -> pd.DataFrame:
-    """Pairwise agreement rate between judges, over rows both judges scored.
-
-    Args:
-        judged_df: a judge_results()/judge_results_fallback() output.
-        judge_models: the judges to compare (their is_correct_<judge>[_fallback]
-            columns must be present).
-        fallback: read the `is_correct_fallback_<judge>` columns instead of
-            `is_correct_<judge>` (i.e. the columns judge_results_fallback() adds).
-
-    Returns:
-        A judge x judge DataFrame (diagonal 1.0 wherever a judge scored anything);
-        NaN where two judges never scored a common row.
-    """
-    prefix = "is_correct_fallback_" if fallback else "is_correct_"
-    cols = {jm: f"{prefix}{jm}" for jm in judge_models}
-    missing = [jm for jm in judge_models if cols[jm] not in judged_df.columns]
-    if missing:
-        raise KeyError(f"judged_df is missing columns for judge(s): {missing}")
-
-    rate = pd.DataFrame(index=judge_models, columns=judge_models, dtype=float)
-    for a in judge_models:
-        for b in judge_models:
-            both = judged_df[cols[a]].notna() & judged_df[cols[b]].notna()
-            if both.sum() == 0:
-                rate.loc[a, b] = float("nan")
-                continue
-            rate.loc[a, b] = (
-                judged_df.loc[both, cols[a]] == judged_df.loc[both, cols[b]]
-            ).mean()
-    return rate
-
-
 def build_detailed(
     judged_by_model: dict[str, pd.DataFrame], dataset_path: str | Path
 ) -> pd.DataFrame:
@@ -753,3 +718,38 @@ def build_detailed(
         detailed = detailed.merge(per_model, on="question_id", how="left")
 
     return detailed.sort_values("question_id").reset_index(drop=True)
+
+
+def compute_judge_agreement(
+    judged_df: pd.DataFrame, judge_models: list[str], *, fallback: bool = False
+) -> pd.DataFrame:
+    """Pairwise agreement rate between judges, over rows both judges scored.
+
+    Args:
+        judged_df: a judge_results()/judge_results_fallback() output.
+        judge_models: the judges to compare (their is_correct_<judge>[_fallback]
+            columns must be present).
+        fallback: read the `is_correct_fallback_<judge>` columns instead of
+            `is_correct_<judge>` (i.e. the columns judge_results_fallback() adds).
+
+    Returns:
+        A judge x judge DataFrame (diagonal 1.0 wherever a judge scored anything);
+        NaN where two judges never scored a common row.
+    """
+    prefix = "is_correct_fallback_" if fallback else "is_correct_"
+    cols = {jm: f"{prefix}{jm}" for jm in judge_models}
+    missing = [jm for jm in judge_models if cols[jm] not in judged_df.columns]
+    if missing:
+        raise KeyError(f"judged_df is missing columns for judge(s): {missing}")
+
+    rate = pd.DataFrame(index=judge_models, columns=judge_models, dtype=float)
+    for a in judge_models:
+        for b in judge_models:
+            both = judged_df[cols[a]].notna() & judged_df[cols[b]].notna()
+            if both.sum() == 0:
+                rate.loc[a, b] = float("nan")
+                continue
+            rate.loc[a, b] = (
+                judged_df.loc[both, cols[a]] == judged_df.loc[both, cols[b]]
+            ).mean()
+    return rate
