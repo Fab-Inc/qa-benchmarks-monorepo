@@ -9,6 +9,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from fab_benchmark_publisher import parse_gs_uri
+
 DEFAULT_RUN_ID = "default"
 DEFAULT_MAX_TOKENS = 10_000
 DEFAULT_CHUNK_SIZE = 20
@@ -38,6 +40,7 @@ class BenchmarkRunConfig:
     model_workers: int = DEFAULT_MODEL_WORKERS
     force: bool = False
     retry_errors: bool = False
+    results_dest: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
     raw_config: dict[str, Any] = field(default_factory=dict)
@@ -62,6 +65,7 @@ class BenchmarkRunConfig:
             "model_workers": self.model_workers,
             "force": self.force,
             "retry_errors": self.retry_errors,
+            "results_dest": self.results_dest,
             "metadata": self.metadata,
             "extra": self.extra,
         }
@@ -120,6 +124,7 @@ def apply_execution_overrides(
     force: bool,
     retry_errors: bool,
     model_workers: int | None,
+    results_dest: str | None = None,
 ) -> BenchmarkRunConfig:
     """Apply explicitly supplied execution options to a validated config."""
 
@@ -135,6 +140,11 @@ def apply_execution_overrides(
             _validate_model_workers(model_workers)
             if model_workers is not None
             else config.model_workers
+        ),
+        results_dest=(
+            _validate_results_dest(results_dest)
+            if results_dest is not None
+            else config.results_dest
         ),
     )
 
@@ -180,6 +190,7 @@ def build_run_config(
     model_workers: int = DEFAULT_MODEL_WORKERS,
     force: bool = False,
     retry_errors: bool = False,
+    results_dest: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> BenchmarkRunConfig:
     """Build a validated run config from command-line values."""
@@ -197,6 +208,7 @@ def build_run_config(
         "model_workers": model_workers,
         "force": force,
         "retry_errors": retry_errors,
+        "results_dest": results_dest,
         "metadata": metadata or {},
     }
     return _parse_run_config(
@@ -287,6 +299,10 @@ def _parse_run_config(
     if not isinstance(metadata, dict):
         raise ConfigError("'metadata' must be an object when provided")
 
+    results_dest = raw_config.get("results_dest")
+    if results_dest is not None:
+        results_dest = _validate_results_dest(results_dest)
+
     known_keys = {
         "run_id",
         "language",
@@ -301,6 +317,7 @@ def _parse_run_config(
         "force",
         "retry_errors",
         "metadata",
+        "results_dest",
     }
     extra = {key: value for key, value in raw_config.items() if key not in known_keys}
 
@@ -320,6 +337,7 @@ def _parse_run_config(
         model_workers=model_workers,
         force=force,
         retry_errors=retry_errors,
+        results_dest=results_dest,
         metadata=metadata,
         extra=extra,
         raw_config=raw_config,
@@ -357,6 +375,16 @@ def _validate_config_models(value: Any) -> list[str]:
 def _validate_model_workers(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ConfigError("'model_workers' must be a positive integer")
+    return value
+
+
+def _validate_results_dest(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError("'results_dest' must be a non-empty gs:// URI")
+    try:
+        parse_gs_uri(value)
+    except ValueError as e:
+        raise ConfigError(f"Invalid 'results_dest': {e}") from e
     return value
 
 

@@ -179,3 +179,53 @@ uv run --frozen --package phonics-benchmark python \
 
 The script prints the number of result files and rows plus a per-model status summary.
 Change the final path to inspect any other run directory.
+
+## GCS-synced local smoke test
+
+With Application Default Credentials configured and a writable scratch bucket, add a run
+prefix to the temporary config:
+
+```bash
+PHONICS_SCRATCH_DEST="gs://your-scratch-bucket/phonics/runs/config-smoke/"
+jq --arg dest "$PHONICS_SCRATCH_DEST" \
+  '.results_dest = $dest' \
+  "$PHONICS_MANUAL_OUTPUT_DIR/config.json" \
+  > "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json"
+
+uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+  --config "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json" \
+  --skip-models-download
+```
+
+Watch the run prefix while the model call is in progress. `config.json` appears before
+the first call, and the model response file is replaced after every local checkpoint.
+Running the same command again pulls those artifacts before applying the normal result
+cache rules.
+
+Fetch only that model's responses into a separate local directory:
+
+```bash
+uv run --frozen --package phonics-benchmark phonics-benchmark fetch-results \
+  --src "$PHONICS_SCRATCH_DEST" \
+  --run-dir "$PHONICS_MANUAL_OUTPUT_DIR/fetched" \
+  --model gemini-3.1-pro-preview
+```
+
+## Run the container locally
+
+Upload a config whose `items_path` is a GCS URI, then build and run the same contract
+used by Cloud Run Jobs:
+
+```bash
+docker build -t phonics-benchmark:local .
+
+docker run --rm \
+  -e GEMINI_API_KEY \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/credentials/adc.json \
+  -v "$HOME/.config/gcloud/application_default_credentials.json:/credentials/adc.json:ro" \
+  phonics-benchmark:local \
+  run-cloud --config "gs://your-scratch-bucket/phonics/runs/container-smoke/config.json"
+```
+
+The image runs as a non-root user and writes only beneath `/workspace`. It contains no
+provider secrets, `.env` files, benchmark datasets, or credentials.

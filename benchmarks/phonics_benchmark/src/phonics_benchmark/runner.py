@@ -55,6 +55,7 @@ SYSTEM_PROMPT: str | None = None
 
 
 RunOutput = dict[str, Any]
+ArtifactWriteHook = Callable[[Path], None]
 
 
 class _ModelRunOutput(TypedDict):
@@ -76,11 +77,16 @@ def run_from_config_file(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunOutput:
     """Load a run config file and execute it without downloading model config."""
 
     config = load_run_config(config_path)
-    return execute_run(config, evaluator=evaluator)
+    return execute_run(
+        config,
+        evaluator=evaluator,
+        on_artifact_write=on_artifact_write,
+    )
 
 
 def execute_run(
@@ -90,6 +96,7 @@ def execute_run(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunOutput:
     """Prepare provenance and model state, then execute a validated run config."""
 
@@ -98,12 +105,14 @@ def execute_run(
     if evaluator is None:
         prepare_fdllm_for_run(config)
         model_configs = snapshot_model_configs(config.models)
-    return run_benchmark(
-        config,
-        config_id=config_id,
-        evaluator=evaluator,
-        model_configs=model_configs,
-    )
+    run_kwargs: dict[str, Any] = {
+        "config_id": config_id,
+        "evaluator": evaluator,
+        "model_configs": model_configs,
+    }
+    if on_artifact_write is not None:
+        run_kwargs["on_artifact_write"] = on_artifact_write
+    return run_benchmark(config, **run_kwargs)
 
 
 def run_benchmark(
@@ -115,6 +124,7 @@ def run_benchmark(
     ]
     | None = None,
     model_configs: Mapping[str, Any] | None = None,
+    on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunOutput:
     """Execute a phonics benchmark run from a validated config.
 
@@ -160,6 +170,8 @@ def run_benchmark(
         "model_configs": sanitized_model_configs,
     }
     _write_json(config_snapshot_path, config_snapshot)
+    if on_artifact_write is not None:
+        on_artifact_write(config_snapshot_path)
 
     model_outputs = _run_models(
         config=config,
@@ -170,6 +182,7 @@ def run_benchmark(
         results_paths=results_paths,
         evaluator=evaluator,
         provider_groups=provider_groups,
+        on_artifact_write=on_artifact_write,
     )
     executed_count = sum(result["executed_count"] for result in model_outputs)
     skipped_count = sum(result["skipped_count"] for result in model_outputs)
@@ -195,6 +208,7 @@ def run_benchmark(
         executed_models=executed_models,
         retry_errors=config.retry_errors,
         code_git_hash=code_git_hash,
+        on_artifact_write=on_artifact_write,
     )
     return output
 
@@ -227,6 +241,7 @@ def _run_models(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
     provider_groups: list[list[str]],
+    on_artifact_write: ArtifactWriteHook | None,
 ) -> list[_ModelRunOutput]:
     """Run provider groups concurrently and their models sequentially."""
 
@@ -240,6 +255,7 @@ def _run_models(
             "items": deepcopy(items),
             "results_path": results_paths[model_name],
             "evaluator": evaluator,
+            "on_artifact_write": on_artifact_write,
         }
         for model_name in config.models
     }
@@ -291,6 +307,7 @@ def _run_model(
     evaluator: Callable[
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ],
+    on_artifact_write: ArtifactWriteHook | None,
 ) -> _ModelRunOutput:
     """Run every pending item for one model, sequentially and with checkpoints."""
 
@@ -362,9 +379,13 @@ def _run_model(
 
         results = _ordered_results(rows_by_id, expected_result_ids)
         save_results(results, results_path)
+        if on_artifact_write is not None:
+            on_artifact_write(results_path)
     if stale_result_count and not pending_items:
         results = _ordered_results(rows_by_id, expected_result_ids)
         save_results(results, results_path)
+        if on_artifact_write is not None:
+            on_artifact_write(results_path)
 
     results = _ordered_results(rows_by_id, expected_result_ids)
     return {
@@ -636,13 +657,15 @@ def _register_custom_models(custom_models_path: Path | None) -> Path:
     return resolved_custom_models_path
 
 
-def download_default_custom_models() -> Path:
-    """Anonymously refresh the shared repo-root custom_models.yaml."""
+def download_default_custom_models(destination: Path | None = None) -> Path:
+    """Anonymously refresh custom_models.yaml at the selected destination."""
 
     from fab_benchmark_publisher import download_file
 
+    destination = (destination or DEFAULT_CUSTOM_MODELS_PATH).expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(
-        dir=DEFAULT_CUSTOM_MODELS_PATH.parent,
+        dir=destination.parent,
         prefix=f".{CUSTOM_MODELS_FILE_NAME}.",
         suffix=".tmp",
         delete=False,
@@ -666,11 +689,11 @@ def download_default_custom_models() -> Path:
             raise ConfigError(
                 "Downloaded custom_models.yaml must contain a non-empty YAML mapping"
             )
-        temporary_path.replace(DEFAULT_CUSTOM_MODELS_PATH)
+        temporary_path.replace(destination)
     finally:
         temporary_path.unlink(missing_ok=True)
 
-    return DEFAULT_CUSTOM_MODELS_PATH
+    return destination
 
 
 def _resolve_custom_models_path(custom_models_path: Path | None) -> Path:
@@ -787,7 +810,13 @@ def _chunked(
 
 
 def _model_results_path(results_dir: Path, model_name: str) -> Path:
-    return results_dir / f"responses_{_model_filename_key(model_name)}.jsonl"
+    return results_dir / model_results_filename(model_name)
+
+
+def model_results_filename(model_name: str) -> str:
+    """Return the stable per-model response artifact filename."""
+
+    return f"responses_{_model_filename_key(model_name)}.jsonl"
 
 
 def _model_filename_key(model_name: str) -> str:
@@ -835,6 +864,7 @@ def _update_run_log(
     executed_models: set[str],
     retry_errors: bool,
     code_git_hash: str | None,
+    on_artifact_write: ArtifactWriteHook | None,
 ) -> None:
     if not executed_models:
         return
@@ -844,10 +874,21 @@ def _update_run_log(
         f"{prefix}_git_hash": code_git_hash,
     }
     for model_name in sorted(executed_models):
-        update_log(run_dir, model_name, fields)
+        update_log(
+            run_dir,
+            model_name,
+            fields,
+            on_artifact_write=on_artifact_write,
+        )
 
 
-def update_log(run_dir: Path, model_name: str, fields: dict[str, str | None]) -> None:
+def update_log(
+    run_dir: Path,
+    model_name: str,
+    fields: dict[str, str | None],
+    *,
+    on_artifact_write: ArtifactWriteHook | None = None,
+) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
 
     log_path = run_dir / "log.json"
@@ -857,6 +898,8 @@ def update_log(run_dir: Path, model_name: str, fields: dict[str, str | None]) ->
     entry = log_data.setdefault(model_name, {})
     entry.update({key: value for key, value in fields.items() if value is not None})
     _write_json(log_path, log_data)
+    if on_artifact_write is not None:
+        on_artifact_write(log_path)
 
 
 def git_hash() -> str | None:

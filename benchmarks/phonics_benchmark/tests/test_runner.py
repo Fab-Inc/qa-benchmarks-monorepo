@@ -26,7 +26,6 @@ from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
 from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
-    DEFAULT_CUSTOM_MODELS_PATH,
     download_default_custom_models,
     evaluate_item_with_fdllm,
     execute_run,
@@ -1196,6 +1195,32 @@ def test_download_default_custom_models_anonymously_and_atomically(
     assert result == destination
 
 
+def test_download_default_custom_models_accepts_writable_destination(
+    tmp_path: Path,
+) -> None:
+    """Installed deployments can keep downloaded state outside application code."""
+
+    destination = tmp_path / "workspace" / "inputs" / "custom_models.yaml"
+
+    def write_downloaded_models(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text(
+            "NewProvider:\n  models: {}\n",
+            encoding="utf-8",
+        )
+
+    with patch(
+        "fab_benchmark_publisher.download_file",
+        side_effect=write_downloaded_models,
+    ) as download_file:
+        result = download_default_custom_models(destination)
+
+    assert result == destination.resolve()
+    assert destination.read_text(encoding="utf-8") == ("NewProvider:\n  models: {}\n")
+    assert Path(download_file.call_args.kwargs["write_path"]).parent == (
+        destination.parent
+    )
+
+
 def test_download_default_custom_models_preserves_existing_file_on_failure(
     tmp_path: Path,
 ) -> None:
@@ -1262,6 +1287,8 @@ def test_download_default_custom_models_rejects_invalid_registry(
 def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
     """Model preparation registers the existing shared model registry."""
 
+    default_custom_models_path = tmp_path / "custom_models.yaml"
+    default_custom_models_path.write_text("{}", encoding="utf-8")
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
@@ -1272,6 +1299,10 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
     )
 
     with (
+        patch(
+            "phonics_benchmark.runner.DEFAULT_CUSTOM_MODELS_PATH",
+            default_custom_models_path,
+        ),
         patch("phonics_benchmark.runner._load_environment") as load_environment,
         patch("phonics_benchmark.runner._register_custom_models") as register_models,
         patch("phonics_benchmark.runner.validate_registered_models") as validate_models,
@@ -1279,7 +1310,7 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
         prepare_fdllm_for_run(config)
 
     load_environment.assert_called_once_with(None)
-    register_models.assert_called_once_with(DEFAULT_CUSTOM_MODELS_PATH)
+    register_models.assert_called_once_with(default_custom_models_path)
     validate_models.assert_called_once_with(["model-a"])
 
 
@@ -1468,6 +1499,49 @@ def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
     assert save.call_count == 1
     assert len(save.call_args.args[0]) == 3
     assert len(_read_jsonl(output["results_paths"]["model-a"])) == 3
+
+
+def test_artifact_hook_fires_after_each_durable_write_in_run_order(
+    tmp_path: Path,
+) -> None:
+    config = load_run_config(
+        _write_config(
+            tmp_path,
+            models=["model-a"],
+            items=[
+                {"id": "item-1", "text": "First."},
+                {"id": "item-2", "text": "Second."},
+                {"id": "item-3", "text": "Third."},
+            ],
+            chunk_size=2,
+        )
+    )
+    events: list[str] = []
+
+    def evaluator(
+        _config: BenchmarkRunConfig,
+        _model: str,
+        item: dict,
+        _prompt: str,
+    ) -> dict:
+        events.append(f"evaluate:{item['benchmark_item_id']}")
+        return {"output": "[]"}
+
+    execute_run(
+        config,
+        evaluator=evaluator,
+        on_artifact_write=lambda path: events.append(f"write:{path.name}"),
+    )
+
+    assert events == [
+        "write:config.json",
+        "evaluate:item-1",
+        "evaluate:item-2",
+        "write:responses_model-a.jsonl",
+        "evaluate:item-3",
+        "write:responses_model-a.jsonl",
+        "write:log.json",
+    ]
 
 
 def _write_config(
