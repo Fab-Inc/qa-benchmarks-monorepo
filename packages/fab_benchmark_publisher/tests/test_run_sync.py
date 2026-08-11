@@ -218,7 +218,7 @@ def test_final_reconciliation_retries_failed_checkpoint(tmp_path: Path) -> None:
     client = FakeStorageClient()
     response_path = tmp_path / "run-a" / "responses" / "responses_model-a.jsonl"
     response_path.parent.mkdir(parents=True)
-    response_path.write_text("complete\n", encoding="utf-8")
+    response_path.write_bytes(b"complete\n")
     object_name = "phonics/runs/run-a/responses/responses_model-a.jsonl"
     client.fail_next_upload.add(object_name)
     sync = RunSync(
@@ -241,7 +241,7 @@ def test_next_checkpoint_recovers_committed_upload_with_lost_ack(
     client = FakeStorageClient()
     response_path = tmp_path / "run-a" / "responses" / "responses_model-a.jsonl"
     response_path.parent.mkdir(parents=True)
-    response_path.write_text("initial\n", encoding="utf-8")
+    response_path.write_bytes(b"initial\n")
     object_name = "phonics/runs/run-a/responses/responses_model-a.jsonl"
     client.objects["results"] = {object_name: (7, b"initial\n")}
     sync = RunSync(
@@ -250,13 +250,13 @@ def test_next_checkpoint_recovers_committed_upload_with_lost_ack(
         storage_client=client,
     )
     sync.pull()
-    response_path.write_text("first checkpoint\n", encoding="utf-8")
+    response_path.write_bytes(b"first checkpoint\n")
     client.commit_then_fail_next_upload.add(object_name)
 
     with pytest.raises(RuntimeError, match="lost upload acknowledgement"):
         sync.push_file(response_path)
 
-    response_path.write_text("second checkpoint\n", encoding="utf-8")
+    response_path.write_bytes(b"second checkpoint\n")
     sync.push_file(response_path)
 
     assert client.upload_preconditions == [

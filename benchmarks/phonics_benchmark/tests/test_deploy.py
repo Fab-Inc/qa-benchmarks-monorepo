@@ -11,6 +11,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Deployment helpers require a POSIX shell",
+)
 @pytest.mark.parametrize(
     ("remote_items", "expected_exit_code", "expected_message", "executes_job"),
     [
