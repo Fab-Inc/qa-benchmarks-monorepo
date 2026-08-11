@@ -11,15 +11,6 @@ benchmarks/linguistic_knowledge_benchmark/cache/
 custom_models.yaml
 .vscode/
 
-# Intermediate output of the phonics benchmark item pipeline. Reproduce by
-# re-running build_benchmark_item_candidates.py / filter_benchmark_items.py;
-# only the final benchmark_items.jsonl is version-controlled.
-benchmarks/phonics_benchmark/data/*/benchmark_item_candidates.jsonl
-benchmarks/phonics_benchmark/data/*/benchmark_items_full_crossproduct.jsonl
-benchmarks/phonics_benchmark/data/*/nondecodable_ratio_histogram_*.png
-benchmarks/phonics_benchmark/data/*/nondecodable_summary_*.json
-benchmarks/phonics_benchmark/data/*/*_with_analysis*.csv
-
 # ============================================================================
 # Python .gitignore template from
 # https://github.com/github/gitignore/blob/main/Python.gitignore

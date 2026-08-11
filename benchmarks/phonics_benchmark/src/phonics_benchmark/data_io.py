@@ -17,11 +17,6 @@ from phonics_benchmark.models import (
     StudentKnowledge,
 )
 
-# The pipeline's artifacts, in the order they are produced:
-#   ingest  -> texts + student profiles
-#   build   -> full cross-product, then candidates (with analysis columns) + plots
-#   ⟨ a data scientist reads the plots and chooses thresholds ⟩
-#   filter  -> benchmark items, the set the CLI actually runs
 TEXTS_FILENAME = "decodable_texts.jsonl"
 STUDENT_PROFILES_FILENAME = "student_knowledge_profiles.jsonl"
 BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME = "benchmark_item_candidates.jsonl"
@@ -234,31 +229,6 @@ def validate_student_knowledge(
             raise ValueError(
                 f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"
             ) from exc
-
-
-def validate_benchmark_dataset(language: str, data_root: Path) -> None:
-    """Check referential integrity across all three data files for a language.
-
-    Raises ValueError if any benchmark_item references a text_id or
-    student_knowledge_id that does not exist in the corresponding data file.
-    """
-    texts = read_decodable_texts(language, data_root)
-    student_knowledge_profiles = read_student_knowledge_profiles(language, data_root)
-    items = read_benchmark_items(language, data_root)
-
-    text_ids = {t.text_id for t in texts}
-    student_ids = {s.student_knowledge_id for s in student_knowledge_profiles}
-
-    for item in items:
-        if item.text_id not in text_ids:
-            raise ValueError(
-                f"benchmark_items references unknown text_id '{item.text_id}'"
-            )
-        if item.student_knowledge_id not in student_ids:
-            raise ValueError(
-                f"benchmark_items references unknown"
-                f" student_knowledge_id '{item.student_knowledge_id}'"
-            )
 
 
 def build_benchmark_item_candidates_dataframe(
