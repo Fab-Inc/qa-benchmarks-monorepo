@@ -2,6 +2,7 @@
   "run_id": "sw-tusome-260810",
   "language": "sw",
   "items_path": "../data/kiswahili/benchmark_items.jsonl",
+  "prompt_name": "decodability_evaluation",
   "output_dir": "../outputs",
   "models": [
     "gpt-5.6-terra",

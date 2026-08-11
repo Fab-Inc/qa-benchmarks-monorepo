@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from phonics_benchmark.cmd import _timestamp_run_id, app
-from phonics_benchmark.config import DEFAULT_PROMPT_NAME, ConfigError
+from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -261,6 +261,8 @@ def test_run_decodability_command_uses_cli_args(
                 "sw",
                 "--models",
                 "model-a,model-b",
+                "--prompt-name",
+                "decodability_evaluation_grapheme_breakdown",
                 "--output-dir",
                 str(output_dir),
                 "--items-path",
@@ -288,6 +290,7 @@ def test_run_decodability_command_uses_cli_args(
     assert run_config.output_dir == output_dir.resolve()
     assert run_config.models == ["model-a", "model-b"]
     assert run_config.task == "decodability"
+    assert run_config.prompt_name == "decodability_evaluation_grapheme_breakdown"
     assert run_config.items_path == items_path.resolve()
     assert run_config.env_path == env_path.resolve()
     assert run_config.custom_models_path == custom_models_path.resolve()
@@ -654,37 +657,3 @@ def _run_output(
         "skipped_count": 0,
         "error_count": errors,
     }
-
-
-def test_run_decodability_command_defaults_prompt_name(
-    runner: CliRunner, tmp_path: Path
-) -> None:
-    """Omitting --prompt-name runs the baseline prompt."""
-
-    output_dir = tmp_path / "outputs"
-    items_path = _write_items_jsonl(tmp_path)
-    output = _run_output(output_dir, "experiment-a", total=1)
-
-    with (
-        patch("phonics_benchmark.cmd.download_default_custom_models"),
-        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
-    ):
-        result = runner.invoke(
-            app,
-            [
-                "run-decodability",
-                "--run-id",
-                "experiment-a",
-                "--language",
-                "sw",
-                "--models",
-                "model-a",
-                "--output-dir",
-                str(output_dir),
-                "--items-path",
-                str(items_path),
-            ],
-        )
-
-    assert result.exit_code == 0
-    assert run.call_args.args[0].prompt_name == DEFAULT_PROMPT_NAME
