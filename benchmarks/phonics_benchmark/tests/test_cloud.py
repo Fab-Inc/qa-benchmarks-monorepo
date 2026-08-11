@@ -12,7 +12,10 @@ from fab_benchmark_publisher import RunSyncConflictError
 from phonics_benchmark.cmd import (
     _download_items_file,
     _execute_with_optional_sync,
+    _items_source_uri,
     _load_cloud_run_config,
+    _materialize_run_config,
+    _read_config_object,
     _validate_resume_snapshot,
     app,
 )
@@ -372,6 +375,92 @@ def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
     assert config.metadata["items_source_uri"] == ("gs://datasets/phonics/items.jsonl")
     assert config.metadata["items_source_generation"] == 17
     assert config.raw_config["items_path"] == "gs://datasets/phonics/items.jsonl"
+
+
+@pytest.mark.parametrize(
+    ("config_uri", "message"),
+    [
+        ("not-a-gcs-uri", "Invalid cloud config URI"),
+        ("gs://results/config.json", "must be inside a run prefix"),
+    ],
+)
+def test_cloud_config_rejects_invalid_uri_or_root_object(
+    tmp_path: Path,
+    config_uri: str,
+    message: str,
+) -> None:
+    with pytest.raises(ConfigError, match=message):
+        _load_cloud_run_config(config_uri, workdir=tmp_path)
+
+
+def test_cloud_config_rejects_snapshot_without_object_raw_config(
+    tmp_path: Path,
+) -> None:
+    def fake_config_download(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text(
+            json.dumps({"resolved_config": {}, "raw_config": []}),
+            encoding="utf-8",
+        )
+
+    with (
+        patch(
+            "phonics_benchmark.cmd.download_file",
+            side_effect=fake_config_download,
+        ),
+        pytest.raises(ConfigError, match="raw_config must be an object"),
+    ):
+        _load_cloud_run_config(
+            "gs://results/phonics/runs/experiment-a/config.json",
+            workdir=tmp_path,
+        )
+
+
+def test_materialization_rejects_non_object_metadata(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="metadata.*object"):
+        _materialize_run_config(
+            {
+                "run_id": "experiment-a",
+                "language": "sw",
+                "items_path": "gs://datasets/items.jsonl",
+                "models": ["model-a"],
+                "metadata": "invalid",
+            },
+            source_config_path=tmp_path / "config.json",
+            inputs_dir=tmp_path / "inputs" / "experiment-a",
+            use_metadata_fallback=False,
+        )
+
+
+def test_items_source_fallback_rejects_non_object_metadata() -> None:
+    with pytest.raises(ConfigError, match="metadata.*object"):
+        _items_source_uri(
+            {"items_path": "items.jsonl", "metadata": "invalid"},
+            use_metadata_fallback=True,
+        )
+
+
+def test_items_download_rejects_invalid_gcs_uri(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="Invalid cloud items_path"):
+        _download_items_file("not-a-gcs-uri", tmp_path / "items.jsonl")
+
+
+@pytest.mark.parametrize(
+    ("contents", "message"),
+    [
+        ("{", "Invalid JSON in config file"),
+        ("[]", "Config file must be a JSON object"),
+    ],
+)
+def test_read_config_object_rejects_invalid_documents(
+    tmp_path: Path,
+    contents: str,
+    message: str,
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ConfigError, match=message):
+        _read_config_object(config_path, description="config file")
 
 
 def test_items_download_is_atomic_on_failure(tmp_path: Path) -> None:
