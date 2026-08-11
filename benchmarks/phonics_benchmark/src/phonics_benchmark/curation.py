@@ -1,4 +1,4 @@
-"""Build and filter the benchmark item set from the raw data files."""
+"""Functions to curate benchmark items, including labeling and analysis."""
 
 from __future__ import annotations
 
@@ -21,11 +21,6 @@ def add_labels_and_analysis(
     Total word count is the number of distinct words in ``vocab_set``.
     ``vocab_set`` is dropped from the returned DataFrame as it's only used for
     intermediate calculations. Easily re-computed with ``get_vocabulary_set`` if needed.
-
-    Items whose content yields no words at all are dropped with a warning: their
-    ratio would be 0/0, and a NaN ratio satisfies neither ``== 0.0`` nor
-    ``> max_nondecodable_ratio`` in ``filter_benchmark_items``, so such an item
-    would drift silently into the catch-all sampling bucket.
     """
     benchmark_items = benchmark_items.copy()
 

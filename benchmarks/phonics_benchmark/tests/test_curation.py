@@ -2,11 +2,11 @@
 
 import pandas as pd
 import pytest
-from phonics_benchmark.data_io import build_benchmark_item_candidates_dataframe
-from phonics_benchmark.dataset import (
+from phonics_benchmark.curation import (
     add_labels_and_analysis,
     filter_benchmark_items,
 )
+from phonics_benchmark.data_io import build_benchmark_item_candidates_dataframe
 from phonics_benchmark.models import DecodableText, StudentKnowledge
 
 PROFILES = [
