@@ -22,6 +22,10 @@ import enum
 from pathlib import Path
 
 import typer
+from phonics_benchmark.curation import (
+    filter_benchmark_items,
+    get_nondecodable_word_analysis,
+)
 from phonics_benchmark.data_io import (
     convert_dataframe_to_records,
     convert_records_to_dataframe,
@@ -29,10 +33,6 @@ from phonics_benchmark.data_io import (
     read_benchmark_item_candidates,
     write_dataset,
     write_json,
-)
-from phonics_benchmark.dataset import (
-    filter_benchmark_items,
-    get_nondecodable_word_analysis,
 )
 from phonics_benchmark.models import LabelledBenchmarkItem
 from phonics_benchmark.plots import save_nondecodable_ratio_histogram

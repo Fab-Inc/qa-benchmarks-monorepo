@@ -17,7 +17,7 @@ curated after running the benchmark, e.g. using Item Response Theory.
     uv run --package phonics-benchmark python \
         benchmarks/phonics_benchmark/scripts/ingest_benchmark_data.py \
         --language kiswahili \
-        --workbook path/to/benchmark_template.xlsx
+        --workbook ./benchmarks/phonics_benchmark/data/kiswahili/raw/benchmark_data_tusome_ke.xlsx
    ```
 
 1. Pair student profiles with decodable texts and analyse the pairs to decide on
@@ -46,10 +46,11 @@ curated after running the benchmark, e.g. using Item Response Theory.
     uv run --package phonics-benchmark python \
         benchmarks/phonics_benchmark/scripts/filter_benchmark_items.py \
         --language kiswahili \
-        --max-zero-nondecodable 20 \
-        --max-one-nondecodable 40 \
+        --max-zero-nondecodable 6 \
+        --max-one-nondecodable 10 \
         --max-nondecodable-ratio 0.2 \
-        --sample-size-other 128
+        --sample-size-other 16 \
+        --random-state 42
    ```
 
 ## Running the benchmark

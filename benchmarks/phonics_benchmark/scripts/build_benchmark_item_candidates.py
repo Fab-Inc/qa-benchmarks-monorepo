@@ -31,6 +31,10 @@ import json
 from pathlib import Path
 
 import typer
+from phonics_benchmark.curation import (
+    add_labels_and_analysis,
+    get_nondecodable_word_analysis,
+)
 from phonics_benchmark.data_io import (
     build_benchmark_item_candidates_dataframe,
     convert_dataframe_to_records,
@@ -40,10 +44,6 @@ from phonics_benchmark.data_io import (
     validate_student_knowledge,
     write_dataset,
     write_json,
-)
-from phonics_benchmark.dataset import (
-    add_labels_and_analysis,
-    get_nondecodable_word_analysis,
 )
 from phonics_benchmark.models import (
     DecodableText,
