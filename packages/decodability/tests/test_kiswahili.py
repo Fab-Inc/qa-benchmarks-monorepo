@@ -7,11 +7,13 @@ from decodability.kiswahili.aggregators import (
 from decodability.kiswahili.definitions import (
     VALID_CLUSTERS,
     ClusterPattern,
+    get_clusters,
     get_graphemes,
 )
 from decodability.kiswahili.extract_words import extract_words_kiswahili
 from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
+    score_known_clusters_and_patterns_kiswahili,
     score_known_graphemes_kiswahili,
     score_whole_words_kiswahili,
 )
@@ -126,7 +128,7 @@ class TestKiswahiliClusters:
             ({"br", "ST"}, False),  # one uppercase entry invalidates the set
         ],
     )
-    def test_check_clusters(self, known_clusters: set[str], should_pass: bool):
+    def test_check_known_clusters(self, known_clusters: set[str], should_pass: bool):
         """Any lowercase cluster is accepted, including non-native loan clusters."""
         # Supply every component grapheme so check_graphemes_in_clusters_known
         # cannot be the thing that fails.
@@ -205,6 +207,22 @@ class TestKiswahiliClusters:
     def test_get_graphemes(self, word: str, expected: list[str]):
         """Graphemes are segmented by longest match and returned lowercase."""
         assert get_graphemes(word) == expected
+
+    @pytest.mark.parametrize(
+        "word, expected",
+        [
+            ("mbwea'", ["mbw"]),
+            ("kunywea", ["nyw"]),
+            ("ng'ombe", ["mb"]),
+            ("Baba", []),
+            ("mchw", ["mchw"]),
+            ("hospitali", ["sp"]),
+            ("blanketi", ["bl", "nk"]),
+        ],
+    )
+    def test_get_clusters(self, word: str, expected: list[str]):
+        """Check consonant clusters are captured as expected."""
+        assert get_clusters(word) == set(expected)
 
     @pytest.mark.parametrize(
         "pattern, expected_grapheme_count",
@@ -351,6 +369,91 @@ class TestScorers:
         student_knowledge = KiswahiliStudentKnowledge(whole_words=set())
         assert score_whole_words_kiswahili("baba", student_knowledge) == 0.0
 
+    @pytest.mark.parametrize(
+        "word, known_graphemes, known_clusters, expected",
+        [
+            ("mbwea'", {"m", "b", "w", "e", "a"}, {"mbw"}, 1.0),
+            ("mbwea'", {"m", "b", "w", "e", "a"}, set(), 0.0),
+            ("kunywea", {"k", "u", "n", "y", "ny", "w", "e", "a"}, {"nyw"}, 1.0),
+            ("ng'ombe", {"ng'", "o", "m", "b", "e"}, {"mb"}, 1.0),
+            ("ng'ombe", {"ng'", "o", "m", "b", "e"}, set(), 0.0),
+            ("Baba", {"b", "a"}, set(), 1.0),
+            ("mchw", {"m", "ch", "w"}, {"mchw"}, 1.0),
+            ("hospitali", {"h", "o", "s", "p", "i", "t", "a", "l"}, {"sp"}, 1.0),
+            ("blanketi", {"b", "l", "a", "n", "k", "e", "t", "i"}, {"bl", "nk"}, 1.0),
+        ],
+    )
+    def test_score_known_clusters_and_patterns_kiswahili(
+        self, word, known_graphemes, known_clusters, expected
+    ):
+        """Test the score_known_clusters_and_patterns_kiswahili function."""
+        student_knowledge = KiswahiliStudentKnowledge(
+            graphemes=known_graphemes,
+            clusters=known_clusters,
+        )
+        assert (
+            score_known_clusters_and_patterns_kiswahili(word, student_knowledge)
+            == expected
+        )
+
+    @pytest.mark.parametrize(
+        "word, known_graphemes, known_cluster_patterns, expected",
+        [
+            (
+                "mbwea'",
+                {"m", "b", "w", "e", "a"},
+                {ClusterPattern.M_LABIALISED_GLIDE},
+                1.0,
+            ),
+            (
+                "mbwea'",
+                {"m", "b", "w", "e", "a"},
+                {ClusterPattern.PRENASALISED_M, ClusterPattern.LABIALISED_GLIDE},
+                0.0,
+            ),
+            (
+                "kunywea",
+                {"k", "u", "ny", "w", "e", "a"},
+                {ClusterPattern.LABIALISED_GLIDE},
+                1.0,
+            ),
+            (
+                "ng'ombe",
+                {"ng'", "o", "m", "b", "e"},
+                {ClusterPattern.PRENASALISED_M},
+                1.0,
+            ),
+            ("ng'ombe", {"ng'", "o", "m", "b", "e"}, set(), 0.0),
+            ("Baba", {"b", "a"}, set(), 1.0),
+            ("mchw", {"m", "ch", "w"}, {ClusterPattern.LABIALISED_GLIDE}, 0.0),
+            ("mpya", {"m", "p", "y", "a"}, {ClusterPattern.M_PALATALISED_GLIDE}, 1.0),
+            (
+                "hospitali",
+                {"h", "o", "s", "p", "i", "t", "a", "l"},
+                set(),
+                0.0,
+            ),  # loan clusters must be known explicitly
+            (
+                "blanketi",
+                {"b", "l", "a", "n", "k", "e", "t", "i"},
+                set(),
+                0.0,
+            ),  # loan clusters must be known explicitly
+        ],
+    )
+    def test_score_known_cluster_patterns_kiswahili(
+        self, word, known_graphemes, known_cluster_patterns, expected
+    ):
+        """Test the score_known_cluster_patterns_kiswahili function."""
+        student_knowledge = KiswahiliStudentKnowledge(
+            graphemes=known_graphemes,
+            cluster_patterns=known_cluster_patterns,
+        )
+        assert (
+            score_known_clusters_and_patterns_kiswahili(word, student_knowledge)
+            == expected
+        )
+
 
 class TestKiswahiliWordExtraction:
     @pytest.mark.parametrize(
@@ -376,15 +479,16 @@ class TestKiswahiliAggregators:
         """A known whole word scores 1.0 regardless of grapheme knowledge."""
         scores = {
             "score_whole_words_kiswahili": 1.0,
-            "score_known_graphemes_kiswahili": 0.0,
         }
         assert aggregate_scores_kenya_tusome(scores) == 1.0
 
-    def test_tusome_aggregator_falls_back_to_grapheme_score(self):
-        """An unknown whole word falls back to the grapheme score."""
+    def test_tusome_aggregator_falls_back_to_grapheme_and_clusters_score(self):
+        """An unknown whole word falls back to the grapheme and cluster scores."""
         scores = {
             "score_whole_words_kiswahili": 0.0,
             "score_known_graphemes_kiswahili": 1.0,
+            "score_known_clusters_and_patterns_kiswahili": 1.0,
+            "score_known_cluster_patterns_kiswahili": 1.0,
         }
         assert aggregate_scores_kenya_tusome(scores) == 1.0
 
@@ -392,11 +496,53 @@ class TestKiswahiliAggregators:
         """The adapter applies the row function across a frame."""
         df = pd.DataFrame(
             {
-                "score_whole_words_kiswahili": [1.0, 0.0, 0.0],
-                "score_known_graphemes_kiswahili": [0.0, 0.0, 1.0],
+                "score_whole_words_kiswahili": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "score_known_graphemes_kiswahili": [0.0, 0.0, 1.0, 0.0, 1.0, 1.0],
+                "score_known_clusters_and_patterns_kiswahili": [
+                    0.0,
+                    1.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                ],
             }
         )
+        # 1st row: known as whole word, don't know any graphemes or clusters in the word
+        #   -> decodable
+        # 2nd row: don't know any graphemes in the word -> non-decodable
+        # 3rd row: know all graphemes and clusters in the word -> decodable
+        # 4th row: don't know any graphemes or clusters in the word -> non-decodable
+        # 5th row: know all graphemes but don't know any clusters in the word
+        #   -> non-decodable
+        # 6th row: know all graphemes and cluster patterns in the word -> decodable
         score_columns = list(df.columns)
         final_scores = rowwise(aggregate_scores_kenya_tusome)(df, score_columns)
 
-        pd.testing.assert_series_equal(final_scores, pd.Series([1.0, 0.0, 1.0]))
+        pd.testing.assert_series_equal(
+            final_scores, pd.Series([1.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+        )
+
+    def test_tusome_aggregator_scores_correctly_from_word_and_student_knowledge(self):
+        """The aggregator produces the same result as the scorers + aggregator."""
+        word = "mbwea"
+        student_knowledge = KiswahiliStudentKnowledge(
+            graphemes={"m", "b", "w", "e", "a"},
+            clusters={"mbw"},
+            cluster_patterns={ClusterPattern.PRENASALISED_M},
+            whole_words=set(),
+        )
+        cluster_score = score_known_clusters_and_patterns_kiswahili(
+            word, student_knowledge
+        )
+        scores = {
+            "score_whole_words_kiswahili": score_whole_words_kiswahili(
+                word, student_knowledge
+            ),
+            "score_known_graphemes_kiswahili": score_known_graphemes_kiswahili(
+                word, student_knowledge
+            ),
+            "score_known_clusters_and_patterns_kiswahili": cluster_score,
+        }
+        final_score = aggregate_scores_kenya_tusome(scores)
+        assert final_score == 1.0

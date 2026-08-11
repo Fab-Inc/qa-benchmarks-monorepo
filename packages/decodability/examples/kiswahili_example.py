@@ -58,6 +58,7 @@ JSON_DATA = {
     "language": "kiswahili",
     "scoring_methods": [
         "score_known_graphemes_kiswahili",
+        "score_known_clusters_and_patterns_kiswahili",
         "score_whole_words_kiswahili",
     ],
     "aggregations": {
@@ -71,7 +72,8 @@ JSON_DATA = {
             "params": {
                 "weights": {
                     "score_known_graphemes_kiswahili": 0.5,
-                    "score_whole_words_kiswahili": 0.5,
+                    "score_known_clusters_and_patterns_kiswahili": 0.2,
+                    "score_whole_words_kiswahili": 0.3,
                 }
             },
         },
