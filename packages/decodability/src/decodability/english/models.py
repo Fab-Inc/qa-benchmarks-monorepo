@@ -13,12 +13,12 @@ class EnglishStudentKnowledge(BaseModel):
         cls,
         gpcs: list[tuple[str, tuple[str, ...]]],
     ) -> list[tuple[str, tuple[str, ...]]]:
-        """Check that every GPC is taught in the UPL inventory."""
+        """Check that every GPC is taught in the UFLI inventory."""
         invalid = [g for g in gpcs if tuple(g) not in UFLI_GPC_PAIRS]
         if invalid:
             raise ValueError(
                 f"Not taught GPCs: {invalid}. "
-                "Only GPCs from UFLI_GPC_INVENTORY are allowed."
+                "Only GPCs from UFLI GPC inventory are allowed."
             )
         return gpcs
 

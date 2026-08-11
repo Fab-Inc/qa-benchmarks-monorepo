@@ -11,11 +11,11 @@ GPC_INVENTORY = tuple(
 def score_known_gpcs_english(
     word: str, student_knowledge: EnglishStudentKnowledge
 ) -> float:
-    """Score a word based on whether the student knows all the grapheme - phoneme
-      correspondences in the word.
+    """Score a word based on whether the student can decode it.
 
-    The score is binary: if there's any grapheme that the student doesn't know, the
-    score is 0.
+    The score is 1.0 if at least one valid parse of the word uses only GPCs the
+    student has been taught; 0.0 otherwise. Multiple parses can arise when prefix
+    or suffix GPCs overlap with letter-by-letter GPCs.
     """
     taught_gpcs = student_knowledge.gpcs
 
@@ -28,15 +28,14 @@ def score_known_gpcs_english(
     if not parses:
         return 0.0
 
-    derived_gpc_pairs = [
-        (match.gpc.grapheme, match.gpc.phonemes) for match in parses[0]
-    ]
-
     taught_set = {(g, tuple(p)) for g, p in taught_gpcs}
-    if any(gpc not in taught_set for gpc in derived_gpc_pairs):
-        return 0.0
+    for parse in parses:
+        if all(
+            (match.gpc.grapheme, match.gpc.phonemes) in taught_set for match in parse
+        ):
+            return 1.0
 
-    return 1.0
+    return 0.0
 
 
 def score_whole_words_english(
