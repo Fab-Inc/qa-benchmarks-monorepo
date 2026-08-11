@@ -2,9 +2,8 @@
 
 import pytest
 from decodability.kiswahili import KiswahiliStudentKnowledge
-from phonics_benchmark.config import ConfigError
+from phonics_benchmark.config import DEFAULT_PROMPT_NAME, ConfigError
 from phonics_benchmark.prompts import (
-    DEFAULT_PROMPT_NAME,
     PROMPT_FIELD_BUILDERS,
     _load_prompts,
     build_decodability_prompt,
