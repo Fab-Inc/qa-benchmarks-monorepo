@@ -42,6 +42,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
                 "run_id": "experiment-a",
                 "language": "sw",
                 "items_path": "../items.jsonl",
+                "inputs_dir": "../inputs",
                 "output_dir": "../outputs",
                 "env_path": "../.env",
                 "chunk_size": 50,
@@ -60,6 +61,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
     assert config.language == "sw"
     assert config.task == "decodability"
     assert config.items_path == (tmp_path / "items.jsonl").resolve()
+    assert config.inputs_dir == (tmp_path / "inputs").resolve()
     assert config.output_dir == (tmp_path / "outputs").resolve()
     assert config.env_path == env_path.resolve()
     assert config.chunk_size == 50
@@ -150,6 +152,7 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
             chunk_size=100,
             model_workers=1,
             retry_errors=False,
+            inputs_dir="inputs-a",
         )
     )
     retry = load_run_config(
@@ -158,6 +161,7 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
             chunk_size=1,
             model_workers=4,
             retry_errors=True,
+            inputs_dir="inputs-b",
         )
     )
 
@@ -248,6 +252,8 @@ def test_load_run_config_rejects_invalid_document_shape(
     [
         ({"language": ""}, "language"),
         ({"output_dir": ""}, "output_dir"),
+        ({"inputs_dir": ""}, "inputs_dir"),
+        ({"inputs_dir": 123}, "inputs_dir"),
         ({"env_path": 123}, "env_path"),
         ({"custom_models_path": 123}, "custom_models_path"),
         ({"max_tokens": "100"}, "max_tokens"),

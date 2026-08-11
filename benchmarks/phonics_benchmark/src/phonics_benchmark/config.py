@@ -33,6 +33,7 @@ class BenchmarkRunConfig:
     output_dir: Path
     models: list[str]
     items_path: Path
+    inputs_dir: Path | None = None
     env_path: Path | None = None
     custom_models_path: Path | None = None
     max_tokens: int | None = None
@@ -56,6 +57,7 @@ class BenchmarkRunConfig:
             "output_dir": str(self.output_dir),
             "models": self.models,
             "items_path": str(self.items_path),
+            "inputs_dir": str(self.inputs_dir) if self.inputs_dir else None,
             "env_path": str(self.env_path) if self.env_path else None,
             "custom_models_path": (
                 str(self.custom_models_path) if self.custom_models_path else None
@@ -183,6 +185,7 @@ def build_run_config(
     base_dir: Path,
     task: str,
     items_path: str | Path | None,
+    inputs_dir: str | Path | None = None,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
@@ -201,6 +204,7 @@ def build_run_config(
         "output_dir": str(output_dir),
         "models": models,
         "items_path": str(items_path) if items_path is not None else None,
+        "inputs_dir": str(inputs_dir) if inputs_dir else None,
         "env_path": str(env_path) if env_path else None,
         "custom_models_path": str(custom_models_path) if custom_models_path else None,
         "max_tokens": max_tokens,
@@ -261,6 +265,12 @@ def _parse_run_config(
     if not isinstance(items_path, str) or not items_path.strip():
         raise ConfigError("'items_path' must be a non-empty string")
 
+    inputs_dir = raw_config.get("inputs_dir")
+    if inputs_dir is not None and (
+        not isinstance(inputs_dir, str) or not inputs_dir.strip()
+    ):
+        raise ConfigError("'inputs_dir' must be a non-empty string when provided")
+
     env_path = raw_config.get("env_path")
     if env_path is not None and not isinstance(env_path, str):
         raise ConfigError("'env_path' must be a string when provided")
@@ -309,6 +319,7 @@ def _parse_run_config(
         "output_dir",
         "models",
         "items_path",
+        "inputs_dir",
         "env_path",
         "custom_models_path",
         "max_tokens",
@@ -328,6 +339,7 @@ def _parse_run_config(
         output_dir=_resolve_path(output_dir, base_dir),
         models=models,
         items_path=_resolve_path(items_path, base_dir),
+        inputs_dir=_resolve_path(inputs_dir, base_dir) if inputs_dir else None,
         env_path=_resolve_path(env_path, base_dir) if env_path else None,
         custom_models_path=(
             _resolve_path(custom_models_path, base_dir) if custom_models_path else None

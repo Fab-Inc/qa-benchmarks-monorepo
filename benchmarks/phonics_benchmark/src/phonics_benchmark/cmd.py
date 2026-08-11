@@ -1,9 +1,12 @@
 """Command-line interface for the phonics benchmark."""
 
 import json
+import os
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 from uuid import uuid4
 
@@ -12,6 +15,7 @@ from fab_benchmark_publisher import (
     RunSync,
     RunSyncConflictError,
     download_file,
+    download_file_with_generation,
     parse_gs_uri,
 )
 from google.api_core.exceptions import GoogleAPIError
@@ -23,6 +27,7 @@ from phonics_benchmark.config import (
     DEFAULT_MODEL_WORKERS,
     BenchmarkRunConfig,
     ConfigError,
+    _parse_run_id,
     apply_execution_overrides,
     build_run_config,
     config_identity_sha256,
@@ -70,7 +75,10 @@ def run_decodability_cmd(
         exists=True,
         dir_okay=False,
         readable=True,
-        help="Path to the JSON run config. If omitted, use CLI options.",
+        help=(
+            "Path to the JSON run config. Its items_path may be local or a gs:// "
+            "URI. If omitted, use CLI options."
+        ),
     ),
     run_id: str | None = typer.Option(
         None,
@@ -179,10 +187,7 @@ def run_decodability_cmd(
 
     try:
         if config is not None:
-            run_config = load_run_config(
-                config,
-                task=DECODABILITY_TASK,
-            )
+            run_config = _load_local_run_config(config)
             run_config = apply_execution_overrides(
                 run_config,
                 force=force,
@@ -322,10 +327,11 @@ def run_cloud_cmd(
 def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:
     """Execute locally, or wrap execution in the generation-safe sync lifecycle."""
 
+    run_dir = run_config.output_dir / run_config.run_id
     if run_config.results_dest is None:
+        _validate_resume_snapshot(run_config, run_dir / "config.json")
         return execute_run(run_config)
 
-    run_dir = run_config.output_dir / run_config.run_id
     sync = RunSync(run_dir, run_config.results_dest)
     sync.pull()
     _validate_resume_snapshot(run_config, run_dir / "config.json")
@@ -381,7 +387,7 @@ def _validate_resume_snapshot(
     run_config: BenchmarkRunConfig,
     snapshot_path: Path,
 ) -> None:
-    """Reject a reused remote run prefix whose semantic inputs have changed."""
+    """Reject a reused run whose semantic inputs have changed."""
 
     if not snapshot_path.exists():
         return
@@ -389,10 +395,10 @@ def _validate_resume_snapshot(
         snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise ConfigError(
-            f"Could not read pulled config snapshot {snapshot_path}: {e}"
+            f"Could not read existing config snapshot {snapshot_path}: {e}"
         ) from e
     if not isinstance(snapshot, dict):
-        raise ConfigError(f"Pulled config snapshot {snapshot_path} must be an object")
+        raise ConfigError(f"Existing config snapshot {snapshot_path} must be an object")
 
     # Before the first run, run-cloud's source config occupies this object. The first
     # config-snapshot checkpoint replaces it and all later resumes take this branch.
@@ -402,19 +408,44 @@ def _validate_resume_snapshot(
     expected_config_id = config_identity_sha256(run_config)
     if remote_config_id != expected_config_id:
         raise ConfigError(
-            "Remote run config_id does not match this run config: "
+            "Existing run config_id does not match this run config: "
             f"{remote_config_id!r} != {expected_config_id!r}"
         )
     resolved_config = snapshot.get("resolved_config")
     if not isinstance(resolved_config, dict):
-        raise ConfigError("Remote run config snapshot lacks resolved_config")
+        raise ConfigError("Existing run config snapshot lacks resolved_config")
     remote_items_sha256 = resolved_config.get("items_sha256")
     _items, local_items_sha256 = load_benchmark_items(run_config.items_path)
     if remote_items_sha256 != local_items_sha256:
         raise ConfigError(
-            "Remote run items_sha256 does not match the local items artifact: "
+            "Existing run items_sha256 does not match the local items artifact: "
             f"{remote_items_sha256!r} != {local_items_sha256!r}"
         )
+
+
+def _load_local_run_config(config_path: Path) -> BenchmarkRunConfig:
+    """Load a local config, materializing a GCS items source when configured."""
+
+    source_config_path = config_path.expanduser().resolve()
+    raw_config = _read_config_object(source_config_path, description="config file")
+    items_source_uri = _items_source_uri(raw_config, use_metadata_fallback=False)
+    if items_source_uri is None:
+        return load_run_config(source_config_path, task=DECODABILITY_TASK)
+
+    preliminary_config = load_run_config(
+        source_config_path,
+        task=DECODABILITY_TASK,
+    )
+    inputs_root = (
+        preliminary_config.inputs_dir
+        or (source_config_path.parent / "inputs").resolve()
+    )
+    return _materialize_run_config(
+        raw_config,
+        source_config_path=source_config_path,
+        inputs_dir=inputs_root / preliminary_config.run_id,
+        use_metadata_fallback=False,
+    )
 
 
 def _load_cloud_run_config(
@@ -440,12 +471,10 @@ def _load_cloud_run_config(
         file_name=object_name,
         write_path=downloaded_config_path,
     )
-    try:
-        payload = json.loads(downloaded_config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as e:
-        raise ConfigError(f"Invalid downloaded cloud config: {e}") from e
-    if not isinstance(payload, dict):
-        raise ConfigError("Downloaded cloud config must be a JSON object")
+    payload = _read_config_object(
+        downloaded_config_path,
+        description="downloaded cloud config",
+    )
 
     is_snapshot = "resolved_config" in payload and "raw_config" in payload
     if is_snapshot:
@@ -456,45 +485,146 @@ def _load_cloud_run_config(
     else:
         raw_config = dict(payload)
 
-    metadata_value = raw_config.get("metadata", {})
-    if not isinstance(metadata_value, dict):
-        raise ConfigError("'metadata' must be an object when provided")
-    metadata = dict(metadata_value)
-    configured_items_path = raw_config.get("items_path")
-    items_source_uri = (
-        configured_items_path
-        if isinstance(configured_items_path, str)
-        and configured_items_path.startswith("gs://")
-        else metadata.get("items_source_uri")
-    )
-    if isinstance(items_source_uri, str) and items_source_uri.startswith("gs://"):
-        try:
-            items_bucket, items_object = parse_gs_uri(items_source_uri)
-        except ValueError as e:
-            raise ConfigError(f"Invalid cloud items_path: {e}") from e
-        local_items_path = inputs_dir / "benchmark-items.jsonl"
-        download_file(
-            bucket_name=items_bucket,
-            file_name=items_object,
-            write_path=local_items_path,
-        )
-        raw_config["items_path"] = str(local_items_path)
-        metadata["items_source_uri"] = items_source_uri
-        raw_config["metadata"] = metadata
-
     run_prefix = object_name.rsplit("/", 1)[0] + "/"
     raw_config.setdefault("results_dest", f"gs://{bucket_name}/{run_prefix}")
     if is_snapshot:
         raw_config["output_dir"] = str(workspace / "outputs")
     else:
         raw_config.setdefault("output_dir", str(workspace / "outputs"))
+    raw_config["inputs_dir"] = str(inputs_dir)
     raw_config["custom_models_path"] = str(inputs_dir / CUSTOM_MODELS_FILE_NAME)
+    return _materialize_run_config(
+        raw_config,
+        source_config_path=downloaded_config_path,
+        inputs_dir=inputs_dir / _parse_run_id(raw_config.get("run_id")),
+        use_metadata_fallback=True,
+    )
+
+
+def _materialize_run_config(
+    raw_config: dict[str, Any],
+    *,
+    source_config_path: Path,
+    inputs_dir: Path,
+    use_metadata_fallback: bool,
+) -> BenchmarkRunConfig:
+    """Turn a local or GCS items source into the runner's local-file contract."""
+
+    processed_config = dict(raw_config)
+    snapshot_config = dict(raw_config)
+    _resolve_materialized_config_paths(
+        processed_config,
+        base_dir=source_config_path.parent,
+    )
+    processed_config["inputs_dir"] = str(inputs_dir.parent)
+    items_source_uri = _items_source_uri(
+        raw_config,
+        use_metadata_fallback=use_metadata_fallback,
+    )
+    if items_source_uri is not None:
+        metadata_value = raw_config.get("metadata", {})
+        if not isinstance(metadata_value, dict):
+            raise ConfigError("'metadata' must be an object when provided")
+        metadata = dict(metadata_value)
+        local_items_path = inputs_dir / "benchmark-items.jsonl"
+        generation = _download_items_file(items_source_uri, local_items_path)
+        metadata["items_source_uri"] = items_source_uri
+        metadata["items_source_generation"] = generation
+        processed_config["items_path"] = str(local_items_path)
+        processed_config["metadata"] = metadata
+        snapshot_config["items_path"] = items_source_uri
+        snapshot_config["metadata"] = metadata
+
+    inputs_dir.mkdir(parents=True, exist_ok=True)
     processed_config_path = inputs_dir / "run-config.json"
     processed_config_path.write_text(
-        json.dumps(raw_config, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(processed_config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    return load_run_config(processed_config_path, task=DECODABILITY_TASK)
+    config = load_run_config(processed_config_path, task=DECODABILITY_TASK)
+    return replace(
+        config,
+        raw_config=snapshot_config,
+        config_path=source_config_path,
+    )
+
+
+def _resolve_materialized_config_paths(
+    processed_config: dict[str, Any],
+    *,
+    base_dir: Path,
+) -> None:
+    """Keep relative paths anchored to the source config after materialization."""
+
+    path_values = {
+        "output_dir": processed_config.get("output_dir", "results"),
+        "env_path": processed_config.get("env_path"),
+        "custom_models_path": processed_config.get("custom_models_path"),
+    }
+    for field_name, value in path_values.items():
+        if not isinstance(value, str) or not value.strip():
+            continue
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = base_dir / path
+        processed_config[field_name] = str(path.resolve())
+
+
+def _items_source_uri(
+    raw_config: dict[str, Any],
+    *,
+    use_metadata_fallback: bool,
+) -> str | None:
+    configured_items_path = raw_config.get("items_path")
+    if isinstance(configured_items_path, str) and configured_items_path.startswith(
+        "gs://"
+    ):
+        return configured_items_path
+    if not use_metadata_fallback:
+        return None
+    metadata = raw_config.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ConfigError("'metadata' must be an object when provided")
+    items_source_uri = metadata.get("items_source_uri")
+    if isinstance(items_source_uri, str) and items_source_uri.startswith("gs://"):
+        return items_source_uri
+    return None
+
+
+def _download_items_file(items_source_uri: str, destination: Path) -> int:
+    try:
+        bucket_name, object_name = parse_gs_uri(items_source_uri)
+    except ValueError as e:
+        raise ConfigError(f"Invalid cloud items_path: {e}") from e
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as temporary_file:
+        temporary_path = Path(temporary_file.name)
+    try:
+        generation = download_file_with_generation(
+            bucket_name=bucket_name,
+            file_name=object_name,
+            write_path=temporary_path,
+        )
+        os.replace(temporary_path, destination)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+    return generation
+
+
+def _read_config_object(path: Path, *, description: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"Invalid JSON in {description}: {e}") from e
+    if not isinstance(payload, dict):
+        raise ConfigError(f"{description.capitalize()} must be a JSON object")
+    return payload
 
 
 def _timestamp_run_id() -> str:

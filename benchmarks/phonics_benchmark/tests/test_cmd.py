@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from phonics_benchmark.cmd import _timestamp_run_id, app
+from phonics_benchmark.cmd import _load_local_run_config, _timestamp_run_id, app
 from phonics_benchmark.config import ConfigError
 from typer.testing import CliRunner
 
@@ -68,8 +68,125 @@ def test_run_decodability_command_uses_config(
     run_config = run.call_args.args[0]
     assert run_config.models == ["model-a"]
     assert run_config.items_path == (tmp_path / "items.jsonl").resolve()
+    assert run_config.inputs_dir is None
+    assert not (tmp_path / "inputs").exists()
     assert "Run ID: experiment-a" in result.stdout
     assert "Results:" in result.stdout
+
+
+def test_run_decodability_materializes_gcs_items_with_local_results(
+    runner: CliRunner,
+    tmp_path: Path,
+) -> None:
+    """A local config can read GCS inputs without enabling result uploads."""
+
+    items_uri = "gs://phonics-benchmark/phonics/datasets/items-v1.jsonl"
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "sw",
+                "items_path": items_uri,
+                "output_dir": "outputs",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = _run_output(tmp_path / "outputs", "experiment-a", total=1)
+
+    def fake_download(**kwargs) -> int:
+        Path(kwargs["write_path"]).write_text(
+            json.dumps(
+                {
+                    "benchmark_item_id": "item-1",
+                    "content": "Mama.",
+                    "student_knowledge": {"graphemes": ["m", "a"]},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return 42
+
+    with (
+        patch(
+            "phonics_benchmark.cmd.download_file_with_generation",
+            side_effect=fake_download,
+        ) as download_items,
+        patch("phonics_benchmark.cmd.download_default_custom_models"),
+        patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
+    ):
+        result = runner.invoke(
+            app,
+            ["run-decodability", "--config", str(config_path)],
+        )
+
+    assert result.exit_code == 0
+    call = download_items.call_args.kwargs
+    assert (call["bucket_name"], call["file_name"]) == (
+        "phonics-benchmark",
+        "phonics/datasets/items-v1.jsonl",
+    )
+    run_config = run.call_args.args[0]
+    assert run_config.items_path.read_text(encoding="utf-8").endswith("\n")
+    assert run_config.output_dir == (tmp_path / "outputs").resolve()
+    assert run_config.items_path == (
+        tmp_path / "inputs" / "experiment-a" / "benchmark-items.jsonl"
+    )
+    assert not run_config.items_path.is_relative_to(
+        tmp_path / "outputs" / "experiment-a"
+    )
+    assert run_config.inputs_dir == tmp_path / "inputs"
+    assert run_config.results_dest is None
+    assert run_config.metadata == {
+        "items_source_uri": items_uri,
+        "items_source_generation": 42,
+    }
+    assert run_config.raw_config["items_path"] == items_uri
+    assert run_config.config_path == config_path
+
+
+def test_gcs_items_honor_configured_inputs_directory(tmp_path: Path) -> None:
+    config_path = tmp_path / "run.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "run_id": "experiment-a",
+                "language": "sw",
+                "items_path": "gs://datasets/items.jsonl",
+                "inputs_dir": "downloaded-inputs",
+                "env_path": "secrets/.env",
+                "custom_models_path": "models/custom_models.yaml",
+                "models": ["model-a"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_download(**kwargs) -> int:
+        Path(kwargs["write_path"]).write_text("items\n", encoding="utf-8")
+        return 7
+
+    with patch(
+        "phonics_benchmark.cmd.download_file_with_generation",
+        side_effect=fake_download,
+    ):
+        config = _load_local_run_config(config_path)
+
+    assert config.inputs_dir == (tmp_path / "downloaded-inputs").resolve()
+    assert config.output_dir == (tmp_path / "results").resolve()
+    assert config.env_path == (tmp_path / "secrets/.env").resolve()
+    assert (
+        config.custom_models_path == (tmp_path / "models/custom_models.yaml").resolve()
+    )
+    assert (
+        config.items_path
+        == (
+            tmp_path / "downloaded-inputs" / "experiment-a" / "benchmark-items.jsonl"
+        ).resolve()
+    )
 
 
 def test_run_decodability_command_fails_when_calls_have_errors(

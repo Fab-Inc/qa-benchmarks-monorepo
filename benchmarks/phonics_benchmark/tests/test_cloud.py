@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 from fab_benchmark_publisher import RunSyncConflictError
 from phonics_benchmark.cmd import (
+    _download_items_file,
     _execute_with_optional_sync,
     _load_cloud_run_config,
     _validate_resume_snapshot,
@@ -264,6 +265,31 @@ def test_resume_guard_accepts_initial_raw_config(tmp_path: Path) -> None:
     _validate_resume_snapshot(config, raw_config_path)
 
 
+def test_local_execution_rejects_changed_items_from_existing_snapshot(
+    tmp_path: Path,
+) -> None:
+    config = replace(_build_config(tmp_path), results_dest=None)
+    snapshot_path = config.output_dir / config.run_id / "config.json"
+    snapshot_path.parent.mkdir(parents=True)
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "config_id": config_identity_sha256(config),
+                "resolved_config": {"items_sha256": "previous-items"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("phonics_benchmark.cmd.execute_run") as execute,
+        pytest.raises(ConfigError, match="items_sha256"),
+    ):
+        _execute_with_optional_sync(config)
+
+    execute.assert_not_called()
+
+
 @pytest.mark.parametrize("as_snapshot", [False, True])
 def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
     tmp_path: Path,
@@ -290,7 +316,7 @@ def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
         else raw_config
     )
 
-    def fake_download(
+    def fake_config_download(
         *,
         bucket_name: str,
         file_name: str,
@@ -299,17 +325,33 @@ def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
     ) -> None:
         assert require_auth is True
         destination = Path(write_path)
-        if bucket_name == "results":
-            assert file_name == "phonics/runs/experiment-a/config.json"
-            destination.write_text(json.dumps(payload), encoding="utf-8")
-        else:
-            assert (bucket_name, file_name) == (
-                "datasets",
-                "phonics/items.jsonl",
-            )
-            destination.write_text(_item_jsonl(), encoding="utf-8")
+        assert bucket_name == "results"
+        assert file_name == "phonics/runs/experiment-a/config.json"
+        destination.write_text(json.dumps(payload), encoding="utf-8")
 
-    with patch("phonics_benchmark.cmd.download_file", side_effect=fake_download):
+    def fake_items_download(
+        *,
+        bucket_name: str,
+        file_name: str,
+        write_path: Path,
+    ) -> int:
+        assert (bucket_name, file_name) == (
+            "datasets",
+            "phonics/items.jsonl",
+        )
+        Path(write_path).write_text(_item_jsonl(), encoding="utf-8")
+        return 17
+
+    with (
+        patch(
+            "phonics_benchmark.cmd.download_file",
+            side_effect=fake_config_download,
+        ),
+        patch(
+            "phonics_benchmark.cmd.download_file_with_generation",
+            side_effect=fake_items_download,
+        ),
+    ):
         config = _load_cloud_run_config(
             "gs://results/phonics/runs/experiment-a/config.json",
             workdir=tmp_path,
@@ -317,12 +359,44 @@ def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
 
     assert config.items_path.read_text(encoding="utf-8") == _item_jsonl()
     assert config.output_dir == (tmp_path / "outputs").resolve()
+    assert config.inputs_dir == (tmp_path / "inputs").resolve()
+    assert (
+        config.items_path
+        == (tmp_path / "inputs" / "experiment-a" / "benchmark-items.jsonl").resolve()
+    )
     assert (
         config.custom_models_path
         == (tmp_path / "inputs" / "custom_models.yaml").resolve()
     )
     assert config.results_dest == "gs://results/phonics/runs/experiment-a/"
     assert config.metadata["items_source_uri"] == ("gs://datasets/phonics/items.jsonl")
+    assert config.metadata["items_source_generation"] == 17
+    assert config.raw_config["items_path"] == "gs://datasets/phonics/items.jsonl"
+
+
+def test_items_download_is_atomic_on_failure(tmp_path: Path) -> None:
+    destination = tmp_path / "inputs" / "benchmark-items.jsonl"
+    destination.parent.mkdir()
+    destination.write_text("existing\n", encoding="utf-8")
+
+    def fail_after_partial_download(**kwargs) -> int:
+        Path(kwargs["write_path"]).write_text("partial", encoding="utf-8")
+        raise RuntimeError("download interrupted")
+
+    with (
+        patch(
+            "phonics_benchmark.cmd.download_file_with_generation",
+            side_effect=fail_after_partial_download,
+        ),
+        pytest.raises(RuntimeError, match="interrupted"),
+    ):
+        _download_items_file(
+            "gs://datasets/phonics/items.jsonl",
+            destination,
+        )
+
+    assert destination.read_text(encoding="utf-8") == "existing\n"
+    assert list(destination.parent.iterdir()) == [destination]
 
 
 def test_fetch_results_command_filters_to_one_model_file(tmp_path: Path) -> None:
