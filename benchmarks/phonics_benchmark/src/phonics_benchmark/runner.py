@@ -41,7 +41,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
-from phonics_benchmark.prompts import DEFAULT_PROMPT_NAME, build_decodability_prompt
+from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import load_results, save_results
 
 CALL_STATUS_ERROR = "error"
@@ -130,7 +130,9 @@ def run_benchmark(
     custom_models_path = _resolve_custom_models_path(config.custom_models_path)
     code_git_hash = git_hash()
     items, items_sha256 = load_benchmark_items(config.items_path)
-    prepared_items = _prepare_items(items, language=config.language)
+    prepared_items = _prepare_items(
+        items, language=config.language, prompt_name=config.prompt_name
+    )
     provider_groups = _provider_groups_for_models(custom_models_path, config.models)
     resolved_config = config.to_resolved_dict()
     resolved_config["custom_models_path"] = str(custom_models_path)
@@ -203,14 +205,14 @@ def _prepare_items(
     items: list[dict[str, Any]],
     *,
     language: str,
+    prompt_name: str,
 ) -> list[_PreparedItem]:
     """Validate and render every item before any model execution starts."""
 
     return [
         {
             "item": item,
-            # TODO: take the prompt name from the run config (config.prompt_name).
-            "prompt": build_decodability_prompt(DEFAULT_PROMPT_NAME, item, language),
+            "prompt": build_decodability_prompt(prompt_name, item, language),
         }
         for item in items
     ]
@@ -564,6 +566,7 @@ def _evaluate_item(
         "config_snapshot_path": str(config_snapshot_path),
         "language": config.language,
         "task": config.task,
+        "prompt_name": config.prompt_name,
         "model": model_name,
         "model_call_id": model_call_id,
         "benchmark_item_id": item["benchmark_item_id"],

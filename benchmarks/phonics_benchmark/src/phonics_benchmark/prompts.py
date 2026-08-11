@@ -10,8 +10,6 @@ from pydantic import ValidationError
 from phonics_benchmark.config import ConfigError
 from phonics_benchmark.labeling import get_grapheme_breakdown, get_valid_knowledge_str
 
-DEFAULT_PROMPT_NAME = "decodability_evaluation"
-
 
 @cache
 def _load_prompts() -> dict[str, str]:
@@ -56,7 +54,7 @@ def _valid_graphemes_fields(item: Mapping[str, Any], language: str) -> dict[str,
 PromptFieldBuilder = Callable[[Mapping[str, Any], str], dict[str, Any]]
 
 PROMPT_FIELD_BUILDERS: dict[str, PromptFieldBuilder] = {
-    DEFAULT_PROMPT_NAME: _baseline_fields,
+    "decodability_evaluation": _baseline_fields,
     "decodability_evaluation_grapheme_breakdown": _grapheme_breakdown_fields,
     "decodability_evaluation_valid_graphemes": _valid_graphemes_fields,
 }
