@@ -7,11 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 from phonics_benchmark import llm
-from phonics_benchmark.prompts import build_decodability_prompt
+from phonics_benchmark.prompts import DEFAULT_PROMPT_NAME, build_decodability_prompt
 
 
 def _prompt_for(item: dict[str, Any]) -> str:
     return build_decodability_prompt(
+        DEFAULT_PROMPT_NAME,
         {
             "benchmark_item_id": item["benchmark_item_id"],
             "content": item["content"],

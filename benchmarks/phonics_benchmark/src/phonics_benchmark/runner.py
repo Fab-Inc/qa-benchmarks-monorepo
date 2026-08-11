@@ -41,7 +41,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
-from phonics_benchmark.prompts import build_decodability_prompt
+from phonics_benchmark.prompts import DEFAULT_PROMPT_NAME, build_decodability_prompt
 from phonics_benchmark.results import load_results, save_results
 
 CALL_STATUS_ERROR = "error"
@@ -209,7 +209,8 @@ def _prepare_items(
     return [
         {
             "item": item,
-            "prompt": build_decodability_prompt(item, language),
+            # TODO: take the prompt name from the run config (config.prompt_name).
+            "prompt": build_decodability_prompt(DEFAULT_PROMPT_NAME, item, language),
         }
         for item in items
     ]
