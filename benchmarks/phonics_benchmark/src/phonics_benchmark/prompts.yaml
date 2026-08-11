@@ -74,7 +74,7 @@ decodability_evaluation_grapheme_breakdown: >-
 
   TEXT
 
-  {text}
+  {grapheme_breakdown}
 
 
   TASK

@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import cache
 from importlib.resources import files
 from typing import Any
@@ -8,6 +8,9 @@ from decodability import DECODABILITY_REGISTRY
 from pydantic import ValidationError
 
 from phonics_benchmark.config import ConfigError
+from phonics_benchmark.labeling import get_grapheme_breakdown, get_valid_knowledge_str
+
+DEFAULT_PROMPT_NAME = "decodability_evaluation"
 
 
 @cache
@@ -31,11 +34,48 @@ def get_prompt(name: str, **kwargs: object) -> str:
     return template.format(**kwargs)
 
 
+def _baseline_fields(item: Mapping[str, Any], language: str) -> dict[str, Any]:
+    return {"text": item["content"]}
+
+
+def _grapheme_breakdown_fields(
+    item: Mapping[str, Any], language: str
+) -> dict[str, Any]:
+    return {
+        "grapheme_breakdown": get_grapheme_breakdown(item["content"], language),
+    }
+
+
+def _valid_graphemes_fields(item: Mapping[str, Any], language: str) -> dict[str, Any]:
+    return {
+        "text": item["content"],
+        "valid_knowledge": get_valid_knowledge_str(language),
+    }
+
+
+PromptFieldBuilder = Callable[[Mapping[str, Any], str], dict[str, Any]]
+
+PROMPT_FIELD_BUILDERS: dict[str, PromptFieldBuilder] = {
+    DEFAULT_PROMPT_NAME: _baseline_fields,
+    "decodability_evaluation_grapheme_breakdown": _grapheme_breakdown_fields,
+    "decodability_evaluation_valid_graphemes": _valid_graphemes_fields,
+}
+
+
 def build_decodability_prompt(
+    prompt_name: str,
     item: Mapping[str, Any],
     language: str,
 ) -> str:
     """Validate language-specific knowledge and render one benchmark prompt."""
+
+    try:
+        build_fields = PROMPT_FIELD_BUILDERS[prompt_name]
+    except KeyError:
+        raise ConfigError(
+            f"Unknown prompt '{prompt_name}'; available: "
+            f"{sorted(PROMPT_FIELD_BUILDERS)}"
+        ) from None
 
     try:
         language_integration = DECODABILITY_REGISTRY[language]
@@ -56,8 +96,8 @@ def build_decodability_prompt(
         ) from e
 
     return get_prompt(
-        "decodability_evaluation",
+        prompt_name,
         language=language_integration["name"],
-        text=item["content"],
         student_knowledge=student_knowledge,
+        **build_fields(item, language),
     )
