@@ -173,7 +173,7 @@ def run_benchmark(
 
     Args:
         model_name: Model name (must match key in EVAL_MODELS / custom_models.yaml)
-        language_name: Display name of the language (e.g. "Luganda", "Yoruba"),
+        language_name: Display name of the language (e.g. "Kiswahili", "Yoruba"),
             interpolated into the system prompts.
         dataset_path: Path to the dataset JSON file.
         force: Force re-run even if cached results exist
@@ -186,7 +186,8 @@ def run_benchmark(
             cache/<language>/runs/<run_id>/responses)
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
-        output, latency, total_tokens, completion_tokens, reasoning_tokens
+        output, latency, total_tokens, completion_tokens, reasoning_tokens,
+        call_status, error_type, error_message, retry_count
     """
     if output_dir is None:
         output_dir = _responses_dir(language_name, run_id)

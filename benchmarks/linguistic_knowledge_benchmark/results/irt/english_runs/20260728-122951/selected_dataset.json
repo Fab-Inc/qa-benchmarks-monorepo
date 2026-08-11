@@ -1,0 +1,3645 @@
+[
+  {
+    "question_id": 1,
+    "domain": "D1",
+    "subdomain": "letter-sound correspondence",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 't' and 'h' NOT spell one single sound?",
+    "options": {
+      "A": "anthill",
+      "B": "python",
+      "C": "thimble",
+      "D": "feather"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Letter groups for one sound",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.82:Literacy - Children in reception will be learning to:",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 2,
+    "domain": "D1",
+    "subdomain": "common exception words",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ai' spell the vowel sound heard in 'bed'?",
+    "options": {
+      "A": "snail",
+      "B": "said",
+      "C": "stain",
+      "D": "sail"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Words with unusual correspondences",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.82:Literacy - Children in reception will be learning to:",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 3,
+    "domain": "D1",
+    "subdomain": "one grapheme, several pronunciations",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the grapheme 'ea' spell the same vowel sound as it does in 'break'?",
+    "options": {
+      "A": "real",
+      "B": "dream",
+      "C": "great",
+      "D": "thread"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "ea spells three phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.40:Section 3 - Graphemes",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.142:Teaching alternative pronunciations for graphemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 4,
+    "domain": "D1",
+    "subdomain": "one letter, two phonemes",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes does the single letter x represent in the word 'fox'?",
+    "expected_answers": [
+      "2",
+      "two"
+    ],
+    "linguistic_feature": "The letter x",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.40:Section 3 - Graphemes",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.80:Phase Three - Summary / Letters (footnote on x and qu)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 5,
+    "domain": "D1",
+    "subdomain": "two-letter graphemes",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words do the final two letters together spell one single phoneme?",
+    "options": {
+      "A": "park",
+      "B": "ask",
+      "C": "milk",
+      "D": "pick"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "ck as a single grapheme",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.87:Introducing and teaching two-letter and three-letter GPCs",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 6,
+    "domain": "D1",
+    "subdomain": "consonant digraphs",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes are there in the word 'shop'?",
+    "expected_answers": [
+      "3",
+      "three"
+    ],
+    "linguistic_feature": "Digraph sh",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.87:Introducing and teaching two-letter and three-letter GPCs",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 8,
+    "domain": "D1",
+    "subdomain": "syllable division for decoding",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which line shows the correct division of the word 'magnet' into its two syllables?",
+    "options": {
+      "A": "mag/net",
+      "B": "ma/gnet",
+      "C": "magn/et",
+      "D": "m/agnet"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Splitting two-syllable words",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.100:Teaching reading and spelling two-syllable words",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 9,
+    "domain": "D1",
+    "subdomain": "many spellings for one phoneme",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word is the long o sound spelt with a four-letter grapheme?",
+    "options": {
+      "A": "stone",
+      "B": "though",
+      "C": "toes",
+      "D": "throw"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Alternative spellings of /oe/",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.42-43:Summary tables English alphabetic code",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 10,
+    "domain": "D1",
+    "subdomain": "short vowel spellings",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the letter 'i' spell a vowel sound other than the short one heard in 'pin'?",
+    "options": {
+      "A": "tint",
+      "B": "lint",
+      "C": "pint",
+      "D": "mint"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Letter i spells short /ɪ/",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 1 table",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 11,
+    "domain": "D1",
+    "subdomain": "split digraphs",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the split digraph u–e spell /juː/ rather than /uː/?",
+    "options": {
+      "A": "rude",
+      "B": "June",
+      "C": "rule",
+      "D": "tune"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "u–e spells /uː/ and /juː/",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.42-43:Vowel digraphs and trigraphs",
+        "tier": "curriculum"
+      },
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 14,
+    "domain": "D1",
+    "subdomain": "doubling after a short vowel",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which word is an exception to the usual doubling of a final consonant letter after a single short vowel?",
+    "options": {
+      "A": "bus",
+      "B": "huff",
+      "C": "mess",
+      "D": "bell"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Exceptions to the doubling rule",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.40-44:Spelling – work for year 1",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 15,
+    "domain": "D1",
+    "subdomain": "nasal spellings",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the letter 'n' spell the sound heard at the end of 'sing'?",
+    "options": {
+      "A": "hand",
+      "B": "honk",
+      "C": "bend",
+      "D": "hunt"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "/ŋ/ spelt n before k",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.40-44:Spelling – work for year 1",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 17,
+    "domain": "D1",
+    "subdomain": "affricate spellings",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which word spells its final sound with 'ch' rather than 'tch'?",
+    "options": {
+      "A": "hutch",
+      "B": "notch",
+      "C": "much",
+      "D": "fetch"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Exceptions to the tch rule",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.40-44:Spelling – work for year 1",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 18,
+    "domain": "D1",
+    "subdomain": "positional spelling constraints",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which letter pair is virtually never used at the end of an English word?",
+    "options": {
+      "A": "oy",
+      "B": "ey",
+      "C": "ay",
+      "D": "ai"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "ai and oi are not word-final",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.42-43:Vowel digraphs and trigraphs",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 19,
+    "domain": "D1",
+    "subdomain": "positional spelling constraints",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The sound /k/ is spelt with 'k' rather than 'c' before which set of letters?",
+    "options": {
+      "A": "e, i, y",
+      "B": "h, n, t",
+      "C": "a, o, u",
+      "D": "l, r, w"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "k rather than c before e, i, y",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.40-44:Spelling – work for year 1",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 23,
+    "domain": "D1",
+    "subdomain": "orthographic constraints",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "Write the correct spelling of the verb meaning 'to hand something over freely', which ends with the /v/ sound.",
+    "expected_answers": [
+      "give"
+    ],
+    "linguistic_feature": "No word-final v",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.193:Knowledge of the spelling system - Some useful spelling guidelines",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 24,
+    "domain": "D1",
+    "subdomain": "positional spelling constraints",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which spelling of the /eɪ/ sound is the one used at the end of an English word?",
+    "options": {
+      "A": "a-e",
+      "B": "eigh",
+      "C": "ai",
+      "D": "ay"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "ay and oy word-finally",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.150:Teaching alternative spellings for phonemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 25,
+    "domain": "D1",
+    "subdomain": "many spellings for one phoneme",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which of these spellings of the /eɪ/ sound occurs in the fewest English words?",
+    "options": {
+      "A": "aigh",
+      "B": "ea",
+      "C": "a-e",
+      "D": "ay"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Spellings of /ai/ ranked by frequency",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.150:Teaching alternative spellings for phonemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 27,
+    "domain": "D1",
+    "subdomain": "long vowel digraphs",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word is the long o sound spelt with a vowel digraph rather than a split digraph?",
+    "options": {
+      "A": "home",
+      "B": "note",
+      "C": "goat",
+      "D": "robe"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "oa spells the long o sound",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1: Mark schemes and content domain references for Paper 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 28,
+    "domain": "D1",
+    "subdomain": "one grapheme, several pronunciations",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ow' spell the same vowel sound as in 'cow'?",
+    "options": {
+      "A": "snow",
+      "B": "blow",
+      "C": "grown",
+      "D": "brown"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "A grapheme can have more than one pronunciation",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.1:Pronunciation of real words and pseudo-words",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 29,
+    "domain": "D1",
+    "subdomain": "word-final y",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words does the final letter y spell a vowel sound other than /aɪ/?",
+    "options": {
+      "A": "lady",
+      "B": "fry",
+      "C": "July",
+      "D": "reply"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Words ending in -y",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1: Mark schemes and content domain references for Paper 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 33,
+    "domain": "D1",
+    "subdomain": "r-coloured vowel spellings",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains a different vowel sound from the other three?",
+    "options": {
+      "A": "bury",
+      "B": "hurt",
+      "C": "curl",
+      "D": "burst"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "ur spells /ɜː/",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 2",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 38,
+    "domain": "D1",
+    "subdomain": "soft c",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the letter 'c' spell /s/?",
+    "options": {
+      "A": "cactus",
+      "B": "carrot",
+      "C": "fancy",
+      "D": "candle"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "c spells /s/ before e, i, y",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 42,
+    "domain": "D1",
+    "subdomain": "word-final syllabic l",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the word for the thin writing tool whose marks can be rubbed out.",
+    "expected_answers": [
+      "pencil"
+    ],
+    "linguistic_feature": "Few words end in –il",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 45,
+    "domain": "D1",
+    "subdomain": "vowel spellings after w and l",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the word meaning to travel on foot at an ordinary pace.",
+    "expected_answers": [
+      "walk"
+    ],
+    "linguistic_feature": "/ɔː/ spelt a before l and ll",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 46,
+    "domain": "D1",
+    "subdomain": "vowel spellings after w",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains the same vowel sound as 'for'?",
+    "options": {
+      "A": "worm",
+      "B": "worse",
+      "C": "word",
+      "D": "warm"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "/ɔː/ after w spelt ar",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 47,
+    "domain": "D1",
+    "subdomain": "suffix spellings",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the noun formed from the verb 'act'.",
+    "expected_answers": [
+      "action"
+    ],
+    "linguistic_feature": "/ʃən/ spelt –tion",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 49,
+    "domain": "D1",
+    "subdomain": "silent letters",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the correct spelling of the word meaning 'not right or not correct', which begins with the /r/ sound.",
+    "expected_answers": [
+      "wrong"
+    ],
+    "linguistic_feature": "Initial /r/ spelt wr",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 51,
+    "domain": "D1",
+    "subdomain": "vowel spellings after w",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words does the letter a spell the /ɒ/ sound heard in 'hot'?",
+    "options": {
+      "A": "wasp",
+      "B": "camp",
+      "C": "match",
+      "D": "sand"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "/ɒ/ after w and qu spelt a",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.193:Knowledge of the spelling system - Some useful spelling guidelines",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 53,
+    "domain": "D1",
+    "subdomain": "comma use",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "In standard British punctuation, how many commas are needed in the sentence 'She packed apples oranges and pears'?",
+    "expected_answers": [
+      "1",
+      "one"
+    ],
+    "linguistic_feature": "Commas in a list",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:pp11-13:8. Mark schemes for Paper 2: questions (Qu.2, 6, 8, 10, 15)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 55,
+    "domain": "D1",
+    "subdomain": "sentence-final punctuation",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which of these word strings should be completed with an exclamation mark rather than a question mark?",
+    "options": {
+      "A": "How many are left",
+      "B": "How far did you jump",
+      "C": "How cold it is in here",
+      "D": "How do you spell it"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Exclamation mark",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:pp11-13:8. Mark schemes for Paper 2: questions (Qu.2, 6, 8, 10, 15)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 56,
+    "domain": "D1",
+    "subdomain": "capitalisation",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which pronoun is written with a capital letter wherever it appears in a sentence?",
+    "options": {
+      "A": "we",
+      "B": "he",
+      "C": "you",
+      "D": "I"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Capital I",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:pp11-13:8. Mark schemes for Paper 2: questions (Qu.2, 6, 8, 10, 15)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 57,
+    "domain": "D1",
+    "subdomain": "short vowel spellings",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words does the letter o spell the /ʌ/ sound?",
+    "options": {
+      "A": "mother",
+      "B": "modern",
+      "C": "molten",
+      "D": "moment"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "o spelling /ʌ/",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 59,
+    "domain": "D1",
+    "subdomain": "suffix addition: consonant doubling",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the form of the verb 'begin' that is used after 'is'.",
+    "expected_answers": [
+      "beginning"
+    ],
+    "linguistic_feature": "Doubling only when the last syllable is stressed",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 62,
+    "domain": "D1",
+    "subdomain": "prefix assimilation",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the adjective meaning 'not legal'.",
+    "expected_answers": [
+      "illegal"
+    ],
+    "linguistic_feature": "in– becomes il– before l",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 66,
+    "domain": "D1",
+    "subdomain": "suffix spellings",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the word for a living being, especially an animal.",
+    "expected_answers": [
+      "creature"
+    ],
+    "linguistic_feature": "/tʃə/ ending spelt –ture",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 70,
+    "domain": "D1",
+    "subdomain": "etymological spellings",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ch' spell /k/?",
+    "options": {
+      "A": "charity",
+      "B": "chorus",
+      "C": "cheddar",
+      "D": "cherish"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "/k/ spelt ch in Greek words",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 71,
+    "domain": "D1",
+    "subdomain": "etymological spellings",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ch' spell /ʃ/?",
+    "options": {
+      "A": "chicken",
+      "B": "mischief",
+      "C": "machine",
+      "D": "chuckle"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "/ʃ/ spelt ch in French words",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 72,
+    "domain": "D1",
+    "subdomain": "etymological spellings",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the adjective meaning 'being the only one of its kind'.",
+    "expected_answers": [
+      "unique"
+    ],
+    "linguistic_feature": "–gue and –que endings",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 75,
+    "domain": "D1",
+    "subdomain": "statutory word lists",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the word meaning 'set apart, not joined to anything else'.",
+    "expected_answers": [
+      "separate"
+    ],
+    "linguistic_feature": "Years 3 and 4 word list",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.54:Word list – years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 79,
+    "domain": "D1",
+    "subdomain": "morphemes in word reading",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "How many morphemes does the word 'unkindly' contain?",
+    "expected_answers": [
+      "3",
+      "three"
+    ],
+    "linguistic_feature": "Morphemes support reading beyond decoding",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.63:Continuing to develop fluency once pupils can decode",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 80,
+    "domain": "D1",
+    "subdomain": "direct speech punctuation",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which sentence is punctuated correctly?",
+    "options": {
+      "A": "The teacher said \"sit down\".",
+      "B": "The teacher said \"Sit down.\"",
+      "C": "The teacher said, \"sit down\".",
+      "D": "The teacher said, \"Sit down.\""
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Punctuating direct speech fully",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.67:Year 4 – Punctuation",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 90,
+    "domain": "D1",
+    "subdomain": "hyphenation",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which spelling follows the guidance for joining a prefix ending in a vowel letter to a root beginning with a vowel letter?",
+    "options": {
+      "A": "re enter",
+      "B": "re'enter",
+      "C": "reenter",
+      "D": "re-enter"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Hyphen after a prefix before a vowel",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.56-60:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 92,
+    "domain": "D1",
+    "subdomain": "i before e",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word breaks the rule that 'i' comes before 'e' except after 'c'?",
+    "options": {
+      "A": "seize",
+      "B": "shield",
+      "C": "relief",
+      "D": "thief"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Exceptions to the i-before-e rule",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.56-60:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 93,
+    "domain": "D1",
+    "subdomain": "one grapheme, several pronunciations",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ough' spell the same sound as in 'though'?",
+    "options": {
+      "A": "cough",
+      "B": "dough",
+      "C": "rough",
+      "D": "bough"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "ough has many pronunciations",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.56-60:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 94,
+    "domain": "D1",
+    "subdomain": "silent letters",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains a letter that is not pronounced?",
+    "options": {
+      "A": "saloon",
+      "B": "sermon",
+      "C": "solemn",
+      "D": "summit"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Words with unpredictable silent letters",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.56-60:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 97,
+    "domain": "D1",
+    "subdomain": "y as a vowel letter",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "Write the correct spelling of the noun meaning 'a clear, glass-like mineral with a regular shape'.",
+    "expected_answers": [
+      "crystal"
+    ],
+    "linguistic_feature": "/i/ spelt y inside a word",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 98,
+    "domain": "D1",
+    "subdomain": "parenthesis punctuation",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In 'Pepper a black cat from York hid in the shed', where should the opening bracket be placed to mark the parenthesis?",
+    "options": {
+      "A": "before 'the'",
+      "B": "before 'Pepper'",
+      "C": "before 'hid'",
+      "D": "before 'a'"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Brackets mark a parenthesis",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p9:5. Mark schemes Qu.4",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 99,
+    "domain": "D1",
+    "subdomain": "parenthesis punctuation",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "A pair of commas is needed in 'She decided although she was tired that she would go'. Where does the second comma belong?",
+    "options": {
+      "A": "after 'tired'",
+      "B": "after 'would'",
+      "C": "after 'go'",
+      "D": "after 'decided'"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Paired commas mark an embedded clause",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p11:5. Mark schemes Qu.12, Qu.14",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 100,
+    "domain": "D1",
+    "subdomain": "parenthesis punctuation",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "How many dashes are needed to mark off the phrase 'my youngest sister' inside the sentence 'Flo my youngest sister is in year three'?",
+    "expected_answers": [
+      "2",
+      "two"
+    ],
+    "linguistic_feature": "Paired dashes mark a parenthesis",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p11:5. Mark schemes Qu.12, Qu.14",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 101,
+    "domain": "D1",
+    "subdomain": "semi-colon use",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which mark belongs in the gap in 'It's raining ___ I'm fed up.' if no joining word is used?",
+    "options": {
+      "A": "apostrophe",
+      "B": "semi-colon",
+      "C": "hyphen",
+      "D": "comma"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Semi-colon between independent clauses",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.69:Year 6 – Punctuation",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 103,
+    "domain": "D1",
+    "subdomain": "colon use",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which mark should follow 'three things' in 'Plants cannot live without these three things ___ light, water and nutrients'?",
+    "options": {
+      "A": "hyphen",
+      "B": "comma",
+      "C": "apostrophe",
+      "D": "colon"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Colon introduces a list",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p13:5. Mark schemes Qu.27",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 104,
+    "domain": "D1",
+    "subdomain": "dash use",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which single mark can introduce the final comment in 'I ate all the grapes ___ they were delicious'?",
+    "options": {
+      "A": "dash",
+      "B": "apostrophe",
+      "C": "hyphen",
+      "D": "comma"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Dash introduces a final comment",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p14:5. Mark schemes Qu.30, Qu.35",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 105,
+    "domain": "D2",
+    "subdomain": "rhyme",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which word rhymes with 'through'?",
+    "options": {
+      "A": "rough",
+      "B": "flew",
+      "C": "dough",
+      "D": "bough"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Rhyming words share their end sound",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.79:Literacy - 3 and 4-year-olds will be learning to:",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 106,
+    "domain": "D2",
+    "subdomain": "alliteration",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which word begins with the same sound as 'city'?",
+    "options": {
+      "A": "kite",
+      "B": "chip",
+      "C": "sun",
+      "D": "cot"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Alliterative words share their initial sound",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.79:Literacy - 3 and 4-year-olds will be learning to:",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 108,
+    "domain": "D2",
+    "subdomain": "rhyme",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words rhymes with 'said'?",
+    "options": {
+      "A": "bread",
+      "B": "side",
+      "C": "seed",
+      "D": "paid"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Rhyming words share their end sound",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.30:Aspect 4 Rhythm and rhyme - Rhyming soup / Playing with words",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "The_reading_framework_.pdf:p.161:Appendix 12 Glossary - rhyme",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 110,
+    "domain": "D2",
+    "subdomain": "syllable structure",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many syllables are there in the word 'umbrella'?",
+    "expected_answers": [
+      "3",
+      "three"
+    ],
+    "linguistic_feature": "Counting syllables",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.30:Aspect 4 Rhythm and rhyme - Rhyming soup / Playing with words",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.182:Teaching spelling long words - Clap and count",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 111,
+    "domain": "D2",
+    "subdomain": "manner of articulation",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with a nasal consonant sound?",
+    "options": {
+      "A": "sip",
+      "B": "sick",
+      "C": "sing",
+      "D": "sit"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Nasal consonants",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.142-143:Appendix 6 - Pronouncing phonemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 112,
+    "domain": "D2",
+    "subdomain": "letters versus phonemes",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes does the letter pair qu represent in the word 'queen'?",
+    "expected_answers": [
+      "2",
+      "two"
+    ],
+    "linguistic_feature": "qu spells two phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.80:Phase Three - Summary / Letters (footnote on x and qu)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 113,
+    "domain": "D2",
+    "subdomain": "oral segmenting",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes are there in the word 'cheese'?",
+    "expected_answers": [
+      "3",
+      "three"
+    ],
+    "linguistic_feature": "Segmenting a three-phoneme word",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.47:Aspect 7 Oral blending and segmenting - Toy talk",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 114,
+    "domain": "D2",
+    "subdomain": "consonant clusters",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes are there in the word 'street'?",
+    "expected_answers": [
+      "5",
+      "five"
+    ],
+    "linguistic_feature": "Clusters are sequences of separate phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.46:Example word / Phonemes in consonant cluster (table)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 115,
+    "domain": "D2",
+    "subdomain": "letters versus phonemes",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "How many phonemes does the word 'caught' contain?",
+    "options": {
+      "A": "2",
+      "B": "4",
+      "C": "6",
+      "D": "3"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Letter count differs from phoneme count",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.80-84:Glossary – phoneme, syllable, schwa",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 116,
+    "domain": "D2",
+    "subdomain": "syllable structure",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the plural ending add an extra syllable?",
+    "options": {
+      "A": "bushes",
+      "B": "rocks",
+      "C": "dogs",
+      "D": "thanks"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "–es can add a syllable",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.40:Division of words into syllables",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 119,
+    "domain": "D2",
+    "subdomain": "phoneme inventory",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "Approximately how many phonemes does English have?",
+    "expected_answers": [
+      "44",
+      "around 44",
+      "about 44",
+      "44 phonemes"
+    ],
+    "linguistic_feature": "Size of the English phoneme inventory",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.40:Section 3 - Phonemes",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "The_reading_framework_.pdf:p.139-141:Appendix 5 - An alphabetic code chart",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.47:Aspect 7 Oral blending and segmenting - Toy talk",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 120,
+    "domain": "D2",
+    "subdomain": "phoneme inventory",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words contains the phoneme /ʒ/?",
+    "options": {
+      "A": "bench",
+      "B": "beach",
+      "C": "badge",
+      "D": "beige"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "The phoneme /ʒ/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.163:New phoneme /zh/",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.138:Suggested timetable for Phase Five - discrete teaching",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 122,
+    "domain": "D2",
+    "subdomain": "assonance",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which pair of words shows assonance without rhyming?",
+    "options": {
+      "A": "flag – bag",
+      "B": "black – flag",
+      "C": "track – sack",
+      "D": "black – track"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Assonance is a repeated vowel sound",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.157:Appendix 12 Glossary - alliteration, assonance, cadence",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 123,
+    "domain": "D2",
+    "subdomain": "rhyme",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which pair does the second part rhyme with the first because only the opening sound changes?",
+    "options": {
+      "A": "criss – cross",
+      "B": "ping – pong",
+      "C": "argy – bargy",
+      "D": "tick – tock"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Rhyme formed by adding an initial phoneme",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.29-30:Poetry and rhymes in Reception and year 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 124,
+    "domain": "D2",
+    "subdomain": "prosody",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "What does the term 'cadence' refer to?",
+    "options": {
+      "A": "the pause made between words",
+      "B": "the loudness of one syllable",
+      "C": "the length of a vowel sound",
+      "D": "the rise and fall in pitch"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Cadence",
+    "svr_strand": "decoding",
+    "geeap_component": "reading_fluency",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.157:Appendix 12 Glossary - alliteration, assonance, cadence",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 125,
+    "domain": "D2",
+    "subdomain": "phonetic transcription",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The invented word 'gloast' rhymes with 'boast'. Which transcription represents it?",
+    "options": {
+      "A": "/gləʊst/",
+      "B": "/glɒst/",
+      "C": "/gluːst/",
+      "D": "/glaʊst/"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Each check word has an IPA transcription",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 1 – Phonemic representation column",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 127,
+    "domain": "D2",
+    "subdomain": "vowel length",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains the same vowel sound as 'snort'?",
+    "options": {
+      "A": "cottage",
+      "B": "cutting",
+      "C": "caught",
+      "D": "coated"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Long /ɔː/ before /t/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 1 – Phonemic representation column",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 129,
+    "domain": "D2",
+    "subdomain": "vowel contrasts",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains the same vowel sound as 'cusp'?",
+    "options": {
+      "A": "flood",
+      "B": "gloom",
+      "C": "brood",
+      "D": "groove"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Long /uː/ against short /ʌ/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 2 – Phonemic representation column",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 130,
+    "domain": "D2",
+    "subdomain": "voicing",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word is the final letter 's' pronounced /z/?",
+    "options": {
+      "A": "lapse",
+      "B": "rose",
+      "C": "loose",
+      "D": "mouse"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Final /s/ or /z/ alternation",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 2 – Phonemic representation column",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 131,
+    "domain": "D2",
+    "subdomain": "phoneme inventory",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains the phoneme /ʒ/?",
+    "options": {
+      "A": "teacher",
+      "B": "tissue",
+      "C": "treasure",
+      "D": "thatch"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "/ʒ/ can be spelt s",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.46-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 134,
+    "domain": "D2",
+    "subdomain": "inflectional pronunciation",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words does the ending -ed add an extra syllable to the root?",
+    "options": {
+      "A": "buzzed",
+      "B": "walked",
+      "C": "called",
+      "D": "wanted"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "The -ed ending is one or two phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.177:Investigating and learning how to add suffixes - Phoneme frame",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 135,
+    "domain": "D2",
+    "subdomain": "word stress",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which of these words does the stress fall on the second syllable?",
+    "options": {
+      "A": "forget",
+      "B": "garden",
+      "C": "window",
+      "D": "doctor"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Polysyllabic words carry stress on one syllable",
+    "svr_strand": "decoding",
+    "geeap_component": "reading_fluency",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.175:Phase Six - READING",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 136,
+    "domain": "D2",
+    "subdomain": "syllable structure",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "What is the smallest number of vowel sounds an English syllable can contain?",
+    "expected_answers": [
+      "1",
+      "one"
+    ],
+    "linguistic_feature": "A syllable contains at least one vowel",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.162-163:Appendix 12 Glossary - stress, syllable",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 139,
+    "domain": "D2",
+    "subdomain": "ending pronunciation",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with the same sound as 'television'?",
+    "options": {
+      "A": "musician",
+      "B": "mission",
+      "C": "mention",
+      "D": "confusion"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "The ending of confusion is /ʒən/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3, Qu.2, Qu.11",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 140,
+    "domain": "D2",
+    "subdomain": "ending pronunciation",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with the sound /ʃən/ rather than /ʒən/?",
+    "options": {
+      "A": "session",
+      "B": "decision",
+      "C": "collision",
+      "D": "division"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "The ending of session is /ʃən/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3, Qu.2, Qu.11",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 141,
+    "domain": "D2",
+    "subdomain": "ending pronunciation",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with the sound /ʃəs/?",
+    "options": {
+      "A": "nervous",
+      "B": "suspicious",
+      "C": "curious",
+      "D": "mysterious"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "The ending of suspicious is /ʃəs/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3, Qu.14, Qu.16",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 142,
+    "domain": "D2",
+    "subdomain": "ending pronunciation",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with the sound /ʃəl/?",
+    "options": {
+      "A": "personal",
+      "B": "pedestal",
+      "C": "potential",
+      "D": "parental"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "The ending of potential is /ʃəl/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3, Qu.14, Qu.16",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 143,
+    "domain": "D2",
+    "subdomain": "voicing",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In which word is a /z/ sound heard in the final syllable?",
+    "options": {
+      "A": "advice",
+      "B": "device",
+      "C": "office",
+      "D": "advise"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "advice and advise differ by /s/ and /z/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.57-59:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 146,
+    "domain": "D3",
+    "subdomain": "regular plural formation",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which noun forms its plural with '-es'?",
+    "options": {
+      "A": "church",
+      "B": "chain",
+      "C": "cheek",
+      "D": "chief"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "When –es is used",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.41:Adding s and es to words",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 156,
+    "domain": "D3",
+    "subdomain": "inflection",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which pair shows two forms of the same word rather than two different words?",
+    "options": {
+      "A": "kind – kindness",
+      "B": "teach – teacher",
+      "C": "dog – dogs",
+      "D": "help – helpful"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "dogs is an inflection of dog",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.159:Appendix 12 Glossary - inflection, morphology",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 162,
+    "domain": "D3",
+    "subdomain": "noun formation",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the noun formed from the verb 'admire'.",
+    "expected_answers": [
+      "admiration"
+    ],
+    "linguistic_feature": "–ation turns verbs into nouns",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.50-53:Spelling – years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 167,
+    "domain": "D3",
+    "subdomain": "possessive pronouns",
+    "grade": "G4",
+    "answer_type": "short_form",
+    "question": "Complete the sentence with the correct possessive form: 'She had forgotten her pen, so I gave her one of ___.'",
+    "expected_answers": [
+      "mine"
+    ],
+    "linguistic_feature": "mine as the possessive form of my",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p15:5. Mark schemes Qu.42",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 169,
+    "domain": "D3",
+    "subdomain": "noun formation",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "Write the noun formed from the adjective 'obedient'.",
+    "expected_answers": [
+      "obedience"
+    ],
+    "linguistic_feature": "–ence/–ency with –ent adjectives",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.56-57:Spelling – years 5 and 6",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 177,
+    "domain": "D4",
+    "subdomain": "regular past tense",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which spelling of the past tense is correct, even though the ending sounds like /t/?",
+    "options": {
+      "A": "wishd",
+      "B": "wishet",
+      "C": "wisht",
+      "D": "wished"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Past tense suffix –ed",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.41:Adding the endings –ing, –ed and –er to verbs",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 180,
+    "domain": "D4",
+    "subdomain": "aspect",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the two words that complete 'She ___ loudly all morning yesterday.' using the verb 'drum' in the progressive.",
+    "expected_answers": [
+      "was drumming"
+    ],
+    "linguistic_feature": "Progressive formed with be plus –ing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.66:Year 2 – Text",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 182,
+    "domain": "D4",
+    "subdomain": "y to i alternation",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the form of the verb 'copy' that is used after 'is'.",
+    "expected_answers": [
+      "copying"
+    ],
+    "linguistic_feature": "y becomes i before –ed but not before –ing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.46-47:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 183,
+    "domain": "D4",
+    "subdomain": "suffixation to verbs",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the form of the verb 'be' that is used after 'is', as in 'She is ___ helpful'.",
+    "expected_answers": [
+      "being"
+    ],
+    "linguistic_feature": "being as a named exception",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.46-47:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 190,
+    "domain": "D4",
+    "subdomain": "suffixation to verbs",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "To which of these verbs can -ing be added with no change at all to the spelling of the root?",
+    "options": {
+      "A": "wave",
+      "B": "wrap",
+      "C": "write",
+      "D": "wait"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Three possible actions before –ing",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.179:Add race",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 197,
+    "domain": "D4",
+    "subdomain": "class-preserving suffixes",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which suffix leaves the word class of the root unchanged?",
+    "options": {
+      "A": "-ment",
+      "B": "-ish",
+      "C": "-ness",
+      "D": "-ise"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "–ish leaves the word class unchanged",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.161-163:Appendix 12 Glossary - prefix, suffix",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 202,
+    "domain": "D4",
+    "subdomain": "modality",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word shows the least certainty in 'It ___ rain later.'?",
+    "options": {
+      "A": "will",
+      "B": "must",
+      "C": "shall",
+      "D": "might"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Modal verbs express degrees of possibility",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.68:Year 5 – Word / Sentence",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 204,
+    "domain": "D4",
+    "subdomain": "tense system",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "In 'He leaves tomorrow', what is the tense of the verb 'leaves'?",
+    "options": {
+      "A": "present",
+      "B": "future",
+      "C": "perfect",
+      "D": "past"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "English has no future tense form",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.72-87:Glossary – auxiliary verb, future, participle, tense",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 208,
+    "domain": "D4",
+    "subdomain": "voice",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which verb can replace 'was' in 'The mug was broken by Rabia' to give an alternative passive?",
+    "options": {
+      "A": "had",
+      "B": "did",
+      "C": "made",
+      "D": "got"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "The get-passive",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p16:5. Mark schemes Qu.44, Qu.45",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 209,
+    "domain": "D4",
+    "subdomain": "voice",
+    "grade": "beyond_primary",
+    "answer_type": "short_form",
+    "question": "Complete the active version of 'The trees are being harmed by pollution': 'Pollution ___ ___ the trees.'",
+    "expected_answers": [
+      "is harming"
+    ],
+    "linguistic_feature": "Active counterpart of a passive",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p16:5. Mark schemes Qu.44, Qu.45",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 210,
+    "domain": "D4",
+    "subdomain": "mood",
+    "grade": "beyond_primary",
+    "answer_type": "short_form",
+    "question": "Complete this sentence as it would be written in very formal English: 'If I ___ to look inside the box, what would I find?'",
+    "expected_answers": [
+      "were"
+    ],
+    "linguistic_feature": "Subjunctive were",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p15:5. Mark schemes Qu.41",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 214,
+    "domain": "D5",
+    "subdomain": "expanded noun phrases",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which of these is an expanded noun phrase?",
+    "options": {
+      "A": "under the old table",
+      "B": "she was rather happy",
+      "C": "he ran very quickly",
+      "D": "the man in the moon"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Noun phrases that describe and specify",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.65-66:Year 2 – Sentence",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 216,
+    "domain": "D5",
+    "subdomain": "conjunctions",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which conjunction completes 'I wanted to buy an apple ___ I forgot my money'?",
+    "options": {
+      "A": "if",
+      "B": "but",
+      "C": "because",
+      "D": "or"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Subordinating and co-ordinating conjunctions",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p11:8. Mark schemes Qu.1",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p12:8. Mark schemes Qu.5",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p16:5. Mark schemes Qu.48",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 219,
+    "domain": "D5",
+    "subdomain": "conjunctions",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In which sentence is 'before' a conjunction rather than a preposition?",
+    "options": {
+      "A": "He stood before me.",
+      "B": "She arrived before noon.",
+      "C": "We ate before the film.",
+      "D": "We ate before it began."
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Conjunctions of time, place and cause",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.66:Year 3 – Sentence / Punctuation",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 226,
+    "domain": "D5",
+    "subdomain": "adverbials",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which of these sentences opens with a fronted adverbial?",
+    "options": {
+      "A": "I heard the bad news later on.",
+      "B": "That day brought us the bad news.",
+      "C": "Later that day, I heard the news.",
+      "D": "The news that day was very bad."
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Fronted adverbials",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p10:5. Mark schemes Qu.9",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 227,
+    "domain": "D5",
+    "subdomain": "prepositions",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words can link a following noun phrase to another word in the sentence?",
+    "options": {
+      "A": "and",
+      "B": "but",
+      "C": "so",
+      "D": "from"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "A preposition links a noun phrase to another word",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.161:Appendix 12 Glossary - preposition",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 228,
+    "domain": "D5",
+    "subdomain": "relative clauses",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In which sentence has the relative pronoun been left out?",
+    "options": {
+      "A": "The book I read was long.",
+      "B": "The book was long and dull.",
+      "C": "I read the long book twice.",
+      "D": "The book that fell was long."
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Omitted relative pronoun",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.68:Year 5 – Sentence / Punctuation",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 232,
+    "domain": "D5",
+    "subdomain": "embedded clauses",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "In which of these sentences is one clause embedded inside another?",
+    "options": {
+      "A": "She went out because she was tired.",
+      "B": "She was tired, but she decided to go.",
+      "C": "Although she was tired, she went out.",
+      "D": "She decided, although tired, to go out."
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "An embedded clause interrupts the main clause",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p11:5. Mark schemes Qu.14",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 235,
+    "domain": "D5",
+    "subdomain": "grammatical functions",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "In 'When Seema reached the playground, she greeted her classmates', which is the object of 'reached'?",
+    "options": {
+      "A": "she",
+      "B": "Seema",
+      "C": "playground",
+      "D": "classmates"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Subject and object",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p15:5. Mark schemes Qu.37",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 243,
+    "domain": "D6",
+    "subdomain": "prefix meaning",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word does 'un-' mean 'not'?",
+    "options": {
+      "A": "untie",
+      "B": "unzip",
+      "C": "unkind",
+      "D": "unlock"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "un– means not or undoing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.65:Year 1 – Word",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 249,
+    "domain": "D6",
+    "subdomain": "meaning and spelling relatedness",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which word is related in both spelling and meaning to 'here' and 'where'?",
+    "options": {
+      "A": "then",
+      "B": "they're",
+      "C": "their",
+      "D": "there"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "there, here and where share place meaning",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.194:Some useful spelling guidelines (item 7)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 252,
+    "domain": "D6",
+    "subdomain": "possible words",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words can take 'un' in front of it to make another word?",
+    "options": {
+      "A": "dive",
+      "B": "slow",
+      "C": "fold",
+      "D": "soft"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "un– attaches to some roots but not others",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p11:8. Mark schemes Qu.3",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 253,
+    "domain": "D6",
+    "subdomain": "prefix meaning",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which word contains a prefix meaning 'under'?",
+    "options": {
+      "A": "supermarket",
+      "B": "interact",
+      "C": "autograph",
+      "D": "submerge"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "sub– means under",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-50:More prefixes",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 261,
+    "domain": "D6",
+    "subdomain": "etymology",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In the word 'bicycle', what does the first part mean?",
+    "options": {
+      "A": "round",
+      "B": "small",
+      "C": "fast",
+      "D": "two"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "bicycle from bi– and cycle",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.55:Notes and guidance",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 266,
+    "domain": "D6",
+    "subdomain": "inference from context",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "In 'Rat was sculling strongly along the river', what does 'sculling' mean?",
+    "options": {
+      "A": "casting a line",
+      "B": "tying a knot",
+      "C": "mending a sail",
+      "D": "rowing a boat"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "sculling means rowing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.114:Section 10 (Wind in the Willows worked example)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 270,
+    "domain": "D6",
+    "subdomain": "confusable words",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "What does the word 'aisle' name?",
+    "options": {
+      "A": "a narrow raised pathway",
+      "B": "a small island in a lake",
+      "C": "a table used in a church",
+      "D": "a gangway between seats"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "aisle",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.59-60:Homophones and other words that are often confused",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 274,
+    "domain": "D6",
+    "subdomain": "confusable words",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word completes 'The weather may ___ our plans.'?",
+    "options": {
+      "A": "infect",
+      "B": "effect",
+      "C": "defect",
+      "D": "affect"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "affect and effect",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.59-60:Homophones and other words that are often confused",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 287,
+    "domain": "D7",
+    "subdomain": "reference tracking",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In 'I searched for a pencil, but no pencil could be found', how is the same thing kept track of?",
+    "options": {
+      "A": "by using an opposite",
+      "B": "by using a pronoun",
+      "C": "by leaving words out",
+      "D": "by repeating the noun"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Repeated noun phrase tracks reference",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.26:Communication and language - Birth to three",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 289,
+    "domain": "D7",
+    "subdomain": "anaphora",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In 'Sandip introduced me to Rashida. She had forgotten to bring a pen.', who does 'She' refer to?",
+    "options": {
+      "A": "Sandip",
+      "B": "Rashida",
+      "C": "the writer",
+      "D": "the teacher"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Resolving pronouns to referents",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.151:Appendix 9 - Understanding sentences / Using text structure",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 290,
+    "domain": "D7",
+    "subdomain": "cohesion",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which word replaces the repeated name in 'Rashida had no pen. ___ had forgotten it.'?",
+    "options": {
+      "A": "Her",
+      "B": "It",
+      "C": "She",
+      "D": "They"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Pronoun or noun choice aids cohesion",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p15:5. Mark schemes Qu.42",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p13:5. Mark schemes Qu.28",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 292,
+    "domain": "D7",
+    "subdomain": "cohesion",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word links one paragraph to another by number?",
+    "options": {
+      "A": "secondly",
+      "B": "nearby",
+      "C": "later",
+      "D": "meanwhile"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Number adverbials link paragraphs",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.68:Year 5 – Text",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 294,
+    "domain": "D7",
+    "subdomain": "sentence boundaries in text",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "How many sentences are there in 'Camels live in the desert they can survive without food for a long time'?",
+    "expected_answers": [
+      "2",
+      "two"
+    ],
+    "linguistic_feature": "Marking boundaries in a multi-sentence text",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p15:5. Mark schemes Qu.40",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 296,
+    "domain": "D7",
+    "subdomain": "ellipsis",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "In the exchange 'Where are you going?' 'To school!', which words have been left out of the reply?",
+    "options": {
+      "A": "it is there",
+      "B": "we were out",
+      "C": "you are not",
+      "D": "I am going"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Ellipsis omits predictable words",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.72-75:Glossary – cohesion, cohesive device, ellipsis",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 301,
+    "domain": "D8",
+    "subdomain": "regional accent",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In many northern English accents, which pair of words rhymes?",
+    "options": {
+      "A": "put – but",
+      "B": "put – boot",
+      "C": "put – bought",
+      "D": "put – bat"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "put and but rhyme in the north",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.40:Section 3 - Phonemes (footnote 63)",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.200:Appendix 1 - 100 high-frequency words in phases, Phase Two",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 304,
+    "domain": "D8",
+    "subdomain": "accent and exception words",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "In which set of words does the vowel differ between northern and southern accents of England?",
+    "options": {
+      "A": "dog, log, fog",
+      "B": "bell, tell, sell",
+      "C": "hit, sit, fit",
+      "D": "bath, path, grass"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Exceptions depend on accent",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.48:Common exception words",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 307,
+    "domain": "D8",
+    "subdomain": "Standard English",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Complete this question in Standard English: 'Where do frogs ___ from?'",
+    "expected_answers": [
+      "come"
+    ],
+    "linguistic_feature": "Agreement after a modal",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p14:8. Mark schemes Qu.16 'Do not accept' list",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 311,
+    "domain": "D8",
+    "subdomain": "Standard English",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which wording is Standard English in 'I am not as good at ___ as Jay is'?",
+    "options": {
+      "A": "those tricks",
+      "B": "they tricks",
+      "C": "their tricks",
+      "D": "them tricks"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "them for those is non-Standard",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p10:5. Mark schemes Qu.6",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:pp4-5:Table 1: G7",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 325,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "What does the abbreviation GPC stand for?",
+    "expected_answers": [
+      "grapheme-phoneme correspondence",
+      "grapheme phoneme correspondence",
+      "grapheme-phoneme correspondences"
+    ],
+    "linguistic_feature": "GPC as an abbreviation",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.87:Introducing and teaching two-letter and three-letter GPCs",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 327,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "What is the term for turning a spoken word into its written spelling?",
+    "expected_answers": [
+      "encoding",
+      "encode",
+      "to encode"
+    ],
+    "linguistic_feature": "Encode",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.46:Encoding (spelling)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 329,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In the name 'synthetic phonics', the word 'synthetic' comes from a verb meaning what?",
+    "options": {
+      "A": "to divide",
+      "B": "to invent",
+      "C": "to imitate",
+      "D": "to combine"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Synthetic phonics",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.43:Synthetic phonics",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 330,
+    "domain": "D9",
+    "subdomain": "word-shape notation",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words has the shape CVC when its sounds are counted?",
+    "options": {
+      "A": "ship",
+      "B": "spin",
+      "C": "hand",
+      "D": "tree"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "VC and CVC",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.64:Teaching and practising blending for reading VC and CVC words",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 332,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which term is also used for words called 'common exception words'?",
+    "options": {
+      "A": "second tier words",
+      "B": "pseudo-words",
+      "C": "tricky words",
+      "D": "root words"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Common exception words",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.48:Common exception words",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 334,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "The letters 'eigh' in 'weight' are an example of what?",
+    "options": {
+      "A": "a grapheme",
+      "B": "a syllable",
+      "C": "a morpheme",
+      "D": "a phoneme"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Grapheme",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_phonics_screening_check_scoring_guidance.pdf:p.2:Section 1 – column headings",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 335,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "What is the term for a digraph whose two letters are separated by a consonant, as in 'line'?",
+    "options": {
+      "A": "broken digraph",
+      "B": "split digraph",
+      "C": "divided vowel",
+      "D": "silent digraph"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Split digraph",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.74-83:Glossary – digraph, GPC, root word",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 337,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words contains a split digraph?",
+    "options": {
+      "A": "link",
+      "B": "lint",
+      "C": "lion",
+      "D": "line"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Split digraph",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.157-158:Appendix 12 Glossary - consonant cluster, decode, digraph",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.141:Example session for split digraph i-e",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 338,
+    "domain": "D9",
+    "subdomain": "year 1 terminology list",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "What is the name of the punctuation mark written as ? at the end of a sentence?",
+    "expected_answers": [
+      "question mark",
+      "a question mark"
+    ],
+    "linguistic_feature": "Punctuation terms",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p11:8. Mark schemes Qu.2",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p16:8. Mark schemes Qu.19",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 339,
+    "domain": "D9",
+    "subdomain": "assessment terminology",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which of these is a pseudo-word: a form that could be an English word but is not one?",
+    "options": {
+      "A": "blant",
+      "B": "ckelt",
+      "C": "wellsch",
+      "D": "plinth"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Pseudo-word",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.161:Appendix 12 Glossary - pseudo-word",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "The_reading_framework_.pdf:p.120:The phonics screening check",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 342,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "What is the term for a single grapheme having more than one pronunciation?",
+    "expected_answers": [
+      "alternative pronunciations",
+      "alternative pronunciation"
+    ],
+    "linguistic_feature": "Alternative pronunciations",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.142:Teaching alternative pronunciations for graphemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 343,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "What is the term for one phoneme being written with more than one grapheme?",
+    "expected_answers": [
+      "alternative spellings",
+      "alternative spelling"
+    ],
+    "linguistic_feature": "Alternative spellings",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.150:SPELLING - Teaching alternative spellings for phonemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 346,
+    "domain": "D9",
+    "subdomain": "year 2 terminology list",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "What is the term for a word made up of two root words joined together?",
+    "expected_answers": [
+      "compound",
+      "compound word",
+      "a compound word"
+    ],
+    "linguistic_feature": "Compound and suffix",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.181:Teaching spelling long words - Words in words",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:pp11-16:8. Mark schemes Qu.4, 7, 9, 12, 13, 14, 18, 19",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 351,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which term names the general ability to attend to the sounds of language rather than to meaning?",
+    "options": {
+      "A": "phonological awareness",
+      "B": "phonemic awareness",
+      "C": "alphabetic knowledge",
+      "D": "morphological awareness"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Phonemic against phonological awareness",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.160:Appendix 12 Glossary - phonemic awareness, phonological awareness",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 354,
+    "domain": "D9",
+    "subdomain": "year 3 terminology list",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "What is the term for a letter group added to the front of a root word?",
+    "options": {
+      "A": "syllable",
+      "B": "suffix",
+      "C": "digraph",
+      "D": "prefix"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Word family and prefix",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.67:Year 3 – Terminology for pupils",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 359,
+    "domain": "D9",
+    "subdomain": "morphological terminology",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words belongs to the same word family as 'extend'?",
+    "options": {
+      "A": "external",
+      "B": "extinct",
+      "C": "exterior",
+      "D": "extensive"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Word family",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.164:Appendix 12 Glossary - word family",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  },
+  {
+    "question_id": 364,
+    "domain": "D9",
+    "subdomain": "year 4 terminology list",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "What is the word class of 'every' in the phrase 'every week'?",
+    "options": {
+      "A": "adverb",
+      "B": "adjective",
+      "C": "pronoun",
+      "D": "determiner"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Determiner",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p16:5. Mark schemes Qu.46, Qu.50",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  }
+]

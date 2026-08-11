@@ -226,7 +226,7 @@ def judge_bench_cmd(
         False,
         "--judge-fallback",
         help=(
-            "Use LLM judge as fallback for MCQ/true-false rows where "
+            "Use LLM judge as fallback for MCQ rows where "
             "regex parsing failed (is_correct is null). Reads from "
             "responses_judged/ and writes to responses_judged_fallback/."
         ),

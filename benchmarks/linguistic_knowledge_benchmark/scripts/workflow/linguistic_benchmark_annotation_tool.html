@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linguistic Dataset Annotation Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    [data-status="keep"]   .status-keep   { ring-width: 4px; --tw-ring-color: #22c55e; background-color: #f0fdf4; }
+    [data-status="revise"] .status-revise { ring-width: 4px; --tw-ring-color: #f59e0b; background-color: #fffbeb; }
+    [data-status="drop"]   .status-drop   { ring-width: 4px; --tw-ring-color: #ef4444; background-color: #fef2f2; }
+    .status-btn-keep   { border-color: #86efac; color: #15803d; }
+    .status-btn-revise { border-color: #fcd34d; color: #b45309; }
+    .status-btn-drop   { border-color: #fca5a5; color: #b91c1c; }
+    .status-btn-keep.selected   { background:#f0fdf4; box-shadow:0 0 0 3px #22c55e; }
+    .status-btn-revise.selected { background:#fffbeb; box-shadow:0 0 0 3px #f59e0b; }
+    .status-btn-drop.selected   { background:#fef2f2; box-shadow:0 0 0 3px #ef4444; }
+    .fade-in { animation: fadeIn 0.15s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+    .progress-bar { transition: width 0.3s ease; }
+    textarea { resize: vertical; }
+    .issue-chip { cursor: pointer; user-select: none; transition: all 0.1s; }
+    .issue-chip.active { background:#fef3c7; border-color:#f59e0b; color:#92400e; box-shadow:0 0 0 2px #f59e0b; }
+    input[type=text], textarea { font-size: 0.875rem; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+<!-- ═══════════════════════════════ WELCOME PAGE ═══════════════════════════════ -->
+<div id="page-welcome" class="min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white rounded-2xl shadow-lg max-w-2xl w-full p-10">
+    <div class="text-center mb-8">
+      <div class="text-5xl mb-4">📝</div>
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">Dataset Annotation Tool</h1>
+      <p class="text-gray-500 text-sm">Linguistic Knowledge Benchmark — Native Speaker Review</p>
+    </div>
+
+    <div class="space-y-5 mb-8">
+
+      <div>
+        <h2 class="font-semibold text-gray-700 text-lg mb-2">About this dataset</h2>
+        <p class="text-gray-600 text-sm leading-relaxed">
+          This dataset is part of the <strong>Linguistic Knowledge Benchmark</strong>, a project that measures
+          how well AI language models understand the formal linguistics of a specific language — its
+          spelling rules, grammar, morphology, vocabulary, and discourse conventions.
+          Questions are written in <strong>English</strong> and ask about the target language
+          (e.g. Swahili or Luganda). The goal is not to test whether a model can speak the language,
+          but whether it knows how the language works.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="font-semibold text-gray-700 text-lg mb-2">Question format</h2>
+        <p class="text-gray-600 text-sm leading-relaxed mb-2">
+          Each question belongs to a domain (e.g. Phonology, Grammar, Vocabulary) and a school
+          grade level. There are two formats:
+        </p>
+        <ul class="text-sm text-gray-600 list-disc list-inside space-y-1">
+          <li><strong>Multiple choice</strong> — four options A–D, one correct answer (shown highlighted in green).</li>
+          <li><strong>Short form</strong> — an open answer expected in 1–3 words.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="font-semibold text-gray-700 text-lg mb-2">What we expect from you</h2>
+        <p class="text-gray-600 text-sm leading-relaxed mb-2">
+          As a native speaker, your role is to verify that each question is <strong>linguistically
+          correct, unambiguous, and appropriate.</strong> Specifically:
+        </p>
+        <ul class="text-sm text-gray-600 list-disc list-inside space-y-1">
+          <li>Is the <strong>expected answer actually correct</strong> in the language?</li>
+          <li>For MCQ: are the <strong>wrong options clearly wrong</strong> (no misleading distractors)?</li>
+          <li>Is the <strong>question wording clear</strong> and unambiguous?</li>
+          <li>Does the question feel <strong>natural and culturally appropriate</strong>?</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="font-semibold text-gray-700 text-lg mb-2">The three annotation statuses</h2>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="rounded-xl border-2 border-green-300 bg-green-50 p-4 text-center">
+            <div class="text-2xl mb-1">✅</div>
+            <div class="font-bold text-green-800 text-sm">Keep</div>
+            <div class="text-xs text-green-700 mt-1">Question and answer are correct and suitable. No changes needed.</div>
+          </div>
+          <div class="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 text-center">
+            <div class="text-2xl mb-1">✏️</div>
+            <div class="font-bold text-amber-800 text-sm">Revise</div>
+            <div class="text-xs text-amber-700 mt-1">There is an error or issue, but the question is worth keeping with corrections.</div>
+          </div>
+          <div class="rounded-xl border-2 border-red-300 bg-red-50 p-4 text-center">
+            <div class="text-2xl mb-1">❌</div>
+            <div class="font-bold text-red-800 text-sm">Drop</div>
+            <div class="text-xs text-red-700 mt-1">The question is too flawed, irrelevant, or misleading to salvage.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <h3 class="font-semibold text-blue-800 text-sm mb-2">💡 How the tool works</h3>
+        <ul class="text-xs text-blue-700 space-y-1 list-disc list-inside">
+          <li>At the top of each question, first check its <strong>Grade / Domain / SVR / GEEAP tags</strong> — click ⓘ on any tag to see what its values mean, and use the dropdown to fix it if it's wrong. You must confirm the tags before you can choose a status.</li>
+          <li>Click <strong>Keep</strong> to accept a question — the tool moves to the next one automatically. Keep means the question, answer, <strong>and every tag</strong> are correct.</li>
+          <li>Click <strong>Revise</strong> or <strong>Drop</strong> to flag a question. You must add a note before moving on.</li>
+          <li>You can go back to any previous question using the <strong>← Previous</strong> button.</li>
+          <li>Your progress is <strong>auto-saved in your browser</strong> — you can close and reopen without losing work.</li>
+          <li>You can stop at any point: click <strong>Finish & Export</strong> to save your progress as a CSV. Loading that same file later <strong>resumes exactly where you left off</strong> (or choose to start it fresh when prompted).</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="border-t pt-6">
+      <label class="block text-center">
+        <div class="text-sm text-gray-600 mb-3">Load your dataset CSV file to begin</div>
+        <input id="csv-input" type="file" accept=".csv" class="hidden" onchange="loadCSV(this)">
+        <button onclick="document.getElementById('csv-input').click()"
+          class="bg-green-500 hover:bg-green-600 text-white font-semibold px-8 py-3 rounded-xl text-lg transition shadow">
+          📂 Load CSV File
+        </button>
+      </label>
+      <div id="load-error" class="hidden mt-4 bg-red-50 border border-red-300 rounded-xl p-4 text-left">
+        <div class="flex items-start gap-2 mb-2">
+          <span class="text-red-500 font-bold text-sm">⚠ Could not load file</span>
+        </div>
+        <ul id="load-error-list" class="text-red-700 text-xs space-y-1 list-disc list-inside mb-3"></ul>
+        <button onclick="resetFileInput()"
+          class="text-xs bg-red-100 hover:bg-red-200 text-red-800 font-semibold px-3 py-1.5 rounded-lg transition">
+          Try another file
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ REVIEW PAGE ════════════════════════════════ -->
+<div id="page-review" class="hidden min-h-screen flex flex-col">
+
+  <!-- Top bar -->
+  <div class="bg-white border-b shadow-sm sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-700">
+          Question <span id="prog-current" class="font-bold text-gray-900"></span>
+          of <span id="prog-total" class="text-gray-900 font-bold"></span>
+        </span>
+        <div class="flex gap-3 text-xs font-semibold">
+          <span class="text-green-700 bg-green-100 px-2 py-1 rounded-full">✅ <span id="count-keep">0</span></span>
+          <span class="text-amber-700 bg-amber-100 px-2 py-1 rounded-full">✏️ <span id="count-revise">0</span></span>
+          <span class="text-red-700 bg-red-100 px-2 py-1 rounded-full">❌ <span id="count-drop">0</span></span>
+          <span class="text-gray-500 bg-gray-100 px-2 py-1 rounded-full">— <span id="count-unreviewed">0</span></span>
+        </div>
+        <button onclick="showSummary()" class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg transition">
+          Finish & Export
+        </button>
+      </div>
+      <div class="w-full bg-gray-200 rounded-full h-2">
+        <div id="progress-bar" class="progress-bar bg-green-500 h-2 rounded-full" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="max-w-4xl mx-auto w-full px-4 py-6 flex-1">
+
+    <!-- Metadata check — mandatory, shown first -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-5 fade-in" id="metadata-panel">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+        Metadata check <span class="font-normal normal-case text-red-500">* required</span>
+        <span class="font-normal normal-case text-gray-400">— check and correct each tag before choosing a status</span>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="tag-grid"></div>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" id="field-metadata-confirm" class="w-4 h-4" onchange="onMetadataConfirmChange()">
+        I've checked grade / domain / SVR / GEEAP for this item — corrected above if needed
+      </label>
+    </div>
+
+    <!-- Question card -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-5 fade-in" id="question-card">
+      <div class="text-gray-800 text-lg leading-relaxed mb-5 font-medium" id="question-text"></div>
+
+      <!-- MCQ Options -->
+      <div id="options-grid" class="grid grid-cols-2 gap-3 mb-5 hidden">
+        <div id="opt-A" class="rounded-xl border-2 p-3 text-sm"></div>
+        <div id="opt-B" class="rounded-xl border-2 p-3 text-sm"></div>
+        <div id="opt-C" class="rounded-xl border-2 p-3 text-sm"></div>
+        <div id="opt-D" class="rounded-xl border-2 p-3 text-sm"></div>
+      </div>
+
+      <!-- Expected answer -->
+      <div>
+        <span class="text-xs text-gray-500 uppercase tracking-wide block mb-1">Expected answer</span>
+        <span id="expected-answer" class="bg-green-100 text-green-900 border border-green-300 rounded-lg px-3 py-1.5 font-semibold text-sm inline-block"></span>
+      </div>
+    </div>
+
+    <!-- Annotation panel -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-4 fade-in" id="annotation-panel">
+
+      <!-- Status buttons -->
+      <div class="flex gap-3 mb-5">
+        <button id="btn-keep"   onclick="setStatus('keep')"
+          class="status-btn-keep   status-btn flex-1 border-2 rounded-xl py-3 font-semibold text-sm transition hover:opacity-90 active:scale-95">
+          ✅ Keep
+        </button>
+        <button id="btn-revise" onclick="setStatus('revise')"
+          class="status-btn-revise status-btn flex-1 border-2 rounded-xl py-3 font-semibold text-sm transition hover:opacity-90 active:scale-95">
+          ✏️ Revise
+        </button>
+        <button id="btn-drop"   onclick="setStatus('drop')"
+          class="status-btn-drop   status-btn flex-1 border-2 rounded-xl py-3 font-semibold text-sm transition hover:opacity-90 active:scale-95">
+          ❌ Drop
+        </button>
+      </div>
+
+      <!-- Revise / Drop detail section (hidden when Keep or no status) -->
+      <div id="detail-section" class="hidden space-y-4">
+
+        <!-- Issue type chips -->
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">What's the issue? <span class="font-normal normal-case text-red-500">* required</span> <span class="font-normal normal-case text-gray-400">(select all that apply)</span></div>
+          <div class="flex flex-wrap gap-2" id="issue-chips">
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="wrong_answer">Wrong answer</span>
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="wrong_distractor">Wrong distractor</span>
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="ambiguous_wording">Ambiguous wording</span>
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="culturally_off">Culturally off</span>
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="irrelevant">Irrelevant</span>
+            <span class="issue-chip border-2 border-gray-300 rounded-full px-3 py-1 text-sm text-gray-600" data-issue="other">Other</span>
+          </div>
+        </div>
+
+        <!-- Reviewer notes — required for revise/drop -->
+        <div>
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5" id="notes-label">
+            Notes <span id="notes-label-hint" class="font-normal normal-case"></span>
+          </label>
+          <textarea id="field-reviewer_notes" rows="2"
+            class="w-full border border-gray-300 rounded-xl p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            placeholder="Describe what is wrong with this question…"
+            oninput="onNotesInput()"></textarea>
+        </div>
+
+        <!-- Suggested corrections (revise only) -->
+        <div id="revision-section" class="hidden border-t pt-4 space-y-3">
+          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Suggested corrections <span class="font-normal normal-case text-gray-400">(fill only what changed)</span></div>
+
+          <!-- Question text — shared by both types -->
+          <div>
+            <label class="text-xs text-gray-500 block mb-1">Revised question text</label>
+            <textarea id="field-revised_question" rows="3"
+              class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              placeholder="Paste the corrected question here…"
+              oninput="saveCurrentAnnotation()"></textarea>
+          </div>
+
+          <!-- Short-form corrections -->
+          <div id="revision-shortform" class="hidden">
+            <label class="text-xs text-gray-500 block mb-1">
+              Revised expected answer(s)
+              <span class="text-gray-400">(pipe-separated if multiple accepted answers, e.g. <code>five|5</code>)</span>
+            </label>
+            <input id="field-revised_expected_answers" type="text"
+              class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              placeholder="e.g.  konsonanti   or   five|5"
+              oninput="saveCurrentAnnotation()">
+          </div>
+
+          <!-- MCQ corrections -->
+          <div id="revision-mcq" class="hidden space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">Revised option A</label>
+                <input id="field-revised_option_A" type="text"
+                  class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="Leave blank if unchanged" oninput="saveCurrentAnnotation()">
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">Revised option B</label>
+                <input id="field-revised_option_B" type="text"
+                  class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="Leave blank if unchanged" oninput="saveCurrentAnnotation()">
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">Revised option C</label>
+                <input id="field-revised_option_C" type="text"
+                  class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="Leave blank if unchanged" oninput="saveCurrentAnnotation()">
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">Revised option D</label>
+                <input id="field-revised_option_D" type="text"
+                  class="w-full border border-gray-300 rounded-xl p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  placeholder="Leave blank if unchanged" oninput="saveCurrentAnnotation()">
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 block mb-1">
+                Correct answer letter
+                <span class="text-gray-400">(only if the correct option changes — enter A, B, C, or D)</span>
+              </label>
+              <input id="field-revised_expected_answer" type="text" maxlength="1"
+                class="w-32 border border-gray-300 rounded-xl p-3 text-gray-700 uppercase focus:outline-none focus:ring-2 focus:ring-amber-300"
+                placeholder="e.g. B" oninput="saveCurrentAnnotation()">
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /detail-section -->
+
+    </div><!-- /annotation-panel -->
+
+    <!-- Validation error -->
+    <div id="nav-error" class="hidden text-red-600 text-sm text-center bg-red-50 border border-red-200 rounded-xl px-4 py-2 mb-3"></div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between items-center">
+      <button id="btn-prev" onclick="navigate(-1)"
+        class="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed">
+        ← Previous
+      </button>
+      <span></span>
+      <button id="btn-next" onclick="navigateNext()"
+        class="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition">
+        Next →
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SUMMARY PAGE ═══════════════════════════════ -->
+<div id="page-summary" class="hidden min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white rounded-2xl shadow-lg max-w-xl w-full p-10">
+    <div class="text-center mb-8">
+      <div class="text-5xl mb-3">🎉</div>
+      <h1 class="text-2xl font-bold text-gray-800">Review Complete</h1>
+      <p class="text-gray-500 text-sm mt-1" id="summary-filename"></p>
+    </div>
+
+    <div class="grid grid-cols-4 gap-3 mb-8">
+      <div class="text-center bg-gray-50 rounded-xl p-4 border">
+        <div class="text-2xl font-bold text-gray-800" id="sum-total">0</div>
+        <div class="text-xs text-gray-500 mt-1">Total</div>
+      </div>
+      <div class="text-center bg-green-50 rounded-xl p-4 border border-green-200">
+        <div class="text-2xl font-bold text-green-700" id="sum-keep">0</div>
+        <div class="text-xs text-green-600 mt-1">✅ Keep</div>
+      </div>
+      <div class="text-center bg-amber-50 rounded-xl p-4 border border-amber-200">
+        <div class="text-2xl font-bold text-amber-700" id="sum-revise">0</div>
+        <div class="text-xs text-amber-600 mt-1">✏️ Revise</div>
+      </div>
+      <div class="text-center bg-red-50 rounded-xl p-4 border border-red-200">
+        <div class="text-2xl font-bold text-red-700" id="sum-drop">0</div>
+        <div class="text-xs text-red-600 mt-1">❌ Drop</div>
+      </div>
+    </div>
+
+    <div id="sum-unreviewed-warning" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 text-sm text-amber-800">
+      ⚠️ <strong><span id="sum-unreviewed">0</span> question(s)</strong> not yet reviewed.
+      You can still <button onclick="backToReview()" class="underline hover:no-underline">go back and finish</button>, or export now with those rows left blank.
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="text-sm text-gray-600 block mb-1">Export filename <span class="text-gray-400">(you can edit the name of the file)</span></label>
+        <input id="export-filename" type="text"
+          class="w-full border border-gray-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+          placeholder="annotated_swahili_v7">
+      </div>
+      <button onclick="exportCSV()"
+        class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition shadow text-lg">
+        ⬇️ Download Annotated CSV
+      </button>
+      <button onclick="backToReview()"
+        class="w-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium py-2.5 rounded-xl transition text-sm">
+        ← Back to Review
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ TAG INFO MODAL ═══════════════════════════════ -->
+<div id="tag-info-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeTagInfo()">
+  <div class="bg-white rounded-2xl shadow-lg max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto">
+    <div class="flex items-start justify-between mb-3">
+      <h3 class="font-bold text-lg text-gray-800" id="tag-info-title"></h3>
+      <button onclick="closeTagInfo()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-xs text-gray-500 italic mb-4" id="tag-info-note"></p>
+    <div class="space-y-2" id="tag-info-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════ STATE ═══════════════
+let csvHeaders = [];
+let rows = [];
+let annotations = [];
+let currentIndex = 0;
+let storageKey = '';
+let currentIsMCQ = false;
+let optionColMap = {}; // 'A'|'B'|'C'|'D' -> the file's actual option column name for that letter
+let tagColMap = {};    // 'grade'|'domain'|'svr_strand'|'geeap_component' -> the file's actual column name
+
+const ANNOTATION_COLS = [
+  'review_status', 'issue_type', 'reviewer_notes',
+  'revised_question',
+  'revised_expected_answers',     // short_form
+  'revised_option_A', 'revised_option_B', 'revised_option_C', 'revised_option_D',
+  'revised_expected_answer',      // MCQ: correct letter
+  'metadata_confirmed',
+  'reviewed_grade', 'reviewed_domain', 'reviewed_svr_strand', 'reviewed_geeap_component',
+];
+
+function emptyAnnotation() {
+  return { review_status:'', issue_type:'', reviewer_notes:'',
+    revised_question:'', revised_expected_answers:'',
+    revised_option_A:'', revised_option_B:'', revised_option_C:'', revised_option_D:'',
+    revised_expected_answer:'',
+    metadata_confirmed:'',
+    reviewed_grade:'', reviewed_domain:'', reviewed_svr_strand:'', reviewed_geeap_component:'' };
+}
+
+// ═══════════════ TAG DEFINITIONS (grade / domain / svr_strand / geeap_component) ═══════════════
+// Values and wording drawn from process_prompts_chat_ready_v10.md (Stage 1a/2 blocks).
+const TAG_KEYS = ['grade', 'domain', 'svr_strand', 'geeap_component'];
+
+const TAG_DEFS = {
+  grade: {
+    label: 'Grade',
+    note: "Grade marks where the fact is FIRST introduced — the content level, not the item's difficulty.",
+    values: {
+      G0: 'Pre-primary / below Grade 1.',
+      G1: 'Grade 1.',
+      G2: 'Grade 2.',
+      G3: 'Grade 3.',
+      G4: 'Grade 4.',
+      G5: 'Grade 5.',
+      beyond_primary: 'Above Grade 5 (lower-secondary or scholarly).',
+    },
+  },
+  domain: {
+    label: 'Domain',
+    note: "File by WHAT A SOLVER MUST KNOW to answer it, not by topic: a grammatical TERM → D9; a word's MEANING → D6; variation BETWEEN SPEAKERS (register, dialect, proverbs) → D8.",
+    values: {
+      D1: 'Phonics & Orthography — sound-letter correspondence, spelling rules, syllable structure.',
+      D2: 'Phonology & Suprasegmentals — phoneme contrasts, length, stress/tone, prosody.',
+      D3: 'Nominal Morphology & Agreement — number, gender/class, determiner/adjective/possessive agreement.',
+      D4: 'Verbal Morphology — agreement, tense/aspect/mood, derivation & valency, non-finite forms, negation.',
+      D5: 'Syntax — word order, argument structure, relativisation, focus, ellipsis, quantifiers.',
+      D6: 'Semantics & Lexicon — word meaning, polysemy, semantic roles, scope.',
+      D7: 'Pragmatics & Discourse — anaphora, reference tracking, information structure, narrative.',
+      D8: 'Sociolinguistic & Register — honorifics, dialect, register, idiom/proverb.',
+      D9: 'Metalinguistic Reasoning — rule induction from paradigms; explicit grammatical analysis.',
+    },
+  },
+  svr_strand: {
+    label: 'SVR strand',
+    note: 'Simple View of Reading. Ask: does this knowledge serve DECODING (written forms → words) or LANGUAGE COMPREHENSION (words → meaning)?',
+    values: {
+      decoding: 'Turning WRITTEN FORMS into words — letter-sound mapping, spelling conventions, syllable structure, sound contrasts as written, segmenting written word forms.',
+      language_comprehension: 'Turning words into MEANING — what forms MEAN or how they AGREE: concord, tense/aspect semantics, word meaning, sentence interpretation, register, discourse (includes oral-language content like greetings and proverbs).',
+      outside_flr_construct: "No bearing on supporting a child's literacy (e.g. language-family classification, dialectology, etymology of linguistic labels). Should be rare — flags an item that may not belong in the benchmark.",
+    },
+  },
+  geeap_component: {
+    label: 'GEEAP component',
+    note: 'Records the lesson TYPE an error in this item would corrupt. "none" is valid ONLY together with svr_strand = outside_flr_construct.',
+    values: {
+      systematic_phonics: 'Letter-sound mapping, blending/segmenting, spelling patterns.',
+      phonological_awareness: 'Perceiving/manipulating sounds in spoken words, independent of print.',
+      oral_language: 'Vocabulary, grammar, and discourse knowledge acquired through spoken language.',
+      reading_fluency: 'Accurate, automatic reading with appropriate prosody (stress/prosody items land here).',
+      reading_comprehension: 'Constructing meaning from connected / passage-level text.',
+      writing: 'Producing written language correctly — spelling/punctuation conventions, encoding.',
+      none: 'No GEEAP component — valid ONLY together with svr_strand = outside_flr_construct.',
+    },
+  },
+};
+
+function buildTagColMap(headers) {
+  const map = {};
+  TAG_KEYS.forEach(key => {
+    const found = findHeader(headers, key);
+    if (found) map[key] = found;
+  });
+  return map;
+}
+
+// ═══════════════ CSV PARSER (RFC 4180) ═══════════════
+function parseCSV(text) {
+  const rows = [];
+  let i = 0, n = text.length;
+
+  function parseField() {
+    if (i < n && text[i] === '"') {
+      i++;
+      let val = '';
+      while (i < n) {
+        if (text[i] === '"') {
+          if (i + 1 < n && text[i + 1] === '"') { val += '"'; i += 2; }
+          else { i++; break; }
+        } else { val += text[i++]; }
+      }
+      return val;
+    }
+    let val = '';
+    while (i < n && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') val += text[i++];
+    return val;
+  }
+
+  function parseLine() {
+    const fields = [];
+    while (i < n && text[i] !== '\n' && text[i] !== '\r') {
+      fields.push(parseField());
+      if (i < n && text[i] === ',') i++;
+    }
+    if (i < n && text[i] === '\r') i++;
+    if (i < n && text[i] === '\n') i++;
+    return fields;
+  }
+
+  const header = parseLine();
+  while (i < n) {
+    const line = parseLine();
+    if (line.every(f => f === '')) continue;
+    const obj = {};
+    header.forEach((h, idx) => obj[h] = line[idx] ?? '');
+    rows.push(obj);
+  }
+  return { header, rows };
+}
+
+// ═══════════════ CSV SERIALISER ═══════════════
+function csvField(val) {
+  val = val == null ? '' : String(val);
+  if (val.includes('"') || val.includes(',') || val.includes('\n') || val.includes('\r'))
+    return '"' + val.replace(/"/g, '""') + '"';
+  return val;
+}
+
+function buildCSV() {
+  const allHeaders = [...csvHeaders, ...ANNOTATION_COLS];
+  const lines = [allHeaders.map(csvField).join(',')];
+  rows.forEach((row, i) => {
+    const ann = annotations[i] || emptyAnnotation();
+    const vals = allHeaders.map(h => ANNOTATION_COLS.includes(h) ? (ann[h] ?? '') : (row[h] ?? ''));
+    lines.push(vals.map(csvField).join(','));
+  });
+  return lines.join('\n');
+}
+
+// ═══════════════ CSV VALIDATION ═══════════════
+const REQUIRED_COLS = ['question', 'answer_type', 'expected_answers'];
+const KNOWN_ANSWER_TYPES = new Set(['multiple_choice', 'short_form']);
+const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
+
+// Option columns are matched case-insensitively (option_A, option_a, Option_A, ... all
+// resolve to the same letter) so files exported with different header casing still load.
+function findHeader(headers, name) {
+  const lower = name.toLowerCase();
+  return headers.find(h => h.toLowerCase() === lower);
+}
+
+function buildOptionColMap(headers) {
+  const map = {};
+  OPTION_LETTERS.forEach(letter => {
+    const found = findHeader(headers, 'option_' + letter);
+    if (found) map[letter] = found;
+  });
+  return map;
+}
+
+function validateCSV(headers, dataRows, optionMap, tagMap) {
+  const errors = [];
+
+  if (!dataRows.length) {
+    errors.push('The file contains no data rows (only a header was found).');
+    return errors;
+  }
+
+  const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
+  if (missing.length)
+    errors.push(`Missing required column(s): ${missing.map(c => `"${c}"`).join(', ')}.`);
+
+  const missingTags = TAG_KEYS.filter(t => !tagMap[t]);
+  if (missingTags.length)
+    errors.push(`Missing required metadata column(s) for the tag check: ${missingTags.map(t => `"${t}"`).join(', ')}.`);
+
+  if (errors.length) return errors; // can't go further without required cols
+
+  const unknownTypes = [...new Set(
+    dataRows.map(r => r['answer_type']).filter(t => t && !KNOWN_ANSWER_TYPES.has(t))
+  )];
+  if (unknownTypes.length)
+    errors.push(`Unknown answer_type value(s): ${unknownTypes.map(t => `"${t}"`).join(', ')}. Expected: multiple_choice, short_form.`);
+
+  const hasMCQ = dataRows.some(r => r['answer_type'] === 'multiple_choice');
+  if (hasMCQ) {
+    const missingLetters = OPTION_LETTERS.filter(l => !optionMap[l]);
+    if (missingLetters.length)
+      errors.push(`File has multiple_choice questions but is missing option column(s): ${missingLetters.map(l => `"option_${l}"`).join(', ')}.`);
+  }
+
+  return errors;
+}
+
+// ═══════════════ LOAD CSV ═══════════════
+function loadCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  hideLoadError();
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = parseCSV(e.target.result);
+      const optionMap = buildOptionColMap(parsed.header);
+      const tagMap = buildTagColMap(parsed.header);
+      const errs = validateCSV(parsed.header, parsed.rows, optionMap, tagMap);
+      if (errs.length) { showLoadErrors(file.name, errs); return; }
+
+      // A file re-loaded after a previous "Finish & Export" carries the ANNOTATION_COLS
+      // this tool writes (review_status, reviewed_grade, ...) alongside the original data
+      // columns. Detect that and offer to resume from it, or start the file fresh.
+      const hasFileAnnotations = ANNOTATION_COLS.some(c => parsed.header.includes(c));
+      let resumeFromFile = false;
+      if (hasFileAnnotations) {
+        const reviewedCount = parsed.rows.filter(r => (r.review_status || '').trim()).length;
+        resumeFromFile = confirm(
+          `This file already has ${reviewedCount} of ${parsed.rows.length} question(s) annotated.\n\n` +
+          `OK  = resume from where you left off.\n` +
+          `Cancel = start this file from scratch (existing annotations will be overwritten on export).`
+        );
+      }
+
+      // csvHeaders/rows always hold ONLY the original data columns — annotation values
+      // (whether freshly loaded from the file, or defaulted) live solely in `annotations`,
+      // so re-exporting never duplicates a column.
+      csvHeaders = parsed.header.filter(h => !ANNOTATION_COLS.includes(h));
+      rows = parsed.rows.map(r => {
+        const clean = {};
+        csvHeaders.forEach(h => clean[h] = r[h]);
+        return clean;
+      });
+      optionColMap = optionMap;
+      tagColMap = tagMap;
+      buildTagGridUI();
+
+      if (resumeFromFile) {
+        annotations = parsed.rows.map(r => {
+          const ann = emptyAnnotation();
+          ANNOTATION_COLS.forEach(c => { if (r[c] !== undefined) ann[c] = r[c]; });
+          return ann;
+        });
+        currentIndex = firstUnreviewedIndex(annotations);
+      } else {
+        annotations = rows.map(() => emptyAnnotation());
+        currentIndex = 0;
+      }
+
+      storageKey = 'annotation_' + file.name.replace(/\W/g,'_') + '_' + rows.length;
+
+      // Fall back to the browser's auto-saved session only when the file itself carried no
+      // annotations (e.g. reopening the original source file after a crash, no export yet).
+      if (!hasFileAnnotations) {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const prev = JSON.parse(saved);
+            const done = prev.filter(a => a.review_status).length;
+            if (done > 0 && confirm(`Restore previous browser session? (${done} questions already reviewed)`)) {
+              annotations = prev.map(a => Object.assign(emptyAnnotation(), a));
+              currentIndex = firstUnreviewedIndex(annotations);
+            }
+          } catch(e) {}
+        }
+      }
+
+      document.getElementById('export-filename').value = file.name.replace(/\.csv$/i, '') + (hasFileAnnotations ? '' : '_annotated');
+      document.getElementById('summary-filename').textContent = file.name;
+      show('page-review');
+      renderQuestion();
+    } catch(err) {
+      showLoadErrors(file.name, [`Failed to parse file: ${err.message}`]);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function firstUnreviewedIndex(anns) {
+  const first = anns.findIndex(a => !a.review_status);
+  return first === -1 ? anns.length - 1 : first;
+}
+
+function showLoadErrors(filename, errors) {
+  const el = document.getElementById('load-error');
+  const list = document.getElementById('load-error-list');
+  list.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+  el.classList.remove('hidden');
+}
+
+function hideLoadError() {
+  document.getElementById('load-error').classList.add('hidden');
+  document.getElementById('load-error-list').innerHTML = '';
+}
+
+function resetFileInput() {
+  hideLoadError();
+  const input = document.getElementById('csv-input');
+  input.value = '';
+  input.click();
+}
+
+// ═══════════════ RENDER QUESTION ═══════════════
+function renderQuestion() {
+  const row = rows[currentIndex];
+  const ann = annotations[currentIndex];
+
+  // Question text
+  document.getElementById('question-text').textContent = row['question'] || '';
+
+  // MCQ options (option column names may use any letter-casing — see optionColMap)
+  currentIsMCQ = row['answer_type'] === 'multiple_choice'
+    && (row[optionColMap['A']] || row[optionColMap['B']]);
+  const optGrid = document.getElementById('options-grid');
+  if (currentIsMCQ) {
+    optGrid.classList.remove('hidden');
+    const expected = (row['expected_answers'] || '').trim().toUpperCase();
+    OPTION_LETTERS.forEach(letter => {
+      const el = document.getElementById('opt-' + letter);
+      const col = optionColMap[letter];
+      el.innerHTML = `<span class="font-bold mr-2">${letter}.</span>${(col && row[col]) || ''}`;
+      el.className = expected === letter
+        ? 'rounded-xl border-2 p-3 text-sm bg-green-50 border-green-400 text-green-900 font-medium'
+        : 'rounded-xl border-2 p-3 text-sm bg-gray-50 border-gray-200 text-gray-700';
+    });
+  } else {
+    optGrid.classList.add('hidden');
+  }
+
+  document.getElementById('expected-answer').textContent = row['expected_answers'] || '—';
+
+  // Restore annotation
+  restoreMetadataUI(row, ann);
+  restoreAnnotationUI(ann);
+  updateProgress();
+  clearNavError();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('btn-prev').disabled = currentIndex === 0;
+}
+
+// ═══════════════ METADATA CHECK (grade / domain / svr_strand / geeap_component) ═══════════════
+function buildTagGridUI() {
+  const grid = document.getElementById('tag-grid');
+  grid.innerHTML = TAG_KEYS.map(key => {
+    const def = TAG_DEFS[key];
+    const options = Object.keys(def.values).map(v => `<option value="${v}">${v}</option>`).join('');
+    return `
+      <div class="border border-gray-200 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-semibold text-gray-500 uppercase">${def.label}</span>
+          <button type="button" class="text-gray-400 hover:text-blue-500 text-sm leading-none" onclick="showTagInfo('${key}')">ⓘ</button>
+        </div>
+        <select id="field-tag-${key}" class="w-full border border-gray-300 rounded-lg p-1.5 text-sm bg-white" onchange="onTagChange('${key}')">
+          ${options}
+        </select>
+      </div>`;
+  }).join('');
+}
+
+function setTagSelectValue(key, value) {
+  const sel = document.getElementById('field-tag-' + key);
+  if (!sel) return;
+  const known = Object.prototype.hasOwnProperty.call(TAG_DEFS[key].values, value);
+  const stale = sel.querySelector('option[data-unrecognized="1"]');
+  if (stale) stale.remove();
+  if (value && !known) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value + ' (unrecognized — pick a valid value)';
+    opt.dataset.unrecognized = '1';
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  sel.value = value || '';
+}
+
+function restoreMetadataUI(row, ann) {
+  TAG_KEYS.forEach(key => {
+    if (!ann['reviewed_' + key]) {
+      ann['reviewed_' + key] = row[tagColMap[key]] || '';
+    }
+    setTagSelectValue(key, ann['reviewed_' + key]);
+  });
+  document.getElementById('field-metadata-confirm').checked = !!ann.metadata_confirmed;
+  persistAnnotations();
+}
+
+function onTagChange(key) {
+  const sel = document.getElementById('field-tag-' + key);
+  const ann = annotations[currentIndex];
+  ann['reviewed_' + key] = sel.value;
+  if (ann.metadata_confirmed) {
+    ann.metadata_confirmed = '';
+    document.getElementById('field-metadata-confirm').checked = false;
+  }
+  persistAnnotations();
+  clearNavError();
+}
+
+function onMetadataConfirmChange() {
+  const ann = annotations[currentIndex];
+  ann.metadata_confirmed = document.getElementById('field-metadata-confirm').checked ? 'yes' : '';
+  persistAnnotations();
+  clearNavError();
+}
+
+function showTagInfo(key) {
+  const def = TAG_DEFS[key];
+  document.getElementById('tag-info-title').textContent = def.label;
+  document.getElementById('tag-info-note').textContent = def.note || '';
+  document.getElementById('tag-info-body').innerHTML = Object.entries(def.values).map(([v, desc]) => `
+    <div class="border border-gray-100 rounded-lg p-2.5 bg-gray-50">
+      <div class="font-semibold text-gray-800 text-sm">${v}</div>
+      <div class="text-xs text-gray-600 mt-0.5">${desc}</div>
+    </div>`).join('');
+  document.getElementById('tag-info-modal').classList.remove('hidden');
+}
+
+function closeTagInfo() {
+  document.getElementById('tag-info-modal').classList.add('hidden');
+}
+
+function restoreAnnotationUI(ann) {
+  // Status buttons
+  setStatusUI(ann.review_status || '');
+
+  // Issue chips
+  const activeIssues = ann.issue_type ? ann.issue_type.split('|') : [];
+  document.querySelectorAll('.issue-chip').forEach(c =>
+    c.classList.toggle('active', activeIssues.includes(c.dataset.issue))
+  );
+
+  // Text fields
+  const allFields = ['reviewer_notes','revised_question','revised_expected_answers',
+    'revised_option_A','revised_option_B','revised_option_C','revised_option_D','revised_expected_answer'];
+  allFields.forEach(f => {
+    const el = document.getElementById('field-' + f);
+    if (el) el.value = ann[f] || '';
+  });
+}
+
+// ═══════════════ STATUS UI ═══════════════
+function setStatusUI(status) {
+  ['keep','revise','drop'].forEach(s => {
+    document.getElementById('btn-' + s).classList.toggle('selected', s === status);
+  });
+
+  const isRevOrDrop = status === 'revise' || status === 'drop';
+  document.getElementById('detail-section').classList.toggle('hidden', !isRevOrDrop);
+  document.getElementById('revision-section').classList.toggle('hidden', status !== 'revise');
+
+  if (status === 'revise') {
+    document.getElementById('revision-shortform').classList.toggle('hidden', currentIsMCQ);
+    document.getElementById('revision-mcq').classList.toggle('hidden', !currentIsMCQ);
+  }
+
+  // Notes label hint
+  const hint = document.getElementById('notes-label-hint');
+  if (hint) {
+    if (status === 'revise') hint.innerHTML = '<span class="text-red-500">* required</span>';
+    else if (status === 'drop') hint.innerHTML = '<span class="text-gray-400">(optional)</span>';
+    else hint.innerHTML = '';
+  }
+}
+
+// ═══════════════ ANNOTATION ACTIONS ═══════════════
+function setStatus(status) {
+  const ann = annotations[currentIndex];
+  if (!ann.metadata_confirmed) {
+    showNavError('Please review the grade/domain/SVR/GEEAP tags above, then check the confirmation box before choosing a status.');
+    return;
+  }
+  ann.review_status = status;
+  setStatusUI(status);
+  saveCurrentAnnotation();
+  updateProgress();
+  clearNavError();
+  if (status === 'keep') {
+    setTimeout(() => navigateNext(), 180);
+  }
+}
+
+function onNotesInput() {
+  saveCurrentAnnotation();
+  clearNavError();
+}
+
+function toggleIssueChip(chip) {
+  chip.classList.toggle('active');
+  annotations[currentIndex].issue_type =
+    Array.from(document.querySelectorAll('.issue-chip.active')).map(c => c.dataset.issue).join('|');
+  persistAnnotations();
+}
+
+function saveCurrentAnnotation() {
+  const ann = annotations[currentIndex];
+  ['reviewer_notes','revised_question','revised_expected_answers',
+   'revised_option_A','revised_option_B','revised_option_C','revised_option_D',
+   'revised_expected_answer'].forEach(f => {
+    const el = document.getElementById('field-' + f);
+    if (el) ann[f] = el.value;
+  });
+  persistAnnotations();
+}
+
+function persistAnnotations() {
+  try { localStorage.setItem(storageKey, JSON.stringify(annotations)); } catch(e) {}
+}
+
+// ═══════════════ NAVIGATION VALIDATION ═══════════════
+function validationError() {
+  const ann = annotations[currentIndex];
+  if (!ann.metadata_confirmed) return 'Please review and confirm the grade/domain/SVR/GEEAP tags at the top of the page before continuing.';
+  if (!ann.review_status) return 'Please select Keep, Revise, or Drop before continuing.';
+
+  if (ann.review_status === 'drop' || ann.review_status === 'revise') {
+    if (!ann.issue_type) return 'Please select at least one issue tag before continuing.';
+  }
+
+  if (ann.review_status === 'revise') {
+    if (!ann.reviewer_notes.trim()) return 'Please add a note explaining the issue before continuing.';
+    const correctionFields = currentIsMCQ
+      ? ['revised_question','revised_option_A','revised_option_B','revised_option_C','revised_option_D','revised_expected_answer']
+      : ['revised_question','revised_expected_answers'];
+    const hasCorrection = correctionFields.some(f => ann[f] && ann[f].trim());
+    if (!hasCorrection) return 'Please fill in at least one suggested correction before continuing.';
+  }
+
+  return null;
+}
+
+function clearNavError() {
+  const el = document.getElementById('nav-error');
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+function showNavError(msg) {
+  const el = document.getElementById('nav-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ═══════════════ NAVIGATION ═══════════════
+function navigateNext() {
+  saveCurrentAnnotation();
+  const err = validationError();
+  if (err) { showNavError(err); return; }
+  const next = currentIndex + 1;
+  if (next >= rows.length) { showSummary(); return; }
+  currentIndex = next;
+  renderQuestion();
+}
+
+function navigate(dir) {
+  // Previous always allowed without validation
+  saveCurrentAnnotation();
+  if (dir === 1) { navigateNext(); return; }
+  const prev = currentIndex + dir;
+  if (prev < 0) return;
+  currentIndex = prev;
+  renderQuestion();
+}
+
+// ═══════════════ PROGRESS ═══════════════
+function updateProgress() {
+  const total  = rows.length;
+  const keep   = annotations.filter(a => a.review_status === 'keep').length;
+  const revise = annotations.filter(a => a.review_status === 'revise').length;
+  const drop   = annotations.filter(a => a.review_status === 'drop').length;
+  const done   = keep + revise + drop;
+
+  document.getElementById('prog-current').textContent = currentIndex + 1;
+  document.getElementById('prog-total').textContent = total;
+  document.getElementById('count-keep').textContent = keep;
+  document.getElementById('count-revise').textContent = revise;
+  document.getElementById('count-drop').textContent = drop;
+  document.getElementById('count-unreviewed').textContent = total - done;
+  document.getElementById('progress-bar').style.width = (done / total * 100) + '%';
+}
+
+// ═══════════════ SUMMARY ═══════════════
+function showSummary() {
+  saveCurrentAnnotation();
+  const total      = rows.length;
+  const keep       = annotations.filter(a => a.review_status === 'keep').length;
+  const revise     = annotations.filter(a => a.review_status === 'revise').length;
+  const drop       = annotations.filter(a => a.review_status === 'drop').length;
+  const unreviewed = total - keep - revise - drop;
+
+  document.getElementById('sum-total').textContent   = total;
+  document.getElementById('sum-keep').textContent    = keep;
+  document.getElementById('sum-revise').textContent  = revise;
+  document.getElementById('sum-drop').textContent    = drop;
+
+  const warn = document.getElementById('sum-unreviewed-warning');
+  warn.classList.toggle('hidden', unreviewed === 0);
+  document.getElementById('sum-unreviewed').textContent = unreviewed;
+
+  show('page-summary');
+}
+
+function backToReview() {
+  show('page-review');
+  renderQuestion();
+}
+
+// ═══════════════ EXPORT ═══════════════
+function exportCSV() {
+  const csv  = buildCSV();
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  let fname  = document.getElementById('export-filename').value.trim() || 'annotated_dataset';
+  if (!fname.endsWith('.csv')) fname += '.csv';
+  a.href = url; a.download = fname; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════ PAGE SWITCHER ═══════════════
+function show(pageId) {
+  ['page-welcome','page-review','page-summary'].forEach(id =>
+    document.getElementById(id).classList.toggle('hidden', id !== pageId)
+  );
+}
+
+// Issue chip delegation
+document.getElementById('issue-chips').addEventListener('click', e => {
+  const chip = e.target.closest('.issue-chip');
+  if (chip) toggleIssueChip(chip);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+model,ability_logit,n_items_full,correct_full,accuracy_full,n_items_selected,correct_selected,accuracy_selected,rank_full,rank_selected
+gemini-3.1-pro-preview,3.021,298,291,97.651,150,147,98.0,1,1
+gemini-3.1-flash-lite-preview,1.747,298,277,92.953,150,137,91.333,2,2
+gemma-4-31b-it,1.079,298,265,88.926,150,130,86.667,3,3
+claude-sonnet-4-6,1.079,298,265,88.926,150,130,86.667,3,3
+gpt-4.1,0.725,298,257,86.242,150,124,82.667,5,5
+claude-haiku-4-5-20251001,-0.272,298,228,76.51,150,100,66.667,6,6
+mistral-small-2603,-0.61,298,216,72.483,150,88,58.667,7,7
+gpt-5.4-nano-2026-03-17,-0.925,298,204,68.456,150,82,54.667,8,8
+gemma-3-12b-it,-1.421,298,183,61.409,150,61,40.667,9,9
+ministral-3-8b-2512,-2.428,298,142,47.651,150,11,7.333,10,10

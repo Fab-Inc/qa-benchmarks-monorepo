@@ -51,8 +51,8 @@ CSVs, or pass --summary/--detailed to point at exact files instead):
 Restrict the domain×grade analysis to a band of models by overall accuracy
 (--min-accuracy / --max-accuracy, in %); the band is stamped into the plot titles
 and appended to the domain×grade output filenames (e.g. _acc90plus, _acc70-90):
-    python .../analyze_results.py --language kiswahili --min-accuracy 90              # only the 90+%% models
-    python .../analyze_results.py --language kiswahili --min-accuracy 70 --max-accuracy 90   # the 70-90%% band
+    python .../analyze_results.py --language kiswahili --min-accuracy 90              # only the 90+% models
+    python .../analyze_results.py --language kiswahili --min-accuracy 70 --max-accuracy 90   # the 70-90% band
 """
 
 from __future__ import annotations
@@ -571,9 +571,7 @@ def load_judged_model(cache_run_dir: str, model: str) -> pd.DataFrame | None:
         return None
     df = pd.read_csv(primary)
     fallback = os.path.join(
-        cache_run_dir,
-        "responses_judged_fallback",
-        f"responses_judged_fallback_{model}.csv",
+        cache_run_dir, "responses_judged_fallback", f"responses_judged_{model}.csv"
     )
     if os.path.exists(fallback):
         fb = pd.read_csv(fallback)

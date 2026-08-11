@@ -11,7 +11,7 @@ from linguistic_knowledge_benchmark import judge_bench, shared_utils
 # --------------------------------------------------------------------------- #
 # small helpers
 # --------------------------------------------------------------------------- #
-def _responses_dir(base, language="luganda"):
+def _responses_dir(base, language="kiswahili"):
     d = base / language / "runs" / "default" / "responses"
     d.mkdir(parents=True)
     return d
@@ -135,7 +135,7 @@ def test_judge_results_missing_input_raises(tmp_path, monkeypatch):
     with pytest.raises(FileNotFoundError):
         judge_bench.judge_results(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=tmp_path / "ds.json",
         )
 
@@ -154,14 +154,14 @@ def test_judge_results_cache_hit(tmp_path, monkeypatch):
             }
         ],
     )
-    judged = tmp_path / "luganda" / "runs" / "default" / "responses_judged"
+    judged = tmp_path / "kiswahili" / "runs" / "default" / "responses_judged"
     judged.mkdir(parents=True)
     pd.DataFrame([{"question_id": 1, "is_correct": True}]).to_csv(
         judged / f"responses_judged_{VALID_MODEL}.csv", index=False
     )
 
     df = judge_bench.judge_results(
-        VALID_MODEL, language_name="Luganda", dataset_path=tmp_path / "ds.json"
+        VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
     )
     assert bool(df.loc[0, "is_correct"]) is True
 
@@ -215,7 +215,7 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "git_hash", lambda: "judge123")
 
     df = judge_bench.judge_results(
-        VALID_MODEL, language_name="Luganda", dataset_path=ds
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds
     ).set_index("question_id")
 
     assert bool(df.loc[1, "is_correct"]) is True  # MCQ regex
@@ -232,7 +232,7 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     # judged CSV written
     out = (
         tmp_path
-        / "luganda"
+        / "kiswahili"
         / "runs"
         / "default"
         / "responses_judged"
@@ -240,7 +240,7 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     )
     assert out.exists()
     # log.json written at run dir level
-    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
     assert log_path.exists()
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert "responses_judged_timestamp-utc" in entry
@@ -279,7 +279,7 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
     monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
 
     df = judge_bench.judge_results(
-        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds, judge_models=judges
     ).set_index("question_id")
 
     assert bool(df.loc[1, "is_correct"]) is True  # 2/3 majority
@@ -291,7 +291,7 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
     assert bool(df.loc[1, "is_correct_judge-c"]) is False
     assert df.loc[1, "justification_judge-c"] == "no-c"
 
-    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
     assert json.loads(log_path.read_text())[VALID_MODEL]["llm_judges"] == judges
 
 
@@ -323,7 +323,7 @@ def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
 
     df = judge_bench.judge_results(
-        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds, judge_models=judges
     ).set_index("question_id")
 
     assert pd.isna(df.loc[1, "is_correct"])
@@ -333,7 +333,7 @@ def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
 
 def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
-    responses = tmp_path / "luganda" / "runs" / "run-123" / "responses"
+    responses = tmp_path / "kiswahili" / "runs" / "run-123" / "responses"
     responses.mkdir(parents=True)
     _write_responses(
         responses,
@@ -350,14 +350,14 @@ def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
 
     judge_bench.judge_results(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         run_id="run-123",
     )
 
     assert (
         tmp_path
-        / "luganda"
+        / "kiswahili"
         / "runs"
         / "run-123"
         / "responses_judged"
@@ -386,13 +386,15 @@ def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
 
     monkeypatch.setattr(judge_bench, "get_caller", raise_ni)
     with pytest.raises(ValueError, match="not registered"):
-        judge_bench.judge_results(VALID_MODEL, language_name="Luganda", dataset_path=ds)
+        judge_bench.judge_results(
+            VALID_MODEL, language_name="Kiswahili", dataset_path=ds
+        )
 
 
 # --------------------------------------------------------------------------- #
 # judge_results_fallback
 # --------------------------------------------------------------------------- #
-def _judged_dir(base, language="luganda"):
+def _judged_dir(base, language="kiswahili"):
     d = base / language / "runs" / "default" / "responses_judged"
     d.mkdir(parents=True)
     return d
@@ -402,7 +404,7 @@ def test_fallback_missing_input_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     with pytest.raises(FileNotFoundError):
         judge_bench.judge_results_fallback(
-            VALID_MODEL, language_name="Luganda", dataset_path=tmp_path / "ds.json"
+            VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
         )
 
 
@@ -412,13 +414,13 @@ def test_fallback_cache_hit(tmp_path, monkeypatch):
     pd.DataFrame(
         [{"question_id": 1, "is_correct": True, "answer_type": "multiple_choice"}]
     ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
-    fb = tmp_path / "luganda" / "runs" / "default" / "responses_judged_fallback"
+    fb = tmp_path / "kiswahili" / "runs" / "default" / "responses_judged_fallback"
     fb.mkdir(parents=True)
     pd.DataFrame([{"question_id": 1, "is_correct_fallback": True}]).to_csv(
         fb / f"responses_judged_{VALID_MODEL}.csv", index=False
     )
     df = judge_bench.judge_results_fallback(
-        VALID_MODEL, language_name="Luganda", dataset_path=tmp_path / "ds.json"
+        VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
     )
     assert "is_correct_fallback" in df.columns
 
@@ -440,19 +442,19 @@ def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
 
     df = judge_bench.judge_results_fallback(
-        VALID_MODEL, language_name="Luganda", dataset_path=tmp_path / "ds.json"
+        VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
     )
     assert df["is_correct_fallback"].isna().all()
     out = (
         tmp_path
-        / "luganda"
+        / "kiswahili"
         / "runs"
         / "default"
         / "responses_judged_fallback"
         / f"responses_judged_{VALID_MODEL}.csv"
     )
     assert out.exists()
-    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert "responses_judged_fallback_timestamp-utc" in entry
     assert entry["responses_judged_fallback_git-hash"] == "fb123"
@@ -479,7 +481,7 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
 
     df = judge_bench.judge_results_fallback(
-        VALID_MODEL, language_name="Luganda", dataset_path=ds
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds
     )
     assert bool(df.loc[0, "is_correct_fallback"]) is True
     assert df.loc[0, "justification_fallback"] == "B it is"
@@ -517,7 +519,7 @@ def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch)
     monkeypatch.setattr(judge_bench, "get_caller", lambda name: callers[name])
 
     df = judge_bench.judge_results_fallback(
-        VALID_MODEL, language_name="Luganda", dataset_path=ds, judge_models=judges
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds, judge_models=judges
     )
     assert bool(df.loc[0, "is_correct_fallback"]) is True
     assert df.loc[0, "justification_fallback"] == "yes-a"
@@ -526,7 +528,7 @@ def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch)
     assert bool(df.loc[0, "is_correct_fallback_judge-c"]) is False
     assert df.loc[0, "justification_fallback_judge-c"] == "no-c"
 
-    log_path = tmp_path / "luganda" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert entry["llm_judges_fallback"] == judges
 
@@ -553,7 +555,7 @@ def test_fallback_judge_not_registered(tmp_path, monkeypatch):
     monkeypatch.setattr(judge_bench, "get_caller", raise_ni)
     with pytest.raises(ValueError, match="not registered"):
         judge_bench.judge_results_fallback(
-            VALID_MODEL, language_name="Luganda", dataset_path=ds
+            VALID_MODEL, language_name="Kiswahili", dataset_path=ds
         )
 
 

@@ -8,10 +8,24 @@ QC-passed, de-duplicated candidate (3a's pool, collapsed to one item per dup_gro
 against a panel of models with the eval harness, then feed the per-item correctness
 matrix here to select the final dataset.
 
-Input: the DETAILED results CSV (one row per question, produced by `judge-bench`):
-    question_id, domain, grade, answer_type, question, expected_answers,
-    then per model a `<model>_output` and `<model>_correct` (True/False, blank = unscored).
-Each model is treated as an IRT respondent and `<model>_correct` as its binary response.
+--language is the only CLI-configurable input; its two data sources are fixed, per-
+language constants (RESULTS_DETAILED_PATH / DATASET_PATH below), not CLI flags -- edit
+those dicts directly if the run being selected from changes:
+  RESULTS_DETAILED_PATH[language]  the judged results CSV (one row per question,
+      produced by judge-bench): question_id, domain, grade, answer_type, question,
+      expected_answers, then per model a `<model>_output` and `<model>_correct`
+      (True/False, blank = unscored). Each model is treated as an IRT respondent and
+      `<model>_correct` as its binary response -- this is what IRT is actually fit on.
+  DATASET_PATH[language]  the full item-pool JSON RESULTS_DETAILED_PATH's questions were
+      drawn from (question_id, domain, question, options, expected_answers, ...). Used to
+      attach question text/options/domain/grade to the selected question_ids when
+      writing selected_dataset.json / selected_dataset_cleaned.json below, matched purely
+      on question_id. It must be the exact pool RESULTS_DETAILED_PATH was scored against:
+      a same-shaped-but-different pool can collide on question_id and silently produce a
+      wrong-but-plausible selected_dataset.json -- so before any output is written, the
+      script cross-checks the two paths' question_ids/answer_types and ABORTS if they
+      don't line up (a safety net against DATASET_PATH/RESULTS_DETAILED_PATH drifting out
+      of sync with each other, not just a CLI-input check).
 
 What it computes, per item:
   * Rasch/1PL difficulty (GIRTH marginal-maximum-likelihood) and per-model ability (EAP);
@@ -27,24 +41,24 @@ How it selects a trimmed dataset (three goals):
      always-right and weakly/negatively discriminating items (point-biserial below
      MIN_DISCRIMINATION). ALWAYS-WRONG items are KEPT, not dropped: no model answers
      them, so they are either genuinely hard (they fight saturation) or flawed — either
-     way the human-review gate should look at them. (Set --min-pvalue above 0 to drop them.)
+     way the human-review gate should look at them. (Raise MIN_PVALUE above 0 to drop them.)
   3. Coverage — keep a good spread across domains (D1..D9) and grades by filling a
      per-domain x grade quota proportional to the discriminating pool, allocated exactly
-     via largest-remainder rounding (quotas always sum to min(--target-n, pool size) —
+     via largest-remainder rounding (quotas always sum to min(TARGET_N, pool size) —
      no off-by-a-few from independent per-cell rounding).
 
 Within each domain x grade cell, items are further ranked by SELECTION STABILITY before
-discrimination/difficulty: `selection_freq` is the fraction of leave-`--leave-out`-out
-model subpanels (all C(n_models, leave_out) of them, each with p-value/discrimination
+discrimination/difficulty: `selection_freq` is the fraction of leave-LEAVE_OUT-out model
+subpanels (all C(n_models, LEAVE_OUT) of them, each with p-value/discrimination
 recomputed for just that subpanel — no Rasch refit needed) that would independently pick
 this item. Ranking on this first means the kept set favours items that stay competitive
 across many reasonable model panels, not just the exact panel on hand — with only ~10
 model respondents, point-biserial/rank estimates can shift when the panel changes.
 
-The target-n CEILING is a SOFT target: the script reports the resulting top-model
-accuracy against `--ceiling` rather than hard-forcing every model under it (on this data
+The TARGET_N CEILING is a SOFT target: the script reports the resulting top-model
+accuracy against CEILING rather than hard-forcing every model under it (on this data
 the strongest model fails so few items that a hard cap would shrink the set drastically
-— see the printed summary and tune `--target-n` / `--max-pvalue` from there).
+— see the printed summary and tune TARGET_N / MAX_PVALUE from there).
 
 It also prints two validation diagnostics (cf. Ramprasath 2026, IRT redundancy analysis):
   * ranking recovery — Spearman rho / Kendall tau-b / top-k agreement between the model
@@ -59,13 +73,13 @@ Outputs — one directory per run, never overwritten (see --run-id below):
     items.csv              per-item difficulty, p-value, point-biserial, selection_freq, flags
     models.csv              per-model ability, full vs selected accuracy, ranks
     selected_ids.json       the kept question_ids (sorted)
-    selected_dataset.json   the kept items, filtered from --dataset (ready to use)
+    selected_dataset.json   the kept items, filtered from DATASET_PATH (ready to use)
     selected_dataset_cleaned.json  same items, question_id renumbered 1..n (contiguous)
     diagnostics.png         difficulty vs discrimination; item difficulty spread
     accuracy_shift.png      per-model accuracy, full set vs selected set
     coverage.png            domain x grade counts of the selected set
     coverage_comparison.png 5-panel domain x grade coverage: full bank, selected set,
-                            items dropped, plus %% of each domain's and each grade's
+                            items dropped, plus % of each domain's and each grade's
                             own before-cut total that got dropped -- answers "which
                             domains/grades lost coverage in the cut?" directly (the
                             printed per-domain coverage table below answers the same
@@ -75,11 +89,14 @@ Outputs — one directory per run, never overwritten (see --run-id below):
 already exist in that run's directory, the script aborts rather than overwrite them —
 pass a different --run-id (or delete the old run's directory) to rerun.
 
-Run (--language is mandatory; defaults target that language's v10 full-dataset run):
-    python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language kiswahili
-    python .../estimate_irt.py --language english --run-id target150 --target-n 150
-    python .../estimate_irt.py --language kiswahili --max-pvalue 0.9   # also drop items >90%% of models ace
-    python .../estimate_irt.py --language kiswahili --leave-out 1   # leave-one-out stability instead
+Selection tuning (TARGET_N, CEILING, MIN_DISCRIMINATION, MAX_PVALUE, MIN_PVALUE,
+LEAVE_OUT above) edit those constants directly and
+rerun with a new --run-id.
+
+Run (--language is the only required flag):
+    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language kiswahili
+    uv run python .../estimate_irt.py --language english --run-id target150
+    uv run python .../estimate_irt.py --language kiswahili --outdir /tmp/irt-runs
 """
 
 from __future__ import annotations
@@ -107,38 +124,50 @@ GRADE_LABEL = {g: ("BP" if g == "beyond_primary" else g) for g in GRADES}
 DISCRIMINATION = 1.0  # Rasch fixes the slope at 1.
 _CORRECT_MAP = {"true": 1, "false": 0, "1": 1, "0": 0}
 
-# The result CSVs and cmd.py's DATASETS both key on "kiswahili"; the pipeline's
-# working-data directory for that language is named "kiswahili_workflow" too.
-LANGUAGE_WORKFLOW_DIR = {
-    "english": "english_workflow",
-    "kiswahili": "kiswahili_workflow",
+# The two data sources this script always uses -- one pair of paths per language, not a
+# CLI flag (see module docstring's Inputs section). Edit these directly to point at a
+# different run; --language just selects which entry.
+#
+# Kiswahili's full-pool eval run is tagged "v10-full-dataset" (528 detailed rows -> 307
+# items scored); English's equivalent run (its whole 377-item stage_3b_dataset_full pool)
+# is simply tagged "default". Paths are relative to the package root (joined in main()).
+RESULTS_DETAILED_PATH = {
+    "english": os.path.join(
+        "results", "summary_linguistic-knowledge_english_default_detailed.csv"
+    ),
+    "kiswahili": os.path.join(
+        "results",
+        "summary_linguistic-knowledge_kiswahili_v10-full-dataset_detailed.csv",
+    ),
 }
 
-# The run tag differs per language: Kiswahili's full-pool eval run is tagged
-# "v10-full-dataset" (528 detailed rows -> 307 items scored); English's equivalent run
-# (its whole 377-item stage_3b_dataset_full pool) is simply tagged "default".
-DEFAULT_RUN_LABEL = {
-    "english": "default",
-    "kiswahili": "v10-full-dataset",
+DATASET_PATH = {
+    "english": os.path.join(
+        "data", "english_workflow", "process", "stage_3b_dataset_full.json"
+    ),
+    "kiswahili": os.path.join(
+        "data", "kiswahili_workflow", "process", "stage_3b_dataset_full.json"
+    ),
 }
 
+# Selection tuning, also not CLI flags -- edit these directly to change how a run is
+# trimmed (see "How it selects a trimmed dataset" above for what each one controls).
+TARGET_N = 150  # target size of the selected set
+CEILING = 90.0  # top-accuracy ceiling to report against (soft; not hard-enforced)
+MIN_DISCRIMINATION = 0.0  # drop items whose point-biserial is below this
+MAX_PVALUE = 1.0  # drop items more than this fraction of models get right (e.g. 0.9)
+MIN_PVALUE = 0.0  # drop items fewer than this fraction of models get right
+LEAVE_OUT = 2  # models omitted per selection_freq subpanel (2 = leave-two-out)
 
-def default_paths_for(language: str, root: str) -> dict:
-    run_label = DEFAULT_RUN_LABEL[language]
-    return {
-        "detailed": os.path.join(
-            root,
-            "results",
-            f"summary_linguistic-knowledge_{language}_{run_label}_detailed.csv",
-        ),
-        "dataset": os.path.join(
-            root,
-            "data",
-            LANGUAGE_WORKFLOW_DIR[language],
-            "process",
-            "stage_3b_dataset_full.json",
-        ),
-    }
+
+def default_results_detailed_for(language: str, root: str) -> str:
+    """A language's default results-detailed CSV path (see RESULTS_DETAILED_PATH above).
+
+    estimate_irt.py's own main() reads RESULTS_DETAILED_PATH directly (--language is its
+    only CLI parameter); this exists for other scripts (e.g. plot_selected_accuracy.py)
+    that still want a same-language guess to fall back to.
+    """
+    return os.path.join(root, RESULTS_DETAILED_PATH[language])
 
 
 # Fixed filenames written into each run's own directory (see main()'s --run-id / rundir).
@@ -167,6 +196,22 @@ def _refuse_if_exists(rundir: str, filenames: list[str]) -> None:
             + "\n".join(f"  - {f}" for f in clashes)
             + "\nUse a different --run-id, or delete these files first."
         )
+
+
+# --------------------------------------------------------------------------- #
+# Console summary formatting
+# --------------------------------------------------------------------------- #
+_RULE = "=" * 70
+
+
+def _section(title: str) -> None:
+    """Print a section header for the console summary."""
+    print(f"\n{_RULE}\n{title}\n{_RULE}")
+
+
+def _kv(label: str, value) -> None:
+    """Print one left-aligned 'label : value' row for the console summary."""
+    print(f"  {label:<22}: {value}")
 
 
 # --------------------------------------------------------------------------- #
@@ -201,6 +246,78 @@ def load_matrix(detailed_path: str):
     matrix = df[corr_cols].apply(lambda col: col.map(_to01)).to_numpy(dtype=float)
     scored_mask = ~np.isnan(matrix).any(axis=1)
     return meta, models, matrix, scored_mask
+
+
+def load_dataset_items(dataset_path: str) -> list[dict]:
+    """Load DATASET_PATH's item-pool JSON, or abort with a clear error if it's missing."""
+    if not os.path.exists(dataset_path):
+        raise SystemExit(f"DATASET_PATH entry not found on disk: {dataset_path}")
+    with open(dataset_path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def check_dataset_matches_results(
+    meta: pd.DataFrame, dataset_items: list[dict]
+) -> None:
+    """Abort if DATASET_PATH doesn't match what RESULTS_DETAILED_PATH was scored on.
+
+    The dangerous case isn't a missing file (load_dataset_items already catches that) --
+    it's a same-shaped-but-WRONG pool, e.g. two item pools that happen to reuse the same
+    question_id range. Filtering selected_ids against the wrong pool would silently
+    attach the wrong question text/options/domain/grade to a real selected id, so this
+    runs BEFORE any output is written and raises rather than warns -- a wrong
+    selected_dataset.json is worse than none (same hazard, same two-signal approach as
+    analyze_results.py's --dataset check). Catches DATASET_PATH/RESULTS_DETAILED_PATH
+    drifting out of sync with each other, since neither is a CLI input anymore:
+      1. question_ids present in the results CSV but missing from the dataset JSON --
+         those items would be silently dropped from selected_dataset.json if selected.
+      2. for ids present in both, the dataset JSON's answer_type disagreeing with the
+         results CSV's own answer_type for that id -- catches a true id collision even
+         when the id ranges happen to overlap cleanly.
+    """
+    dataset_types = {
+        it["question_id"]: it.get("answer_type")
+        for it in dataset_items
+        if "question_id" in it
+    }
+    dataset_ids = set(dataset_types)
+
+    results_ids = {int(q) for q in meta["question_id"]}
+    missing_from_dataset = results_ids - dataset_ids
+
+    checked = mismatched = 0
+    for qid, atype in zip(meta["question_id"], meta["answer_type"]):
+        qid = int(qid)
+        if qid in dataset_types:
+            checked += 1
+            if dataset_types[qid] != atype:
+                mismatched += 1
+
+    if not missing_from_dataset and not mismatched:
+        return
+
+    msg = [
+        "DATASET_PATH does not match RESULTS_DETAILED_PATH for this language -- "
+        "aborting rather than writing a silently-wrong selected_dataset.json.",
+        f"  {len(results_ids)} distinct question_id(s) in the results CSV, "
+        f"{len(dataset_ids)} in the dataset JSON.",
+    ]
+    if missing_from_dataset:
+        msg.append(
+            f"  {len(missing_from_dataset)} question_id(s) in the results CSV not found "
+            "in the dataset JSON (would be dropped from selected_dataset.json if selected)."
+        )
+    if mismatched:
+        msg.append(
+            f"  {mismatched}/{checked} overlapping id(s) have a different answer_type in "
+            "the dataset JSON than in the results CSV -- likely a different item pool "
+            "reusing the same ids."
+        )
+    msg.append(
+        "  Fix RESULTS_DETAILED_PATH / DATASET_PATH at the top of estimate_irt.py so "
+        "they refer to the same run for this language."
+    )
+    raise SystemExit("\n".join(msg))
 
 
 # --------------------------------------------------------------------------- #
@@ -645,8 +762,8 @@ def _pct_dropped(before_totals: np.ndarray, after_totals: np.ndarray) -> np.ndar
 
 def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     """Domain x grade heatmap: the full item bank, the selected set, the difference
-    (items dropped per cell), then -- on the right -- each domain's %% dropped and
-    each grade's %% dropped, each proportional to its OWN before-cut total (not the
+    (items dropped per cell), then -- on the right -- each domain's % dropped and
+    each grade's % dropped, each proportional to its OWN before-cut total (not the
     pool total). Those last two panels directly answer "which domains/grades lost
     coverage in the cut?": the per-cell diff heatmap shows raw counts, which favours
     large domains/grades just for having more items to lose; normalizing by each
@@ -678,7 +795,7 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
 
     # 4th panel: % of each domain's own before-cut total that got dropped.
     # Row-aligned with the heatmaps (same DOMAINS order, D1 at top) so a row reads
-    # as one continuous story: before -> after -> raw dropped -> %% of that domain lost.
+    # as one continuous story: before -> after -> raw dropped -> % of that domain lost.
     ax = axes[3]
     y = np.arange(len(DOMAINS))
     colors = plt.get_cmap("Reds")(
@@ -768,15 +885,8 @@ def main() -> None:
         "--language",
         required=True,
         choices=LANGUAGES,
-        help="which language's v10 full-dataset run to analyse",
-    )
-    # --detailed/--dataset default to that language's v10-full-dataset run (see
-    # default_paths_for above); override individually for a specific run.
-    ap.add_argument("--detailed", default=None)
-    ap.add_argument(
-        "--dataset",
-        default=None,
-        help="full item pool to filter into the selected dataset (matched on question_id)",
+        help="which language's run to analyse -- selects RESULTS_DETAILED_PATH / "
+        "DATASET_PATH above, the only two data sources this script reads",
     )
     ap.add_argument(
         "--outdir",
@@ -791,46 +901,9 @@ def main() -> None:
         "pass a specific name, or 'timestamp' to auto-generate one (YYYYmmdd-HHMMSS); "
         "refuses to overwrite an existing run's files — pick a new --run-id instead",
     )
-    ap.add_argument(
-        "--target-n", type=int, default=150, help="target size of the selected set"
-    )
-    ap.add_argument(
-        "--ceiling",
-        type=float,
-        default=90.0,
-        help="top-accuracy ceiling to report against (soft; not hard-enforced)",
-    )
-    ap.add_argument(
-        "--min-discrimination",
-        type=float,
-        default=0.0,
-        help="drop items whose point-biserial is below this (keep only positive by default)",
-    )
-    ap.add_argument(
-        "--max-pvalue",
-        type=float,
-        default=1.0,
-        help="drop items more than this fraction of models get right (e.g. 0.9)",
-    )
-    ap.add_argument(
-        "--min-pvalue",
-        type=float,
-        default=0.0,
-        help="drop items fewer than this fraction of models get right",
-    )
-    ap.add_argument(
-        "--leave-out",
-        type=int,
-        default=2,
-        help="models omitted per subpanel when computing selection_freq "
-        "(default 2 = leave-two-out; try 1 for leave-one-out)",
-    )
     args = ap.parse_args()
-
-    defaults = default_paths_for(args.language, root)
-    for key in ("detailed", "dataset"):
-        if getattr(args, key) is None:
-            setattr(args, key, defaults[key])
+    args.results_detailed = os.path.join(root, RESULTS_DETAILED_PATH[args.language])
+    args.dataset = os.path.join(root, DATASET_PATH[args.language])
 
     if args.run_id == "timestamp":
         args.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -844,9 +917,28 @@ def main() -> None:
     def out(name: str) -> str:
         return os.path.join(rundir, name)
 
-    meta, models, matrix, scored_mask = load_matrix(args.detailed)
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("results_detailed", args.results_detailed)
+    _kv("dataset", args.dataset)
+    _kv("outdir", args.outdir)
+    _kv("run_id", args.run_id)
+    _kv("rundir", rundir)
+    _kv("TARGET_N", TARGET_N)
+    _kv("CEILING", CEILING)
+    _kv("MIN_DISCRIMINATION", MIN_DISCRIMINATION)
+    _kv("MAX_PVALUE", MAX_PVALUE)
+    _kv("MIN_PVALUE", MIN_PVALUE)
+    _kv("LEAVE_OUT", LEAVE_OUT)
+
+    meta, models, matrix, scored_mask = load_matrix(args.results_detailed)
     n_models = len(models)
     n_unscored = int((~scored_mask).sum())
+
+    # Validated up front, before any (expensive) fitting or output writing -- see
+    # check_dataset_matches_results' docstring for why a silent mismatch is dangerous.
+    dataset_items = load_dataset_items(args.dataset)
+    check_dataset_matches_results(meta, dataset_items)
 
     # Fit Rasch on the fully scored items only.
     scored = matrix[scored_mask].astype(int)
@@ -883,26 +975,26 @@ def main() -> None:
         meta,
         matrix,
         n_models,
-        args.target_n,
-        args.min_discrimination,
-        args.max_pvalue,
-        args.min_pvalue,
-        args.leave_out,
+        TARGET_N,
+        MIN_DISCRIMINATION,
+        MAX_PVALUE,
+        MIN_PVALUE,
+        LEAVE_OUT,
     )
     items["selected"] = select_items(
         items,
-        args.target_n,
-        args.min_discrimination,
-        args.max_pvalue,
-        args.min_pvalue,
+        TARGET_N,
+        MIN_DISCRIMINATION,
+        MAX_PVALUE,
+        MIN_PVALUE,
         primary_rank_col="selection_freq",
     )
     items["in_pool"] = (
         items["scored"]
         & ~items["all_right"]
-        & (items["all_wrong"] | (items["point_biserial"] >= args.min_discrimination))
-        & (items["p_value"] <= args.max_pvalue)
-        & (items["p_value"] >= args.min_pvalue)
+        & (items["all_wrong"] | (items["point_biserial"] >= MIN_DISCRIMINATION))
+        & (items["p_value"] <= MAX_PVALUE)
+        & (items["p_value"] >= MIN_PVALUE)
     )
 
     selected_row_mask = items["selected"].to_numpy()
@@ -945,33 +1037,29 @@ def main() -> None:
         json.dump(selected_ids, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
 
-    n_selected_dataset = 0
-    if os.path.exists(args.dataset):
-        with open(args.dataset, encoding="utf-8") as fh:
-            full = json.load(fh)
-        keep = set(selected_ids)
-        subset = [it for it in full if it.get("question_id") in keep]
-        subset.sort(key=lambda it: it.get("question_id", 0))
-        with open(out("selected_dataset.json"), "w", encoding="utf-8") as fh:
-            json.dump(subset, fh, ensure_ascii=False, indent=2)
-            fh.write("\n")
-        n_selected_dataset = len(subset)
+    keep = set(selected_ids)
+    subset = [it for it in dataset_items if it.get("question_id") in keep]
+    subset.sort(key=lambda it: it.get("question_id", 0))
+    with open(out("selected_dataset.json"), "w", encoding="utf-8") as fh:
+        json.dump(subset, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    n_selected_dataset = len(subset)
 
-        # Same items, renumbered question_id 1..n so the benchmark ships with a clean,
-        # contiguous id range instead of the original (sparse) Stage-3b ids.
-        cleaned = [
-            {**it, "question_id": new_id} for new_id, it in enumerate(subset, start=1)
-        ]
-        with open(out("selected_dataset_cleaned.json"), "w", encoding="utf-8") as fh:
-            json.dump(cleaned, fh, ensure_ascii=False, indent=2)
-            fh.write("\n")
+    # Same items, renumbered question_id 1..n so the benchmark ships with a clean,
+    # contiguous id range instead of the original (sparse) Stage-3b ids.
+    cleaned = [
+        {**it, "question_id": new_id} for new_id, it in enumerate(subset, start=1)
+    ]
+    with open(out("selected_dataset_cleaned.json"), "w", encoding="utf-8") as fh:
+        json.dump(cleaned, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
 
     # ---- plots ----
     plot_diagnostics(items, out("diagnostics.png"))
-    plot_accuracy_shift(tbl, args.ceiling, out("accuracy_shift.png"))
+    plot_accuracy_shift(tbl, CEILING, out("accuracy_shift.png"))
     plot_coverage(items, out("coverage.png"))
     plot_coverage_comparison(items, out("coverage_comparison.png"))
-    plot_selection_freq(items, args.leave_out, out("selection_freq.png"))
+    plot_selection_freq(items, LEAVE_OUT, out("selection_freq.png"))
 
     # ---- console summary ----
     n_sel = int(items["selected"].sum())
@@ -982,38 +1070,51 @@ def main() -> None:
     all_right = int(items["all_right"].sum())
     all_wrong = int(items["all_wrong"].sum())
     n_sel_wrong = int((items["selected"] & items["all_wrong"]).sum())
-    print(
-        f"models={n_models}  items={len(items)}  unscored(dropped from IRT)={n_unscored}  "
-        f"all-right(dropped)={all_right}  all-wrong(kept)={all_wrong}"
-    )
     n_pool = int(items["in_pool"].sum())
-    n_target = min(args.target_n, n_pool)
-    print(
-        f"pool={n_pool}  selected={n_sel}  (target {args.target_n})  "
-        f"filtered_dataset={n_selected_dataset}  of which always-wrong={n_sel_wrong}"
+    n_target = min(TARGET_N, n_pool)
+
+    _section("ITEM POOL")
+    _kv("models", n_models)
+    _kv("items", len(items))
+    _kv("unscored (dropped from IRT)", n_unscored)
+    _kv("all-right (dropped)", all_right)
+    _kv("all-wrong (kept)", all_wrong)
+
+    _section("SELECTION")
+    _kv("pool", n_pool)
+    _kv("selected", f"{n_sel}  (target {TARGET_N})")
+    _kv(
+        "filtered_dataset",
+        f"{n_selected_dataset}  (of which always-wrong: {n_sel_wrong})",
     )
-    print(
-        f"exact quota check: selected == min(target_n, pool) -> {n_sel} == {n_target}  "
-        f"{'OK' if n_sel == n_target else 'MISMATCH'}"
+    _kv(
+        "exact quota check",
+        f"selected == min(TARGET_N, pool) -> {n_sel} == {n_target}  "
+        f"{'OK' if n_sel == n_target else 'MISMATCH'}",
     )
-    print(
-        f"top accuracy: full={top_full:.1f}%  selected={top_sel:.1f}%  "
-        f"(ceiling {args.ceiling:g}% — {'MET' if top_sel < args.ceiling else 'NOT met, soft'})"
+
+    _section("ACCURACY")
+    _kv(
+        "top accuracy",
+        f"full={top_full:.1f}%  selected={top_sel:.1f}%  "
+        f"(ceiling {CEILING:g}% — {'MET' if top_sel < CEILING else 'NOT met, soft'})",
     )
-    print(
-        f"accuracy spread (max-min): full={spread_full:.1f}pp  selected={spread_sel:.1f}pp"
+    _kv(
+        "accuracy spread (max-min)",
+        f"full={spread_full:.1f}pp  selected={spread_sel:.1f}pp",
     )
 
     # ---- selection stability (leave-`leave_out`-out) ----
-    n_subpanels = math.comb(n_models, args.leave_out)
+    n_subpanels = math.comb(n_models, LEAVE_OUT)
     sel_freq = items.loc[items["selected"], "selection_freq"]
     n_unstable = int((sel_freq < 0.5).sum())
-    print(
-        f"selection stability: leave-{args.leave_out}-out over {n_models} models "
-        f"({n_subpanels} subpanels)  selection_freq among selected: "
-        f"min={sel_freq.min():.2f}  median={sel_freq.median():.2f}  max={sel_freq.max():.2f}  "
-        f"(<0.5 i.e. quota-filled rather than robustly picked: {n_unstable})"
+    _section(f"SELECTION STABILITY (leave-{LEAVE_OUT}-out)")
+    _kv("subpanels", f"{n_subpanels}  (over {n_models} models)")
+    _kv(
+        "selection_freq (selected)",
+        f"min={sel_freq.min():.2f}  median={sel_freq.median():.2f}  max={sel_freq.max():.2f}",
     )
+    _kv("quota-filled (freq<0.5)", n_unstable)
 
     # ---- validation diagnostics (ranking recovery + discrimination concentration) ----
     rho = _spearman(tbl["accuracy_full"], tbl["accuracy_selected"])
@@ -1028,16 +1129,18 @@ def main() -> None:
     pb_pool = pb_pool[pb_pool >= 0].to_numpy()
     gini = _gini(pb_pool)
     med_pb = float(np.median(pb_pool)) if len(pb_pool) else float("nan")
-    print(
-        f"ranking recovery (full vs selected): Spearman rho={rho:.3f}  Kendall tau-b={tau:.3f}  "
-        f"top-3={top3:.2f}  top-5={top5:.2f}"
+    _section("VALIDATION DIAGNOSTICS")
+    _kv(
+        "ranking recovery (full vs sel)",
+        f"Spearman rho={rho:.3f}  Kendall tau-b={tau:.3f}  top-3={top3:.2f}  top-5={top5:.2f}",
     )
-    print(
-        f"discrimination (pool, n={len(pb_pool)}): median point-biserial={med_pb:.3f}  Gini={gini:.3f}  "
-        f"(Gini>0.6 => a few items dominate; low => signal spread out)"
+    _kv(
+        "discrimination (pool)",
+        f"n={len(pb_pool)}  median point-biserial={med_pb:.3f}  Gini={gini:.3f}  "
+        f"(>0.6 => a few items dominate; low => signal spread out)",
     )
 
-    print("\nper-model accuracy (full -> selected):")
+    _section("PER-MODEL ACCURACY (full -> selected)")
     for _, r in tbl.iterrows():
         print(
             f"  {r['model']:<32} {r['accuracy_full']:5.1f}% -> {r['accuracy_selected']:5.1f}%"
@@ -1051,14 +1154,15 @@ def main() -> None:
         .size()
         .reindex(DOMAINS, fill_value=0)
     )
-    print("\nper-domain coverage (before -> after, dropped, %kept):")
+    _section("PER-DOMAIN COVERAGE (before -> after)")
     for d in DOMAINS:
         b, a = int(before_by_domain[d]), int(after_by_domain[d])
         if b == 0:
             continue
         pct_kept = 100.0 * a / b
         print(f"  {d}  {b:4d} -> {a:4d}   dropped={b - a:4d}   kept={pct_kept:5.1f}%")
-    print("\nWrote:")
+
+    _section("OUTPUT FILES")
     for name in [
         "items.csv",
         "models.csv",

@@ -12,17 +12,19 @@ from linguistic_knowledge_benchmark import run_bench, shared_utils
 # _build_system_prompts
 # --------------------------------------------------------------------------- #
 def test_build_system_prompts_has_all_answer_types():
-    prompts = run_bench._build_system_prompts("Luganda")
+    prompts = run_bench._build_system_prompts("Kiswahili")
     assert set(prompts) == {"multiple_choice", "short_form"}
 
 
 def test_build_system_prompts_prefix_gives_language_context_for_all_types():
-    prompts = run_bench._build_system_prompts("Luganda")
+    # Unmapped language name (contrast with the Kiswahili->Swahili normalization
+    # test below): passed through to the prompt verbatim.
+    prompts = run_bench._build_system_prompts("Yoruba")
     # Every answer type is prefixed with English-medium context naming the
     # language the question is about.
     for answer_type in ("multiple_choice", "short_form"):
         assert prompts[answer_type].startswith("The following question")
-        assert "Luganda" in prompts[answer_type]
+        assert "Yoruba" in prompts[answer_type]
 
 
 def test_build_system_prompts_normalizes_kiswahili_to_swahili():
@@ -87,7 +89,7 @@ def test_run_benchmark_invalid_model_raises(tmp_path):
     with pytest.raises(ValueError, match="Invalid model"):
         run_bench.run_benchmark(
             "totally-unknown-model",
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=ds,
             output_dir=tmp_path / "out",
         )
@@ -113,7 +115,7 @@ def test_run_benchmark_cache_hit_returns_existing(tmp_path, monkeypatch):
     monkeypatch.setattr(run_bench, "get_caller", boom)
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
     )
@@ -131,7 +133,7 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=out,
     )
@@ -163,7 +165,7 @@ def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=tmp_path / "out",
     )
@@ -191,7 +193,7 @@ def test_run_benchmark_cache_with_errors_returns_existing(tmp_path):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
     )
@@ -213,7 +215,7 @@ def test_run_benchmark_retry_errors_no_error_rows_returns_cached(tmp_path):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
         retry_errors=True,
@@ -225,7 +227,7 @@ def test_run_benchmark_retry_errors_missing_cache_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="cannot use --retry-errors"):
         run_bench.run_benchmark(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=tmp_path / "ds.json",
             output_dir=tmp_path / "out",
             retry_errors=True,
@@ -276,7 +278,7 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=out,
         retry_errors=True,
@@ -307,7 +309,7 @@ def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="not"):
         run_bench.run_benchmark(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=ds,
             output_dir=tmp_path / "out",
         )
@@ -323,13 +325,13 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
     )
     expected = (
         tmp_path
         / "cache"
-        / "luganda"
+        / "kiswahili"
         / "runs"
         / "default"
         / "responses"
@@ -347,14 +349,14 @@ def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         run_id="run-123",
     )
     expected = (
         tmp_path
         / "cache"
-        / "luganda"
+        / "kiswahili"
         / "runs"
         / "run-123"
         / "responses"
@@ -374,7 +376,7 @@ def test_run_benchmark_rate_limited_sleeps(tmp_path, monkeypatch):
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=tmp_path / "out",
     )
@@ -412,7 +414,7 @@ def test_run_benchmark_retry_errors_without_cache_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="cannot use --retry-errors"):
         run_bench.run_benchmark(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=tmp_path / "ds.json",
             output_dir=tmp_path / "out",
             retry_errors=True,

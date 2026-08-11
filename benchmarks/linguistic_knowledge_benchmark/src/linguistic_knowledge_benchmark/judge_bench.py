@@ -232,7 +232,7 @@ def judge_results(
 
     Args:
         model_name: Model whose results to judge
-        language_name: Display name of the language (e.g. "Luganda").
+        language_name: Display name of the language (e.g. "Kiswahili").
         dataset_path: Path to the dataset JSON file.
         judge_models: Models to use as independent LLM judges for short_form rows.
             Defaults to a single judge, DEFAULT_JUDGE_MODELS[:1] (matching the
@@ -443,7 +443,7 @@ def judge_results_fallback(
 
     Args:
         model_name: Model whose results to re-judge
-        language_name: Display name of the language (e.g. "Luganda").
+        language_name: Display name of the language (e.g. "Kiswahili").
         dataset_path: Path to the dataset JSON file.
         judge_models: Models to use as independent LLM judges. Defaults to a
             single judge, DEFAULT_JUDGE_MODELS[:1]; see judge_results() for how
