@@ -3,11 +3,25 @@ from functools import cache
 
 from decodability.english.definitions import ARPABET_TO_IPA, VOWEL_INITIALS
 
+_REQUIRED_NLTK_DATA = (
+    # g2p_en calls nltk.pos_tag; nltk 3.9+ requires the "_eng" tagger.
+    ("taggers/averaged_perceptron_tagger_eng", "averaged_perceptron_tagger_eng"),
+)
+
 
 @cache
 def load_g2p():
     # Lazy: G2p() loads a seq2seq model + NLTK data on first construction.
     os.environ.setdefault("NLTK_DISABLE_IMPORT_SECURITY", "1")
+
+    import nltk
+
+    for resource_path, package in _REQUIRED_NLTK_DATA:
+        try:
+            nltk.data.find(resource_path)
+        except LookupError:
+            nltk.download(package, quiet=True)
+
     from g2p_en import G2p
 
     return G2p()
