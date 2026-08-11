@@ -5,6 +5,9 @@ Config-driven benchmark harness for phonics experiments.
 For an end-to-end walkthrough of config and direct runs, cache reuse, error retries, and
 adding models, see the [CLI tutorial](docs/cli-tutorial.md).
 
+For building the container, deploying the Cloud Run Job, and launching cloud runs, see
+the [Cloud Run deployment guide](../../deploy/README.md).
+
 ## Run Decodability
 
 ```bash
