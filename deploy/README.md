@@ -36,6 +36,14 @@ export RESULTS_BUCKET="gs://your-phonics-results-bucket"
 export SERVICE_ACCOUNT="phonics-runner@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
+Use a current Google Cloud CLI. Older releases can send unsupported fields when
+executing a job with argument overrides:
+
+```bash
+gcloud components update
+gcloud version
+```
+
 Enable the APIs and create the Docker repository, bucket, and job identity. Run only the
 resource-creation commands for resources that do not already exist:
 
@@ -64,8 +72,31 @@ gcloud iam service-accounts create phonics-runner \
 
 gcloud storage buckets add-iam-policy-binding "${RESULTS_BUCKET}" \
   --member="serviceAccount:${SERVICE_ACCOUNT}" \
-  --role="roles/storage.objectAdmin"
+  --role="roles/storage.objectUser"
 ```
+
+The storage role must apply to objects inside the bucket. A project-level conditional
+binding that matches only the exact bucket resource name does not authorize object reads
+or writes; use the bucket-level binding above or ensure the condition also matches
+`/objects/` descendants.
+
+Cloud Build also needs permission to read its uploaded source archive and push the
+resulting image. This is commonly granted automatically, but projects that disable
+automatic service-account grants may need it explicitly:
+
+```bash
+export CLOUD_BUILD_SERVICE_ACCOUNT="$(
+  gcloud builds get-default-service-account --project="${PROJECT_ID}"
+)"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${CLOUD_BUILD_SERVICE_ACCOUNT}" \
+  --role="roles/cloudbuild.builds.builder" \
+  --condition=None
+```
+
+`--condition=None` is explicit because `gcloud` requires a choice when the project IAM
+policy already contains conditional bindings.
 
 Create one Secret Manager secret for each provider key that the selected models need.
 Grant `roles/secretmanager.secretAccessor` on those secrets to `SERVICE_ACCOUNT`. For
