@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 from decodability import rowwise
-from decodability.english.aggregators import aggregate_scores_upl_curriculum
+from decodability.english.aggregators import aggregate_scores_ufli_curriculum
 from decodability.english.extract_phonemes import (
     _normalize_phonemes,
     phoneme_arpabet_lookup,
@@ -32,7 +32,7 @@ class TestEnglishStudentKnowledgeModel:
         known_gpcs: list[tuple[str, tuple[str, ...]]],
         should_pass: bool,
     ):
-        """Reject GPCs that are not in UPL_GPC_INVENTORY."""
+        """Reject GPCs that are not in UFLI_GPC_INVENTORY."""
         if should_pass:
             EnglishStudentKnowledge(gpcs=known_gpcs)
         else:
@@ -122,31 +122,31 @@ class TestEnglishTokenizer:
 
 
 class TestEnglishAggregators:
-    def test_upl_aggregator_returns_1_for_known_whole_words(self):
+    def test_ufli_aggregator_returns_1_for_known_whole_words(self):
         """A known whole word scores 1.0 regardless of GPC knowledge."""
         scores = {
             "score_whole_words_english": 1.0,
             "score_known_gpcs_english": 0.0,
         }
-        assert aggregate_scores_upl_curriculum(scores) == 1.0
+        assert aggregate_scores_ufli_curriculum(scores) == 1.0
 
-    def test_upl_aggregator_falls_back_to_gpc_score(self):
+    def test_ufli_aggregator_falls_back_to_gpc_score(self):
         """An unknown whole word falls back to the GPC score."""
         scores = {
             "score_whole_words_english": 0.0,
             "score_known_gpcs_english": 1.0,
         }
-        assert aggregate_scores_upl_curriculum(scores) == 1.0
+        assert aggregate_scores_ufli_curriculum(scores) == 1.0
 
-    def test_upl_aggregator_returns_0_when_both_missing(self):
+    def test_ufli_aggregator_returns_0_when_both_missing(self):
         """No sight-word match and no GPC coverage → 0.0."""
         scores = {
             "score_whole_words_english": 0.0,
             "score_known_gpcs_english": 0.0,
         }
-        assert aggregate_scores_upl_curriculum(scores) == 0.0
+        assert aggregate_scores_ufli_curriculum(scores) == 0.0
 
-    def test_upl_aggregator_through_rowwise(self):
+    def test_ufli_aggregator_through_rowwise(self):
         """The adapter applies the row function across a frame."""
         df = pd.DataFrame(
             {
@@ -155,7 +155,7 @@ class TestEnglishAggregators:
             }
         )
         score_columns = list(df.columns)
-        final_scores = rowwise(aggregate_scores_upl_curriculum)(df, score_columns)
+        final_scores = rowwise(aggregate_scores_ufli_curriculum)(df, score_columns)
 
         pd.testing.assert_series_equal(final_scores, pd.Series([1.0, 0.0, 1.0]))
 
@@ -166,19 +166,26 @@ class TestPhonemeArpabetLookup:
             phoneme_arpabet_lookup("QQ9")
 
 
+def _tag(*phonemes: str) -> tuple[tuple[str, bool], ...]:
+    """Wrap plain IPA symbols as (phoneme, is_reduced=False) tuples for tests."""
+    return tuple((p, False) for p in phonemes)
+
+
 class TestNormalizePhonemes:
     @pytest.mark.parametrize(
         "phonemes, expected",
         [
             # /ɪ/+/r/ in coda position → /i/+/r/
-            (("b", "ɪ", "r"), ("b", "i", "r")),
-            (("b", "ɪ", "r", "d"), ("b", "i", "r", "d")),
+            (_tag("b", "ɪ", "r"), _tag("b", "i", "r")),
+            (_tag("b", "ɪ", "r", "d"), _tag("b", "i", "r", "d")),
             # /ɪ/+/r/ before a vowel is preserved (mirror)
-            (("m", "ɪ", "r", "ə", "r"), ("m", "ɪ", "r", "ə", "r")),
+            (_tag("m", "ɪ", "r", "ə", "r"), _tag("m", "ɪ", "r", "ə", "r")),
         ],
     )
     def test_pre_r_laxing_reversal(
-        self, phonemes: tuple[str, ...], expected: tuple[str, ...]
+        self,
+        phonemes: tuple[tuple[str, bool], ...],
+        expected: tuple[tuple[str, bool], ...],
     ):
         assert _normalize_phonemes(phonemes) == expected
 
@@ -186,14 +193,18 @@ class TestNormalizePhonemes:
         "phonemes, expected",
         [
             # /ɚ/ splits to /ə/+/r/ (sister, taller, picture)
-            (("s", "ɪ", "s", "t", "ɚ"), ("s", "ɪ", "s", "t", "ə", "r")),
-            (("t", "ɔ", "l", "ɚ"), ("t", "ɔ", "l", "ə", "r")),
-            (("p", "ɪ", "k", "tʃ", "ɚ"), ("p", "ɪ", "k", "tʃ", "ə", "r")),
+            (_tag("s", "ɪ", "s", "t", "ɚ"), _tag("s", "ɪ", "s", "t", "ə", "r")),
+            (_tag("t", "ɔ", "l", "ɚ"), _tag("t", "ɔ", "l", "ə", "r")),
+            (_tag("p", "ɪ", "k", "tʃ", "ɚ"), _tag("p", "ɪ", "k", "tʃ", "ə", "r")),
             # Mid-word /ɚ/ (mirror) splits too
-            (("m", "ɪ", "r", "ɚ"), ("m", "ɪ", "r", "ə", "r")),
+            (_tag("m", "ɪ", "r", "ɚ"), _tag("m", "ɪ", "r", "ə", "r")),
         ],
     )
-    def test_er_split(self, phonemes: tuple[str, ...], expected: tuple[str, ...]):
+    def test_er_split(
+        self,
+        phonemes: tuple[tuple[str, bool], ...],
+        expected: tuple[tuple[str, bool], ...],
+    ):
         assert _normalize_phonemes(phonemes) == expected
 
 
@@ -219,7 +230,91 @@ class TestGPCValidation:
 class TestParseGpcsValidation:
     def test_max_split_gap_must_be_positive(self):
         with pytest.raises(ValueError, match="max_split_gap must be at least one"):
-            parse_gpcs("cat", ("k", "æ", "t"), (), max_split_gap=0)
+            parse_gpcs("cat", _tag("k", "æ", "t"), (), max_split_gap=0)
+
+
+class TestReducedVowelFreePass:
+    """The parser accepts a reduced (unstressed) vowel phoneme paired with a
+    vowel letter even when no inventory GPC covers that pair — vowel reduction
+    is a universal spoken-English process, not a taught correspondence.
+    """
+
+    def _minimal_planet_inventory(self) -> tuple[GPC, ...]:
+        # Deliberately omits any ``e → …`` GPC so the only way ``planet`` parses
+        # is via the reduced-vowel free pass on the trailing ``e``.
+        return (
+            GPC("P", "p", ("p",)),
+            GPC("L", "l", ("l",)),
+            GPC("A", "a", ("æ",)),
+            GPC("N", "n", ("n",)),
+            GPC("T", "t", ("t",)),
+        )
+
+    def test_parser_uses_free_pass_when_no_inventory_gpc_matches(self):
+        """/ə/ marked unstressed on letter ``e`` parses without an ``e → ə`` GPC."""
+        phonemes = (
+            ("p", False),
+            ("l", False),
+            ("æ", False),
+            ("n", False),
+            ("ə", True),  # unstressed schwa — needs the free pass
+            ("t", False),
+        )
+        parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
+
+        assert len(parses) == 1
+        (parse,) = parses
+        e_match = parse[4]
+        assert e_match.gpc.id == "REDUCED_E"
+        assert e_match.gpc.grapheme == "e"
+        assert e_match.gpc.phonemes == ("ə",)
+
+    def test_parser_does_not_free_pass_when_phoneme_is_stressed(self):
+        """The same ``e``/``ə`` pair without the unstressed flag doesn't fire."""
+        phonemes = (
+            ("p", False),
+            ("l", False),
+            ("æ", False),
+            ("n", False),
+            ("ə", False),  # NOT flagged reduced — no free pass
+            ("t", False),
+        )
+        parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
+        assert parses == ()
+
+
+class TestScoreReducedVowelCreditsAnyGraphemeGpc:
+    """The scorer credits a reduced-vowel free-pass match as taught whenever the
+    student knows *any* GPC for the same grapheme letter.
+    """
+
+    def test_any_e_gpc_credits_reduced_e_in_planet(self):
+        """Knowing ``e → ɛ`` is enough to score ``planet`` even though the
+        parser uses ``e → ə`` (reduced) for the trailing e."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("p", ("p",)),
+                ("l", ("l",)),
+                ("a", ("æ",)),
+                ("n", ("n",)),
+                ("e", ("ɛ",)),  # short e — parser needs ə but this counts
+                ("t", ("t",)),
+            ]
+        )
+        assert score_known_gpcs_english("planet", student) == 1.0
+
+    def test_missing_all_e_gpcs_fails_reduced_e_in_planet(self):
+        """No ``e`` GPC at all → the reduced-vowel free pass is not credited."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("p", ("p",)),
+                ("l", ("l",)),
+                ("a", ("æ",)),
+                ("n", ("n",)),
+                ("t", ("t",)),
+            ]
+        )
+        assert score_known_gpcs_english("planet", student) == 0.0
 
 
 class TestScorersEmptyKnowledge:

@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cache
 
+from decodability.english.definitions import VOWEL_LETTERS
+
 
 @dataclass(frozen=True)
 class GPC:
@@ -38,7 +40,7 @@ type Parse = tuple[GPCMatch, ...]
 
 def parse_gpcs(
     word: str,
-    phonemes: tuple[str, ...],
+    phonemes: tuple[tuple[str, bool], ...],
     inventory: tuple[GPC, ...],
     *,
     max_split_gap: int = 2,
@@ -55,6 +57,7 @@ def parse_gpcs(
         raise ValueError("max_split_gap must be at least one letter")
 
     spelling = word.casefold()
+    phoneme_strings = tuple(p for p, _ in phonemes)
     contiguous = tuple(
         (gpc, gpc.grapheme.casefold()) for gpc in inventory if "-" not in gpc.grapheme
     )
@@ -83,7 +86,7 @@ def parse_gpcs(
             if (
                 spelling.startswith(letters, letter_index)
                 and positions_are_free(letter_index, letter_end, reserved)
-                and phonemes[phoneme_index:phoneme_end] == gpc.phonemes
+                and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
                 match = GPCMatch(
                     gpc,
@@ -95,13 +98,34 @@ def parse_gpcs(
                     for remainder in walk(letter_end, phoneme_end, reserved)
                 )
 
+        # Free pass: an unstressed (reduced) phoneme mapped to a single vowel
+        # letter — vowel reduction is a universal spoken-English process, not a
+        # taught GPC, so accept the match without requiring an inventory entry.
+        if phoneme_index < len(phonemes):
+            reduced_ipa, is_unstressed = phonemes[phoneme_index]
+            letter = spelling[letter_index]
+            if is_unstressed and letter in VOWEL_LETTERS:
+                free_pass = GPCMatch(
+                    GPC(
+                        id=f"REDUCED_{letter.upper()}",
+                        grapheme=letter,
+                        phonemes=(reduced_ipa,),
+                    ),
+                    (letter_index,),
+                    (phoneme_index, phoneme_index + 1),
+                )
+                parses.extend(
+                    (free_pass, *remainder)
+                    for remainder in walk(letter_index + 1, phoneme_index + 1, reserved)
+                )
+
         for gpc, (head, tail) in split:
             head_end = letter_index + len(head)
             phoneme_end = phoneme_index + len(gpc.phonemes)
             if not (
                 spelling.startswith(head, letter_index)
                 and positions_are_free(letter_index, head_end, reserved)
-                and phonemes[phoneme_index:phoneme_end] == gpc.phonemes
+                and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
                 continue
 

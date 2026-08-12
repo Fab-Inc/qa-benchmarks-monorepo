@@ -27,17 +27,22 @@ def load_g2p():
     return G2p()
 
 
-def phoneme_arpabet_lookup(phoneme: str) -> str:
+def phoneme_arpabet_lookup(phoneme: str) -> tuple[str, bool]:
     """Lookup an ARPABET phoneme's IPA representation."""
+
+    is_unstressed = phoneme.endswith("0")
+
     if phoneme in ARPABET_TO_IPA:
-        return ARPABET_TO_IPA[phoneme]
+        return ARPABET_TO_IPA[phoneme], is_unstressed
     base = phoneme.rstrip("012")
     if base in ARPABET_TO_IPA:
-        return ARPABET_TO_IPA[base]
+        return ARPABET_TO_IPA[base], is_unstressed
     raise ValueError(f"Unknown ARPABET phoneme: {phoneme}")
 
 
-def _normalize_phonemes(phonemes: tuple[str, ...]) -> tuple[str, ...]:
+def _normalize_phonemes(
+    phonemes: tuple[tuple[str, bool], ...],
+) -> tuple[tuple[str, bool], ...]:
     """Bridge CMU's phonetic transcription to the UFLI inventory's categories.
 
     - /ɚ/ → /ə/ + /r/: CMU emits a single r-colored schwa for ``er, ir, ur,
@@ -48,28 +53,29 @@ def _normalize_phonemes(phonemes: tuple[str, ...]) -> tuple[str, ...]:
       deer, steer`` match ``ee → i``. /ɪ/+/r/ before a vowel (``mirror,
       spirit``) is preserved.
     """
-    result: tuple[str, ...] = ()
+    result: tuple[tuple[str, bool], ...] = ()
     i = 0
     while i < len(phonemes):
-        if phonemes[i] == "ɚ":
-            result += ("ə", "r")
+        ipa, unstressed = phonemes[i]
+        if ipa == "ɚ":
+            result += (("ə", unstressed), ("r", False))
             i += 1
             continue
         if (
-            phonemes[i] == "ɪ"
+            ipa == "ɪ"
             and i + 1 < len(phonemes)
-            and phonemes[i + 1] == "r"
-            and (i + 2 == len(phonemes) or phonemes[i + 2][0] not in VOWEL_INITIALS)
+            and phonemes[i + 1][0] == "r"
+            and (i + 2 == len(phonemes) or phonemes[i + 2][0][0] not in VOWEL_INITIALS)
         ):
-            result += ("i",)
+            result += (("i", unstressed),)
             i += 1
             continue
-        result += (phonemes[i],)
+        result += ((ipa, unstressed),)
         i += 1
     return result
 
 
-def get_word_phonemes(word: str) -> tuple[str, ...]:
+def get_word_phonemes(word: str) -> tuple[tuple[str, bool], ...]:
     """Return the IPA phonemes for a word, one phoneme per tuple item.
 
     Uses ``g2p_en`` — CMUdict for in-vocab words, a seq2seq fallback for
@@ -79,3 +85,7 @@ def get_word_phonemes(word: str) -> tuple[str, ...]:
     arpabet = load_g2p()(word)
     phonemes = tuple(phoneme_arpabet_lookup(token) for token in arpabet)
     return _normalize_phonemes(phonemes)
+
+
+if __name__ == "__main__":
+    print(get_word_phonemes("review"))

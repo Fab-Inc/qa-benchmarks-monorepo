@@ -16,21 +16,28 @@ INVENTORY = tuple(
 )
 
 _WORD_LISTS_PATH = (
-    Path(__file__).resolve().parent / "data" / "ultimate_phonics_word_lists.json"
+    Path(__file__).resolve().parent / "data" / "ufli_model_word_list.json"
 )
 
 
 def main() -> None:
     with open(_WORD_LISTS_PATH) as f:
-        lessons: dict[str, list[str]] = json.load(f)
+        gpc_ids: dict[str, list[str]] = json.load(f)
 
-    for lesson_str in sorted(lessons, key=int):
-        lesson = int(lesson_str)
-        for word in lessons[lesson_str]:
+    for gpc in gpc_ids:
+        for word in gpc_ids[gpc]:
             phonemes = get_word_phonemes(word.lower())
             parses = parse_gpcs(word.lower(), phonemes, INVENTORY)
             if not parses:
-                print(f"Lesson {lesson}: {word}")
+                print(f"GPC {gpc}: {word} — no parse")
+                continue
+            """
+            for parse_index, parse in enumerate(parses):
+                pairs = [
+                    (match.gpc.grapheme, match.gpc.phonemes) for match in parse
+                ]
+                print(f"GPC {gpc}: {word} [parse {parse_index}] {pairs}")
+            """
 
 
 if __name__ == "__main__":

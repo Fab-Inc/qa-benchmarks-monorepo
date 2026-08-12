@@ -16,6 +16,11 @@ def score_known_gpcs_english(
     The score is 1.0 if at least one valid parse of the word uses only GPCs the
     student has been taught; 0.0 otherwise. Multiple parses can arise when prefix
     or suffix GPCs overlap with letter-by-letter GPCs.
+
+    Reduced-vowel matches (parser-synthesized ``REDUCED_*`` GPCs from unstressed
+    schwa/lax positions) count as taught whenever the student knows *any* GPC
+    for the same grapheme letter — vowel reduction is a universal spoken-
+    English process, not a separate correspondence the student needs taught.
     """
     taught_gpcs = student_knowledge.gpcs
 
@@ -29,10 +34,15 @@ def score_known_gpcs_english(
         return 0.0
 
     taught_set = {(g, tuple(p)) for g, p in taught_gpcs}
+    taught_graphemes = {g for g, _ in taught_gpcs}
+
+    def is_taught(match) -> bool:
+        if match.gpc.id.startswith("REDUCED_"):
+            return match.gpc.grapheme in taught_graphemes
+        return (match.gpc.grapheme, match.gpc.phonemes) in taught_set
+
     for parse in parses:
-        if all(
-            (match.gpc.grapheme, match.gpc.phonemes) in taught_set for match in parse
-        ):
+        if all(is_taught(match) for match in parse):
             return 1.0
 
     return 0.0

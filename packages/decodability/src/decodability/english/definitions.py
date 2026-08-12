@@ -46,6 +46,7 @@ ARPABET_TO_IPA = {
 
 
 VOWEL_INITIALS = set("aeiouæɑɔɛɪʊʌəɚɝ")
+VOWEL_LETTERS = set("aeiouy")
 
 """
 GPC progression aligned with UFLI Foundations' scope and sequence.
@@ -207,6 +208,19 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G157", "bi", ("b", "aɪ")),
     ("G158", "tri", ("t", "r", "aɪ")),
     ("G159", "uni", ("j", "u", "n", "i")),
+    ("G160", "bb", ("b",)),
+    ("G161", "cc", ("k",)),
+    ("G162", "dd", ("d",)),
+    ("G163", "gg", ("g",)),
+    ("G164", "mm", ("m",)),
+    ("G165", "nn", ("n",)),
+    ("G166", "pp", ("p",)),
+    ("G167", "tt", ("t",)),
+    ("G168", "o", ("ɔ",)),  # resolve cot-caught merger
+    ("G169", "au", ("ɑ",)),
+    ("G170", "augh", ("ɑ",)),
+    ("G171", "ough", ("ɑ",)),
+    ("G172", "ssion", ("ʃ", "ə", "n")),
 ]
 
 UFLI_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(

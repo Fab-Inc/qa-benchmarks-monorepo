@@ -16,8 +16,8 @@ WHOLE_WORD = score_whole_words_english.__name__
 GPCS = score_known_gpcs_english.__name__
 
 
-def aggregate_scores_upl_curriculum(scores: Mapping[str, float]) -> float:
-    """Decision tree for an English score based on the Ultimate Phonics curriculum.
+def aggregate_scores_ufli_curriculum(scores: Mapping[str, float]) -> float:
+    """Decision tree for an English score based on the UFLI curriculum.
 
     If the student knows the whole word as a sight word, it's fully decodable (1.0).
     Otherwise the score falls back to whether the student knows all its GPCs.
