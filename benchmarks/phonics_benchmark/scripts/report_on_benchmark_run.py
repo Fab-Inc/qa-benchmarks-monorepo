@@ -26,6 +26,10 @@ Writes, into `{run directory}/report`:
 - ``bootstrap_ci.csv`` — per-model accuracy, pooled F1 and pooled F2 with
   confidence intervals, skipped by ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
+- ``irt_item_estimates.csv`` — Rasch difficulty and discrimination per item
+- ``irt_model_capability.csv`` — Rasch capability per model
+- ``irt_item_difficulty.png`` — estimated difficulty against item composition
+- ``irt_item_map.png`` — item difficulty against item discrimination
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -38,6 +42,7 @@ from pathlib import Path
 import pandas as pd
 import typer
 from phonics_benchmark.bootstrap import bootstrap_metric_cis
+from phonics_benchmark.irt import IRTFitError, fit_rasch, fit_warnings
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
@@ -58,6 +63,7 @@ INSPECTION_RANDOM_STATE = 42
 # answer; the rest are the difficulty columns the breakdowns group by.
 ITEM_METADATA_COLUMNS = [
     "benchmark_item_id",
+    "student_knowledge_id",
     "student_knowledge",
     "content",
     "nondecodable_words",
@@ -216,6 +222,53 @@ def sample_items_for_inspection(
     return sampled[columns].sort_values(["benchmark_item_id", "model"])
 
 
+def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[str]:
+    """Fit a Rasch model over the run's models and write its estimates.
+
+    Each model is an IRT respondent and its ``perfect_match`` on an item is that
+    respondent's binary response.
+
+    Returns the filenames written, or an empty list if the run cannot support a
+    fit (a single-model run, most often).
+    """
+    answered = scored_results[scored_results["call_status"] != CALL_STATUS_ERROR]
+    try:
+        estimates = fit_rasch(answered)
+    except IRTFitError as e:
+        typer.secho(f"\nSkipping IRT estimates: {e}", fg=typer.colors.YELLOW, err=True)
+        return []
+
+    items_path = report_dir / "irt_item_estimates.csv"
+    models_path = report_dir / "irt_model_capability.csv"
+    difficulty_plot_path = report_dir / "irt_item_difficulty.png"
+    item_map_path = report_dir / "irt_item_map.png"
+    estimates.items.to_csv(items_path, index=False)
+    estimates.models.to_csv(models_path, index=False)
+    save_item_difficulty_by_nondecodable_count_plot(
+        estimates.items, difficulty_plot_path
+    )
+    save_item_map_plot(estimates.items, item_map_path)
+
+    typer.echo(
+        f"\nRasch/1PL fit over {len(estimates.items)} items and "
+        f"{len(estimates.models)} models:"
+    )
+    typer.echo(
+        estimates.models[
+            ["model", "capability_logit_eap", "raw_accuracy", "capability_rank"]
+        ].to_string(index=False)
+    )
+    for warning in fit_warnings(estimates):
+        typer.secho(f"NOTE: {warning}", fg=typer.colors.YELLOW, err=True)
+
+    return [
+        items_path.name,
+        models_path.name,
+        difficulty_plot_path.name,
+        item_map_path.name,
+    ]
+
+
 def report_on_run(
     run_id: str = typer.Option(
         ...,
@@ -322,6 +375,16 @@ def report_on_run(
     save_accuracy_by_nondecodable_count_plot(accuracy_by_count, plot_path)
     written.append(plot_path.name)
 
+    # Item difficulty and model capability on a common logit scale.
+    irt_files = write_irt_estimates(results, report_dir)
+
+    written = [
+        scored_path.name,
+        "summary_by_model.csv",
+        plot_path.name,
+        *irt_files,
+    ]
+
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:
         sampled = sample_items_for_inspection(results, inspect_sample_size)
@@ -333,6 +396,7 @@ def report_on_run(
             f"inspection in {sampled_path}."
         )
         typer.echo("  Use --inspect-sample-size to change the number of items.")
+        written.append(sampled_path.name)
 
     typer.echo(f"\nWrote to {report_dir}:")
     for name in written:
