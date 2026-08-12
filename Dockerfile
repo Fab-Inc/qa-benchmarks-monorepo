@@ -8,6 +8,10 @@ FROM python:3.13-slim-bookworm AS builder
 
 COPY --from=uv /uv /uvx /bin/
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 WORKDIR /app
