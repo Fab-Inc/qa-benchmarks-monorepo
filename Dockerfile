@@ -2,7 +2,9 @@
 
 ARG UV_VERSION=0.11.8
 
-FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python3.13-bookworm-slim AS builder
+FROM python:3.13-slim-bookworm AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
