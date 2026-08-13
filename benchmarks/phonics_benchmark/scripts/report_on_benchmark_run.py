@@ -46,7 +46,6 @@ from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.plots import (
     save_accuracy_by_nondecodable_count_plot,
-    save_item_difficulty_by_nondecodable_count_plot,
 )
 from phonics_benchmark.scoring import (
     accuracy_by_nondecodable_count,
@@ -245,9 +244,6 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
     difficulty_plot_path = report_dir / "irt_item_difficulty.png"
     estimates.items.to_csv(items_path, index=False)
     estimates.models.to_csv(models_path, index=False)
-    save_item_difficulty_by_nondecodable_count_plot(
-        estimates.items, difficulty_plot_path
-    )
 
     typer.echo(
         f"\nRasch/1PL fit over {len(estimates.items)} items and "
