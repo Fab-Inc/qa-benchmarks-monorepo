@@ -71,51 +71,6 @@ def save_accuracy_by_nondecodable_count_plot(
     plt.close()
 
 
-@require_columns(["difficulty_logit_mml", "discrimination_point_biserial"])
-def save_item_map_plot(
-    item_estimates: pd.DataFrame,
-    output_path: Path,
-    *,
-    title: str = "Benchmark Item Map: Difficulty vs. Discrimination",
-) -> None:
-    """Save a difficulty-against-discrimination scatter of the benchmark items.
-
-    ``item_estimates`` is the ``items`` frame from ``irt.fit_rasch``. The two
-    axes are what an item is worth keeping for: where it sits on the ability
-    scale, and whether it separates strong models from weak ones. Items in the
-    lower band discriminate poorly — either too easy, too hard, or measuring
-    something other than the rest of the panel.
-
-    Items with no discrimination estimate (boundary items, and items too few
-    models answered) cannot be placed and are counted in the axis label instead.
-    """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    placeable = item_estimates.dropna(
-        subset=["difficulty_logit_mml", "discrimination_point_biserial"]
-    )
-    dropped = len(item_estimates) - len(placeable)
-
-    plt.figure(figsize=(10, 6))
-    plt.scatter(
-        placeable["difficulty_logit_mml"],
-        placeable["discrimination_point_biserial"],
-        alpha=0.5,
-    )
-    # Below zero, models the rest of the panel scores as weaker did better on the
-    # item — usually a mislabelled item rather than a hard one.
-    plt.axhline(0, color="grey", linestyle="--", linewidth=1)
-
-    plt.title(title)
-    plt.xlabel(
-        f"Estimated Difficulty (logits, higher = harder); "
-        f"{len(placeable)} items shown, {dropped} without an estimate"
-    )
-    plt.ylabel("Discrimination (corrected item-total correlation)")
-    plt.savefig(output_path)
-    plt.close()
-
-
 @require_columns(
     [
         "num_nondecodable_words",

@@ -26,10 +26,9 @@ Writes, into `{run directory}/report`:
 - ``bootstrap_ci.csv`` — per-model accuracy, pooled F1 and pooled F2 with
   confidence intervals, skipped by ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
-- ``irt_item_estimates.csv`` — Rasch difficulty and discrimination per item
+- ``irt_item_estimates.csv`` — Rasch difficulty per item
 - ``irt_model_capability.csv`` — Rasch capability per model
 - ``irt_item_difficulty.png`` — estimated difficulty against item composition
-- ``irt_item_map.png`` — item difficulty against item discrimination
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -44,8 +43,11 @@ import typer
 from phonics_benchmark.bootstrap import bootstrap_metric_cis
 from phonics_benchmark.irt import IRTFitError, fit_rasch, fit_warnings
 from phonics_benchmark.parsing import parse_word_list
-from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
+from phonics_benchmark.plots import (
+    save_accuracy_by_nondecodable_count_plot,
+    save_item_difficulty_by_nondecodable_count_plot,
+)
 from phonics_benchmark.scoring import (
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
@@ -241,13 +243,11 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
     items_path = report_dir / "irt_item_estimates.csv"
     models_path = report_dir / "irt_model_capability.csv"
     difficulty_plot_path = report_dir / "irt_item_difficulty.png"
-    item_map_path = report_dir / "irt_item_map.png"
     estimates.items.to_csv(items_path, index=False)
     estimates.models.to_csv(models_path, index=False)
     save_item_difficulty_by_nondecodable_count_plot(
         estimates.items, difficulty_plot_path
     )
-    save_item_map_plot(estimates.items, item_map_path)
 
     typer.echo(
         f"\nRasch/1PL fit over {len(estimates.items)} items and "
@@ -261,12 +261,7 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
     for warning in fit_warnings(estimates):
         typer.secho(f"NOTE: {warning}", fg=typer.colors.YELLOW, err=True)
 
-    return [
-        items_path.name,
-        models_path.name,
-        difficulty_plot_path.name,
-        item_map_path.name,
-    ]
+    return [items_path.name, models_path.name, difficulty_plot_path.name]
 
 
 def report_on_run(
