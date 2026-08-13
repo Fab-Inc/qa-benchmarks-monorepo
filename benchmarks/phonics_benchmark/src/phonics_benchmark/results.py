@@ -1,5 +1,4 @@
-"""Result persistence for phonics benchmark runs.
-Score and aggregate model results against benchmark item metadata."""
+"""Result persistence for phonics benchmark runs."""
 
 from __future__ import annotations
 
@@ -15,11 +14,7 @@ import pandas as pd
 from phonics_benchmark.config import ConfigError
 
 
-def load_results(
-    file_name: str | Path,
-    *,
-    force: bool = False,
-) -> pd.DataFrame:
+def load_results(file_name: str | Path, *, force: bool = False) -> pd.DataFrame:
     """Load existing JSONL results, or return an empty frame."""
 
     path = Path(file_name)
