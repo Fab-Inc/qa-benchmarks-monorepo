@@ -41,17 +41,15 @@ def score_known_clusters_and_patterns_kiswahili(
     taught_clusters = student_knowledge.clusters
     taught_cluster_patterns = student_knowledge.cluster_patterns
 
-    known_clusters_from_patterns = reduce(
+    taught_clusters_from_taught_patterns = reduce(
         set.union,
         (VALID_CLUSTERS[pattern] for pattern in taught_cluster_patterns),
         set(),
     )
+    taught_clusters |= taught_clusters_from_taught_patterns
 
     for cluster in get_clusters(word):
-        if (
-            cluster not in taught_clusters
-            and cluster not in known_clusters_from_patterns
-        ):
+        if cluster not in taught_clusters:
             return 0.0
 
     return 1.0

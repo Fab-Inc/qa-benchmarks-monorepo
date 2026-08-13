@@ -454,6 +454,70 @@ class TestScorers:
             == expected
         )
 
+    @pytest.mark.parametrize(
+        "word, known_graphemes, known_clusters, known_cluster_patterns, expected",
+        [
+            (
+                "mbwea'",
+                {"m", "b", "w", "e", "a"},
+                set(),
+                {ClusterPattern.M_LABIALISED_GLIDE},
+                1.0,
+            ),
+            (
+                "mbwea'",
+                {"m", "b", "w", "e", "a"},
+                {"mb"},
+                {ClusterPattern.LABIALISED_GLIDE},
+                0.0,
+            ),
+            (
+                "kunywea",
+                {"k", "u", "ny", "w", "e", "a"},
+                {"nyw"},
+                set(),
+                1.0,
+            ),
+            (
+                "mpya",
+                {"m", "p", "y", "a"},
+                {"mp", "mpy"},
+                {ClusterPattern.PALATALISED_GLIDE},
+                1.0,
+            ),
+            (
+                "mpya",
+                {"m", "p", "y", "a"},
+                {
+                    "mp",
+                },
+                {ClusterPattern.PALATALISED_GLIDE},
+                0.0,
+            ),
+            (
+                "mpya",
+                {"m", "b", "p", "y", "a"},
+                {"mb"},
+                {ClusterPattern.M_PALATALISED_GLIDE},
+                1.0,
+            ),
+        ],
+    )
+    def test_score_known_clusters_and_patterns_kiswahili_with_patterns(
+        self, word, known_graphemes, known_clusters, known_cluster_patterns, expected
+    ):
+        """Test the score_known_clusters_and_patterns_kiswahili function with cluster
+        patterns."""
+        student_knowledge = KiswahiliStudentKnowledge(
+            graphemes=known_graphemes,
+            clusters=known_clusters,
+            cluster_patterns=known_cluster_patterns,
+        )
+        assert (
+            score_known_clusters_and_patterns_kiswahili(word, student_knowledge)
+            == expected
+        )
+
 
 class TestKiswahiliWordExtraction:
     @pytest.mark.parametrize(
