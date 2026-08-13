@@ -231,6 +231,30 @@ def validate_student_knowledge(
             ) from exc
 
 
+def resolve_language_iso_code(
+    profiles: list[StudentKnowledge],
+    texts: list[DecodableText],
+) -> str:
+    """Return the single ISO code shared by every profile and text.
+
+    Raises ValueError if the records are empty, or if more than one language code
+    appears across them — the pipeline only handles one language per data folder.
+    """
+    codes = {profile.language_iso_code for profile in profiles}
+    codes |= {text.language_iso_code for text in texts}
+
+    if not codes:
+        raise ValueError(
+            "Cannot resolve a language_iso_code: no student profiles and no texts"
+        )
+    if len(codes) > 1:
+        raise ValueError(
+            "Expected one language_iso_code across the dataset, found: "
+            f"{', '.join(sorted(codes))}"
+        )
+    return codes.pop()
+
+
 def build_benchmark_item_candidates_dataframe(
     profiles: list[StudentKnowledge],
     texts: list[DecodableText],
@@ -238,33 +262,21 @@ def build_benchmark_item_candidates_dataframe(
     """Cross-join profiles × texts into a DataFrame of benchmark item candidates.
 
     Adds a ``benchmark_item_id`` of the form ``<student_knowledge_id>_<text_id>``.
+    Raises ValueError unless every profile and text shares one language_iso_code.
     """
+    if not profiles or not texts:
+        raise ValueError(
+            f"No benchmark items: got {len(profiles)} student profile(s) and "
+            f"{len(texts)} text(s), need at least one of each"
+        )
+
+    resolve_language_iso_code(profiles, texts)
+
     profiles_df = convert_records_to_dataframe(profiles)
     texts_df = convert_records_to_dataframe(texts)
 
-    if "language_iso_code" not in profiles_df.columns:
-        raise ValueError(
-            "StudentKnowledge records are missing 'language_iso_code' column"
-        )
-    if "language_iso_code" not in texts_df.columns:
-        raise ValueError("DecodableText records are missing 'language_iso_code' column")
-
-    if (
-        set(profiles_df["language_iso_code"]).intersection(
-            set(texts_df["language_iso_code"])
-        )
-        == set()
-    ):
-        raise ValueError("No language_iso_code is shared")
-
     texts_df = texts_df.drop("language_iso_code", axis=1)  # profiles_df also has it
     benchmark_items = profiles_df.join(texts_df, how="cross")
-
-    if benchmark_items.empty:
-        raise ValueError(
-            "No benchmark items: no language_iso_code is shared between the "
-            f"{len(profiles)} student profile(s) and {len(texts)} text(s)"
-        )
 
     # TODO: align on benchmark item ID format.
     benchmark_items["benchmark_item_id"] = (

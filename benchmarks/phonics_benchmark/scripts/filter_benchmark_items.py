@@ -1,7 +1,8 @@
 """Cut the benchmark item candidates down to the set the benchmark runs.
 
 Stage 3 of the pipeline. Run ``build_benchmark_item_candidates.py`` first, then inspect
-``data/<language>/nondecodable_ratio_histogram.png`` to choose thresholds.
+``data/<language>/nondecodable_ratio_histogram_for_benchmark_candidates.png`` to choose
+thresholds.
 
 Reads ``data/<language>/benchmark_item_candidates.jsonl`` and writes
 ``data/<language>/benchmark_items.jsonl`` — the file a run config's ``items_path``

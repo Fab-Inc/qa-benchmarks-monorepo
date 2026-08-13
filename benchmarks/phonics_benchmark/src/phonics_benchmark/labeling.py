@@ -63,10 +63,10 @@ def label_nondecodable_words(
 ) -> pd.Series:
     """Return, per benchmark item, the list of words scored as non-decodable.
 
-    Expects the DataFrame to have ``content``, ``student_knowledge``, and ``vocab_set``
-    columns.
+    Expects the DataFrame to have ``content`` and ``student_knowledge`` columns.
     """
     if "vocab_set" not in benchmark_items.columns:
+        benchmark_items = benchmark_items.copy()
         benchmark_items["vocab_set"] = get_vocabulary_set(benchmark_items, language)
 
     scoring_methods, aggregations = resolve_decodability_config(config, language)

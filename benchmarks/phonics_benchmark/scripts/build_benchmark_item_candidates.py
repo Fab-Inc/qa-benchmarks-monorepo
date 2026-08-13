@@ -41,15 +41,12 @@ from phonics_benchmark.data_io import (
     get_data_dir,
     read_decodable_texts,
     read_student_knowledge_profiles,
+    resolve_language_iso_code,
     validate_student_knowledge,
     write_dataset,
     write_json,
 )
-from phonics_benchmark.models import (
-    DecodableText,
-    LabelledBenchmarkItem,
-    StudentKnowledge,
-)
+from phonics_benchmark.models import LabelledBenchmarkItem
 from phonics_benchmark.plots import save_nondecodable_ratio_histogram
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -67,23 +64,6 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
         },
     },
 }
-
-
-def resolve_language_iso_code(
-    profiles: "list[StudentKnowledge]", texts: "list[DecodableText]"
-) -> str:
-    """Return the single ISO code shared by every profile and text.
-
-    Raises ValueError if there is more than one language code across the dataset.
-    """
-    codes = {profile.language_iso_code for profile in profiles}
-    codes |= {text.language_iso_code for text in texts}
-    if len(codes) > 1:
-        raise ValueError(
-            "Expected one language_iso_code across the dataset, found: "
-            f"{', '.join(sorted(codes))}"
-        )
-    return codes.pop()
 
 
 def build_candidate_benchmark_items(

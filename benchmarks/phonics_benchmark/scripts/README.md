@@ -7,7 +7,10 @@ curated after running the benchmark, e.g. using Item Response Theory.
 
 ### Prerequisites
 
-- Set up your data according to [`data/README.md`](../data/README.md)
+- Set up your data according to [`data/README.md`](../data/README.md). The data files
+  are not in git, so you need the expert workbook in `data/<language>/raw/` before you
+  start — ask the team for it. Every step below writes to `data/<language>/`, which is
+  gitignored.
 
 ### Steps
 
@@ -33,10 +36,10 @@ curated after running the benchmark, e.g. using Item Response Theory.
    filter the candidates:
 
    - `benchmark_item_candidates.jsonl`: `benchmark_item_id` and decodability analysis
-   - `nondecodable_ratio_histogram.png`: a histogram of the non-decodable ratio
-     distribution
-   - `nondecodable_count_and_ratio_summary.json`: a summary of nondecodable word counts
-     and ratios across the full cross-product
+   - `nondecodable_ratio_histogram_for_benchmark_candidates.png`: a histogram of the
+     non-decodable ratio distribution
+   - `nondecodable_summary_for_benchmark_candidates.json`: a summary of nondecodable
+     word counts and ratios across the full cross-product
 
 1. Cut the benchmark item candidates down to the set the benchmark runs.
 

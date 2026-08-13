@@ -5,6 +5,7 @@ import pytest
 from phonics_benchmark.curation import (
     add_labels_and_analysis,
     filter_benchmark_items,
+    get_nondecodable_word_analysis,
 )
 from phonics_benchmark.data_io import build_benchmark_item_candidates_dataframe
 from phonics_benchmark.models import DecodableText, StudentKnowledge
@@ -57,11 +58,35 @@ def test_build_benchmark_item_candidates_keeps_one_language_column() -> None:
 
 
 def test_build_benchmark_item_candidates_rejects_mismatched_languages() -> None:
-    """A profile and a text in different languages produce no pairing at all."""
+    """The pipeline handles one language at a time, so a mix is an error."""
     english_text = DecodableText(text_id="t9", language_iso_code="en", content="cat")
 
-    with pytest.raises(ValueError, match="No language_iso_code is shared"):
+    with pytest.raises(ValueError, match="Expected one language_iso_code"):
         build_benchmark_item_candidates_dataframe(PROFILES, [english_text])
+
+
+def test_build_benchmark_item_candidates_rejects_mixed_languages_within_texts() -> None:
+    """A stray second language among otherwise matching records is caught too."""
+    english_text = DecodableText(text_id="t9", language_iso_code="en", content="cat")
+
+    with pytest.raises(ValueError, match="Expected one language_iso_code"):
+        build_benchmark_item_candidates_dataframe(PROFILES, [*TEXTS, english_text])
+
+
+@pytest.mark.parametrize(
+    ("profiles", "texts"),
+    [
+        ([], TEXTS),
+        (PROFILES, []),
+        ([], []),
+    ],
+)
+def test_build_benchmark_item_candidates_rejects_empty_inputs(
+    profiles: list[StudentKnowledge], texts: list[DecodableText]
+) -> None:
+    """A cross-product needs at least one profile and one text."""
+    with pytest.raises(ValueError, match="No benchmark items"):
+        build_benchmark_item_candidates_dataframe(profiles, texts)
 
 
 def test_add_analysis_columns_computes_ratio() -> None:
@@ -112,6 +137,25 @@ def test_add_analysis_columns_drops_items_with_no_words() -> None:
 
     assert list(enriched["benchmark_item_id"]) == ["keep-me"]
     assert not enriched["nondecodable_ratio"].isna().any()
+
+
+def test_nondecodable_word_analysis_counts_small_nonzero_ratios() -> None:
+    """Items just above 0.0 belong in the first bin, not dropped from the histogram."""
+    items = pd.DataFrame(
+        {
+            "nondecodable_ratio": [0.0, 0.03, 0.04, 0.12],
+            "num_nondecodable_words": [0, 1, 1, 3],
+        }
+    )
+
+    analysis = get_nondecodable_word_analysis(items)
+    histogram = analysis["Non-decodable ratio histogram"]
+
+    assert histogram["(0.00, 0.05]"] == 2
+    assert histogram["(0.10, 0.15]"] == 1
+    # Zero-ratio items are reported on their own line, not in the histogram.
+    assert analysis["No non-decodable words"] == 1
+    assert sum(histogram.values()) == len(items) - 1
 
 
 def test_filter_benchmark_items_respects_thresholds() -> None:

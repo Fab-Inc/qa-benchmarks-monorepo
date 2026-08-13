@@ -64,16 +64,16 @@ def get_nondecodable_word_analysis(benchmark_items: pd.DataFrame) -> dict[str, A
     """Return a DataFrame with nondecodable word counts and ratio summary."""
     mask_zero = benchmark_items["nondecodable_ratio"] == 0.0
     mask_one = benchmark_items["num_nondecodable_words"] == 1
-    bins = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 1.0]
 
     analysis: OrderedDict[str, Any] = OrderedDict()
     analysis["Total items"] = len(benchmark_items)
     analysis["No non-decodable words"] = int(mask_zero.sum())
     analysis["One non-decodable word"] = int(mask_one.sum())
 
-    bin_counts = pd.cut(benchmark_items["nondecodable_ratio"], bins=bins).value_counts(
-        sort=False
-    )
+    bin_counts = pd.cut(
+        benchmark_items["nondecodable_ratio"],
+        bins=[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 1.0],
+    ).value_counts(sort=False)
     reformat_map = {
         interval: f"({interval.left:.2f}, {interval.right:.2f}]"
         for interval in bin_counts.index
@@ -82,7 +82,7 @@ def get_nondecodable_word_analysis(benchmark_items: pd.DataFrame) -> dict[str, A
     analysis["Non-decodable ratio histogram"] = bin_counts
 
     threshold_counts = {}
-    for threshold in bins:
+    for threshold in [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 1.0]:
         threshold_counts[f"({threshold:.2f}, 1.0]"] = int(
             (benchmark_items["nondecodable_ratio"] > threshold).sum()
         )

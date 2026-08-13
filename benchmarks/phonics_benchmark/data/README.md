@@ -6,19 +6,37 @@ gets its own subfolder (e.g. `kiswahili/`).
 ```text
 data/
 └── kiswahili/
-    ├── raw/
+    ├── raw/                                       (not in git)
     │   └── benchmark_data_tusome_ke.xlsx
     ├── templates/
     │   └── benchmark_data_template_kiswahili.xlsx
-    ├── decodable_texts.jsonl
-    ├── student_knowledge_profiles.jsonl
-    └── benchmark_items.jsonl
+    ├── decodable_texts.jsonl                      (not in git)
+    ├── student_knowledge_profiles.jsonl           (not in git)
+    ├── benchmark_item_candidates.jsonl            (not in git)
+    └── benchmark_items.jsonl                      (not in git)
 ```
+
+> [!IMPORTANT]\
+> **None of the data files are committed** — only this README and the blank workbooks in
+> `templates/` are. Two reasons: this repo is to be open sourced, and part of the
+> benchmark item set has to stay private. The whole folder is gitignored apart from
+> those two exceptions.
+>
+> To get the data:
+>
+> - **Expert workbooks (`raw/`)**: ask the team for the filled-in workbook and drop it
+>   in `raw/` yourself.
+> - **Everything else**: generate it locally by running the three scripts in
+>   `../scripts/` (see `scripts/README.md`). Everything below `raw/` is reproducible
+>   from the workbook.
+> - **Shared, validated item sets**: these live in GCS, not in git. A run config's
+>   `items_path` can point straight at a `gs://...jsonl` URI.
 
 ## `raw/`
 
 Holds the filled-in workbooks completed by language experts. These are the source data
 from which `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` are generated.
+Not committed — see the note above.
 
 ## `templates/`
 
@@ -128,10 +146,10 @@ helps with benchmark item curation.
 
 1. If this is in a new language, create a subfolder using the full language name in
    lowercase (e.g. `data/english/`).
-1. Add a blank data-entry template to `templates/` and a filled-in copy to `raw/`, then
-   generate `decodable_texts.jsonl` and `student_knowledge_profiles.jsonl` by running
-   `scripts/ingest_benchmark_data.py` against the filled-in workbook (see the `raw/`
-   section above).
+1. Commit a blank data-entry template to `templates/`, put a filled-in copy in `raw/`
+   (which stays local), then generate `decodable_texts.jsonl` and
+   `student_knowledge_profiles.jsonl` by running `scripts/ingest_benchmark_data.py`
+   against the filled-in workbook (see the `raw/` section above).
 1. Register the language's student-knowledge fields in the `STUDENT_KNOWLEDGE_FIELDS`
    dict in `scripts/ingest_benchmark_data.py`.
 1. Follow `scripts/README.md` to generate the benchmark dataset.
