@@ -217,10 +217,7 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G166", "pp", ("p",)),
     ("G167", "tt", ("t",)),
     ("G168", "o", ("ɔ",)),  # resolve cot-caught merger
-    ("G169", "au", ("ɑ",)),
-    ("G170", "augh", ("ɑ",)),
-    ("G171", "ough", ("ɑ",)),
-    ("G172", "ssion", ("ʃ", "ə", "n")),
+    ("G169", "ssion", ("ʃ", "ə", "n")),
 ]
 
 UFLI_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(

@@ -27,10 +27,9 @@ def score_known_gpcs_english(
     if not taught_gpcs:
         return 0.0
 
-    phonemes = get_word_phonemes(word.lower())
-    parses = parse_gpcs(word.lower(), phonemes, GPC_INVENTORY)
-
-    if not parses:
+    try:
+        variants = get_word_phonemes(word.lower())
+    except KeyError:
         return 0.0
 
     taught_set = {(g, tuple(p)) for g, p in taught_gpcs}
@@ -41,9 +40,10 @@ def score_known_gpcs_english(
             return match.gpc.grapheme in taught_graphemes
         return (match.gpc.grapheme, match.gpc.phonemes) in taught_set
 
-    for parse in parses:
-        if all(is_taught(match) for match in parse):
-            return 1.0
+    for variant in variants:
+        for parse in parse_gpcs(word.lower(), variant, GPC_INVENTORY):
+            if all(is_taught(match) for match in parse):
+                return 1.0
 
     return 0.0
 

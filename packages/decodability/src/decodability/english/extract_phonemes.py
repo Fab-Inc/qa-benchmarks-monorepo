@@ -1,30 +1,13 @@
-import os
 from functools import cache
+
+import cmudict
 
 from decodability.english.definitions import ARPABET_TO_IPA, VOWEL_INITIALS
 
-_REQUIRED_NLTK_DATA = (
-    # g2p_en calls nltk.pos_tag; nltk 3.9+ requires the "_eng" tagger.
-    ("taggers/averaged_perceptron_tagger_eng", "averaged_perceptron_tagger_eng"),
-)
-
 
 @cache
-def load_g2p():
-    # Lazy: G2p() loads a seq2seq model + NLTK data on first construction.
-    os.environ.setdefault("NLTK_DISABLE_IMPORT_SECURITY", "1")
-
-    import nltk
-
-    for resource_path, package in _REQUIRED_NLTK_DATA:
-        try:
-            nltk.data.find(resource_path)
-        except LookupError:
-            nltk.download(package, quiet=True)
-
-    from g2p_en import G2p
-
-    return G2p()
+def _cmudict() -> dict[str, list[list[str]]]:
+    return cmudict.dict()
 
 
 def phoneme_arpabet_lookup(phoneme: str) -> tuple[str, bool]:
@@ -75,17 +58,23 @@ def _normalize_phonemes(
     return result
 
 
-def get_word_phonemes(word: str) -> tuple[tuple[str, bool], ...]:
-    """Return the IPA phonemes for a word, one phoneme per tuple item.
+def get_word_phonemes(word: str) -> tuple[tuple[tuple[str, bool], ...], ...]:
+    """Return every CMUdict pronunciation variant for a word.
 
-    Uses ``g2p_en`` — CMUdict for in-vocab words, a seq2seq fallback for
-    OOV — and applies dialect normalizations expected by the UFLI
-    inventory.
+    Each outer element is a variant; each variant is a tuple of
+    ``(ipa, is_unstressed)`` pairs. Dialect normalizations are applied to
+    each variant independently. Raises ``KeyError`` if the word is not in
+    CMUdict.
+
+    CMUdict lists multiple variants for homographs (``read`` → present- vs
+    past-tense) and stress alternations (``either`` → /iː/ vs /aɪ/). Callers
+    should try every variant and accept a match on any one.
     """
-    arpabet = load_g2p()(word)
-    phonemes = tuple(phoneme_arpabet_lookup(token) for token in arpabet)
-    return _normalize_phonemes(phonemes)
+    word_variants = _cmudict().get(word.lower())
+    if not word_variants:
+        raise KeyError(f"{word!r} not in CMUdict")
 
-
-if __name__ == "__main__":
-    print(get_word_phonemes("review"))
+    return tuple(
+        _normalize_phonemes(tuple(phoneme_arpabet_lookup(token) for token in arpabet))
+        for arpabet in word_variants
+    )

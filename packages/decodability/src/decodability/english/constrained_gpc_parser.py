@@ -16,7 +16,7 @@ INVENTORY = tuple(
 )
 
 _WORD_LISTS_PATH = (
-    Path(__file__).resolve().parent / "data" / "ufli_model_word_list.json"
+    Path(__file__).resolve().parent / "data" / "ultimate_phonics_word_lists.json"
 )
 
 
@@ -26,18 +26,15 @@ def main() -> None:
 
     for gpc in gpc_ids:
         for word in gpc_ids[gpc]:
-            phonemes = get_word_phonemes(word.lower())
-            parses = parse_gpcs(word.lower(), phonemes, INVENTORY)
-            if not parses:
-                print(f"GPC {gpc}: {word} — no parse")
+            try:
+                variants = get_word_phonemes(word.lower())
+            except KeyError:
+                print(f"GPC {gpc}: {word} — OOV in CMUdict")
                 continue
-            """
-            for parse_index, parse in enumerate(parses):
-                pairs = [
-                    (match.gpc.grapheme, match.gpc.phonemes) for match in parse
-                ]
-                print(f"GPC {gpc}: {word} [parse {parse_index}] {pairs}")
-            """
+            if not any(
+                parse_gpcs(word.lower(), variant, INVENTORY) for variant in variants
+            ):
+                print(f"GPC {gpc}: {word} — no parse")
 
 
 if __name__ == "__main__":

@@ -72,7 +72,14 @@ def parse_gpcs(
 
     @cache
     def walk(letter_index: int, phoneme_index: int, reserved: int) -> tuple[Parse, ...]:
-        while letter_index < len(spelling) and reserved & (1 << letter_index):
+        # Skip positions already covered by a split-grapheme tail, and treat
+        # apostrophes as silent (the expert curriculum treats possessive/
+        # contracted ``'s`` and its siblings as an assumed correspondence —
+        # the ``'`` itself carries no phoneme, and the surrounding letters
+        # decode via their existing GPCs).
+        while letter_index < len(spelling) and (
+            reserved & (1 << letter_index) or spelling[letter_index] == "'"
+        ):
             letter_index += 1
 
         if letter_index == len(spelling):

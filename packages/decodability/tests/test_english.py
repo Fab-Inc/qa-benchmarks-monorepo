@@ -317,6 +317,76 @@ class TestScoreReducedVowelCreditsAnyGraphemeGpc:
         assert score_known_gpcs_english("planet", student) == 0.0
 
 
+class TestApostropheIsSilent:
+    """Possessive/contracted ``'s`` and its siblings are an assumed correspondence
+    in the curriculum — the apostrophe carries no phoneme, and the letters
+    around it decode via their existing GPCs. The parser skips ``'`` positions
+    without emitting a match or consuming a phoneme.
+    """
+
+    def _minimal_hes_inventory(self) -> tuple[GPC, ...]:
+        # Enough to decode ``he's`` letter-by-letter modulo the apostrophe.
+        return (
+            GPC("H", "h", ("h",)),
+            GPC("E_OPEN", "e", ("i",)),  # open-syllable e → /i/
+            GPC("S_VOICED", "s", ("z",)),  # G018 s → /z/
+        )
+
+    def test_parser_skips_apostrophe_in_hes(self):
+        """``he's`` parses via h + e + s (apostrophe silently skipped)."""
+        phonemes = (("h", False), ("i", False), ("z", False))
+        parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
+
+        assert len(parses) == 1
+        (parse,) = parses
+        # Three matches only — no synthetic apostrophe entry
+        assert len(parse) == 3
+        assert [m.gpc.id for m in parse] == ["H", "E_OPEN", "S_VOICED"]
+        # Letter positions cover 0, 1, 3 — position 2 (the ``'``) is uncovered
+        # by design.
+        assert parse[0].letter_positions == (0,)
+        assert parse[1].letter_positions == (1,)
+        assert parse[2].letter_positions == (3,)
+
+    def test_parser_still_requires_phoneme_match_around_apostrophe(self):
+        """Skipping ``'`` doesn't absolve the surrounding letters from matching
+        phonemes — if the ``s`` phoneme is wrong, the whole parse still fails.
+        """
+        # phonemes claim final /s/ (voiceless) but the inventory only teaches
+        # s → /z/, so nothing covers the trailing phoneme.
+        phonemes = (("h", False), ("i", False), ("s", False))
+        parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
+        assert parses == ()
+
+
+class TestScoreContractionsViaAssumedApostrophe:
+    """End-to-end: a student who knows the underlying letter GPCs can decode
+    possessives and contractions without any dedicated ``'s → …`` GPC.
+    """
+
+    def test_student_with_s_z_scores_hes(self):
+        """Knowing ``s → z`` (plus h and e) is enough to score ``he's``."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("h", ("h",)),
+                ("e", ("i",)),  # open-syllable e
+                ("s", ("z",)),
+            ]
+        )
+        assert score_known_gpcs_english("he's", student) == 1.0
+
+    def test_student_missing_s_z_fails_hes(self):
+        """Without ``s → z``, ``he's`` is undecodable."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("h", ("h",)),
+                ("e", ("i",)),
+                ("s", ("s",)),  # only voiceless s
+            ]
+        )
+        assert score_known_gpcs_english("he's", student) == 0.0
+
+
 class TestScorersEmptyKnowledge:
     def test_score_whole_words_english_returns_0_when_no_taught_whole_words(self):
         """Empty whole_words set short-circuits to 0.0."""
