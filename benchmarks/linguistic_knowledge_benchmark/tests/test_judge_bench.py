@@ -488,6 +488,48 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
     assert df.loc[0, "score_method"] == judge_bench.SCORE_METHOD_LLM_FALLBACK
 
 
+def test_fallback_skips_null_rows_with_no_output(tmp_path, monkeypatch):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    judged = _judged_dir(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "question_id": 1,
+                "is_correct": None,
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": None,
+                "call_status": "error",
+            },
+            {
+                "question_id": 2,
+                "is_correct": None,
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": "the answer is B",
+                "call_status": "success",
+            },
+        ]
+    ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
+    ds = write_dataset(
+        tmp_path / "ds.json",
+        [{"question_id": 1, "question": "q"}, {"question_id": 2, "question": "q"}],
+    )
+    caller = FakeCaller(
+        make_response(json.dumps({"is_correct": True, "justification": "B it is"}))
+    )
+    monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
+
+    df = judge_bench.judge_results_fallback(
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds
+    )
+    # no-output row (call error) stays unscored -- not sent to the judge at all
+    assert pd.isna(df.loc[0, "is_correct_fallback"])
+    # the row with a real output still gets fallback-judged normally
+    assert bool(df.loc[1, "is_correct_fallback"]) is True
+    assert len(caller.calls) == 1
+
+
 def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     judged = _judged_dir(tmp_path)

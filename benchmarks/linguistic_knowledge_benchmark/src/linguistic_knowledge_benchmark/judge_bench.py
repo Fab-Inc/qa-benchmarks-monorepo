@@ -482,10 +482,24 @@ def judge_results_fallback(
     if "parsed_answer" not in df.columns:
         df["parsed_answer"] = None
 
-    # Find null is_correct rows that are MCQ
-    null_mask = df["is_correct"].isna() & (df["answer_type"] == "multiple_choice")
+    # Find null is_correct rows that are MCQ and actually have an output to
+    # re-evaluate. Rows where the model call itself failed (or otherwise left no
+    # output, e.g. an empty response) have nothing for the fallback judge to look
+    # at -- sending them would waste a call and can't produce a real verdict, so
+    # they're left unscored rather than included here.
+    has_output = df["output"].notna() & (df["output"].astype(str).str.strip() != "")
+    mcq_null_mask = df["is_correct"].isna() & (df["answer_type"] == "multiple_choice")
+    null_mask = mcq_null_mask & has_output
     null_count = int(null_mask.sum())
-    print(f"  {model_name}: {null_count} null rows to re-evaluate with LLM fallback")
+    no_output_count = int((mcq_null_mask & ~has_output).sum())
+    print(
+        f"  {model_name}: {null_count} null MCQ rows to re-evaluate with LLM fallback"
+        + (
+            f" ({no_output_count} skipped -- no model output, e.g. call errors)"
+            if no_output_count
+            else ""
+        )
+    )
 
     # Initialize fallback columns
     is_correct_fallback: list[bool | None] = [None] * len(df)
