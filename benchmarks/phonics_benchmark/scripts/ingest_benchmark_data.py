@@ -1,4 +1,4 @@
-"""Ingest a language benchmark data-entry workbook into JSONL data files.
+r"""Ingest a language benchmark data-entry workbook into JSONL data files.
 
 Run from the repository root with (as an example):
 
@@ -64,16 +64,47 @@ def parse_cluster_patterns(value: str) -> list[str]:
     return list(dict.fromkeys(codes))
 
 
-# Registry: maps language_iso_code -> the fields that belong in student_knowledge,
+_GRAPHEME_TRANSLATION = str.maketrans({"_": "-", "-": ""})
+
+
+def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
+    """Parse comma-separated ``grapheme /phoneme/`` pairs from a cell value.
+
+    Example: ``"a /æ/, qu /kw/"`` -> ``[("a", "æ"), ("qu", "kw")]``.
+    Empty entries are dropped; the slashes wrapping each phoneme are stripped.
+    In the grapheme, ``_`` becomes ``-`` and any existing ``-`` is removed —
+    the underscore is the template's escape for a real hyphen, while a bare
+    hyphen (e.g. ``-s``) is a positional marker to strip.
+    """
+    if not value:
+        return []
+    pairs = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        grapheme, _, phoneme = item.partition("/")
+        grapheme = grapheme.strip().translate(_GRAPHEME_TRANSLATION)
+        pairs.append((grapheme, phoneme.strip().strip("/")))
+    return pairs
+
+
+# Registry: maps language_iso_code to the fields that belong in student_knowledge
 # and how to parse each one from a workbook cell string.
 # Add a new entry here when adding support for a new language.
-STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
+STUDENT_KNOWLEDGE_FIELDS: dict[
+    str, dict[str, Callable[[str], list[str] | list[tuple[str, str]] | int]]
+] = {
     "sw": {
         "graphemes": split_list,
         "clusters": split_list,
         "cluster_patterns": parse_cluster_patterns,
         "whole_words": split_list,
-    }
+    },
+    "en": {
+        "graphemes": extract_gpc_pairs,
+        "whole_words": split_list,
+    },
 }
 
 
