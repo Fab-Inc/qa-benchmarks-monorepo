@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cache
 
-from decodability.english.definitions import VOWEL_LETTERS
+from decodability.english.definitions import UFLI_GPC_PAIRS, VOWEL_LETTERS
 
 
 @dataclass(frozen=True)
@@ -107,11 +107,30 @@ def parse_gpcs(
 
         # Free pass: an unstressed (reduced) phoneme mapped to a single vowel
         # letter — vowel reduction is a universal spoken-English process, not a
-        # taught GPC, so accept the match without requiring an inventory entry.
+        # taught GPC. The expert's principle: fire the free pass only where no
+        # lesson already covers that sound in that position. Three guards:
+        #   1. letter must be a bare vowel (VOWEL_LETTERS excludes y — see
+        #      ``happy``, where the taught y→i lesson would be erased);
+        #   2. next phoneme must not be /r/ — prevents the ɚ-split loophole
+        #      that would decode ``doctor`` as o+r instead of the taught
+        #      ``or → (ə, r)`` cluster;
+        #   3. no inventory GPC already teaches this exact (letter, phoneme)
+        #      pair — otherwise we'd double the parse count and dilute the
+        #      taught lesson (``unicorn``'s middle i, ``dishes``' final s).
         if phoneme_index < len(phonemes):
             reduced_ipa, is_unstressed = phonemes[phoneme_index]
             letter = spelling[letter_index]
-            if is_unstressed and letter in VOWEL_LETTERS:
+            next_phoneme = (
+                phoneme_strings[phoneme_index + 1]
+                if phoneme_index + 1 < len(phonemes)
+                else None
+            )
+            if (
+                is_unstressed
+                and letter in VOWEL_LETTERS
+                and next_phoneme != "r"
+                and (letter, (reduced_ipa,)) not in UFLI_GPC_PAIRS
+            ):
                 free_pass = GPCMatch(
                     GPC(
                         id=f"REDUCED_{letter.upper()}",
@@ -154,4 +173,14 @@ def parse_gpcs(
 
         return tuple(parses)
 
-    return walk(0, 0, 0)
+    all_parses = walk(0, 0, 0)
+    # Prefer parses that use only taught GPCs. If any parse avoided the
+    # reduced-vowel free pass entirely, drop the free-pass alternatives — a
+    # taught cluster (e.g. ``ful`` for ``careful``) should take precedence over
+    # decomposing the same span letter-by-letter through the free pass.
+    clean = tuple(
+        parse
+        for parse in all_parses
+        if not any(match.gpc.id.startswith("REDUCED_") for match in parse)
+    )
+    return clean if clean else all_parses

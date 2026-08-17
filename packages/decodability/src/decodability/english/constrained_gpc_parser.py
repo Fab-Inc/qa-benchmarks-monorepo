@@ -16,7 +16,7 @@ INVENTORY = tuple(
 )
 
 _WORD_LISTS_PATH = (
-    Path(__file__).resolve().parent / "data" / "ultimate_phonics_word_lists.json"
+    Path(__file__).resolve().parent / "data" / "ufli_model_word_list.json"
 )
 
 
@@ -31,9 +31,24 @@ def main() -> None:
             except KeyError:
                 print(f"GPC {gpc}: {word} — OOV in CMUdict")
                 continue
-            if not any(
-                parse_gpcs(word.lower(), variant, INVENTORY) for variant in variants
-            ):
+
+            any_parse = False
+            for variant_index, variant in enumerate(variants):
+                for parse_index, parse in enumerate(
+                    parse_gpcs(word.lower(), variant, INVENTORY)
+                ):
+                    any_parse = True
+                    # Mirror scorers.py: the ``(grapheme, phonemes)`` pair is
+                    # what the scorer checks against the student's taught set.
+                    pairs = [
+                        (match.gpc.grapheme, match.gpc.phonemes) for match in parse
+                    ]
+                    print(
+                        f"GPC {gpc}: {word} "
+                        f"[variant {variant_index}, parse {parse_index}] {pairs}"
+                    )
+
+            if not any_parse:
                 print(f"GPC {gpc}: {word} — no parse")
 
 
