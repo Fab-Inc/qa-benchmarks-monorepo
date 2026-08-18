@@ -1,0 +1,33 @@
+{
+  "run_id": "sw-tusome-clusters-sample-260817",
+  "language": "sw",
+  "items_path": "../data/kiswahili/benchmark_items.jsonl",
+  "prompt_name": "decodability_evaluation_clusters",
+  "output_dir": "../outputs",
+  "models": [
+    "gpt-5.6-terra",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "gemini-3.5-flash",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "kimi-k3"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 8,
+  "model_workers": 5,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili) with clusters",
+    "unique_texts": 59,
+    "unique_student_profiles": 156,
+    "total_items": 32,
+    "max_zero_nondecodable": 6,
+    "max_one_nondecodable": 10,
+    "sample_size_other": 16,
+    "max_nondecodable_ratio": 0.2,
+    "random_state": 42,
+    "provenance": "filtering script"
+  }
+}
