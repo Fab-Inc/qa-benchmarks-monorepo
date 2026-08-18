@@ -12,7 +12,7 @@ from typing import Any
 DEFAULT_RUN_ID = "default"
 DEFAULT_MAX_TOKENS = 10_000
 DEFAULT_CHUNK_SIZE = 20
-DEFAULT_MODEL_WORKERS = 4
+DEFAULT_ITEM_WORKERS = 20
 DECODABILITY_TASK = "decodability"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
@@ -35,7 +35,8 @@ class BenchmarkRunConfig:
     custom_models_path: Path | None = None
     max_tokens: int | None = None
     chunk_size: int | None = DEFAULT_CHUNK_SIZE
-    model_workers: int = DEFAULT_MODEL_WORKERS
+    model_workers: int | None = None
+    item_workers: int = DEFAULT_ITEM_WORKERS
     force: bool = False
     retry_errors: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -60,6 +61,7 @@ class BenchmarkRunConfig:
             "max_tokens": self.max_tokens,
             "chunk_size": self.chunk_size,
             "model_workers": self.model_workers,
+            "item_workers": self.item_workers,
             "force": self.force,
             "retry_errors": self.retry_errors,
             "metadata": self.metadata,
@@ -120,6 +122,7 @@ def apply_execution_overrides(
     force: bool,
     retry_errors: bool,
     model_workers: int | None,
+    item_workers: int | None = None,
 ) -> BenchmarkRunConfig:
     """Apply explicitly supplied execution options to a validated config."""
 
@@ -132,9 +135,14 @@ def apply_execution_overrides(
         force=effective_force,
         retry_errors=effective_retry_errors,
         model_workers=(
-            _validate_model_workers(model_workers)
+            _validate_worker_count(model_workers, "model_workers", allow_none=True)
             if model_workers is not None
             else config.model_workers
+        ),
+        item_workers=(
+            _validate_worker_count(item_workers, "item_workers")
+            if item_workers is not None
+            else config.item_workers
         ),
     )
 
@@ -177,7 +185,8 @@ def build_run_config(
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
     chunk_size: int | None = DEFAULT_CHUNK_SIZE,
-    model_workers: int = DEFAULT_MODEL_WORKERS,
+    model_workers: int | None = None,
+    item_workers: int = DEFAULT_ITEM_WORKERS,
     force: bool = False,
     retry_errors: bool = False,
     metadata: dict[str, Any] | None = None,
@@ -195,6 +204,7 @@ def build_run_config(
         "max_tokens": max_tokens,
         "chunk_size": chunk_size,
         "model_workers": model_workers,
+        "item_workers": item_workers,
         "force": force,
         "retry_errors": retry_errors,
         "metadata": metadata or {},
@@ -269,8 +279,14 @@ def _parse_run_config(
     ):
         raise ConfigError("'chunk_size' must be a positive integer or null")
 
-    model_workers = _validate_model_workers(
-        raw_config.get("model_workers", DEFAULT_MODEL_WORKERS)
+    model_workers = _validate_worker_count(
+        raw_config.get("model_workers"),
+        "model_workers",
+        allow_none=True,
+    )
+    item_workers = _validate_worker_count(
+        raw_config.get("item_workers", DEFAULT_ITEM_WORKERS),
+        "item_workers",
     )
 
     force = raw_config.get("force", False)
@@ -298,6 +314,7 @@ def _parse_run_config(
         "max_tokens",
         "chunk_size",
         "model_workers",
+        "item_workers",
         "force",
         "retry_errors",
         "metadata",
@@ -318,6 +335,7 @@ def _parse_run_config(
         max_tokens=max_tokens,
         chunk_size=chunk_size,
         model_workers=model_workers,
+        item_workers=item_workers,
         force=force,
         retry_errors=retry_errors,
         metadata=metadata,
@@ -354,9 +372,19 @@ def _validate_config_models(value: Any) -> list[str]:
     return models
 
 
-def _validate_model_workers(value: Any) -> int:
+def _validate_worker_count(
+    value: Any,
+    field_name: str,
+    *,
+    allow_none: bool = False,
+) -> int | None:
+    """Validate a positive concurrency setting shared by both worker knobs."""
+
+    if allow_none and value is None:
+        return None
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ConfigError("'model_workers' must be a positive integer")
+        suffix = " or null" if allow_none else ""
+        raise ConfigError(f"'{field_name}' must be a positive integer{suffix}")
     return value
 
 
