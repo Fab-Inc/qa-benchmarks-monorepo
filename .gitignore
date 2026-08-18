@@ -12,6 +12,7 @@ custom_models.yaml
 benchmarks/linguistic_knowledge_benchmark/data/*_workflow
 benchmarks/linguistic_knowledge_benchmark/results/analysis
 benchmarks/linguistic_knowledge_benchmark/results/web
+benchmarks/linguistic_knowledge_benchmark/results/summary_linguistic-knowledge_*_detailed.csv
 
 # ============================================================================
 # Python .gitignore template from

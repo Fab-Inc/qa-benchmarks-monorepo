@@ -66,6 +66,29 @@ def parse_answer_mcq(resp: str) -> str | None:
     return None
 
 
+THINK_BLOCK_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
+
+
+def strip_think_block(output: str) -> str:
+    """Remove <think>...</think> reasoning blocks from a model response.
+
+    Some (reasoning) models prefix their answer with a long chain-of-thought
+    block; it's of no use to the LLM judge and can dwarf the actual answer in
+    length, so it's stripped from the text sent to the judge (the raw output is
+    still what's persisted to the judged CSV).
+    """
+    if not isinstance(output, str):
+        return output
+    return THINK_BLOCK_RE.sub("", output).strip()
+
+
+def count_think_blocks(outputs: pd.Series) -> int:
+    """Number of rows in `outputs` containing a <think> tag."""
+    return int(
+        outputs.astype(str).str.contains("<think>", case=False, regex=False).sum()
+    )
+
+
 class JudgeResponse(BaseModel):
     """Structured response from the LLM judge."""
 
@@ -293,6 +316,17 @@ def judge_results(
     questions = load_dataset(dataset_path)
     question_map = {q["question_id"]: q["question"] for q in questions}
 
+    # Whether a model wraps its answer in a <think>...</think> block is a
+    # model-level characteristic, not a per-row fluke, so check across all of
+    # this model's responses once up front rather than silently stripping it
+    # row by row below.
+    n_think = count_think_blocks(results_df["output"])
+    if n_think:
+        print(
+            f"  {model_name}: {n_think} row(s) contain <think> reasoning blocks; "
+            "stripping before sending to the LLM judge."
+        )
+
     # Score each row
     is_correct_list: list[bool | None] = []
     justification_list = []
@@ -359,7 +393,7 @@ def judge_results(
             question_text = question_map.get(question_id, "")
             per_judge = score_with_llm_judges(
                 question_text,
-                output,
+                strip_think_block(output),
                 expected_answers,
                 answer_type,
                 judge_callers,
@@ -501,6 +535,15 @@ def judge_results_fallback(
         )
     )
 
+    # Same model-level <think> block check as judge_results(), scoped to the
+    # rows actually being sent to the fallback judge.
+    n_think = count_think_blocks(df.loc[null_mask, "output"])
+    if n_think:
+        print(
+            f"  {model_name}: {n_think} row(s) contain <think> reasoning blocks; "
+            "stripping before sending to the LLM judge."
+        )
+
     # Initialize fallback columns
     is_correct_fallback: list[bool | None] = [None] * len(df)
     justification_fallback: list[str | None] = [""] * len(df)
@@ -563,7 +606,7 @@ def judge_results_fallback(
         expected_answers = str(row["expected_answers"]).split("|")
         per_judge = score_with_llm_judges(
             question_text,
-            row["output"],
+            strip_think_block(row["output"]),
             expected_answers,
             row["answer_type"],
             judge_callers,

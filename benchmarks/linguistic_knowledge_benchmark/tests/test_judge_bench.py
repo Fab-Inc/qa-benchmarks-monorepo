@@ -72,6 +72,25 @@ def test_score_multiple_choice_unparseable_returns_none():
     assert judge_bench.score_multiple_choice("???", ["B"]) == (None, "", None)
 
 
+def test_strip_think_block_removes_reasoning():
+    out = judge_bench.strip_think_block("<think>long reasoning here</think>B")
+    assert out == "B"
+
+
+def test_strip_think_block_no_tag_is_unchanged():
+    assert judge_bench.strip_think_block("just an answer") == "just an answer"
+
+
+def test_strip_think_block_non_string_passthrough():
+    assert judge_bench.strip_think_block(None) is None
+    assert pd.isna(judge_bench.strip_think_block(float("nan")))
+
+
+def test_count_think_blocks():
+    outputs = pd.Series(["<think>x</think>A", "B", "<think>y</think>C", None])
+    assert judge_bench.count_think_blocks(outputs) == 2
+
+
 def test_score_with_llm_judge_success():
     caller = FakeCaller(
         make_response(json.dumps({"is_correct": True, "justification": "match"}))
@@ -331,6 +350,36 @@ def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
     assert bool(df.loc[1, "judge_disagreement_flag"]) is True
 
 
+def test_judge_results_strips_think_block_before_llm_judge(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    responses = _responses_dir(tmp_path)
+    _write_responses(
+        responses,
+        [
+            {
+                "question_id": 1,
+                "answer_type": "short_form",
+                "expected_answers": "kintu",
+                "output": "<think>a lot of reasoning here</think>kintu",
+            }
+        ],
+    )
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
+    caller = FakeCaller(
+        make_response(json.dumps({"is_correct": True, "justification": "match"}))
+    )
+    monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
+
+    judge_bench.judge_results(VALID_MODEL, language_name="Kiswahili", dataset_path=ds)
+
+    user_message = caller.calls[0][1].Message
+    assert "<think>" not in user_message
+    assert "kintu" in user_message
+    assert "1 row(s) contain <think>" in capsys.readouterr().out
+
+
 def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = tmp_path / "kiswahili" / "runs" / "run-123" / "responses"
@@ -528,6 +577,35 @@ def test_fallback_skips_null_rows_with_no_output(tmp_path, monkeypatch):
     # the row with a real output still gets fallback-judged normally
     assert bool(df.loc[1, "is_correct_fallback"]) is True
     assert len(caller.calls) == 1
+
+
+def test_fallback_strips_think_block_before_llm_judge(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    judged = _judged_dir(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "question_id": 1,
+                "is_correct": None,
+                "answer_type": "multiple_choice",
+                "expected_answers": "B",
+                "output": "<think>a lot of reasoning here</think>the answer is B",
+            }
+        ]
+    ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
+    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
+    caller = FakeCaller(
+        make_response(json.dumps({"is_correct": True, "justification": "B it is"}))
+    )
+    monkeypatch.setattr(judge_bench, "get_caller", lambda _n: caller)
+
+    judge_bench.judge_results_fallback(
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds
+    )
+
+    user_message = caller.calls[0][1].Message
+    assert "<think>" not in user_message
+    assert "1 row(s) contain <think>" in capsys.readouterr().out
 
 
 def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):

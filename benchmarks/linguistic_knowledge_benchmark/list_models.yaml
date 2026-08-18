@@ -23,6 +23,8 @@ gemma-3-27b: Gemma-3 27B
 #gemma-3-4b-it: Gemma-3 4B # rate limited
 gemma-4-26b-a4b-it: Gemma-4 26B A4B
 gemma-4-31b-it: Gemma-4 31B
+#gemma-3n-e2b-it: Gemma-3n E2B # not supported
+#gemma-3-1b-it: Gemma-3 1B # not supported
 #glm-4.1v-9b-thinking: GLM-4.1V-9B Thinking # not supported
 glm-4.6v: GLM-4.6V
 #glm-5.2: GLM-5.2 # parse error
@@ -38,16 +40,19 @@ gpt-5.6-sol: GPT-5.6 Sol
 gpt-5.6-terra: GPT-5.6 Terra
 #grok-4.1-fast: Grok-4.1 Fast # deprecated model
 grok-4.5: Grok-4.5
+hf-gemma-4-e2b-it-gguf-bf16: Gemma-4 E2B
 #hf-gemma-4-e4b-it-gguf-bf16: Gemma-4 E4B
 #hf-lfm2-5-vl-1-6b: LFM2.5 VL 1.6B
-#hf-qwen3-0-6b: Qwen-3 0.6B
-#hf-qwen3-1-7b: Qwen-3 1.7B
-#hf-qwen3-4b: Qwen-3 4B
+hf-qwen3-0-6b: Qwen-3 0.6B
+hf-qwen3-1-7b: Qwen-3 1.7B
+hf-qwen3-4b: Qwen-3 4B
 #hf-smollm2-135m-instruct: SmolLM2-135M
+#hf-lfm2-2.6b: LFM2-2.6B
+#hf-lfm2.5-1.2b-instruct: LFM2.5-1.2B
 #hunyuan-large: Hunyuan Large # missing API key
 inkling: Inkling
 #jamba-instruct: Jamba Instruct # not supported
-jamba-large-1.7: Jamba Large 1.7
+#jamba-large-1.7: Jamba Large 1.7 # not supported
 #jamba-mini-1.7: Jamba Mini 1.7 # not supported
 kimi-k2.5: Kimi K2.5
 kimi-k2.6: Kimi K2.6
