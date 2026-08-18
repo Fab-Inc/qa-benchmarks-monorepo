@@ -183,7 +183,7 @@ decodability_evaluation_clusters: >-
 
   OUTPUT
 
-  Respond with only a list of the non-decodable words, formatted exactly
+  Respond with a list of the non-decodable words, formatted exactly
   like this:
 
   ["word1", "word2", "word3"]
@@ -194,4 +194,4 @@ decodability_evaluation_clusters: >-
   []
 
 
-  Do not include any explanation, reasoning, or any text before or after the list.
+  Do not include any explanation, reasoning, or any text after the list.
