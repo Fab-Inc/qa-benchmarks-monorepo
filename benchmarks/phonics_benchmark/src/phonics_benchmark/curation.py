@@ -14,9 +14,16 @@ from phonics_benchmark.utils import require_columns
 
 @require_columns(["content", "student_knowledge"])
 def add_labels_and_analysis(
-    benchmark_items: pd.DataFrame, decodability_config: dict, language: str
+    benchmark_items: pd.DataFrame,
+    decodability_config: dict,
+    language: str,
+    *,
+    score_column: str,
 ) -> pd.DataFrame:
     """Add num_nondecodable_words, num_total_words and nondecodable_ratio.
+
+    ``score_column`` names the aggregation output that decides decodability and is
+    passed straight to ``label_nondecodable_words``; it differs by language.
 
     Total word count is the number of distinct words in ``vocab_set``.
     ``vocab_set`` is dropped from the returned DataFrame as it's only used for
@@ -45,7 +52,7 @@ def add_labels_and_analysis(
         benchmark_items = benchmark_items.loc[~has_no_words]
 
     benchmark_items["nondecodable_words"] = label_nondecodable_words(
-        benchmark_items, decodability_config, language
+        benchmark_items, decodability_config, language, score_column=score_column
     )
 
     benchmark_items["num_nondecodable_words"] = benchmark_items[
@@ -93,7 +100,7 @@ def get_nondecodable_word_analysis(benchmark_items: pd.DataFrame) -> dict[str, A
 
 @require_columns(["nondecodable_ratio", "num_nondecodable_words"])
 def filter_benchmark_items(
-    benchmark_items: pd.DataFrame,
+    benchmark_candidates: pd.DataFrame,
     max_zero_nondecodable: int | None = None,
     max_one_nondecodable: int | None = None,
     max_nondecodable_ratio: float | None = None,
@@ -111,8 +118,8 @@ def filter_benchmark_items(
     Sampling is seeded by ``random_state`` for reproducibility. This heuristic is
     expected to be refined as the item distribution becomes clearer.
     """
-    mask_zero = benchmark_items["nondecodable_ratio"] == 0.0
-    zero_nondecodable = benchmark_items[mask_zero]
+    mask_zero = benchmark_candidates["nondecodable_ratio"] == 0.0
+    zero_nondecodable = benchmark_candidates[mask_zero]
     if (
         max_zero_nondecodable is not None
         and len(zero_nondecodable) > max_zero_nondecodable
@@ -121,8 +128,8 @@ def filter_benchmark_items(
             max_zero_nondecodable, random_state=random_state
         )
 
-    mask_one = benchmark_items["num_nondecodable_words"] == 1
-    one_nondecodable = benchmark_items[mask_one]
+    mask_one = benchmark_candidates["num_nondecodable_words"] == 1
+    one_nondecodable = benchmark_candidates[mask_one]
     if (
         max_one_nondecodable is not None
         and len(one_nondecodable) > max_one_nondecodable
@@ -132,19 +139,18 @@ def filter_benchmark_items(
         )
 
     mask_too_hard = (
-        benchmark_items["nondecodable_ratio"] > max_nondecodable_ratio
+        benchmark_candidates["nondecodable_ratio"] > max_nondecodable_ratio
         if max_nondecodable_ratio is not None
-        else pd.Series(False, index=benchmark_items.index)
+        else pd.Series(False, index=benchmark_candidates.index)
     )
 
     mask_other = ~(mask_zero | mask_one | mask_too_hard)
-    other_items = benchmark_items[mask_other]
-    if sample_size_other is not None and len(other_items) > 0:
-        n = min(sample_size_other, len(other_items))
-        benchmark_items = other_items.sample(n, random_state=random_state)
-    else:
-        benchmark_items = other_items
+    other_nondecodable = benchmark_candidates[mask_other]
+    if sample_size_other is not None and len(other_nondecodable) > 0:
+        n = min(sample_size_other, len(other_nondecodable))
+        other_nondecodable = other_nondecodable.sample(n, random_state=random_state)
 
-    benchmark_items = pd.concat([zero_nondecodable, one_nondecodable, benchmark_items])
-
+    benchmark_items = pd.concat(
+        [zero_nondecodable, one_nondecodable, other_nondecodable]
+    )
     return benchmark_items

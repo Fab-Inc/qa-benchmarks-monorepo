@@ -19,7 +19,7 @@ Run from the repository root, e.g.:
         --sample-size-other 128
 """
 
-import enum
+import json
 from pathlib import Path
 
 import typer
@@ -30,7 +30,6 @@ from phonics_benchmark.curation import (
 from phonics_benchmark.data_io import (
     convert_dataframe_to_records,
     convert_records_to_dataframe,
-    get_data_dir,
     read_benchmark_item_candidates,
     write_dataset,
     write_json,
@@ -43,6 +42,8 @@ DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 def format_params_for_title(params: dict) -> str:
     """Format filter parameters for display in a plot title, with line breaks."""
+    params.pop("random_state", None)
+
     param_formatted = ""
     for i, (k, v) in enumerate(params.items()):
         param_formatted += f"{k}={v}"
@@ -110,16 +111,17 @@ def filter_benchmark_item_candidates(
         "max_one_nondecodable": max_one_nondecodable,
         "max_nondecodable_ratio": max_nondecodable_ratio,
         "sample_size_other": sample_size_other,
+        "random_state": random_state,
     }
     filtered_df = filter_benchmark_items(
         candidates_df,
         **params,
-        random_state=random_state,
     )
     filtered = convert_dataframe_to_records(filtered_df, LabelledBenchmarkItem)
     data_dir = write_dataset(language, data_root, benchmark_items=filtered)
 
     analysis = get_nondecodable_word_analysis(filtered_df)
+    analysis["filter_params"] = params
     write_json(analysis, data_dir / "nondecodable_summary_for_benchmark_items.json")
 
     histogram_path = data_dir / "nondecodable_ratio_histogram_for_benchmark_items.png"
@@ -136,6 +138,7 @@ def filter_benchmark_item_candidates(
         f"Filtered {len(candidates)} candidates down to {len(filtered)} benchmark "
         f"items in {data_dir}\n"
     )
+    typer.echo(f"Analysis summary:\n{json.dumps(analysis, indent=4)}\n")
     typer.echo(
         f"Saved a histogram of the filtered non-decodable ratios to {histogram_path}\n"
     )

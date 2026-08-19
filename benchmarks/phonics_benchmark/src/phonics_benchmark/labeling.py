@@ -59,17 +59,24 @@ def label_nondecodable_words(
     config: dict,
     language: str,
     *,
-    score_column: str = "kenya_tusome_score",
+    score_column: str,
 ) -> pd.Series:
     """Return, per benchmark item, the list of words scored as non-decodable.
 
     Expects the DataFrame to have ``content`` and ``student_knowledge`` columns.
+    ``score_column`` names which of the config's aggregation outputs decides
+    decodability; it is required because it differs by language.
     """
     if "vocab_set" not in benchmark_items.columns:
         benchmark_items = benchmark_items.copy()
         benchmark_items["vocab_set"] = get_vocabulary_set(benchmark_items, language)
 
     scoring_methods, aggregations = resolve_decodability_config(config, language)
+    if score_column not in aggregations:
+        raise ValueError(
+            f"score_column '{score_column}' is not one of the config's aggregation "
+            f"outputs: {sorted(aggregations)}"
+        )
     objs = DECODABILITY_REGISTRY[language]
 
     def get_nondecodable_words(benchmark_item: pd.Series) -> list[str]:

@@ -15,6 +15,7 @@ CONFIG = {
     "aggregations": {
         "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
     },
+    "score_column": "kenya_tusome_score",
 }
 
 
@@ -65,7 +66,9 @@ def test_label_nondecodable_words_returns_sorted_lowercased_unique_words() -> No
             ],
         }
     )
-    labels = label_nondecodable_words(items, CONFIG, "sw")
+    labels = label_nondecodable_words(
+        items, CONFIG, "sw", score_column=CONFIG["score_column"]
+    )
 
     assert labels.iloc[0] == ["hufanya", "kufanyia", "ofisi", "vifaa"]
 
@@ -88,7 +91,9 @@ def test_label_nondecodable_words_flags_untaught_word() -> None:
         }
     )
 
-    labels = label_nondecodable_words(items, CONFIG, "sw")
+    labels = label_nondecodable_words(
+        items, CONFIG, "sw", score_column=CONFIG["score_column"]
+    )
 
     assert labels.iloc[0] == ["kuku"]
 
@@ -97,4 +102,6 @@ def test_label_nondecodable_words_requires_expected_columns() -> None:
     """A missing content/student_knowledge column raises a clear error."""
     items = pd.DataFrame({"content": ["mama"]})
     with pytest.raises(ValueError, match="student_knowledge"):
-        label_nondecodable_words(items, CONFIG, "sw")
+        label_nondecodable_words(
+            items, CONFIG, "sw", score_column=CONFIG["score_column"]
+        )

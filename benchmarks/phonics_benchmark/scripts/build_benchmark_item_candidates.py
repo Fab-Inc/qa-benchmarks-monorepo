@@ -38,7 +38,6 @@ from phonics_benchmark.curation import (
 from phonics_benchmark.data_io import (
     build_benchmark_item_candidates_dataframe,
     convert_dataframe_to_records,
-    get_data_dir,
     read_decodable_texts,
     read_student_knowledge_profiles,
     resolve_language_iso_code,
@@ -50,9 +49,9 @@ from phonics_benchmark.models import LabelledBenchmarkItem
 from phonics_benchmark.plots import save_nondecodable_ratio_histogram
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
-DEFAULT_OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 
-# Config for the decodability package
+# Config for the decodability package. ``score_column`` picks which aggregation
+# output decides decodability, and so differs by language.
 DECODABILITY_CONFIGS: dict[str, dict] = {
     "sw": {
         "scoring_methods": [
@@ -62,6 +61,7 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
         "aggregations": {
             "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
         },
+        "score_column": "kenya_tusome_score",
     },
 }
 
@@ -97,7 +97,7 @@ def build_candidate_benchmark_items(
 
     candidates_df = build_benchmark_item_candidates_dataframe(profiles, texts)
     candidates_with_labels_df = add_labels_and_analysis(
-        candidates_df, config, language_iso_code
+        candidates_df, config, language_iso_code, score_column=config["score_column"]
     )
     candidates_with_labels = convert_dataframe_to_records(
         candidates_with_labels_df, LabelledBenchmarkItem
@@ -108,13 +108,12 @@ def build_candidate_benchmark_items(
     )
 
     analysis = get_nondecodable_word_analysis(candidates_with_labels_df)
-    dir_path = get_data_dir(language, data_root)
     write_json(
-        analysis, dir_path / "nondecodable_summary_for_benchmark_candidates.json"
+        analysis, data_dir / "nondecodable_summary_for_benchmark_candidates.json"
     )
 
     histogram_path = (
-        dir_path / "nondecodable_ratio_histogram_for_benchmark_candidates.png"
+        data_dir / "nondecodable_ratio_histogram_for_benchmark_candidates.png"
     )
     save_nondecodable_ratio_histogram(
         candidates_with_labels_df,

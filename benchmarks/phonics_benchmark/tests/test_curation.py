@@ -36,6 +36,7 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
         "aggregations": {
             "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
         },
+        "score_column": "kenya_tusome_score",
     },
 }
 
@@ -104,7 +105,12 @@ def test_add_analysis_columns_computes_ratio() -> None:
         }
     )
 
-    enriched = add_labels_and_analysis(items, DECODABILITY_CONFIGS["sw"], "sw")
+    enriched = add_labels_and_analysis(
+        items,
+        DECODABILITY_CONFIGS["sw"],
+        "sw",
+        score_column=DECODABILITY_CONFIGS["sw"]["score_column"],
+    )
 
     assert enriched.loc[0, "nondecodable_words"] == ["soko"]
 
@@ -133,7 +139,12 @@ def test_add_analysis_columns_drops_items_with_no_words() -> None:
     )
 
     with pytest.warns(UserWarning, match="no-words"):
-        enriched = add_labels_and_analysis(items, DECODABILITY_CONFIGS["sw"], "sw")
+        enriched = add_labels_and_analysis(
+            items,
+            DECODABILITY_CONFIGS["sw"],
+            "sw",
+            score_column=DECODABILITY_CONFIGS["sw"]["score_column"],
+        )
 
     assert list(enriched["benchmark_item_id"]) == ["keep-me"]
     assert not enriched["nondecodable_ratio"].isna().any()
