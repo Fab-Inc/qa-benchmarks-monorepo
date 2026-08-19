@@ -8,9 +8,10 @@ import subprocess
 import sys
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from datetime import UTC, datetime
+from functools import partial
 from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -247,12 +248,13 @@ def _run_models(
         [worker_kwargs[model_name] for model_name in model_names]
         for model_names in provider_groups
     ]
-    if config.model_workers == 1 or len(group_worker_kwargs) == 1:
+    requested_group_workers = config.model_workers or len(group_worker_kwargs)
+    if requested_group_workers == 1 or len(group_worker_kwargs) == 1:
         group_outputs = [
             _run_provider_group(model_workers) for model_workers in group_worker_kwargs
         ]
     else:
-        max_workers = min(config.model_workers, len(group_worker_kwargs))
+        max_workers = min(requested_group_workers, len(group_worker_kwargs))
         with ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="phonics-provider",
@@ -341,30 +343,63 @@ def _run_model(
             }
         )
 
+    evaluate = partial(
+        _evaluate_item,
+        config=config,
+        config_id=config_id,
+        config_snapshot_path=config_snapshot_path,
+        model_name=model_name,
+        evaluator=evaluator,
+    )
+
+    def checkpoint() -> None:
+        save_results(_ordered_results(rows_by_id, expected_result_ids), results_path)
+
     executed_count = 0
-    for chunk in _chunked(pending_items, config.chunk_size):
-        for pending in chunk:
-            item = pending["item"]
-            result_id = pending["result_id"]
-            row = _evaluate_item(
-                config=config,
-                config_id=config_id,
-                config_snapshot_path=config_snapshot_path,
-                model_name=model_name,
-                item=item,
+    since_checkpoint = 0
+
+    if config.item_workers == 1:
+        for pending in pending_items:
+            rows_by_id[pending["result_id"]] = evaluate(
+                item=pending["item"],
                 model_call_id=pending["model_call_id"],
                 prompt=pending["prompt"],
-                result_id=result_id,
-                evaluator=evaluator,
+                result_id=pending["result_id"],
             )
-            rows_by_id[result_id] = row
             executed_count += 1
+            since_checkpoint += 1
+            if config.chunk_size is not None and since_checkpoint >= config.chunk_size:
+                checkpoint()
+                since_checkpoint = 0
+    elif pending_items:
+        with ThreadPoolExecutor(
+            max_workers=min(config.item_workers, len(pending_items)),
+            thread_name_prefix=f"phonics-item-{model_name}",
+        ) as executor:
+            result_ids_by_future = {
+                executor.submit(
+                    evaluate,
+                    item=pending["item"],
+                    model_call_id=pending["model_call_id"],
+                    prompt=pending["prompt"],
+                    result_id=pending["result_id"],
+                ): pending["result_id"]
+                for pending in pending_items
+            }
 
-        results = _ordered_results(rows_by_id, expected_result_ids)
-        save_results(results, results_path)
-    if stale_result_count and not pending_items:
-        results = _ordered_results(rows_by_id, expected_result_ids)
-        save_results(results, results_path)
+            for future in as_completed(result_ids_by_future):
+                rows_by_id[result_ids_by_future[future]] = future.result()
+                executed_count += 1
+                since_checkpoint += 1
+                if (
+                    config.chunk_size is not None
+                    and since_checkpoint >= config.chunk_size
+                ):
+                    checkpoint()
+                    since_checkpoint = 0
+
+    if since_checkpoint or (stale_result_count and not pending_items):
+        checkpoint()
 
     results = _ordered_results(rows_by_id, expected_result_ids)
     return {
@@ -771,19 +806,6 @@ def _error_count(results: pd.DataFrame) -> int:
     if results.empty or "call_status" not in results.columns:
         return 0
     return int(results["call_status"].eq(CALL_STATUS_ERROR).sum())
-
-
-def _chunked(
-    items: list[dict[str, Any]],
-    chunk_size: int | None,
-) -> list[list[dict[str, Any]]]:
-    if not items:
-        return []
-    if chunk_size is None:
-        return [items]
-    return [
-        items[start : start + chunk_size] for start in range(0, len(items), chunk_size)
-    ]
 
 
 def _model_results_path(results_dir: Path, model_name: str) -> Path:

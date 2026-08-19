@@ -46,6 +46,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
                 "env_path": "../.env",
                 "chunk_size": 50,
                 "model_workers": 2,
+                "item_workers": 6,
                 "models": ["model-a", "model-b"],
                 "metadata": {"owner": "benchmarks"},
                 "future_field": "preserved",
@@ -64,6 +65,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
     assert config.env_path == env_path.resolve()
     assert config.chunk_size == 50
     assert config.model_workers == 2
+    assert config.item_workers == 6
     assert config.models == ["model-a", "model-b"]
     assert config.extra == {"future_field": "preserved"}
 
@@ -97,7 +99,8 @@ def test_load_run_config_defaults_run_id(tmp_path: Path) -> None:
 
     assert config.run_id == "default"
     assert config.chunk_size == 20
-    assert config.model_workers == 4
+    assert config.model_workers is None
+    assert config.item_workers == 20
 
 
 def test_config_identity_excludes_items_path_and_models(tmp_path: Path) -> None:
@@ -149,6 +152,7 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
             tmp_path,
             chunk_size=100,
             model_workers=1,
+            item_workers=1,
             retry_errors=False,
         )
     )
@@ -157,6 +161,7 @@ def test_config_identity_excludes_operational_controls(tmp_path: Path) -> None:
             tmp_path,
             chunk_size=1,
             model_workers=4,
+            item_workers=20,
             retry_errors=True,
         )
     )
@@ -171,7 +176,9 @@ def test_apply_execution_overrides_preserves_unspecified_values(
     """Only explicitly supplied execution options replace config values."""
 
     config = load_run_config(
-        _write_config(tmp_path, model_workers=3, force=False, retry_errors=False)
+        _write_config(
+            tmp_path, model_workers=3, item_workers=10, force=False, retry_errors=False
+        )
     )
 
     overridden = apply_execution_overrides(
@@ -179,11 +186,13 @@ def test_apply_execution_overrides_preserves_unspecified_values(
         force=True,
         retry_errors=False,
         model_workers=None,
+        item_workers=None,
     )
 
     assert overridden.force is True
     assert overridden.retry_errors is False
     assert overridden.model_workers == 3
+    assert overridden.item_workers == 10
 
 
 def test_apply_execution_overrides_rejects_conflicting_modes(tmp_path: Path) -> None:
@@ -326,7 +335,7 @@ def test_load_run_config_rejects_invalid_chunk_size(tmp_path: Path) -> None:
         load_run_config(_write_config(tmp_path, chunk_size=0))
 
 
-@pytest.mark.parametrize("model_workers", [0, -1, True, None, "2"])
+@pytest.mark.parametrize("model_workers", [0, -1, True, "2"])
 def test_load_run_config_rejects_invalid_model_workers(
     tmp_path: Path,
     model_workers: object,
@@ -358,3 +367,22 @@ def test_load_run_config_rejects_duplicate_models(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="duplicate"):
         load_run_config(_write_config(tmp_path, models=["model-a", "model-a"]))
+
+
+@pytest.mark.parametrize("item_workers", [0, -1, True, None, "2"])
+def test_load_run_config_rejects_invalid_item_workers(
+    tmp_path: Path,
+    item_workers: object,
+) -> None:
+    """Item concurrency must be represented by a positive integer."""
+
+    with pytest.raises(ConfigError, match="item_workers"):
+        load_run_config(_write_config(tmp_path, item_workers=item_workers))
+
+
+def test_load_run_config_accepts_explicit_null_model_workers(tmp_path: Path) -> None:
+    """Null defers the group-worker count to the number of provider groups."""
+
+    config = load_run_config(_write_config(tmp_path, model_workers=None))
+
+    assert config.model_workers is None

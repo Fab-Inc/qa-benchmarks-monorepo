@@ -319,8 +319,10 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert log["model-a"]["responses_git_hash"] == "abc123"
 
 
-def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> None:
-    """Two workers overlap models while preserving item order within each model."""
+def test_models_overlap_while_one_item_worker_keeps_items_sequential(
+    tmp_path: Path,
+) -> None:
+    """Model concurrency does not imply item concurrency at item_workers=1."""
 
     config_path = _write_config(
         tmp_path,
@@ -330,6 +332,10 @@ def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> N
             {"id": "item-2", "text": "The dog ran."},
         ],
         model_workers=2,
+        # Explicit: the assertion below is about the order items are *called* in,
+        # which only stays deterministic without item concurrency. Written row order
+        # is deterministic either way, via _ordered_results.
+        item_workers=1,
     )
     first_call_barrier = Barrier(2, timeout=2)
     calls_by_model = {"model-a": [], "model-b": []}
@@ -1477,7 +1483,8 @@ def _write_config(
     items: list[dict] | None = None,
     custom_models_path: Path | None = None,
     chunk_size: int | None | object = _CHUNK_SIZE_UNSET,
-    model_workers: int = 1,
+    model_workers: int | None = 1,
+    item_workers: int = 1,
 ) -> Path:
     if models is None:
         models = ["model-a", "model-b"]
@@ -1523,6 +1530,7 @@ def _write_config(
         "output_dir": "outputs",
         "models": models,
         "model_workers": model_workers,
+        "item_workers": item_workers,
         "custom_models_path": str(custom_models_path),
     }
     if chunk_size is not _CHUNK_SIZE_UNSET:
@@ -1569,3 +1577,140 @@ def _read_all_results(results_paths: dict[str, Path]) -> list[dict]:
     for path in results_paths.values():
         rows.extend(_read_jsonl(path))
     return rows
+
+
+def test_item_workers_overlap_items_within_one_model(tmp_path: Path) -> None:
+    """Items for a single model are evaluated concurrently up to item_workers."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": f"item-{index}", "text": "Mama."} for index in range(1, 5)],
+        model_workers=1,
+        item_workers=2,
+        chunk_size=None,
+    )
+    # A two-party barrier deadlocks unless two item calls genuinely overlap, so
+    # this proves concurrency without depending on sleep timing.
+    overlap_barrier = Barrier(2, timeout=5)
+    lock = Lock()
+    active_calls = 0
+    maximum_active_calls = 0
+
+    def evaluator(*_args) -> dict:
+        nonlocal active_calls, maximum_active_calls
+        with lock:
+            active_calls += 1
+            maximum_active_calls = max(maximum_active_calls, active_calls)
+        overlap_barrier.wait()
+        with lock:
+            active_calls -= 1
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert output["executed_count"] == 4
+    assert output["error_count"] == 0
+    assert maximum_active_calls == 2
+
+
+def test_item_workers_preserve_row_order_when_calls_finish_out_of_order(
+    tmp_path: Path,
+) -> None:
+    """Concurrent results are written in item order, not completion order."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[
+            {"id": "item-1", "text": "Slow."},
+            {"id": "item-2", "text": "Fast."},
+        ],
+        model_workers=1,
+        item_workers=2,
+        chunk_size=None,
+    )
+    completion_order: list[str] = []
+    lock = Lock()
+
+    def evaluator(
+        _config: BenchmarkRunConfig,
+        _model_name: str,
+        item: dict,
+        _prompt: str,
+    ) -> dict:
+        # Delay the first item so it completes last.
+        if item["benchmark_item_id"] == "item-1":
+            sleep(0.05)
+        with lock:
+            completion_order.append(item["benchmark_item_id"])
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert completion_order == ["item-2", "item-1"]
+    rows = [
+        json.loads(line)
+        for line in (output["run_dir"] / "responses" / "responses_model-a.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert [row["benchmark_item_id"] for row in rows] == ["item-1", "item-2"]
+
+
+def test_chunk_size_does_not_bound_item_concurrency(tmp_path: Path) -> None:
+    """Checkpoint cadence is independent of how many items may be in flight."""
+
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a"],
+        items=[{"id": f"item-{index}", "text": "Mama."} for index in range(1, 5)],
+        model_workers=1,
+        item_workers=4,
+        # Checkpoint after every completion, fewer than number of items in flight.
+        chunk_size=1,
+    )
+
+    overlap_barrier = Barrier(4, timeout=5)
+
+    def evaluator(*_args) -> dict:
+        overlap_barrier.wait()
+        return {"output": "[]"}
+
+    with patch(
+        "phonics_benchmark.runner.save_results",
+        wraps=save_results,
+    ) as save_results_spy:
+        output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert output["executed_count"] == 4
+    assert output["error_count"] == 0
+    assert save_results_spy.call_count == 4
+
+
+def test_unset_model_workers_runs_every_provider_group_concurrently(
+    tmp_path: Path,
+) -> None:
+    """Without an explicit cap, all provider groups overlap rather than only four."""
+
+    models = [f"model-{index}" for index in range(5)]
+    config_path = _write_config(
+        tmp_path,
+        models=models,
+        items=[{"id": "item-1", "text": "Mama."}],
+        # The helper writes one provider group per model, so five groups must overlap.
+        model_workers=None,
+        item_workers=1,
+    )
+    # Five parties cannot meet under the previous default cap of four.
+    overlap_barrier = Barrier(len(models), timeout=5)
+
+    def evaluator(*_args) -> dict:
+        overlap_barrier.wait()
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+
+    assert output["executed_count"] == len(models)
+    assert output["error_count"] == 0

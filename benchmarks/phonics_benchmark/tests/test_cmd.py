@@ -405,7 +405,7 @@ def test_run_decodability_command_defaults_run_id(
     assert run_config.run_id == "default"
     assert run_config.items_path == items_path.resolve()
     assert run_config.chunk_size == 20
-    assert run_config.model_workers == 4
+    assert run_config.model_workers is None
 
 
 def test_run_decodability_command_timestamped_output_generates_run_id(

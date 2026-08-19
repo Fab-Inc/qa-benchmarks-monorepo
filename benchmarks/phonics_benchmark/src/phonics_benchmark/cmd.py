@@ -12,7 +12,7 @@ import typer
 from phonics_benchmark.config import (
     DECODABILITY_TASK,
     DEFAULT_CHUNK_SIZE,
-    DEFAULT_MODEL_WORKERS,
+    DEFAULT_ITEM_WORKERS,
     ConfigError,
     apply_execution_overrides,
     build_run_config,
@@ -131,8 +131,20 @@ def run_decodability_cmd(
         min=1,
         help=(
             "Maximum number of provider groups to run concurrently. "
-            f"Defaults to the config value, or {DEFAULT_MODEL_WORKERS} without "
-            "a config."
+            "Defaults to the config value, or one worker per provider group "
+            "when unset."
+        ),
+    ),
+    item_workers: int | None = typer.Option(
+        None,
+        "--item-workers",
+        min=1,
+        help=(
+            "Maximum number of items to evaluate concurrently for a given model "
+            f"provider. In practice, there will be `item_workers` or `chunk_size`"
+            f" items in flight at a time, whichever is smaller. Defaults to the "
+            f"config value, or {DEFAULT_ITEM_WORKERS} "
+            "without a config."
         ),
     ),
     force: bool = typer.Option(
@@ -160,6 +172,7 @@ def run_decodability_cmd(
                 force=force,
                 retry_errors=retry_errors,
                 model_workers=model_workers,
+                item_workers=item_workers,
             )
         else:
             effective_run_id = (
@@ -178,10 +191,9 @@ def run_decodability_cmd(
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,
                 chunk_size=chunk_size,
-                model_workers=(
-                    model_workers
-                    if model_workers is not None
-                    else DEFAULT_MODEL_WORKERS
+                model_workers=model_workers,
+                item_workers=(
+                    item_workers if item_workers is not None else DEFAULT_ITEM_WORKERS
                 ),
                 force=force,
                 retry_errors=retry_errors,
