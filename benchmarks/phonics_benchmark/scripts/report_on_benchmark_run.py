@@ -8,6 +8,9 @@ The language and the benchmark item file are read from the run's own
 the exact item set it was executed on. If that file has changed since the run,
 the recorded ``items_sha256`` no longer matches and the script says so.
 
+Scoring is only on responses with successful provider calls and output parsing.
+If any responses are excluded, the script prints how many, per model.
+
 Run from the repository root, e.g.:
 
     uv run --package phonics-benchmark python \\
@@ -33,12 +36,13 @@ import pandas as pd
 import typer
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
-from phonics_benchmark.results import load_results
+from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.scoring import (
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
     summarize_by_model,
 )
+from phonics_benchmark.utils import require_columns
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "outputs"
 
@@ -70,7 +74,6 @@ INSPECTION_COLUMNS = [
     "student_knowledge",
     "nondecodable_words",
     "response_parsed",
-    "parse_ok",
     "tp_count",
     "fp_count",
     "fn_count",
@@ -110,8 +113,6 @@ def load_run_responses(run_dir: Path) -> pd.DataFrame:
     if not response_file_paths:
         raise typer.BadParameter(f"No responses/*.jsonl found in {run_dir}")
 
-    # require_result_id=False: this is read-only analysis, and it lets the script
-    # still read runs written before result_id existed.
     frames = [load_results(path) for path in response_file_paths]
     frames = [frame for frame in frames if not frame.empty]
     if not frames:
@@ -124,6 +125,50 @@ def load_run_responses(run_dir: Path) -> pd.DataFrame:
     results["parse_ok"] = [result.parse_ok for result in parsed]
 
     return results
+
+
+@require_columns(["call_status", "parse_ok"])
+def split_scorable_responses(
+    responses: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split loaded responses into included vs. excluded rows for scoring.
+
+    Two types of rows are excluded:
+
+    * ``call_status`` is not ``success``
+    * ``parse_ok`` is False
+
+    Returns ``(scorable, excluded)`` with ``excluded`` having an ``exclusion_reason``
+    column.
+    """
+    call_failed = responses["call_status"].ne(CALL_STATUS_SUCCESS)
+    parse_failed = ~responses["parse_ok"] & ~call_failed
+
+    reason = pd.Series(index=responses.index, dtype="object")
+    reason[parse_failed] = "parse_failed"
+    reason[call_failed] = "call_failed"
+
+    excluded = responses[reason.notna()].copy()
+    excluded["exclusion_reason"] = reason[reason.notna()]
+    scorable = responses[reason.isna()].copy()
+    return scorable, excluded
+
+
+def warn_about_exclusions(excluded: pd.DataFrame) -> None:
+    """Print a per-model, per-reason count of the rows left out of scoring.
+
+    Counts only: the excluded rows themselves stay in the run's own
+    ``responses/*.jsonl``, so the report has no reason to copy them.
+    """
+    breakdown = (
+        excluded.groupby(["model", "exclusion_reason"]).size().unstack(fill_value=0)
+    )
+    typer.secho(
+        f"WARNING: excluded {len(excluded)} response row(s) from scoring.\n",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+    typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
 
 
 def load_run_items(resolved_config: dict) -> pd.DataFrame:
@@ -196,7 +241,16 @@ def report_on_run(
     resolved_config = read_run_snapshot(run_dir)
     language = resolved_config["language"]
 
-    responses = load_run_responses(run_dir)
+    responses, excluded = split_scorable_responses(load_run_responses(run_dir))
+    written: list[str] = []
+    if not excluded.empty:
+        warn_about_exclusions(excluded)
+    if responses.empty:
+        raise typer.BadParameter(
+            f"Nothing to score. Every response row in {run_dir} failed or could"
+            "not be parsed."
+        )
+
     items = load_run_items(resolved_config)
 
     results = responses.merge(
@@ -214,37 +268,34 @@ def report_on_run(
     results = add_per_item_confusion_matrix(results, language)
     scored_path = report_dir / "results_with_scoring.csv"
     results.to_csv(scored_path, index=False)
+    written.append(scored_path.name)
 
     # Per-model accuracy + pooled word-level confusion (precision/recall/f1).
     summary = summarize_by_model(results)
     typer.echo(f"\nPer-model summary for {resolved_config['run_id']}:")
     typer.echo(summary.to_string(index=False))
     summary.to_csv(report_dir / "summary_by_model.csv", index=False)
+    written.append("summary_by_model.csv")
 
     # Does accuracy degrade as items get harder (more non-decodable words)?
     accuracy_by_count = accuracy_by_nondecodable_count(results)
     plot_path = report_dir / "accuracy_by_nondecodable_count.png"
     save_accuracy_by_nondecodable_count_plot(accuracy_by_count, plot_path)
+    written.append(plot_path.name)
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:
         sampled = sample_items_for_inspection(results, inspect_sample_size)
         sampled_path = report_dir / "sampled_items_for_inspection.csv"
         sampled.to_csv(sampled_path, index=False)
+        written.append(sampled_path.name)
         typer.echo(
             f"\nSampled {len(sampled['benchmark_item_id'].unique())} items for "
             f"inspection in {sampled_path}."
         )
         typer.echo("  Use --inspect-sample-size to change the number of items.")
 
-    written = [
-        scored_path.name,
-        "summary_by_model.csv",
-        plot_path.name,
-        "sampled_items_for_inspection.csv",
-    ]
-
-    typer.echo(f"\nWrote to {run_dir}:")
+    typer.echo(f"\nWrote to {report_dir}:")
     for name in written:
         typer.echo(f"  - {name}")
 

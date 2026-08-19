@@ -13,6 +13,9 @@ import pandas as pd
 
 from phonics_benchmark.config import ConfigError
 
+CALL_STATUS_ERROR = "error"
+CALL_STATUS_SUCCESS = "success"
+
 
 def load_results(file_name: str | Path, *, force: bool = False) -> pd.DataFrame:
     """Load existing JSONL results, or return an empty frame."""

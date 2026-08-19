@@ -75,3 +75,9 @@ uv run --package phonics-benchmark python \
 Providing a number for the `--inspect-sample-size` flag will generate a sample of
 benchmark items and each model's responses for you to inspect manually, with only
 relevant columns.
+
+The following responses are excluded from scoring:
+
+- API error (`call_status` is not `success`): These can be re-attempted with
+  `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
+- Parsing error (`parse_ok` is `False`)

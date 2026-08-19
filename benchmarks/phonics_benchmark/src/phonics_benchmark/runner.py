@@ -42,10 +42,13 @@ from phonics_benchmark.config import (
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
 from phonics_benchmark.prompts import build_decodability_prompt
-from phonics_benchmark.results import load_results, save_results
+from phonics_benchmark.results import (
+    CALL_STATUS_ERROR,
+    CALL_STATUS_SUCCESS,
+    load_results,
+    save_results,
+)
 
-CALL_STATUS_ERROR = "error"
-CALL_STATUS_SUCCESS = "success"
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 DEFAULT_CUSTOM_MODELS_PATH = REPO_ROOT / "custom_models.yaml"

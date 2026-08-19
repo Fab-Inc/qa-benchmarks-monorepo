@@ -92,7 +92,7 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     Each metric is computed over only the items where it is defined:
 
     * Items with >=1 actual non-decodable word: ``macro_recall``, ``macro_f1``,
-      ``accuracy_with_actual_nondecodable``
+      ``accuracy_for_not_fully_decodable``
     * Items with >=1 predicted non-decodable word: ``macro_precision``
     * Fully decodable items: ``false_alarm_rate_fully_decodable``,
       ``mean_fp_per_fully_decodable_item``
