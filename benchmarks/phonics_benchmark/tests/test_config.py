@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from phonics_benchmark.config import (
     DEFAULT_MAX_TOKENS,
+    DEFAULT_PROMPT_NAME,
     ConfigError,
     apply_execution_overrides,
     config_identity_sha256,
@@ -124,10 +125,14 @@ def test_config_identity_uses_exact_effective_shared_payload(tmp_path: Path) -> 
     )
     changed_limit = load_run_config(_write_config(tmp_path, max_tokens=123))
     changed_language = load_run_config(_write_config(tmp_path, language="xx"))
+    changed_prompt = load_run_config(
+        _write_config(tmp_path, prompt_name="decodability_evaluation_valid_graphemes")
+    )
 
     assert omitted_default.to_identity_dict() == {
         "language": "sw",
         "task": "decodability",
+        "prompt_name": DEFAULT_PROMPT_NAME,
         "max_tokens": DEFAULT_MAX_TOKENS,
     }
     assert config_identity_sha256(omitted_default) == config_identity_sha256(
@@ -138,6 +143,11 @@ def test_config_identity_uses_exact_effective_shared_payload(tmp_path: Path) -> 
     )
     assert config_identity_sha256(omitted_default) != config_identity_sha256(
         changed_language
+    )
+    # A different prompt asks every model a different question, so it is a
+    # different run even when everything else matches.
+    assert config_identity_sha256(omitted_default) != config_identity_sha256(
+        changed_prompt
     )
 
 
@@ -358,3 +368,32 @@ def test_load_run_config_rejects_duplicate_models(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="duplicate"):
         load_run_config(_write_config(tmp_path, models=["model-a", "model-a"]))
+
+
+def test_prompt_name_defaults_and_is_not_swallowed_by_extra(tmp_path: Path) -> None:
+    """A configured prompt_name reaches the config object, not `extra`.
+
+    Every key absent from `known_keys` silently lands in `extra`, so forgetting
+    to register a new field there would leave every variant config quietly
+    running the default prompt.
+    """
+    default = load_run_config(_write_config(tmp_path))
+    assert default.prompt_name == DEFAULT_PROMPT_NAME
+    assert "prompt_name" not in default.extra
+
+    configured = load_run_config(
+        _write_config(tmp_path, prompt_name="decodability_evaluation_valid_graphemes")
+    )
+    assert configured.prompt_name == "decodability_evaluation_valid_graphemes"
+    assert "prompt_name" not in configured.extra
+    assert configured.to_resolved_dict()["prompt_name"] == (
+        "decodability_evaluation_valid_graphemes"
+    )
+
+
+def test_load_run_config_rejects_non_string_prompt_name(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="'prompt_name' must be a non-empty string"):
+        load_run_config(_write_config(tmp_path, prompt_name=""))
+
+    with pytest.raises(ConfigError, match="'prompt_name' must be a non-empty string"):
+        load_run_config(_write_config(tmp_path, prompt_name=42))
