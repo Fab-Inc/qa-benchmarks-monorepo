@@ -213,8 +213,45 @@ uv run --frozen --package phonics-benchmark phonics-benchmark fetch-results \
 
 ## Run the container locally
 
-Upload a config whose `items_path` is a GCS URI, then build and run the same contract
-used by Cloud Run Jobs:
+The container reads its config and items from GCS and writes its resolved config and
+results to a separate GCS run prefix. Prepare and upload those inputs:
+
+```bash
+GOOGLE_CLOUD_PROJECT="your-project-id"
+PHONICS_SCRATCH_BUCKET="gs://your-scratch-bucket"
+CONTAINER_RUN_ID="container-smoke"
+CONTAINER_ITEMS_URI="${PHONICS_SCRATCH_BUCKET}/phonics/datasets/${CONTAINER_RUN_ID}.jsonl"
+CONTAINER_CONFIG_URI="${PHONICS_SCRATCH_BUCKET}/phonics/run-configs/${CONTAINER_RUN_ID}.json"
+CONTAINER_RESULTS_DEST="${PHONICS_SCRATCH_BUCKET}/phonics/runs/${CONTAINER_RUN_ID}/"
+
+jq -n \
+  --arg run_id "$CONTAINER_RUN_ID" \
+  --arg items_uri "$CONTAINER_ITEMS_URI" \
+  --arg results_dest "$CONTAINER_RESULTS_DEST" \
+  '{
+    run_id: $run_id,
+    language: "sw",
+    items_path: $items_uri,
+    results_dest: $results_dest,
+    models: ["gemini-3.1-pro-preview"],
+    max_tokens: 1000,
+    chunk_size: 1,
+    model_workers: 1
+  }' > "$PHONICS_MANUAL_OUTPUT_DIR/container-config.json"
+
+gcloud storage cp \
+  "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
+  "$CONTAINER_ITEMS_URI"
+
+gcloud storage cp \
+  "$PHONICS_MANUAL_OUTPUT_DIR/container-config.json" \
+  "$CONTAINER_CONFIG_URI"
+```
+
+The source config does not need an `output_dir`; `run-cloud` uses the container's
+writable `/workspace/outputs` directory. Build the image, then run it with the provider
+keys from the repository-root `.env`, the project used for GCS, and local Application
+Default Credentials:
 
 ```bash
 CODE_GIT_DIRTY=false
@@ -230,12 +267,15 @@ docker build \
   .
 
 docker run --rm \
-  -e GEMINI_API_KEY \
+  --env-file .env \
+  -e GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT" \
   -e GOOGLE_APPLICATION_CREDENTIALS=/credentials/adc.json \
   -v "$HOME/.config/gcloud/application_default_credentials.json:/credentials/adc.json:ro" \
   phonics-benchmark:local \
-  run-cloud --config "gs://your-scratch-bucket/phonics/runs/container-smoke/config.json"
+  run-cloud --config "$CONTAINER_CONFIG_URI"
 ```
 
 The image runs as a non-root user and writes only beneath `/workspace`. It contains no
-provider secrets, `.env` files, benchmark datasets, or credentials.
+provider secrets, `.env` files, benchmark datasets, or credentials; `--env-file` passes
+the `.env` values to this container process at runtime without adding the file to the
+image.
