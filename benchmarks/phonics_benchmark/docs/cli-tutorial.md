@@ -217,7 +217,16 @@ Upload a config whose `items_path` is a GCS URI, then build and run the same con
 used by Cloud Run Jobs:
 
 ```bash
-docker build -t phonics-benchmark:local .
+CODE_GIT_DIRTY=false
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  CODE_GIT_DIRTY=true
+fi
+
+docker build \
+  --build-arg CODE_GIT_HASH="$(git rev-parse --short HEAD)" \
+  --build-arg CODE_GIT_DIRTY="$CODE_GIT_DIRTY" \
+  -t phonics-benchmark:local \
+  .
 
 docker run --rm \
   -e GEMINI_API_KEY \

@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
 ARG UV_VERSION=0.11.8
+ARG CODE_GIT_HASH=unknown
+ARG CODE_GIT_DIRTY=unknown
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
@@ -25,8 +27,15 @@ RUN uv sync --frozen --package phonics-benchmark --no-dev --no-editable
 
 FROM python:3.13-slim-bookworm AS runtime
 
+ARG CODE_GIT_HASH
+ARG CODE_GIT_DIRTY
+
 ENV PATH="/app/.venv/bin:${PATH}" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    CODE_GIT_HASH="${CODE_GIT_HASH}" \
+    CODE_GIT_DIRTY="${CODE_GIT_DIRTY}"
+
+LABEL org.opencontainers.image.revision="${CODE_GIT_HASH}"
 
 RUN groupadd --system phonics \
     && useradd --system --gid phonics --home-dir /workspace phonics \

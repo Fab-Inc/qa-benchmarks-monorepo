@@ -100,6 +100,7 @@ def load_run(run_dir: str | Path) -> dict[str, Any]:
         "run_dir": str(resolved_run_dir),
         "config_id": config_snapshot.get("config_id"),
         "code_git_hash": config_snapshot.get("code_git_hash"),
+        "code_git_dirty": config_snapshot.get("code_git_dirty"),
         "source_config_path": config_snapshot.get("source_config_path"),
         "result_files": [str(path) for path in result_files],
         "run_log": run_log,

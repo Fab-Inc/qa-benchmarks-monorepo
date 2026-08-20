@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -139,6 +140,7 @@ def run_benchmark(
 
     custom_models_path = _resolve_custom_models_path(config.custom_models_path)
     code_git_hash = git_hash()
+    code_git_dirty = git_dirty()
     items, items_sha256 = load_benchmark_items(config.items_path)
     prepared_items = _prepare_items(items, language=config.language)
     provider_groups = _provider_groups_for_models(custom_models_path, config.models)
@@ -167,6 +169,7 @@ def run_benchmark(
         "raw_config": config.raw_config,
         "resolved_config": resolved_config,
         "code_git_hash": code_git_hash,
+        "code_git_dirty": code_git_dirty,
         "model_configs": sanitized_model_configs,
     }
     _write_json(config_snapshot_path, config_snapshot)
@@ -208,6 +211,7 @@ def run_benchmark(
         executed_models=executed_models,
         retry_errors=config.retry_errors,
         code_git_hash=code_git_hash,
+        code_git_dirty=code_git_dirty,
         on_artifact_write=on_artifact_write,
     )
     return output
@@ -864,6 +868,7 @@ def _update_run_log(
     executed_models: set[str],
     retry_errors: bool,
     code_git_hash: str | None,
+    code_git_dirty: bool | None,
     on_artifact_write: ArtifactWriteHook | None,
 ) -> None:
     if not executed_models:
@@ -872,6 +877,7 @@ def _update_run_log(
     fields = {
         f"{prefix}_timestamp_utc": _utc_now(),
         f"{prefix}_git_hash": code_git_hash,
+        f"{prefix}_git_dirty": code_git_dirty,
     }
     for model_name in sorted(executed_models):
         update_log(
@@ -885,14 +891,14 @@ def _update_run_log(
 def update_log(
     run_dir: Path,
     model_name: str,
-    fields: dict[str, str | None],
+    fields: dict[str, str | bool | None],
     *,
     on_artifact_write: ArtifactWriteHook | None = None,
 ) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
 
     log_path = run_dir / "log.json"
-    log_data: dict[str, dict[str, str | None]] = {}
+    log_data: dict[str, dict[str, str | bool | None]] = {}
     if log_path.exists():
         log_data = json.loads(log_path.read_text(encoding="utf-8"))
     entry = log_data.setdefault(model_name, {})
@@ -903,7 +909,11 @@ def update_log(
 
 
 def git_hash() -> str | None:
-    """Return the short git hash of HEAD, or None if unavailable."""
+    """Return the image revision or local short git hash, if available."""
+
+    image_revision = os.environ.get("CODE_GIT_HASH", "").strip()
+    if image_revision and image_revision != "unknown":
+        return image_revision
 
     try:
         return subprocess.check_output(
@@ -914,6 +924,28 @@ def git_hash() -> str | None:
         ).strip()
     except Exception as e:
         print(f"WARNING: could not read git hash: {e}", file=sys.stderr)
+        return None
+
+
+def git_dirty() -> bool | None:
+    """Return whether the image source or local worktree is dirty, if known."""
+
+    image_dirty = os.environ.get("CODE_GIT_DIRTY", "").strip().lower()
+    if image_dirty == "true":
+        return True
+    if image_dirty == "false":
+        return False
+
+    try:
+        status = subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=Path(__file__).resolve().parents[4],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return bool(status.strip())
+    except Exception as e:
+        print(f"WARNING: could not read git dirty state: {e}", file=sys.stderr)
         return None
 
 

@@ -134,10 +134,12 @@ deploy/deploy-job.sh
 Add other provider keys to `SECRET_MAPPINGS` as a comma-separated list. For example,
 `OPENAI_API_KEY=openai-api-key:latest`.
 
-`build-image.sh` uploads the current source tree to Cloud Build and pushes the image to
-Artifact Registry. `deploy-job.sh` is idempotent: it creates the job if needed or
-updates the existing job to use the selected image. Building a new image under an
-existing tag is not enough by itself; run `deploy-job.sh` again so the job is updated.
+`build-image.sh` uploads the current source tree to Cloud Build, records the current
+HEAD revision and whether the worktree is dirty in the image, and pushes the image to
+Artifact Registry. Dirty worktrees are allowed. `deploy-job.sh` is idempotent: it
+creates the job if needed or updates the existing job to use the selected image.
+Building a new image under an existing tag is not enough by itself; run `deploy-job.sh`
+again so the job is updated.
 
 The job runs one task, has a 24-hour timeout by default, and retries a failed task
 twice. Deploying the job does not start a benchmark run.

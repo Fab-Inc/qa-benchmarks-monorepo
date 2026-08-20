@@ -97,6 +97,80 @@ fi
     assert config_was_uploaded is executes_job
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Deployment helpers require a POSIX shell",
+)
+@pytest.mark.parametrize(
+    ("git_status", "expected_dirty"),
+    [
+        ("", "false"),
+        (" M Dockerfile\n?? untracked.txt\n", "true"),
+    ],
+)
+def test_build_image_passes_git_provenance_to_cloud_build(
+    tmp_path: Path,
+    git_status: str,
+    expected_dirty: str,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gcloud_log = tmp_path / "gcloud.log"
+
+    _write_executable(
+        bin_dir / "git",
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  "rev-parse --short HEAD")
+    printf '%s\n' 'abc123'
+    ;;
+  "status --porcelain --untracked-files=normal")
+    printf '%s' "${FAKE_GIT_STATUS}"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+""",
+    )
+    _write_executable(
+        bin_dir / "gcloud",
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${GCLOUD_LOG}"
+""",
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "PROJECT_ID": "fab-qaf-decodability",
+        "GCLOUD_LOG": str(gcloud_log),
+        "FAKE_GIT_STATUS": git_status,
+    }
+
+    result = subprocess.run(
+        ["bash", str(REPO_ROOT / "deploy" / "build-image.sh")],
+        cwd=REPO_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    call = gcloud_log.read_text(encoding="utf-8")
+    assert "builds submit" in call
+    assert "--config=deploy/cloudbuild.yaml" in call
+    assert "_CODE_GIT_HASH=abc123" in call
+    assert f"_CODE_GIT_DIRTY={expected_dirty}" in call
+    assert (
+        "_IMAGE_URI=europe-west1-docker.pkg.dev/fab-qaf-decodability/"
+        "fab-benchmarks/phonics-benchmark:latest" in call
+    )
+    assert f"git revision abc123 (dirty={expected_dirty})" in result.stdout
+
+
 def _write_executable(path: Path, contents: str) -> None:
     path.write_text(contents, encoding="utf-8")
     path.chmod(0o755)
