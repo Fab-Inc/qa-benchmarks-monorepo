@@ -11,6 +11,7 @@ from phonics_benchmark.labeling import (
 CONFIG = {
     "scoring_methods": [
         "score_known_graphemes_kiswahili",
+        "score_known_clusters_and_patterns_kiswahili",
         "score_whole_words_kiswahili",
     ],
     "aggregations": {
@@ -21,9 +22,9 @@ CONFIG = {
 
 
 def test_resolve_decodability_config_returns_callables() -> None:
-    """Config names resolve to two scorers and one aggregation callable."""
+    """Config names resolve to three scorers and one aggregation callable."""
     scoring_methods, aggregations = resolve_decodability_config(CONFIG, "sw")
-    assert len(scoring_methods) == 2
+    assert len(scoring_methods) == 3
     assert set(aggregations) == {"kenya_tusome_score"}
     assert all(callable(method) for method in scoring_methods)
 
@@ -71,7 +72,16 @@ def test_label_nondecodable_words_returns_sorted_lowercased_unique_words() -> No
         items, CONFIG, "sw", score_column=CONFIG["score_column"]
     )
 
-    assert labels.iloc[0] == ["hufanya", "kufanyia", "ofisi", "vifaa"]
+    # The "f" words are flagged for an untaught grapheme; "mbalimbali" ("mb") and
+    # "vya" ("vy") for clusters this student knows neither directly nor by pattern.
+    assert labels.iloc[0] == [
+        "hufanya",
+        "kufanyia",
+        "mbalimbali",
+        "ofisi",
+        "vifaa",
+        "vya",
+    ]
 
 
 def test_label_nondecodable_words_flags_untaught_word() -> None:

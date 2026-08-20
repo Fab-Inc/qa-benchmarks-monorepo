@@ -1,6 +1,8 @@
 """Shared configurations for Kiswahili decodability analysis."""
 
-from primerpro import Consonant, GraphemeInventory, Settings, Vowel
+from enum import Enum
+
+from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
 
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
@@ -39,11 +41,126 @@ KISWAHILI_VOWEL_GPCS = [
     ("u", "u"),
 ]
 
-VALID_GRAPHEMES: set[str] = {
-    # TODO: is it ok to normalize to lowercase here?
-    symbol.lower()
-    for symbol, _ in KISWAHILI_CONSONANT_GPCS + KISWAHILI_VOWEL_GPCS
+VALID_CONSONANTS = {symbol for symbol, _ in KISWAHILI_CONSONANT_GPCS}
+VALID_VOWELS = {symbol for symbol, _ in KISWAHILI_VOWEL_GPCS}
+
+VALID_GRAPHEMES: set[str] = VALID_CONSONANTS | VALID_VOWELS
+
+
+class ClusterPattern(Enum):
+    """Kiswahili consonant cluster patterns.
+
+    Each member carries two strings:
+    - its ``value`` (a stable ``code``): what is stored in the data files
+    - its ``label``: the human-readable form for display
+    """
+
+    # Declared for type checkers
+    label: str
+
+    PRENASALISED_M = ("prenasalised_m", '"m" + consonant')
+    PRENASALISED_N = ("prenasalised_n", '"n" + consonant')
+    PRENASALISED = ("prenasalised", '"m/n" + consonant')
+
+    LABIALISED_GLIDE = ("labialised_glide", 'consonant + "w"')
+    PALATALISED_GLIDE = ("palatalised_glide", 'consonant + "y"')
+
+    M_LABIALISED_GLIDE = ("m_labialised_glide", '"m" + consonant + "w"')
+    N_LABIALISED_GLIDE = ("n_labialised_glide", '"n" + consonant + "w"')
+    PRENASALISED_LABIALISED_GLIDE = (
+        "prenasalised_labialised_glide",
+        '"m/n" + consonant + "w"',
+    )
+
+    M_PALATALISED_GLIDE = ("m_palatalised_glide", '"m" + consonant + "y"')
+    N_PALATALISED_GLIDE = ("n_palatalised_glide", '"n" + consonant + "y"')
+    PRENASALISED_PALATALISED_GLIDE = (
+        "prenasalised_palatalised_glide",
+        '"m/n" + consonant + "y"',
+    )
+
+    def __new__(cls, code: str, label: str) -> "ClusterPattern":
+        # Split the (code, label) tuple
+        obj = object.__new__(cls)
+        obj._value_ = code
+        obj.label = label
+        return obj
+
+
+_EXCLUDED_CONSONANTS: dict[ClusterPattern, set[str]] = {
+    # Excluded consonants for each cluster pattern in Kiswahili, either
+    # because they are not valid in that cluster or because they are already
+    # represented by a digraph.
+    ClusterPattern.PRENASALISED_M: set(),
+    ClusterPattern.PRENASALISED_N: {"g", "y", "ng", "ng'", "ny"},
+    ClusterPattern.LABIALISED_GLIDE: {"w"},
+    ClusterPattern.PALATALISED_GLIDE: {"y", "ny", "n"},
 }
+
+
+VALID_CLUSTERS: dict[ClusterPattern, set[str]] = {
+    ClusterPattern.PRENASALISED_M: {
+        "m" + c
+        for c in VALID_CONSONANTS
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
+    },
+    ClusterPattern.PRENASALISED_N: {
+        "n" + c
+        for c in VALID_CONSONANTS
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
+    },
+    ClusterPattern.LABIALISED_GLIDE: {
+        c + "w"
+        for c in VALID_CONSONANTS
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.PALATALISED_GLIDE: {
+        c + "y"
+        for c in VALID_CONSONANTS
+        if c not in _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
+    },
+    ClusterPattern.M_LABIALISED_GLIDE: {
+        "m" + c + "w"
+        for c in VALID_CONSONANTS
+        if c
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.N_LABIALISED_GLIDE: {
+        "n" + c + "w"
+        for c in VALID_CONSONANTS
+        if c
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.LABIALISED_GLIDE]
+    },
+    ClusterPattern.M_PALATALISED_GLIDE: {
+        "m" + c + "y"
+        for c in VALID_CONSONANTS
+        if c
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_M]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
+    },
+    ClusterPattern.N_PALATALISED_GLIDE: {
+        "n" + c + "y"
+        for c in VALID_CONSONANTS
+        if c
+        not in _EXCLUDED_CONSONANTS[ClusterPattern.PRENASALISED_N]
+        | _EXCLUDED_CONSONANTS[ClusterPattern.PALATALISED_GLIDE]
+    },
+}
+
+VALID_CLUSTERS[ClusterPattern.PRENASALISED] = (
+    VALID_CLUSTERS[ClusterPattern.PRENASALISED_M]
+    | VALID_CLUSTERS[ClusterPattern.PRENASALISED_N]
+)
+VALID_CLUSTERS[ClusterPattern.PRENASALISED_LABIALISED_GLIDE] = (
+    VALID_CLUSTERS[ClusterPattern.M_LABIALISED_GLIDE]
+    | VALID_CLUSTERS[ClusterPattern.N_LABIALISED_GLIDE]
+)
+VALID_CLUSTERS[ClusterPattern.PRENASALISED_PALATALISED_GLIDE] = (
+    VALID_CLUSTERS[ClusterPattern.M_PALATALISED_GLIDE]
+    | VALID_CLUSTERS[ClusterPattern.N_PALATALISED_GLIDE]
+)
 
 
 def _get_primerpro_settings() -> Settings:
@@ -66,7 +183,64 @@ def _get_primerpro_settings() -> Settings:
 primerpro_settings: Settings = _get_primerpro_settings()
 
 
+def get_graphemes(word: str) -> list[str]:
+    """Decompose a word into its constituent graphemes using PrimerPro settings.
+
+    Symbols are lowercased.
+    """
+    primerpro_word = Word(text=word, settings=primerpro_settings)
+    return [grapheme.symbol.lower() for grapheme in primerpro_word.graphemes]
+
+
+def get_clusters(word: str) -> set[str]:
+    """Get the set of clusters in a word using PrimerPro settings.
+
+    Symbols are lowercased.
+    """
+    primerpro_word = Word(text=word, settings=primerpro_settings)
+    graphemes = primerpro_word.graphemes
+
+    # search for CC and CCC clusters
+    clusters = set()
+    i = 0
+    while i < len(graphemes):
+        grapheme = graphemes[i]
+
+        if i < len(graphemes) - 2:
+            next_grapheme = graphemes[i + 1]
+            next_next_grapheme = graphemes[i + 2]
+
+            if (
+                grapheme.is_consonant
+                and next_grapheme.is_consonant
+                and next_next_grapheme.is_consonant
+            ):
+                clusters.add(
+                    (
+                        grapheme.symbol
+                        + next_grapheme.symbol
+                        + next_next_grapheme.symbol
+                    ).lower()
+                )
+                i += 3
+                continue
+
+        if i < len(graphemes) - 1:
+            next_grapheme = graphemes[i + 1]
+
+            if grapheme.is_consonant and next_grapheme.is_consonant:
+                clusters.add((grapheme.symbol + next_grapheme.symbol).lower())
+                i += 2
+
+        i += 1
+
+    return clusters
+
+
 __all__ = [
+    "ClusterPattern",
     "VALID_GRAPHEMES",
+    "VALID_CONSONANTS",
+    "VALID_CLUSTERS",
     "primerpro_settings",
 ]

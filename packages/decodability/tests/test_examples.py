@@ -29,6 +29,7 @@ def test_kiswahili_example_builds_dataframe():
     assert list(df.columns) == [
         "word",
         "score_known_graphemes_kiswahili",
+        "score_known_clusters_and_patterns_kiswahili",
         "score_whole_words_kiswahili",
         "kenya_tusome_score",
         "mean_score",
