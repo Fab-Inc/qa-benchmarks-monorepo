@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+# Phonics benchmark container image; build with the repository root as context.
+
 ARG UV_VERSION=0.11.8
 ARG CODE_GIT_HASH=unknown
 ARG CODE_GIT_DIRTY=unknown

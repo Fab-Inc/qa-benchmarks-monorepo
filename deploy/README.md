@@ -1,9 +1,9 @@
 # Phonics benchmark Cloud Run Job
 
-The image and scripts in this directory deploy one whole phonics model run as one Cloud
-Run Job task. The container receives only a GCS config URI; provider credentials come
-from Secret Manager environment variables and GCS authentication uses the job's service
-account through Application Default Credentials.
+The `phonics.Dockerfile` image definition and scripts in this directory deploy one whole
+phonics model run as one Cloud Run Job task. The container receives only a GCS config
+URI; provider credentials come from Secret Manager environment variables and GCS
+authentication uses the job's service account through Application Default Credentials.
 
 ## How the pieces fit together
 

@@ -65,7 +65,7 @@ def test_git_provenance_prefers_values_baked_into_image(
     ("status", "expected"),
     [
         ("", False),
-        (" M Dockerfile\n", True),
+        (" M deploy/phonics.Dockerfile\n", True),
         ("?? untracked.txt\n", True),
     ],
 )

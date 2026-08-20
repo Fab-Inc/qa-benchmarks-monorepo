@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -105,7 +106,7 @@ fi
     ("git_status", "expected_dirty"),
     [
         ("", "false"),
-        (" M Dockerfile\n?? untracked.txt\n", "true"),
+        (" M deploy/phonics.Dockerfile\n?? untracked.txt\n", "true"),
     ],
 )
 def test_build_image_passes_git_provenance_to_cloud_build(
@@ -169,6 +170,19 @@ printf '%s\n' "$*" >>"${GCLOUD_LOG}"
         "fab-benchmarks/phonics-benchmark:latest" in call
     )
     assert f"git revision abc123 (dirty={expected_dirty})" in result.stdout
+
+
+def test_cloud_build_uses_phonics_dockerfile() -> None:
+    cloud_build = yaml.safe_load(
+        (REPO_ROOT / "deploy" / "cloudbuild.yaml").read_text(encoding="utf-8")
+    )
+
+    assert (REPO_ROOT / "deploy" / "phonics.Dockerfile").is_file()
+    assert cloud_build["steps"][0]["args"][:3] == [
+        "build",
+        "--file",
+        "deploy/phonics.Dockerfile",
+    ]
 
 
 def _write_executable(path: Path, contents: str) -> None:

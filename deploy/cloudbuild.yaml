@@ -2,6 +2,8 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --file
+      - deploy/phonics.Dockerfile
       - --build-arg
       - CODE_GIT_HASH=${_CODE_GIT_HASH}
       - --build-arg

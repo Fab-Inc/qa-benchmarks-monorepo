@@ -223,6 +223,7 @@ if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
 fi
 
 docker build \
+  --file deploy/phonics.Dockerfile \
   --build-arg CODE_GIT_HASH="$(git rev-parse --short HEAD)" \
   --build-arg CODE_GIT_DIRTY="$CODE_GIT_DIRTY" \
   -t phonics-benchmark:local \
