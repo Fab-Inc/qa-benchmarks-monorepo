@@ -43,9 +43,13 @@ import typer
 from phonics_benchmark.bootstrap import bootstrap_metric_cis
 from phonics_benchmark.irt import IRTFitError, fit_rasch, fit_warnings
 from phonics_benchmark.parsing import parse_word_list
-from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.plots import (
     save_accuracy_by_nondecodable_count_plot,
+)
+from phonics_benchmark.results import (
+    CALL_STATUS_ERROR,
+    CALL_STATUS_SUCCESS,
+    load_results,
 )
 from phonics_benchmark.scoring import (
     accuracy_by_nondecodable_count,
