@@ -54,10 +54,15 @@ sed -n '1,$p' "${input}"
 set -euo pipefail
 printf '%s\\n' "$*" >>"${GCLOUD_LOG}"
 if [[ "$1 $2" == "storage ls" ]]; then
-  if [[ "$3" == */config.json ]]; then
-    exit 1
-  fi
-  exit 0
+  case "$3" in
+    */run-configs/run-a.json)
+      exit 1
+      ;;
+    */datasets/run-a.jsonl)
+      exit 0
+      ;;
+  esac
+  exit 1
 fi
 if [[ "$1 $2" == "storage cp" && "$3" == gs://* ]]; then
   cp "${FAKE_REMOTE_ITEMS}" "$4"
@@ -91,11 +96,73 @@ fi
     assert expected_message in result.stdout + result.stderr
     calls = gcloud_log.read_text(encoding="utf-8")
     assert ("run jobs execute" in calls) is executes_job
-    config_was_uploaded = any(
-        line.startswith("storage cp ") and line.endswith("/config.json")
+    source_config_was_uploaded = any(
+        line.startswith("storage cp ") and line.endswith("/run-configs/run-a.json")
         for line in calls.splitlines()
     )
-    assert config_was_uploaded is executes_job
+    assert source_config_was_uploaded is executes_job
+    assert "/phonics/runs/run-a/config.json" not in calls
+    if executes_job:
+        assert (
+            "--args=run-cloud,--config,"
+            "gs://phonics-benchmark/phonics/run-configs/run-a.json" in calls
+        )
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Deployment helpers require a POSIX shell",
+)
+def test_launch_run_resumes_from_immutable_source_config(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gcloud_log = tmp_path / "gcloud.log"
+    config_path = tmp_path / "config.json"
+    config_path.write_text("{}\n", encoding="utf-8")
+    items_path = tmp_path / "items.jsonl"
+    items_path.write_text('{"id":"item-1"}\n', encoding="utf-8")
+
+    _write_executable(bin_dir / "jq", "#!/usr/bin/env bash\nexit 1\n")
+    _write_executable(
+        bin_dir / "gcloud",
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${GCLOUD_LOG}"
+if [[ "$1 $2" == "storage ls" ]]; then
+  [[ "$3" == */run-configs/run-a.json ]]
+fi
+""",
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "PROJECT_ID": "fab-qaf-decodability",
+        "RESULTS_BUCKET": "gs://phonics-benchmark",
+        "GCLOUD_LOG": str(gcloud_log),
+    }
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "deploy" / "launch-run.sh"),
+            str(config_path),
+            str(items_path),
+            "run-a",
+        ],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "executing it as a resume" in result.stdout
+    calls = gcloud_log.read_text(encoding="utf-8")
+    assert "storage cp" not in calls
+    assert (
+        "--args=run-cloud,--config,"
+        "gs://phonics-benchmark/phonics/run-configs/run-a.json" in calls
+    )
 
 
 @pytest.mark.skipif(

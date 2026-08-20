@@ -16,16 +16,16 @@ REGION="${REGION:-europe-west1}"
 JOB_NAME="${JOB_NAME:-phonics-run}"
 BUCKET_URI="${RESULTS_BUCKET%/}"
 ITEMS_URI="${BUCKET_URI}/phonics/datasets/${RUN_ID}.jsonl"
+RUN_CONFIG_URI="${BUCKET_URI}/phonics/run-configs/${RUN_ID}.json"
 RUN_PREFIX="${BUCKET_URI}/phonics/runs/${RUN_ID}/"
-CONFIG_URI="${RUN_PREFIX}config.json"
 
 command -v jq >/dev/null || {
   echo "jq is required to prepare the cloud config" >&2
   exit 1
 }
 
-if gcloud storage ls "${CONFIG_URI}" >/dev/null 2>&1; then
-  echo "Remote run already exists; executing it as a resume: ${RUN_PREFIX}"
+if gcloud storage ls "${RUN_CONFIG_URI}" >/dev/null 2>&1; then
+  echo "Remote run config already exists; executing it as a resume: ${RUN_CONFIG_URI}"
 else
   prepared_config="$(mktemp "${TMPDIR:-/tmp}/phonics-cloud-config.XXXXXX")"
   existing_items="$(mktemp "${TMPDIR:-/tmp}/phonics-cloud-items.XXXXXX")"
@@ -59,11 +59,11 @@ else
   gcloud storage cp \
     --if-generation-match=0 \
     "${prepared_config}" \
-    "${CONFIG_URI}"
+    "${RUN_CONFIG_URI}"
 fi
 
 gcloud run jobs execute "${JOB_NAME}" \
   --project="${PROJECT_ID}" \
   --region="${REGION}" \
-  --args="run-cloud,--config,${CONFIG_URI}" \
+  --args="run-cloud,--config,${RUN_CONFIG_URI}" \
   --wait

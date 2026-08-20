@@ -157,12 +157,13 @@ For a new run, the script:
 1. Uploads the items to `${RESULTS_BUCKET}/phonics/datasets/my-run-id.jsonl`.
 1. Creates a cloud version of the config with that items URI, the requested run ID, and
    `${RESULTS_BUCKET}/phonics/runs/my-run-id/` as `results_dest`.
-1. Uploads the config to `${RESULTS_BUCKET}/phonics/runs/my-run-id/config.json`.
+1. Uploads that immutable source config to
+   `${RESULTS_BUCKET}/phonics/run-configs/my-run-id.json`.
 1. Executes the existing Cloud Run job with the equivalent of:
 
 ```bash
 phonics-benchmark run-cloud \
-  --config "${RESULTS_BUCKET}/phonics/runs/my-run-id/config.json"
+  --config "${RESULTS_BUCKET}/phonics/run-configs/my-run-id.json"
 ```
 
 Inside the container, `run-cloud` downloads the config and items into the writable
@@ -176,22 +177,26 @@ After the run, the main GCS objects are arranged as follows:
 phonics/
 ├── datasets/
 │   └── my-run-id.jsonl
+├── run-configs/
+│   └── my-run-id.json
 └── runs/
     └── my-run-id/
-        ├── config.json
+        ├── config.json  # resolved run snapshot
         ├── log.json
         └── responses/
 ```
 
-If the run's remote `config.json` already exists, `launch-run.sh` leaves it unchanged
-and starts a resume. The supplied local config and items do not replace an existing run.
-Use a new run ID for changed inputs or benchmark settings.
+If the source config already exists under `run-configs/`, `launch-run.sh` leaves it
+unchanged and starts a resume. The supplied local config and items do not replace an
+existing run. Use a new run ID for changed inputs or benchmark settings. The resolved
+`runs/my-run-id/config.json` is a run artifact and never replaces the source config.
 
-If the config was removed but the run's items object remains, the launcher reuses that
-object only when it is byte-for-byte identical to the supplied items file. A mismatch
-fails before launching; use a new run ID or explicitly remove the old run objects. The
-container downloads `custom_models.yaml` into its writable `/workspace/inputs`
-directory, so the installed virtual environment can remain read-only.
+If the source config was removed but the run's items object remains, the launcher reuses
+that object only when it is byte-for-byte identical to the supplied items file. A
+mismatch fails before launching; use a new run ID or explicitly remove the old run
+objects. The container downloads `custom_models.yaml` into its writable
+`/workspace/inputs` directory, so the installed virtual environment can remain
+read-only.
 
 Fetch one model file after the run:
 
