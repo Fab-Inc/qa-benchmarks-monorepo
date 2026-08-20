@@ -38,15 +38,14 @@ def score_known_clusters_and_patterns_kiswahili(
     If the word doesn't contain any cluter, the score is 1.0, since the student
     doesn't need to know any clusters to decode it.
     """
-    taught_clusters = student_knowledge.clusters
     taught_cluster_patterns = student_knowledge.cluster_patterns
-
     taught_clusters_from_taught_patterns = reduce(
         set.union,
         (VALID_CLUSTERS[pattern] for pattern in taught_cluster_patterns),
         set(),
     )
-    taught_clusters |= taught_clusters_from_taught_patterns
+
+    taught_clusters = student_knowledge.clusters | taught_clusters_from_taught_patterns
 
     for cluster in get_clusters(word):
         if cluster not in taught_clusters:
