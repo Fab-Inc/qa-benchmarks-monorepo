@@ -13,7 +13,7 @@ from phonics_benchmark.prompts import (
 ITEM = {
     "benchmark_item_id": "item-1",
     "content": "Mama anaona kuku.",
-    "student_knowledge": {"graphemes": ["a", "m", "n"], "whole_words": ["MAMA"]},
+    "student_knowledge": {"graphemes": ["a", "m", "n"], "whole_words": ["mama"]},
 }
 
 

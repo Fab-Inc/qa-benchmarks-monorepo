@@ -31,6 +31,7 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
     "sw": {
         "scoring_methods": [
             "score_known_graphemes_kiswahili",
+            "score_known_clusters_and_patterns_kiswahili",
             "score_whole_words_kiswahili",
         ],
         "aggregations": {
