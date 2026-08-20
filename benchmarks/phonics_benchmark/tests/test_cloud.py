@@ -31,6 +31,7 @@ from typer.testing import CliRunner
 
 def test_synced_lifecycle_pulls_then_pushes_checkpoints_and_reconciles(
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     config = _build_config(tmp_path)
     events: list[str] = []
@@ -87,6 +88,13 @@ def test_synced_lifecycle_pulls_then_pushes_checkpoints_and_reconciles(
         "push:log.json",
         "reconcile",
     ]
+    stdout = capsys.readouterr().out
+    assert (
+        "Reading existing results from "
+        "gs://results/phonics/runs/experiment-a/" in stdout
+    )
+    assert "Writing results to gs://results/phonics/runs/experiment-a/" in stdout
+    assert "Wrote results to gs://results/phonics/runs/experiment-a/" in stdout
 
 
 def test_transient_checkpoint_upload_warns_and_finally_reconciles(
@@ -297,6 +305,7 @@ def test_local_execution_rejects_changed_items_from_existing_snapshot(
 def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
     tmp_path: Path,
     as_snapshot: bool,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     raw_config = {
         "run_id": "experiment-a",
@@ -375,6 +384,12 @@ def test_cloud_config_downloads_gcs_items_and_supports_snapshot_resume(
     assert config.metadata["items_source_uri"] == ("gs://datasets/phonics/items.jsonl")
     assert config.metadata["items_source_generation"] == 17
     assert config.raw_config["items_path"] == "gs://datasets/phonics/items.jsonl"
+    stdout = capsys.readouterr().out
+    assert (
+        "Reading config from "
+        "gs://results/phonics/runs/experiment-a/config.json" in stdout
+    )
+    assert "Reading items from gs://datasets/phonics/items.jsonl" in stdout
 
 
 @pytest.mark.parametrize(
@@ -517,6 +532,7 @@ def test_fetch_results_command_filters_to_one_model_file(tmp_path: Path) -> None
     assert result.exit_code == 0
     assert calls == [{"responses/responses_provider_model-a-6f6ae619.jsonl"}]
     assert "Downloaded: 1" in result.stdout
+    assert "from gs://results/phonics/runs/experiment-a/" in result.stdout
 
 
 def test_upload_results_command_reconciles_local_run(tmp_path: Path) -> None:
@@ -549,6 +565,7 @@ def test_upload_results_command_reconciles_local_run(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert reconciled is True
     assert "Uploaded: 3" in result.stdout
+    assert "to gs://results/phonics/runs/run-a/" in result.stdout
 
 
 @pytest.mark.parametrize(

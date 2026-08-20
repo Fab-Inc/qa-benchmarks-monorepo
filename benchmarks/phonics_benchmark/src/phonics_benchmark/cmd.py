@@ -257,7 +257,7 @@ def upload_results_cmd(
     except EXPECTED_CLI_ERRORS as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
-    typer.echo(f"Uploaded: {pushed_count}")
+    typer.echo(f"Uploaded: {pushed_count} to {dest}")
 
 
 @app.command("fetch-results")
@@ -285,7 +285,7 @@ def fetch_results_cmd(
     except EXPECTED_CLI_ERRORS as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
-    typer.echo(f"Downloaded: {downloaded_count}")
+    typer.echo(f"Downloaded: {downloaded_count} from {src}")
 
 
 @app.command("run-cloud")
@@ -333,8 +333,10 @@ def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:
         return execute_run(run_config)
 
     sync = RunSync(run_dir, run_config.results_dest)
+    typer.echo(f"Reading existing results from {run_config.results_dest}")
     sync.pull()
     _validate_resume_snapshot(run_config, run_dir / "config.json")
+    typer.echo(f"Writing results to {run_config.results_dest}")
 
     def push_with_warning(local_path: Path) -> None:
         try:
@@ -363,6 +365,7 @@ def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:
             )
         raise
     _finalize_sync(sync, run_dir)
+    typer.echo(f"Wrote results to {run_config.results_dest}")
     return output
 
 
@@ -466,6 +469,7 @@ def _load_cloud_run_config(
     inputs_dir = workspace / "inputs"
     inputs_dir.mkdir(parents=True, exist_ok=True)
     downloaded_config_path = inputs_dir / "run-config-source.json"
+    typer.echo(f"Reading config from {config_uri}")
     download_file(
         bucket_name=bucket_name,
         file_name=object_name,
@@ -597,6 +601,7 @@ def _download_items_file(items_source_uri: str, destination: Path) -> int:
     except ValueError as e:
         raise ConfigError(f"Invalid cloud items_path: {e}") from e
 
+    typer.echo(f"Reading items from {items_source_uri}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(
         dir=destination.parent,
