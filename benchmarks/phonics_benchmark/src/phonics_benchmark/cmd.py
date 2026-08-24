@@ -25,6 +25,7 @@ from phonics_benchmark.config import (
     DECODABILITY_TASK,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_MODEL_WORKERS,
+    DEFAULT_PROMPT_NAME,
     BenchmarkRunConfig,
     ConfigError,
     _parse_run_id,
@@ -144,6 +145,14 @@ def run_decodability_cmd(
         readable=True,
         help="Path to a .env file with provider API keys.",
     ),
+    prompt_name: str | None = typer.Option(
+        None,
+        "--prompt-name",
+        help=(
+            "Prompt template to evaluate each item with. Defaults to "
+            f"'{DEFAULT_PROMPT_NAME}'."
+        ),
+    ),
     max_tokens: int | None = typer.Option(
         None,
         "--max-tokens",
@@ -208,6 +217,7 @@ def run_decodability_cmd(
                 base_dir=Path.cwd(),
                 task=DECODABILITY_TASK,
                 items_path=items_path,
+                prompt_name=prompt_name or DEFAULT_PROMPT_NAME,
                 env_path=env_path,
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,

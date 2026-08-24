@@ -138,7 +138,7 @@ def test_parse_word_list_parse_ok_flag():
 def test_parse_word_list_preserves_apostrophe_from_tusome_data(
     tusome_stage_11_item,
 ):
-    expected_words = tusome_stage_11_item["non_decodable_words"]
+    expected_words = tusome_stage_11_item["nondecodable_words"]
 
     result = parse_word_list(json.dumps(expected_words, ensure_ascii=False))
 

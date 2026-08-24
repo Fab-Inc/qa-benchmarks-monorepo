@@ -378,6 +378,8 @@ def test_run_decodability_command_uses_cli_args(
                 "sw",
                 "--models",
                 "model-a,model-b",
+                "--prompt-name",
+                "decodability_evaluation_grapheme_breakdown",
                 "--output-dir",
                 str(output_dir),
                 "--items-path",
@@ -405,6 +407,7 @@ def test_run_decodability_command_uses_cli_args(
     assert run_config.output_dir == output_dir.resolve()
     assert run_config.models == ["model-a", "model-b"]
     assert run_config.task == "decodability"
+    assert run_config.prompt_name == "decodability_evaluation_grapheme_breakdown"
     assert run_config.items_path == items_path.resolve()
     assert run_config.env_path == env_path.resolve()
     assert run_config.custom_models_path == custom_models_path.resolve()

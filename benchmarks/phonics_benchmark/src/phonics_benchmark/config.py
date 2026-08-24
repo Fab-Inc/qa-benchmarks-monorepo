@@ -16,6 +16,7 @@ DEFAULT_MAX_TOKENS = 10_000
 DEFAULT_CHUNK_SIZE = 20
 DEFAULT_MODEL_WORKERS = 4
 DECODABILITY_TASK = "decodability"
+DEFAULT_PROMPT_NAME = "decodability_evaluation"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
 
@@ -34,6 +35,7 @@ class BenchmarkRunConfig:
     models: list[str]
     items_path: Path
     inputs_dir: Path | None = None
+    prompt_name: str = DEFAULT_PROMPT_NAME
     env_path: Path | None = None
     custom_models_path: Path | None = None
     max_tokens: int | None = None
@@ -58,6 +60,7 @@ class BenchmarkRunConfig:
             "models": self.models,
             "items_path": str(self.items_path),
             "inputs_dir": str(self.inputs_dir) if self.inputs_dir else None,
+            "prompt_name": self.prompt_name,
             "env_path": str(self.env_path) if self.env_path else None,
             "custom_models_path": (
                 str(self.custom_models_path) if self.custom_models_path else None
@@ -78,6 +81,7 @@ class BenchmarkRunConfig:
         return {
             "language": self.language,
             "task": self.task,
+            "prompt_name": self.prompt_name,
             "max_tokens": effective_max_tokens(self.max_tokens),
         }
 
@@ -186,6 +190,7 @@ def build_run_config(
     task: str,
     items_path: str | Path | None,
     inputs_dir: str | Path | None = None,
+    prompt_name: str = DEFAULT_PROMPT_NAME,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
     max_tokens: int | None = None,
@@ -205,6 +210,7 @@ def build_run_config(
         "models": models,
         "items_path": str(items_path) if items_path is not None else None,
         "inputs_dir": str(inputs_dir) if inputs_dir else None,
+        "prompt_name": prompt_name,
         "env_path": str(env_path) if env_path else None,
         "custom_models_path": str(custom_models_path) if custom_models_path else None,
         "max_tokens": max_tokens,
@@ -279,6 +285,10 @@ def _parse_run_config(
     if custom_models_path is not None and not isinstance(custom_models_path, str):
         raise ConfigError("'custom_models_path' must be a string when provided")
 
+    prompt_name = raw_config.get("prompt_name", DEFAULT_PROMPT_NAME)
+    if not isinstance(prompt_name, str) or not prompt_name.strip():
+        raise ConfigError("'prompt_name' must be a non-empty string when provided")
+
     max_tokens = raw_config.get("max_tokens")
     if isinstance(max_tokens, bool) or (
         max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens < 1)
@@ -320,6 +330,7 @@ def _parse_run_config(
         "models",
         "items_path",
         "inputs_dir",
+        "prompt_name",
         "env_path",
         "custom_models_path",
         "max_tokens",
@@ -340,6 +351,7 @@ def _parse_run_config(
         models=models,
         items_path=_resolve_path(items_path, base_dir),
         inputs_dir=_resolve_path(inputs_dir, base_dir) if inputs_dir else None,
+        prompt_name=prompt_name,
         env_path=_resolve_path(env_path, base_dir) if env_path else None,
         custom_models_path=(
             _resolve_path(custom_models_path, base_dir) if custom_models_path else None

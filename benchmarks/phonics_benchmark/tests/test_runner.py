@@ -97,7 +97,7 @@ def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None
     artifact = (
         b'{"benchmark_item_id":"item-1","content":"  Mama anaona kuku.  ",'
         b'"student_knowledge":{"graphemes":["a","m"],"whole_words":["mama"]},'
-        b'"source_id":"source-1","expected_answer":["kuku"]}\n'
+        b'"text_id":"text-1","expected_answer":["kuku"]}\n'
         b'{"benchmark_item_id":"item-2","content":"Tai ni ndege.",'
         b'"student_knowledge":{"graphemes":["a","i"],"whole_words":[]}}\n'
     )
@@ -1684,7 +1684,7 @@ def _write_items_jsonl(tmp_path: Path, items: list[dict]) -> Path:
                 "student_knowledge",
                 {"graphemes": ["a"], "whole_words": []},
             ),
-            "source_id": f"source-{index}",
+            "text_id": f"text-{index}",
             "student_knowledge_id": f"student-{index}",
         }
         for index, item in enumerate(items, start=1)
