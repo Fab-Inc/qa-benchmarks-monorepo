@@ -6,7 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from threading import Barrier, Lock
 from time import sleep
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import httpx
 import pytest
@@ -26,10 +26,11 @@ from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
 from phonics_benchmark.prompts import build_decodability_prompt
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
-    DEFAULT_CUSTOM_MODELS_PATH,
     download_default_custom_models,
     evaluate_item_with_fdllm,
     execute_run,
+    git_dirty,
+    git_hash,
     prepare_fdllm_for_run,
     run_benchmark,
     run_from_config_file,
@@ -40,6 +41,53 @@ _CHUNK_SIZE_UNSET = object()
 CONTRACT_FIXTURE = (
     Path(__file__).parent / "fixtures" / "completed_benchmark_items.jsonl"
 )
+
+
+@pytest.mark.parametrize(
+    ("dirty_value", "expected"), [("true", True), ("false", False)]
+)
+def test_git_provenance_prefers_values_baked_into_image(
+    monkeypatch: pytest.MonkeyPatch,
+    dirty_value: str,
+    expected: bool,
+) -> None:
+    monkeypatch.setenv("CODE_GIT_HASH", "abc123")
+    monkeypatch.setenv("CODE_GIT_DIRTY", dirty_value)
+
+    with patch("phonics_benchmark.runner.subprocess.check_output") as rev_parse:
+        assert git_hash() == "abc123"
+        assert git_dirty() is expected
+
+    rev_parse.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("", False),
+        (" M deploy/phonics.Dockerfile\n", True),
+        ("?? untracked.txt\n", True),
+    ],
+)
+def test_git_dirty_falls_back_to_local_worktree(
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    expected: bool,
+) -> None:
+    monkeypatch.delenv("CODE_GIT_DIRTY", raising=False)
+
+    with patch(
+        "phonics_benchmark.runner.subprocess.check_output",
+        return_value=status,
+    ) as git_status:
+        assert git_dirty() is expected
+
+    git_status.assert_called_once_with(
+        ["git", "status", "--porcelain", "--untracked-files=normal"],
+        cwd=Path(__file__).resolve().parents[3],
+        stderr=ANY,
+        text=True,
+    )
 
 
 def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None:
@@ -249,7 +297,10 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
             "seen_prompt": prompt,
         }
 
-    with patch("phonics_benchmark.runner.git_hash", return_value="abc123"):
+    with (
+        patch("phonics_benchmark.runner.git_hash", return_value="abc123"),
+        patch("phonics_benchmark.runner.git_dirty", return_value=True),
+    ):
         output = run_from_config_file(
             config_path,
             evaluator=fake_evaluator,
@@ -287,6 +338,7 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert rows[0]["call_status"] == "success"
     assert "responses_timestamp_utc" not in rows[0]
     assert "responses_git_hash" not in rows[0]
+    assert "responses_git_dirty" not in rows[0]
     assert "A cat sat." in rows[0]["prompt"]
     assert '- Known graphemes: "a", "t"' in rows[0]["prompt"]
     assert rows[0]["seen_prompt"] == rows[0]["prompt"]
@@ -300,6 +352,7 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
     assert snapshot["config_id"] == output["config_id"]
     assert snapshot["code_git_hash"] == "abc123"
+    assert snapshot["code_git_dirty"] is True
     assert snapshot["raw_config"]["run_id"] == "experiment-a"
     assert snapshot["resolved_config"]["items_path"] == str(
         (tmp_path / "items.jsonl").resolve()
@@ -317,6 +370,7 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     assert set(log) == {"model-a", "model-b"}
     assert "responses_timestamp_utc" in log["model-a"]
     assert log["model-a"]["responses_git_hash"] == "abc123"
+    assert log["model-a"]["responses_git_dirty"] is True
 
 
 def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> None:
@@ -763,10 +817,14 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
             "latency_seconds": 1.25,
         }
 
-    first_output = run_from_config_file(
-        config_path,
-        evaluator=first_evaluator,
-    )
+    with (
+        patch("phonics_benchmark.runner.git_hash", return_value="first123"),
+        patch("phonics_benchmark.runner.git_dirty", return_value=False),
+    ):
+        first_output = run_from_config_file(
+            config_path,
+            evaluator=first_evaluator,
+        )
     first_rows = _read_jsonl(first_output["results_paths"]["model-a"])
     error_row = next(row for row in first_rows if row["call_status"] == "error")
     assert "timestamp_utc" not in error_row
@@ -789,10 +847,14 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         retried_items.append(item["benchmark_item_id"])
         return {"output": "retried"}
 
-    second_output = run_from_config_file(
-        config_path,
-        evaluator=retry_evaluator,
-    )
+    with (
+        patch("phonics_benchmark.runner.git_hash", return_value="second456"),
+        patch("phonics_benchmark.runner.git_dirty", return_value=True),
+    ):
+        second_output = run_from_config_file(
+            config_path,
+            evaluator=retry_evaluator,
+        )
 
     rows = _read_jsonl(second_output["results_paths"]["model-a"])
     assert first_output["config_id"] == second_output["config_id"]
@@ -804,7 +866,10 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         (second_output["run_dir"] / "log.json").read_text(encoding="utf-8")
     )
     assert "responses_retry_timestamp_utc" in log["model-a"]
-    assert "responses_retry_git_hash" in log["model-a"]
+    assert log["model-a"]["responses_git_hash"] == "first123"
+    assert log["model-a"]["responses_git_dirty"] is False
+    assert log["model-a"]["responses_retry_git_hash"] == "second456"
+    assert log["model-a"]["responses_retry_git_dirty"] is True
 
 
 def test_retry_errors_rejects_uncached_items_before_starting_workers(
@@ -1196,6 +1261,32 @@ def test_download_default_custom_models_anonymously_and_atomically(
     assert result == destination
 
 
+def test_download_default_custom_models_accepts_writable_destination(
+    tmp_path: Path,
+) -> None:
+    """Installed deployments can keep downloaded state outside application code."""
+
+    destination = tmp_path / "workspace" / "inputs" / "custom_models.yaml"
+
+    def write_downloaded_models(**kwargs) -> None:
+        Path(kwargs["write_path"]).write_text(
+            "NewProvider:\n  models: {}\n",
+            encoding="utf-8",
+        )
+
+    with patch(
+        "fab_benchmark_publisher.download_file",
+        side_effect=write_downloaded_models,
+    ) as download_file:
+        result = download_default_custom_models(destination)
+
+    assert result == destination.resolve()
+    assert destination.read_text(encoding="utf-8") == ("NewProvider:\n  models: {}\n")
+    assert Path(download_file.call_args.kwargs["write_path"]).parent == (
+        destination.parent
+    )
+
+
 def test_download_default_custom_models_preserves_existing_file_on_failure(
     tmp_path: Path,
 ) -> None:
@@ -1262,6 +1353,8 @@ def test_download_default_custom_models_rejects_invalid_registry(
 def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
     """Model preparation registers the existing shared model registry."""
 
+    default_custom_models_path = tmp_path / "custom_models.yaml"
+    default_custom_models_path.write_text("{}", encoding="utf-8")
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
@@ -1272,6 +1365,10 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
     )
 
     with (
+        patch(
+            "phonics_benchmark.runner.DEFAULT_CUSTOM_MODELS_PATH",
+            default_custom_models_path,
+        ),
         patch("phonics_benchmark.runner._load_environment") as load_environment,
         patch("phonics_benchmark.runner._register_custom_models") as register_models,
         patch("phonics_benchmark.runner.validate_registered_models") as validate_models,
@@ -1279,7 +1376,7 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
         prepare_fdllm_for_run(config)
 
     load_environment.assert_called_once_with(None)
-    register_models.assert_called_once_with(DEFAULT_CUSTOM_MODELS_PATH)
+    register_models.assert_called_once_with(default_custom_models_path)
     validate_models.assert_called_once_with(["model-a"])
 
 
@@ -1468,6 +1565,49 @@ def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
     assert save.call_count == 1
     assert len(save.call_args.args[0]) == 3
     assert len(_read_jsonl(output["results_paths"]["model-a"])) == 3
+
+
+def test_artifact_hook_fires_after_each_durable_write_in_run_order(
+    tmp_path: Path,
+) -> None:
+    config = load_run_config(
+        _write_config(
+            tmp_path,
+            models=["model-a"],
+            items=[
+                {"id": "item-1", "text": "First."},
+                {"id": "item-2", "text": "Second."},
+                {"id": "item-3", "text": "Third."},
+            ],
+            chunk_size=2,
+        )
+    )
+    events: list[str] = []
+
+    def evaluator(
+        _config: BenchmarkRunConfig,
+        _model: str,
+        item: dict,
+        _prompt: str,
+    ) -> dict:
+        events.append(f"evaluate:{item['benchmark_item_id']}")
+        return {"output": "[]"}
+
+    execute_run(
+        config,
+        evaluator=evaluator,
+        on_artifact_write=lambda path: events.append(f"write:{path.name}"),
+    )
+
+    assert events == [
+        "write:config.json",
+        "evaluate:item-1",
+        "evaluate:item-2",
+        "write:responses_model-a.jsonl",
+        "evaluate:item-3",
+        "write:responses_model-a.jsonl",
+        "write:log.json",
+    ]
 
 
 def _write_config(
