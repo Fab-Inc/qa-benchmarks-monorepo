@@ -5,7 +5,7 @@ from decodability.english.definitions import UFLI_GPC_PAIRS
 
 class EnglishStudentKnowledge(BaseModel):
     gpcs: list[tuple[str, tuple[str, ...]]] = []
-    whole_words: set[str] = set()
+    sight_words: set[str] = set()
 
     @field_validator("gpcs")
     @classmethod
@@ -22,8 +22,8 @@ class EnglishStudentKnowledge(BaseModel):
             )
         return gpcs
 
-    @field_validator("whole_words")
+    @field_validator("sight_words")
     @classmethod
-    def lowercase_whole_words(cls, whole_words: set[str]) -> set[str]:
-        """Lowercase all whole words to ensure consistency."""
-        return {word.lower() for word in whole_words}
+    def lowercase_sight_words(cls, sight_words: set[str]) -> set[str]:
+        """Lowercase all sight words to ensure consistency."""
+        return {word.lower() for word in sight_words}

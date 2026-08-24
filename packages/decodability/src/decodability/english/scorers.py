@@ -48,20 +48,20 @@ def score_known_gpcs_english(
     return 0.0
 
 
-def score_whole_words_english(
+def score_sight_words_english(
     word: str, student_knowledge: EnglishStudentKnowledge
 ) -> float:
-    """Score a word based on whether the student knows it as a whole word.
+    """Score a word based on whether the student knows it as a sight word.
 
-    The score is binary: if the student knows the word as a whole word, the score is 1.
+    The score is binary: if the student knows the word as a sight word, the score is 1.
     Otherwise, the score is 0.
     """
-    taught_whole_words = student_knowledge.whole_words
+    taught_sight_words = student_knowledge.sight_words
 
-    if not taught_whole_words:
+    if not taught_sight_words:
         return 0.0
 
-    if word.lower() in taught_whole_words:
+    if word.lower() in taught_sight_words:
         return 1.0
 
     return 0.0

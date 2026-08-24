@@ -11,7 +11,7 @@ from decodability.english.gpc_parser import GPC, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.scorers import (
     score_known_gpcs_english,
-    score_whole_words_english,
+    score_sight_words_english,
 )
 
 
@@ -39,10 +39,10 @@ class TestEnglishStudentKnowledgeModel:
             with pytest.raises(ValueError):
                 EnglishStudentKnowledge(gpcs=known_gpcs)
 
-    def test_english_student_knowledge_lowercases_whole_words(self):
+    def test_english_student_knowledge_lowercases_sight_words(self):
         """Whole words are lowercased on ingest."""
-        knowledge = EnglishStudentKnowledge(whole_words={"The", "cat", "DOG"})
-        assert knowledge.whole_words == {"the", "cat", "dog"}
+        knowledge = EnglishStudentKnowledge(sight_words={"The", "cat", "DOG"})
+        assert knowledge.sight_words == {"the", "cat", "dog"}
 
 
 class TestScorers:
@@ -81,13 +81,13 @@ class TestScorers:
         student_knowledge = EnglishStudentKnowledge(gpcs=known_gpcs)
         assert score_known_gpcs_english(word, student_knowledge) == expected
 
-    def test_score_whole_words_english(self):
+    def test_score_sight_words_english(self):
         """Sight-word check is case-insensitive."""
-        student_knowledge = EnglishStudentKnowledge(whole_words={"the", "and"})
-        assert score_whole_words_english("the", student_knowledge) == 1.0
-        assert score_whole_words_english("The", student_knowledge) == 1.0
-        assert score_whole_words_english("and", student_knowledge) == 1.0
-        assert score_whole_words_english("cat", student_knowledge) == 0.0
+        student_knowledge = EnglishStudentKnowledge(sight_words={"the", "and"})
+        assert score_sight_words_english("the", student_knowledge) == 1.0
+        assert score_sight_words_english("The", student_knowledge) == 1.0
+        assert score_sight_words_english("and", student_knowledge) == 1.0
+        assert score_sight_words_english("cat", student_knowledge) == 0.0
 
 
 class TestEnglishTokenizer:
@@ -125,7 +125,7 @@ class TestEnglishAggregators:
     def test_ufli_aggregator_returns_1_for_known_whole_words(self):
         """A known whole word scores 1.0 regardless of GPC knowledge."""
         scores = {
-            "score_whole_words_english": 1.0,
+            "score_sight_words_english": 1.0,
             "score_known_gpcs_english": 0.0,
         }
         assert aggregate_scores_ufli_curriculum(scores) == 1.0
@@ -133,7 +133,7 @@ class TestEnglishAggregators:
     def test_ufli_aggregator_falls_back_to_gpc_score(self):
         """An unknown whole word falls back to the GPC score."""
         scores = {
-            "score_whole_words_english": 0.0,
+            "score_sight_words_english": 0.0,
             "score_known_gpcs_english": 1.0,
         }
         assert aggregate_scores_ufli_curriculum(scores) == 1.0
@@ -141,7 +141,7 @@ class TestEnglishAggregators:
     def test_ufli_aggregator_returns_0_when_both_missing(self):
         """No sight-word match and no GPC coverage → 0.0."""
         scores = {
-            "score_whole_words_english": 0.0,
+            "score_sight_words_english": 0.0,
             "score_known_gpcs_english": 0.0,
         }
         assert aggregate_scores_ufli_curriculum(scores) == 0.0
@@ -150,7 +150,7 @@ class TestEnglishAggregators:
         """The adapter applies the row function across a frame."""
         df = pd.DataFrame(
             {
-                "score_whole_words_english": [1.0, 0.0, 0.0],
+                "score_sight_words_english": [1.0, 0.0, 0.0],
                 "score_known_gpcs_english": [0.0, 0.0, 1.0],
             }
         )
@@ -388,7 +388,7 @@ class TestScoreContractionsViaAssumedApostrophe:
 
 
 class TestScorersEmptyKnowledge:
-    def test_score_whole_words_english_returns_0_when_no_taught_whole_words(self):
-        """Empty whole_words set short-circuits to 0.0."""
+    def test_score_sight_words_english_returns_0_when_no_taught_sight_words(self):
+        """Empty sight_words set short-circuits to 0.0."""
         student = EnglishStudentKnowledge()
-        assert score_whole_words_english("cat", student) == 0.0
+        assert score_sight_words_english("cat", student) == 0.0
