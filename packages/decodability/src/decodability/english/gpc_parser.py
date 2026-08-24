@@ -7,8 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cache
+from typing import Literal
 
 from decodability.english.definitions import UFLI_GPC_PAIRS, VOWEL_LETTERS
+from decodability.english.extract_phonemes import Phoneme
+
+FreePassMode = Literal["none", "schwa", "stress0"]
 
 
 @dataclass(frozen=True)
@@ -40,10 +44,12 @@ type Parse = tuple[GPCMatch, ...]
 
 def parse_gpcs(
     word: str,
-    phonemes: tuple[tuple[str, bool], ...],
+    phonemes: tuple[Phoneme, ...],
     inventory: tuple[GPC, ...],
     *,
     max_split_gap: int = 2,
+    free_pass_mode: FreePassMode = "stress0",
+    curriculum_guarded: bool = True,
 ) -> tuple[Parse, ...]:
     """Return every complete inventory-constrained parse of ``word``.
 
@@ -57,7 +63,7 @@ def parse_gpcs(
         raise ValueError("max_split_gap must be at least one letter")
 
     spelling = word.casefold()
-    phoneme_strings = tuple(p for p, _ in phonemes)
+    phoneme_strings = tuple(p.ipa for p in phonemes)
     contiguous = tuple(
         (gpc, gpc.grapheme.casefold()) for gpc in inventory if "-" not in gpc.grapheme
     )
@@ -117,19 +123,33 @@ def parse_gpcs(
         #   3. no inventory GPC already teaches this exact (letter, phoneme)
         #      pair — otherwise we'd double the parse count and dilute the
         #      taught lesson (``unicorn``'s middle i, ``dishes``' final s).
-        if phoneme_index < len(phonemes):
-            reduced_ipa, is_unstressed = phonemes[phoneme_index]
+        if free_pass_mode != "none" and phoneme_index < len(phonemes):
+            reduced_ipa = phonemes[phoneme_index].ipa
+            is_unstressed = phonemes[phoneme_index].is_unstressed
             letter = spelling[letter_index]
             next_phoneme = (
                 phoneme_strings[phoneme_index + 1]
                 if phoneme_index + 1 < len(phonemes)
                 else None
             )
+            # Experiment axis: "schwa" restricts the reduction to /ə/ (ARPABET
+            # AH0), "stress0" allows any unstressed vowel phoneme (IH0, IY0,
+            # OW0, ...). Guards 1-3 below are held constant across modes.
+            reducible = is_unstressed and (
+                free_pass_mode == "stress0" or reduced_ipa == "ə"
+            )
+            # Guards 2 and 3 (next != /r/, pair not already taught) encode
+            # curriculum precedence at walk time. The post-walk clean/all-parses
+            # filter enforces the same precedence at result time, so toggling
+            # this off keeps taught parses winning whenever they exist and only
+            # rescues words where no taught alternative applies.
+            passes_curriculum_guards = (
+                next_phoneme != "r" and (letter, (reduced_ipa,)) not in UFLI_GPC_PAIRS
+            )
             if (
-                is_unstressed
+                reducible
                 and letter in VOWEL_LETTERS
-                and next_phoneme != "r"
-                and (letter, (reduced_ipa,)) not in UFLI_GPC_PAIRS
+                and (passes_curriculum_guards or not curriculum_guarded)
             ):
                 free_pass = GPCMatch(
                     GPC(

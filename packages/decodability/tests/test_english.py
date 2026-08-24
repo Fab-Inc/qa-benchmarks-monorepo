@@ -3,8 +3,9 @@ import pytest
 from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
 from decodability.english.extract_phonemes import (
+    Phoneme,
     _normalize_phonemes,
-    phoneme_arpabet_lookup,
+    convert_arpabet_to_phoneme,
 )
 from decodability.english.extract_words import extract_words_english
 from decodability.english.gpc_parser import GPC, parse_gpcs
@@ -163,12 +164,12 @@ class TestEnglishAggregators:
 class TestPhonemeArpabetLookup:
     def test_unknown_arpabet_phoneme_raises(self):
         with pytest.raises(ValueError, match="Unknown ARPABET phoneme"):
-            phoneme_arpabet_lookup("QQ9")
+            convert_arpabet_to_phoneme("QQ9")
 
 
-def _tag(*phonemes: str) -> tuple[tuple[str, bool], ...]:
-    """Wrap plain IPA symbols as (phoneme, is_reduced=False) tuples for tests."""
-    return tuple((p, False) for p in phonemes)
+def _tag(*phonemes: str) -> tuple[Phoneme, ...]:
+    """Wrap plain IPA symbols as Phoneme objects (is_unstressed=False) for tests."""
+    return tuple(Phoneme(p, False) for p in phonemes)
 
 
 class TestNormalizePhonemes:
@@ -184,8 +185,8 @@ class TestNormalizePhonemes:
     )
     def test_pre_r_laxing_reversal(
         self,
-        phonemes: tuple[tuple[str, bool], ...],
-        expected: tuple[tuple[str, bool], ...],
+        phonemes: tuple[Phoneme, ...],
+        expected: tuple[Phoneme, ...],
     ):
         assert _normalize_phonemes(phonemes) == expected
 
@@ -202,8 +203,8 @@ class TestNormalizePhonemes:
     )
     def test_er_split(
         self,
-        phonemes: tuple[tuple[str, bool], ...],
-        expected: tuple[tuple[str, bool], ...],
+        phonemes: tuple[Phoneme, ...],
+        expected: tuple[Phoneme, ...],
     ):
         assert _normalize_phonemes(phonemes) == expected
 
@@ -253,12 +254,12 @@ class TestReducedVowelFreePass:
     def test_parser_uses_free_pass_when_no_inventory_gpc_matches(self):
         """/ə/ marked unstressed on letter ``e`` parses without an ``e → ə`` GPC."""
         phonemes = (
-            ("p", False),
-            ("l", False),
-            ("æ", False),
-            ("n", False),
-            ("ə", True),  # unstressed schwa — needs the free pass
-            ("t", False),
+            Phoneme("p", False),
+            Phoneme("l", False),
+            Phoneme("æ", False),
+            Phoneme("n", False),
+            Phoneme("ə", True),  # unstressed schwa — needs the free pass
+            Phoneme("t", False),
         )
         parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
 
@@ -272,12 +273,12 @@ class TestReducedVowelFreePass:
     def test_parser_does_not_free_pass_when_phoneme_is_stressed(self):
         """The same ``e``/``ə`` pair without the unstressed flag doesn't fire."""
         phonemes = (
-            ("p", False),
-            ("l", False),
-            ("æ", False),
-            ("n", False),
-            ("ə", False),  # NOT flagged reduced — no free pass
-            ("t", False),
+            Phoneme("p", False),
+            Phoneme("l", False),
+            Phoneme("æ", False),
+            Phoneme("n", False),
+            Phoneme("ə", False),  # NOT flagged reduced — no free pass
+            Phoneme("t", False),
         )
         parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
         assert parses == ()
@@ -334,7 +335,7 @@ class TestApostropheIsSilent:
 
     def test_parser_skips_apostrophe_in_hes(self):
         """``he's`` parses via h + e + s (apostrophe silently skipped)."""
-        phonemes = (("h", False), ("i", False), ("z", False))
+        phonemes = (Phoneme("h", False), Phoneme("i", False), Phoneme("z", False))
         parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
 
         assert len(parses) == 1
@@ -354,7 +355,7 @@ class TestApostropheIsSilent:
         """
         # phonemes claim final /s/ (voiceless) but the inventory only teaches
         # s → /z/, so nothing covers the trailing phoneme.
-        phonemes = (("h", False), ("i", False), ("s", False))
+        phonemes = (Phoneme("h", False), Phoneme("i", False), Phoneme("s", False))
         parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
         assert parses == ()
 

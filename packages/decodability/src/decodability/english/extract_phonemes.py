@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import cache
 
 import cmudict
@@ -5,27 +6,35 @@ import cmudict
 from decodability.english.definitions import ARPABET_TO_IPA, VOWEL_INITIALS
 
 
+@dataclass(frozen=True)
+class Phoneme:
+    """One phonetic token: an IPA symbol plus whether CMU marked it stress-0."""
+
+    ipa: str
+    is_unstressed: bool
+
+
 @cache
 def _cmudict() -> dict[str, list[list[str]]]:
     return cmudict.dict()
 
 
-def phoneme_arpabet_lookup(phoneme: str) -> tuple[str, bool]:
-    """Lookup an ARPABET phoneme's IPA representation."""
+def convert_arpabet_to_phoneme(phoneme: str) -> Phoneme:
+    """Convert an ARPABET symobol to its IPA phoneme representation."""
 
     is_unstressed = phoneme.endswith("0")
 
     if phoneme in ARPABET_TO_IPA:
-        return ARPABET_TO_IPA[phoneme], is_unstressed
+        return Phoneme(ARPABET_TO_IPA[phoneme], is_unstressed)
     base = phoneme.rstrip("012")
     if base in ARPABET_TO_IPA:
-        return ARPABET_TO_IPA[base], is_unstressed
+        return Phoneme(ARPABET_TO_IPA[base], is_unstressed)
     raise ValueError(f"Unknown ARPABET phoneme: {phoneme}")
 
 
 def _normalize_phonemes(
-    phonemes: tuple[tuple[str, bool], ...],
-) -> tuple[tuple[str, bool], ...]:
+    phonemes: tuple[Phoneme, ...],
+) -> tuple[Phoneme, ...]:
     """Bridge CMU's phonetic transcription to the UFLI inventory's categories.
 
     - /ɚ/ → /ə/ + /r/: CMU emits a single r-colored schwa for ``er, ir, ur,
@@ -36,35 +45,34 @@ def _normalize_phonemes(
       deer, steer`` match ``ee → i``. /ɪ/+/r/ before a vowel (``mirror,
       spirit``) is preserved.
     """
-    result: tuple[tuple[str, bool], ...] = ()
+    result: tuple[Phoneme, ...] = ()
     i = 0
     while i < len(phonemes):
-        ipa, unstressed = phonemes[i]
-        if ipa == "ɚ":
-            result += (("ə", unstressed), ("r", False))
+        current = phonemes[i]
+        if current.ipa == "ɚ":
+            result += (Phoneme("ə", current.is_unstressed), Phoneme("r", False))
             i += 1
             continue
         if (
-            ipa == "ɪ"
+            current.ipa == "ɪ"
             and i + 1 < len(phonemes)
-            and phonemes[i + 1][0] == "r"
-            and (i + 2 == len(phonemes) or phonemes[i + 2][0][0] not in VOWEL_INITIALS)
+            and phonemes[i + 1].ipa == "r"
+            and (i + 2 == len(phonemes) or phonemes[i + 2].ipa[0] not in VOWEL_INITIALS)
         ):
-            result += (("i", unstressed),)
+            result += (Phoneme("i", current.is_unstressed),)
             i += 1
             continue
-        result += ((ipa, unstressed),)
+        result += (current,)
         i += 1
     return result
 
 
-def get_word_phonemes(word: str) -> tuple[tuple[tuple[str, bool], ...], ...]:
+def get_word_phonemes(word: str) -> tuple[tuple[Phoneme, ...], ...]:
     """Return every CMUdict pronunciation variant for a word.
 
-    Each outer element is a variant; each variant is a tuple of
-    ``(ipa, is_unstressed)`` pairs. Dialect normalizations are applied to
-    each variant independently. Raises ``KeyError`` if the word is not in
-    CMUdict.
+    Each outer element is a variant; each variant is a tuple of ``Phoneme``
+    objects. Dialect normalizations are applied to each variant independently.
+    Raises ``KeyError`` if the word is not in CMUdict.
 
     CMUdict lists multiple variants for homographs (``read`` → present- vs
     past-tense) and stress alternations (``either`` → /iː/ vs /aɪ/). Callers
@@ -75,6 +83,14 @@ def get_word_phonemes(word: str) -> tuple[tuple[tuple[str, bool], ...], ...]:
         raise KeyError(f"{word!r} not in CMUdict")
 
     return tuple(
-        _normalize_phonemes(tuple(phoneme_arpabet_lookup(token) for token in arpabet))
+        _normalize_phonemes(
+            tuple(convert_arpabet_to_phoneme(token) for token in arpabet)
+        )
         for arpabet in word_variants
     )
+
+
+if __name__ == "__main__":
+    test_words = ["about", "sofa", "until"]
+    for word in test_words:
+        print(f"{word}: {get_word_phonemes(word)}")
