@@ -1,7 +1,10 @@
-"""
-The script identifies words from the Ultimate Phonics lessons that the parser
-cannot cover. This is useful for surfacing gaps in the GPC inventory or issues
-with the parser's implementation.
+"""Report per-lesson parser coverage over the UFLI texts corpus.
+
+Reads ``ufli_texts_words.json`` (a mapping from GPC-lesson ID to the words
+that introduce it) and, for each word, prints either the ``(grapheme,
+phonemes)`` pairs of every valid parse, an ``OOV in CMUdict`` line, or a
+``no parse`` line. A lesson whose example word can't be parsed signals a
+gap in the inventory or a parser bug.
 """
 
 import json
@@ -16,7 +19,12 @@ INVENTORY = tuple(
 )
 
 _WORD_LISTS_PATH = (
-    Path(__file__).resolve().parent / "data" / "ufli_model_word_list.json"
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "decodability"
+    / "english"
+    / "data"
+    / "ufli_texts_words.json"
 )
 
 
