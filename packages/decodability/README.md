@@ -49,6 +49,16 @@ flowchart
 _\*This linkage currently doesn't exist for Kiswahili but theoretically we may use a
 language-wide config to extract valid tokens._
 
+A language may add more modules where the tooling requires it. English extends the
+shared shape with three:
+
+- `extract_phonemes.py` — a `Phoneme` value type (IPA symbol + stress bit) and helpers
+  that turn CMUdict pronunciations into normalized `Phoneme` sequences.
+- `gpc_parser.py` — a constrained aligner that returns every valid GPC decomposition of
+  a `(word, phoneme sequence)` pair under a supplied inventory.
+- `phoneme_overrides.py` — a lookup table for words where CMUdict's pronunciation should
+  be replaced (dialect fixes, curriculum choices, OOV additions).
+
 ## Kiswahili Scoring
 
 Kiswahili decodability follows Kenya's Tusome curriculum as well as expert-validated,
@@ -80,19 +90,39 @@ uppercase letters as separate graphemes, so we enforce all lowercase for the fie
   must not be repeated in `clusters`.
 - `whole_words`: sight words.
 
-## Kiswahili Example
+## English Scoring
 
-There is a runnable example at `packages/decodability/examples/kiswahili_example.py`. It
-uses decodability scoring based on Kenya's Tusome curriculum.
-A language may add more modules where the tooling requires it. English extends the
-shared shape with three:
+English decodability follows the UFLI Foundations scope and sequence with a binary
+definition of decodability. Two binary scorers feed the final score:
 
-- `extract_phonemes.py` — a `Phoneme` value type (IPA symbol + stress bit) and helpers
-  that turn CMUdict pronunciations into normalized `Phoneme` sequences.
-- `gpc_parser.py` — a constrained aligner that returns every valid GPC decomposition of
-  a `(word, phoneme sequence)` pair under a supplied inventory.
-- `phoneme_overrides.py` — a lookup table for words where CMUdict's pronunciation should
-  be replaced (dialect fixes, curriculum choices, OOV additions).
+| Scorer                      | Returns 1.0 when                                                                |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `score_known_gpcs_english`  | at least one valid parse of the word uses only GPCs the student has been taught |
+| `score_sight_words_english` | the word (case-insensitive) has been taught as a sight word                     |
+
+`aggregate_scores_ufli_curriculum` (registered as `ufli_curriculum_aggregator`) combines
+them as a decision tree: a known sight word is decodable regardless of anything else;
+otherwise the final score falls back to the GPC score.
+
+Both scorers must be listed in `scoring_methods`.
+
+Under the GPC scorer, reduced-vowel matches (parser-synthesized `REDUCED_*` GPCs from
+unstressed positions) count as taught whenever the student knows _any_ GPC for the same
+grapheme letter — vowel reduction is a universal spoken-English process, not a separate
+correspondence.
+
+### Student knowledge
+
+`EnglishStudentKnowledge` is defined by the following fields.
+
+- `gpcs`: taught grapheme-phoneme correspondences as `(grapheme, IPA)` tuples, validated
+  against the UFLI inventory. The phoneme side is a single joined IPA string, so a
+  multi-phoneme GPC reads as `("x", "ks")` or `("qu", "kw")`.
+- `sight_words`: sight words, lowercased on ingest for case-insensitive matching.
+
+Pronunciations come from CMUdict, with per-word overrides available via
+`CMUDICT_OVERRIDES` in `phoneme_overrides.py` — used to force a specific CMU variant,
+supply an OOV pronunciation, or correct one that doesn't match the curriculum.
 
 ## Examples
 

@@ -47,6 +47,35 @@ class TestEnglishStudentKnowledgeModel:
         knowledge = EnglishStudentKnowledge(sight_words={"The", "cat", "DOG"})
         assert knowledge.sight_words == {"the", "cat", "dog"}
 
+    @pytest.mark.parametrize(
+        "kwargs, expected_str",
+        [
+            (
+                {},
+                "- Known GPCs: None\n- Known sight words: None",
+            ),
+            (
+                {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
+                '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"\n'
+                "- Known sight words: None",
+            ),
+            (
+                {"sight_words": {"The", "and"}},
+                '- Known GPCs: None\n- Known sight words: "and", "the"',
+            ),
+            (
+                {
+                    "gpcs": [("th", "ð"), ("th", "θ")],
+                    "sight_words": {"the"},
+                },
+                '- Known GPCs: "th" → "ð"; "th" → "θ"\n- Known sight words: "the"',
+            ),
+        ],
+    )
+    def test_english_student_knowledge_str(self, kwargs: dict, expected_str: str):
+        """Test the string representation of EnglishStudentKnowledge."""
+        assert str(EnglishStudentKnowledge(**kwargs)) == expected_str
+
 
 class TestScorers:
     @pytest.mark.parametrize(

@@ -27,3 +27,15 @@ class EnglishStudentKnowledge(BaseModel):
     def lowercase_sight_words(cls, sight_words: set[str]) -> set[str]:
         """Lowercase all sight words to ensure consistency."""
         return {word.lower() for word in sight_words}
+
+    def __str__(self) -> str:
+        """Return a string representation of the EnglishStudentKnowledge instance."""
+        gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
+        sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
+
+        return "\n".join(
+            [
+                f"- Known GPCs: {gpcs or 'None'}",
+                f"- Known sight words: {sight_words or 'None'}",
+            ]
+        )
