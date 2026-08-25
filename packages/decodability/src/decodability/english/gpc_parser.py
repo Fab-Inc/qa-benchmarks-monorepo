@@ -1,18 +1,20 @@
-"""Small constrained parser for spelling-to-phoneme correspondences.
-The parser only answers the alignment question: which inventory GPCs cover
-every letter and every phoneme?
+"""Constrained aligner for English spelling and phoneme sequences.
+
+Given a word, its phoneme sequence, and a GPC inventory, ``parse_gpcs``
+returns every valid parse — a tuple of ``GPCMatch`` objects covering
+every letter and every phoneme. The module is deliberately narrow: it
+does not pronounce, translate, or score; it only answers the alignment
+question. See ``parse_gpcs`` for the match kinds it recognizes and the
+taught-cluster preference applied to the result.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cache
-from typing import Literal
 
-from decodability.english.definitions import UFLI_GPC_PAIRS, VOWEL_LETTERS
+from decodability.english.definitions import VOWEL_LETTERS
 from decodability.english.extract_phonemes import Phoneme
-
-FreePassMode = Literal["none", "schwa", "stress0"]
 
 
 @dataclass(frozen=True)
@@ -42,21 +44,48 @@ class GPCMatch:
 type Parse = tuple[GPCMatch, ...]
 
 
+def _positions_are_free(start: int, end: int, reserved: int) -> bool:
+    """Check whether every letter position in ``range(start, end)`` is unclaimed.
+
+    ``reserved`` is a bitmask where bit ``i`` is set if letter position ``i``
+    has already been claimed by a split-grapheme tail earlier in the walk.
+    Returns True iff none of the positions in the half-open range have their
+    bit set.
+    """
+    return all(not reserved & (1 << position) for position in range(start, end))
+
+
 def parse_gpcs(
     word: str,
     phonemes: tuple[Phoneme, ...],
     inventory: tuple[GPC, ...],
     *,
     max_split_gap: int = 2,
-    free_pass_mode: FreePassMode = "stress0",
-    curriculum_guarded: bool = True,
 ) -> tuple[Parse, ...]:
-    """Return every complete inventory-constrained parse of ``word``.
+    """Return every valid parse of ``word`` under the given inventory.
 
-    A hyphen marks a split grapheme: ``a-e`` can cover the ``a`` and ``e`` in
-    ``make`` while the intervening ``k`` is matched normally.  Results are ordered
-    by pronunciation, so that split ``a-e`` precedes ``k`` in that parse.
+    A parse is a tuple of ``GPCMatch`` objects that together cover every
+    letter of the spelling and every phoneme in the sequence. Multiple
+    parses arise when the inventory offers overlapping ways to cover the
+    same span — ``fish`` decomposes as ``f + i + sh`` (via ``sh → /ʃ/``)
+    and as ``f + ish`` (via ``ish → (ɪ, ʃ)``), both yielding /f, ɪ, ʃ/.
 
+    Beyond ordinary contiguous matches, the parser handles:
+
+    - Split graphemes (``a-e``, ``i-e``, …): the two parts cover
+      non-adjacent letter positions, with the gap bounded by
+      ``max_split_gap``.
+    - Free pass on unstressed vowels: a bare vowel letter paired with
+      an unstressed phoneme parses via a synthesized ``REDUCED_*`` GPC —
+      vowel reduction is a universal spoken-English process, not a taught
+      correspondence.
+    - Silent apostrophe: ``'`` positions are skipped without consuming
+      a phoneme (``he's`` decodes as ``h + e + s``) — the curriculum
+      treats possessive/contracted ``'s`` as an assumed correspondence.
+
+    A post-walk filter prefers parses that avoid the free pass whenever an
+    inventory aligned parse exists, so taught clusters (``ful`` for
+    ``careful``) win over letter-by-letter decomposition.
     """
 
     if max_split_gap < 1:
@@ -73,16 +102,18 @@ def parse_gpcs(
         if "-" in gpc.grapheme
     )
 
-    def positions_are_free(start: int, end: int, reserved: int) -> bool:
-        return all(not reserved & (1 << position) for position in range(start, end))
-
     @cache
     def walk(letter_index: int, phoneme_index: int, reserved: int) -> tuple[Parse, ...]:
-        # Skip positions already covered by a split-grapheme tail, and treat
-        # apostrophes as silent (the expert curriculum treats possessive/
-        # contracted ``'s`` and its siblings as an assumed correspondence —
-        # the ``'`` itself carries no phoneme, and the surrounding letters
-        # decode via their existing GPCs).
+        """Enumerate every completion of a parse from ``(letter_index, phoneme_index)``.
+
+        Each returned ``Parse`` covers the remaining letters and phonemes using
+        inventory GPCs (contiguous, split, or free-pass). Returns ``((),)``
+        when both sequences are exhausted (one completion — the empty parse)
+        and ``()`` when only one is exhausted (no valid completion).
+
+        ``reserved`` is a bitmask of letter positions already claimed by an
+        earlier split-grapheme tail; see ``_positions_are_free``.
+        """
         while letter_index < len(spelling) and (
             reserved & (1 << letter_index) or spelling[letter_index] == "'"
         ):
@@ -98,7 +129,7 @@ def parse_gpcs(
             phoneme_end = phoneme_index + len(gpc.phonemes)
             if (
                 spelling.startswith(letters, letter_index)
-                and positions_are_free(letter_index, letter_end, reserved)
+                and _positions_are_free(letter_index, letter_end, reserved)
                 and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
                 match = GPCMatch(
@@ -111,46 +142,11 @@ def parse_gpcs(
                     for remainder in walk(letter_end, phoneme_end, reserved)
                 )
 
-        # Free pass: an unstressed (reduced) phoneme mapped to a single vowel
-        # letter — vowel reduction is a universal spoken-English process, not a
-        # taught GPC. The expert's principle: fire the free pass only where no
-        # lesson already covers that sound in that position. Three guards:
-        #   1. letter must be a bare vowel (VOWEL_LETTERS excludes y — see
-        #      ``happy``, where the taught y→i lesson would be erased);
-        #   2. next phoneme must not be /r/ — prevents the ɚ-split loophole
-        #      that would decode ``doctor`` as o+r instead of the taught
-        #      ``or → (ə, r)`` cluster;
-        #   3. no inventory GPC already teaches this exact (letter, phoneme)
-        #      pair — otherwise we'd double the parse count and dilute the
-        #      taught lesson (``unicorn``'s middle i, ``dishes``' final s).
-        if free_pass_mode != "none" and phoneme_index < len(phonemes):
+        if phoneme_index < len(phonemes):
             reduced_ipa = phonemes[phoneme_index].ipa
             is_unstressed = phonemes[phoneme_index].is_unstressed
             letter = spelling[letter_index]
-            next_phoneme = (
-                phoneme_strings[phoneme_index + 1]
-                if phoneme_index + 1 < len(phonemes)
-                else None
-            )
-            # Experiment axis: "schwa" restricts the reduction to /ə/ (ARPABET
-            # AH0), "stress0" allows any unstressed vowel phoneme (IH0, IY0,
-            # OW0, ...). Guards 1-3 below are held constant across modes.
-            reducible = is_unstressed and (
-                free_pass_mode == "stress0" or reduced_ipa == "ə"
-            )
-            # Guards 2 and 3 (next != /r/, pair not already taught) encode
-            # curriculum precedence at walk time. The post-walk clean/all-parses
-            # filter enforces the same precedence at result time, so toggling
-            # this off keeps taught parses winning whenever they exist and only
-            # rescues words where no taught alternative applies.
-            passes_curriculum_guards = (
-                next_phoneme != "r" and (letter, (reduced_ipa,)) not in UFLI_GPC_PAIRS
-            )
-            if (
-                reducible
-                and letter in VOWEL_LETTERS
-                and (passes_curriculum_guards or not curriculum_guarded)
-            ):
+            if is_unstressed and letter in VOWEL_LETTERS:
                 free_pass = GPCMatch(
                     GPC(
                         id=f"REDUCED_{letter.upper()}",
@@ -170,7 +166,7 @@ def parse_gpcs(
             phoneme_end = phoneme_index + len(gpc.phonemes)
             if not (
                 spelling.startswith(head, letter_index)
-                and positions_are_free(letter_index, head_end, reserved)
+                and _positions_are_free(letter_index, head_end, reserved)
                 and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
                 continue
@@ -178,7 +174,7 @@ def parse_gpcs(
             for gap in range(1, max_split_gap + 1):
                 tail_start = head_end + gap
                 tail_end = tail_start + len(tail)
-                if spelling.startswith(tail, tail_start) and positions_are_free(
+                if spelling.startswith(tail, tail_start) and _positions_are_free(
                     letter_index, tail_end, reserved
                 ):
                     tail_positions = tuple(range(tail_start, tail_end))
@@ -194,13 +190,9 @@ def parse_gpcs(
         return tuple(parses)
 
     all_parses = walk(0, 0, 0)
-    # Prefer parses that use only taught GPCs. If any parse avoided the
-    # reduced-vowel free pass entirely, drop the free-pass alternatives — a
-    # taught cluster (e.g. ``ful`` for ``careful``) should take precedence over
-    # decomposing the same span letter-by-letter through the free pass.
-    clean = tuple(
+    strip_free_parses = tuple(
         parse
         for parse in all_parses
         if not any(match.gpc.id.startswith("REDUCED_") for match in parse)
     )
-    return clean if clean else all_parses
+    return strip_free_parses if strip_free_parses else all_parses

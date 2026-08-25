@@ -82,15 +82,8 @@ def get_word_phonemes(word: str) -> tuple[tuple[Phoneme, ...], ...]:
     if not word_variants:
         raise KeyError(f"{word!r} not in CMUdict")
 
-    return tuple(
-        _normalize_phonemes(
-            tuple(convert_arpabet_to_phoneme(token) for token in arpabet)
-        )
-        for arpabet in word_variants
-    )
-
-
-if __name__ == "__main__":
-    test_words = ["about", "sofa", "until"]
-    for word in test_words:
-        print(f"{word}: {get_word_phonemes(word)}")
+    normalized_phonemes: list[tuple[Phoneme, ...]] = []
+    for arpabet_variant in word_variants:
+        phonemes = tuple(convert_arpabet_to_phoneme(t) for t in arpabet_variant)
+        normalized_phonemes.append(_normalize_phonemes(phonemes))
+    return tuple(normalized_phonemes)
