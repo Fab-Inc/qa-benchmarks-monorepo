@@ -315,10 +315,14 @@ class TestValidateStudentKnowledge:
 
     @pytest.fixture
     def unregistered_language_profile(self) -> StudentKnowledge:
-        """A profile for a language with no registered knowledge validator."""
+        """A profile for a language with no registered knowledge validator.
+
+        Uses ``xx`` — the ISO 639 code reserved for "no linguistic content" —
+        so this stays unregistered no matter what languages are added.
+        """
         return StudentKnowledge(
-            student_knowledge_id="stu-en",
-            language_iso_code="en",
+            student_knowledge_id="stu-xx",
+            language_iso_code="xx",
             student_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
         )
 
@@ -345,12 +349,12 @@ class TestValidateStudentKnowledge:
         self, unregistered_language_profile
     ) -> None:
         """Warns, but does not raise, for a language with no registered validator."""
-        with pytest.warns(UserWarning, match="stu-en"):
+        with pytest.warns(UserWarning, match="stu-xx"):
             validate_student_knowledge([unregistered_language_profile])
 
     def test_unregistered_language_raises_when_strict(
         self, unregistered_language_profile
     ) -> None:
         """Raises ValueError naming the profile when strict=True and no validator."""
-        with pytest.raises(ValueError, match="stu-en"):
+        with pytest.raises(ValueError, match="stu-xx"):
             validate_student_knowledge([unregistered_language_profile], strict=True)
