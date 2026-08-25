@@ -274,6 +274,11 @@ class TestGPCValidation:
         with pytest.raises(ValueError, match="two-part split graphemes only"):
             GPC(id="x", grapheme="a-b-c", phonemes=("k",))
 
+    @pytest.mark.parametrize("grapheme", ["-a", "a-", "-"])
+    def test_gpc_rejects_split_missing_a_side(self, grapheme: str):
+        with pytest.raises(ValueError, match="letters on both sides"):
+            GPC(id="x", grapheme=grapheme, phonemes=("k",))
+
 
 class TestParseGpcsValidation:
     def test_max_split_gap_must_be_positive(self):

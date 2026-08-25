@@ -36,7 +36,7 @@ def score_known_gpcs_english(
     taught_graphemes = {g for g, _ in taught_gpcs}
 
     def is_taught(match: GPCMatch) -> bool:
-        if match.gpc.id.startswith("REDUCED_"):
+        if match.gpc.is_reduced_vowel:
             return match.gpc.grapheme in taught_graphemes
         return (match.gpc.grapheme, "".join(match.gpc.phonemes)) in taught_set
 

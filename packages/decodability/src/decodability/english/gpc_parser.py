@@ -10,7 +10,7 @@ taught-cluster preference applied to the result.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 
 from decodability.english.definitions import VOWEL_LETTERS
@@ -24,12 +24,27 @@ class GPC:
     id: str
     grapheme: str
     phonemes: tuple[str, ...]
+    # Derived at construction.
+    symbol: str = field(init=False, repr=False, compare=False)
+    is_split: bool = field(init=False, repr=False, compare=False)
+    split_head: str = field(init=False, repr=False, compare=False)
+    split_tail: str = field(init=False, repr=False, compare=False)
+    is_reduced_vowel: bool = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not self.grapheme or not self.phonemes:
             raise ValueError("a GPC needs a grapheme and at least one phoneme")
         if self.grapheme.count("-") > 1:
             raise ValueError("the prototype supports two-part split graphemes only")
+        folded = self.grapheme.casefold()
+        head, hyphen, tail = folded.partition("-")
+        if hyphen and not (head and tail):
+            raise ValueError("a split grapheme needs letters on both sides of the '-'")
+        object.__setattr__(self, "symbol", folded)
+        object.__setattr__(self, "is_split", bool(hyphen))
+        object.__setattr__(self, "split_head", head)
+        object.__setattr__(self, "split_tail", tail)
+        object.__setattr__(self, "is_reduced_vowel", self.id.startswith("REDUCED_"))
 
 
 @dataclass(frozen=True)
@@ -93,14 +108,8 @@ def parse_gpcs(
 
     spelling = word.casefold()
     phoneme_strings = tuple(p.ipa for p in phonemes)
-    contiguous = tuple(
-        (gpc, gpc.grapheme.casefold()) for gpc in inventory if "-" not in gpc.grapheme
-    )
-    split = tuple(
-        (gpc, tuple(part.casefold() for part in gpc.grapheme.split("-")))
-        for gpc in inventory
-        if "-" in gpc.grapheme
-    )
+    contiguous = tuple(gpc for gpc in inventory if not gpc.is_split)
+    split = tuple(gpc for gpc in inventory if gpc.is_split)
 
     @cache
     def walk(letter_index: int, phoneme_index: int, reserved: int) -> tuple[Parse, ...]:
@@ -124,11 +133,11 @@ def parse_gpcs(
 
         parses: list[Parse] = []
 
-        for gpc, letters in contiguous:
-            letter_end = letter_index + len(letters)
+        for gpc in contiguous:
+            letter_end = letter_index + len(gpc.symbol)
             phoneme_end = phoneme_index + len(gpc.phonemes)
             if (
-                spelling.startswith(letters, letter_index)
+                spelling.startswith(gpc.symbol, letter_index)
                 and _positions_are_free(letter_index, letter_end, reserved)
                 and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
@@ -161,11 +170,11 @@ def parse_gpcs(
                     for remainder in walk(letter_index + 1, phoneme_index + 1, reserved)
                 )
 
-        for gpc, (head, tail) in split:
-            head_end = letter_index + len(head)
+        for gpc in split:
+            head_end = letter_index + len(gpc.split_head)
             phoneme_end = phoneme_index + len(gpc.phonemes)
             if not (
-                spelling.startswith(head, letter_index)
+                spelling.startswith(gpc.split_head, letter_index)
                 and _positions_are_free(letter_index, head_end, reserved)
                 and phoneme_strings[phoneme_index:phoneme_end] == gpc.phonemes
             ):
@@ -173,10 +182,10 @@ def parse_gpcs(
 
             for gap in range(1, max_split_gap + 1):
                 tail_start = head_end + gap
-                tail_end = tail_start + len(tail)
-                if spelling.startswith(tail, tail_start) and _positions_are_free(
-                    letter_index, tail_end, reserved
-                ):
+                tail_end = tail_start + len(gpc.split_tail)
+                if spelling.startswith(
+                    gpc.split_tail, tail_start
+                ) and _positions_are_free(letter_index, tail_end, reserved):
                     tail_positions = tuple(range(tail_start, tail_end))
                     tail_mask = sum(1 << position for position in tail_positions)
                     match = GPCMatch(
@@ -193,6 +202,6 @@ def parse_gpcs(
     strip_free_parses = tuple(
         parse
         for parse in all_parses
-        if not any(match.gpc.id.startswith("REDUCED_") for match in parse)
+        if not any(match.gpc.is_reduced_vowel for match in parse)
     )
     return strip_free_parses if strip_free_parses else all_parses
