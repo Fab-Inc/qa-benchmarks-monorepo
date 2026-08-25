@@ -6,10 +6,12 @@ from decodability.english.extract_phonemes import (
     Phoneme,
     _normalize_phonemes,
     convert_arpabet_to_phoneme,
+    get_word_phonemes,
 )
 from decodability.english.extract_words import extract_words_english
 from decodability.english.gpc_parser import GPC, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
+from decodability.english.phoneme_overrides import CMUDICT_OVERRIDES
 from decodability.english.scorers import (
     score_known_gpcs_english,
     score_sight_words_english,
@@ -207,6 +209,22 @@ class TestNormalizePhonemes:
         expected: tuple[Phoneme, ...],
     ):
         assert _normalize_phonemes(phonemes) == expected
+
+
+class TestPhonemeOverrides:
+    def test_override_wins_over_cmudict(self, monkeypatch):
+        """When both the override table and CMUdict have the word, override wins."""
+        monkeypatch.setitem(CMUDICT_OVERRIDES, "either", [["IY1", "DH", "ER0"]])
+        variants = get_word_phonemes("either")
+        # Only the override variant survives — CMU's /aɪ/ alternate is dropped.
+        assert len(variants) == 1
+        assert variants[0][0].ipa == "i"
+
+    def test_override_supplies_oov_pronunciation(self, monkeypatch):
+        """An override rescues a word that CMUdict doesn't know."""
+        monkeypatch.setitem(CMUDICT_OVERRIDES, "zzznotaword", [["Z", "IY1"]])
+        variants = get_word_phonemes("zzznotaword")
+        assert variants == ((Phoneme("z", False), Phoneme("i", False)),)
 
 
 class TestGPCValidation:

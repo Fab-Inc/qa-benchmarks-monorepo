@@ -4,6 +4,7 @@ from functools import cache
 import cmudict
 
 from decodability.english.definitions import ARPABET_TO_IPA, VOWEL_INITIALS
+from decodability.english.phoneme_overrides import CMUDICT_OVERRIDES
 
 
 @dataclass(frozen=True)
@@ -68,17 +69,19 @@ def _normalize_phonemes(
 
 
 def get_word_phonemes(word: str) -> tuple[tuple[Phoneme, ...], ...]:
-    """Return every CMUdict pronunciation variant for a word.
+    """Return every pronunciation variant for a word.
 
     Each outer element is a variant; each variant is a tuple of ``Phoneme``
-    objects. Dialect normalizations are applied to each variant independently.
-    Raises ``KeyError`` if the word is not in CMUdict.
+    objects. Manual entries in ``CMUDICT_OVERRIDES`` take priority; otherwise
+    CMUdict is consulted. Dialect normalizations are applied to each variant
+    independently. Raises ``KeyError`` if the word appears in neither source.
 
     CMUdict lists multiple variants for homographs (``read`` → present- vs
     past-tense) and stress alternations (``either`` → /iː/ vs /aɪ/). Callers
     should try every variant and accept a match on any one.
     """
-    word_variants = _cmudict().get(word.lower())
+    key = word.lower()
+    word_variants = CMUDICT_OVERRIDES.get(key) or _cmudict().get(key)
     if not word_variants:
         raise KeyError(f"{word!r} not in CMUdict")
 
