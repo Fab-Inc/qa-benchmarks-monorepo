@@ -1,4 +1,16 @@
-"""ARPABET to IPA mapping for US - English phonemes"""
+"""Phonology and GPC definitions for US-English decoding.
+
+- ``ARPABET_TO_IPA``: CMU ARPABET phoneme codes → IPA. The parser consumes IPA.
+- ``VOWEL_INITIALS`` / ``VOWEL_LETTERS``: character sets used by the parser's
+  free-pass guards.
+- ``UFLI_GPC_INVENTORY``: the ordered grapheme-phoneme correspondences taught
+  in UFLI Foundations. Inline comments annotate entries whose mapping needs
+  contextual disambiguation (split digraphs, open syllables, positional
+  variants, etc.).
+- ``UFLI_GPC_PAIRS`` / ``UFLI_GPC_PAIRS_FLAT``: derived lookup sets for the
+  parser (tuple-of-phonemes form) and the student-knowledge validator
+  (joined-IPA form).
+"""
 
 ARPABET_TO_IPA = {
     "AA": "ɑ",
@@ -47,10 +59,6 @@ ARPABET_TO_IPA = {
 
 VOWEL_INITIALS = set("aeiouæɑɔɛɪʊʌəɚɝ")
 VOWEL_LETTERS = set("aeiou")
-
-"""
-GPC progression aligned with UFLI Foundations' scope and sequence.
-"""
 
 UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G001", "a", ("æ",)),
@@ -225,4 +233,12 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
 
 UFLI_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(
     (grapheme, phonemes) for _, grapheme, phonemes in UFLI_GPC_INVENTORY
+)
+
+# Student-facing form: the phoneme side is a single joined IPA string, so a
+# multi-phoneme GPC like ``("x", ("k", "s"))`` reads as ``("x", "ks")``. Used
+# by ``EnglishStudentKnowledge`` validation and by the scorer to check parser
+# matches against the student's taught set.
+UFLI_GPC_PAIRS_FLAT: frozenset[tuple[str, str]] = frozenset(
+    (grapheme, "".join(phonemes)) for _, grapheme, phonemes in UFLI_GPC_INVENTORY
 )

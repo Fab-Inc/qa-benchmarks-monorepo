@@ -1,6 +1,6 @@
 from decodability.english.definitions import UFLI_GPC_INVENTORY
 from decodability.english.extract_phonemes import get_word_phonemes
-from decodability.english.gpc_parser import GPC, parse_gpcs
+from decodability.english.gpc_parser import GPC, GPCMatch, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 
 GPC_INVENTORY = tuple(
@@ -32,13 +32,13 @@ def score_known_gpcs_english(
     except KeyError:
         return 0.0
 
-    taught_set = {(g, tuple(p)) for g, p in taught_gpcs}
+    taught_set = set(taught_gpcs)
     taught_graphemes = {g for g, _ in taught_gpcs}
 
-    def is_taught(match) -> bool:
+    def is_taught(match: GPCMatch) -> bool:
         if match.gpc.id.startswith("REDUCED_"):
             return match.gpc.grapheme in taught_graphemes
-        return (match.gpc.grapheme, match.gpc.phonemes) in taught_set
+        return (match.gpc.grapheme, "".join(match.gpc.phonemes)) in taught_set
 
     for variant in variants:
         for parse in parse_gpcs(word.lower(), variant, GPC_INVENTORY):

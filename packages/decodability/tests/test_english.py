@@ -21,16 +21,16 @@ class TestEnglishStudentKnowledgeModel:
         "known_gpcs, should_pass",
         [
             ([], True),
-            ([("s", ("s",)), ("a", ("æ",)), ("t", ("t",))], True),
-            ([("x", ("k", "s"))], True),
-            ([("a-e", ("eɪ",))], True),
-            ([("z", ("xyz",))], False),
-            ([("a", ("æ",)), ("bogus", ("q",))], False),
+            ([("s", "s"), ("a", "æ"), ("t", "t")], True),
+            ([("x", "ks")], True),
+            ([("a-e", "eɪ")], True),
+            ([("z", "xyz")], False),
+            ([("a", "æ"), ("bogus", "q")], False),
         ],
     )
     def test_english_student_knowledge_gpc_checks_for_valid_gpcs(
         self,
-        known_gpcs: list[tuple[str, tuple[str, ...]]],
+        known_gpcs: list[tuple[str, str]],
         should_pass: bool,
     ):
         """Reject GPCs that are not in UFLI_GPC_INVENTORY."""
@@ -50,32 +50,32 @@ class TestScorers:
     @pytest.mark.parametrize(
         "word, known_gpcs, expected",
         [
-            ("cat", [("c", ("k",)), ("a", ("æ",)), ("t", ("t",))], 1.0),
-            ("cat", [("c", ("k",)), ("t", ("t",))], 0.0),
+            ("cat", [("c", "k"), ("a", "æ"), ("t", "t")], 1.0),
+            ("cat", [("c", "k"), ("t", "t")], 0.0),
             ("cat", [], 0.0),
-            ("Cat", [("c", ("k",)), ("a", ("æ",)), ("t", ("t",))], 1.0),
+            ("Cat", [("c", "k"), ("a", "æ"), ("t", "t")], 1.0),
             (
                 "smoke",
                 [
-                    ("s", ("s",)),
-                    ("m", ("m",)),
-                    ("o-e", ("oʊ",)),
-                    ("k", ("k",)),
+                    ("s", "s"),
+                    ("m", "m"),
+                    ("o-e", "oʊ"),
+                    ("k", "k"),
                 ],
                 1.0,
             ),
             (
                 "smoke",
-                [("s", ("s",)), ("m", ("m",)), ("k", ("k",))],
+                [("s", "s"), ("m", "m"), ("k", "k")],
                 0.0,
             ),
-            ("fifth", [("f", ("f",)), ("i", ("ɪ",)), ("th", ("θ",))], 1.0),
+            ("fifth", [("f", "f"), ("i", "ɪ"), ("th", "θ")], 1.0),
         ],
     )
     def test_score_known_gpcs_english(
         self,
         word: str,
-        known_gpcs: list[tuple[str, tuple[str, ...]]],
+        known_gpcs: list[tuple[str, str]],
         expected: float,
     ):
         """Score is 1.0 iff every GPC the parser derives is in the student's set."""
@@ -294,12 +294,12 @@ class TestScoreReducedVowelCreditsAnyGraphemeGpc:
         parser uses ``e → ə`` (reduced) for the trailing e."""
         student = EnglishStudentKnowledge(
             gpcs=[
-                ("p", ("p",)),
-                ("l", ("l",)),
-                ("a", ("æ",)),
-                ("n", ("n",)),
-                ("e", ("ɛ",)),  # short e — parser needs ə but this counts
-                ("t", ("t",)),
+                ("p", "p"),
+                ("l", "l"),
+                ("a", "æ"),
+                ("n", "n"),
+                ("e", "ɛ"),  # short e — parser needs ə but this counts
+                ("t", "t"),
             ]
         )
         assert score_known_gpcs_english("planet", student) == 1.0
@@ -308,11 +308,11 @@ class TestScoreReducedVowelCreditsAnyGraphemeGpc:
         """No ``e`` GPC at all → the reduced-vowel free pass is not credited."""
         student = EnglishStudentKnowledge(
             gpcs=[
-                ("p", ("p",)),
-                ("l", ("l",)),
-                ("a", ("æ",)),
-                ("n", ("n",)),
-                ("t", ("t",)),
+                ("p", "p"),
+                ("l", "l"),
+                ("a", "æ"),
+                ("n", "n"),
+                ("t", "t"),
             ]
         )
         assert score_known_gpcs_english("planet", student) == 0.0
@@ -369,9 +369,9 @@ class TestScoreContractionsViaAssumedApostrophe:
         """Knowing ``s → z`` (plus h and e) is enough to score ``he's``."""
         student = EnglishStudentKnowledge(
             gpcs=[
-                ("h", ("h",)),
-                ("e", ("i",)),  # open-syllable e
-                ("s", ("z",)),
+                ("h", "h"),
+                ("e", "i"),  # open-syllable e
+                ("s", "z"),
             ]
         )
         assert score_known_gpcs_english("he's", student) == 1.0
@@ -380,9 +380,9 @@ class TestScoreContractionsViaAssumedApostrophe:
         """Without ``s → z``, ``he's`` is undecodable."""
         student = EnglishStudentKnowledge(
             gpcs=[
-                ("h", ("h",)),
-                ("e", ("i",)),
-                ("s", ("s",)),  # only voiceless s
+                ("h", "h"),
+                ("e", "i"),
+                ("s", "s"),  # only voiceless s
             ]
         )
         assert score_known_gpcs_english("he's", student) == 0.0
