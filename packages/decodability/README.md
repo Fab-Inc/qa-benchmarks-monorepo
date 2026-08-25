@@ -84,12 +84,38 @@ uppercase letters as separate graphemes, so we enforce all lowercase for the fie
 
 There is a runnable example at `packages/decodability/examples/kiswahili_example.py`. It
 uses decodability scoring based on Kenya's Tusome curriculum.
+A language may add more modules where the tooling requires it. English extends the
+shared shape with three:
 
-Run it from the repository root:
+- `extract_phonemes.py` — a `Phoneme` value type (IPA symbol + stress bit) and helpers
+  that turn CMUdict pronunciations into normalized `Phoneme` sequences.
+- `gpc_parser.py` — a constrained aligner that returns every valid GPC decomposition of
+  a `(word, phoneme sequence)` pair under a supplied inventory.
+- `phoneme_overrides.py` — a lookup table for words where CMUdict's pronunciation should
+  be replaced (dialect fixes, curriculum choices, OOV additions).
+
+## Examples
+
+Two runnable examples ship with the package. Run either from the repository root.
+
+### Kiswahili
+
+Scoring based on Kenya's Tusome curriculum.
 
 ```bash
 uv run --frozen --package decodability python \
-  packages/decodability/examples/kiswahili_example.py
+  packages/decodability/scripts/kiswahili_example.py
+```
+
+### English
+
+Scoring based on UFLI Foundations GPCs with CMUdict-derived pronunciations. The
+`EnglishStudentKnowledge` set uses the `(grapheme, IPA)` shape — e.g. `("x", "ks")` —
+and sight words are matched case-insensitively.
+
+```bash
+uv run --frozen --package decodability python \
+  packages/decodability/scripts/english_example.py
 ```
 
 ## Config Shape

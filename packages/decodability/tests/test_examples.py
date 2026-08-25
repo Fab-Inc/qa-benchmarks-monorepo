@@ -1,19 +1,20 @@
 from pathlib import Path
 from runpy import run_path
 
-EXAMPLES_DIR = Path(__file__).parents[1] / "examples"
+SCRIPTS_DIR = Path(__file__).parents[1] / "scripts"
 
 
 def test_english_example_builds_dataframe():
-    example_path = EXAMPLES_DIR / "english_example.py"
+    example_path = SCRIPTS_DIR / "english_example.py"
     namespace = run_path(str(example_path))
 
     df = namespace["build_dataframe"]()
 
     assert list(df.columns) == [
         "word",
-        "known_letters_score",
-        "short_word_score",
+        "score_known_gpcs_english",
+        "score_sight_words_english",
+        "ufli_score",
         "mean_score",
         "weighted_score",
     ]
@@ -21,7 +22,7 @@ def test_english_example_builds_dataframe():
 
 
 def test_kiswahili_example_builds_dataframe():
-    example_path = EXAMPLES_DIR / "kiswahili_example.py"
+    example_path = SCRIPTS_DIR / "kiswahili_example.py"
     namespace = run_path(str(example_path))
 
     df = namespace["build_dataframe"]()
