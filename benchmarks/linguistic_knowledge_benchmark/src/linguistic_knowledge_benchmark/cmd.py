@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pandas as pd
 import typer
 from dotenv import load_dotenv
+from fab_benchmark_publisher import download_file
 from fdllm import register_models
 
 from linguistic_knowledge_benchmark.judge_bench import (
@@ -80,14 +81,15 @@ def setup() -> None:
     # Load provider API keys from the repo-root .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
     load_dotenv(REPO_ROOT / ".env")
-    # Commented out for now until we can update sync gcp version to version in the
-    # fab-benchmarks-configs repo
-    # download_file(
-    #    bucket_name="fab-open-configs",
-    #    file_name="custom_models.yaml",
-    #    write_path=REPO_ROOT / "custom_models.yaml",
-    #    require_auth=False,
-    # )
+    # custom_models.yaml is gitignored (it's synced from fab-open-configs, not
+    # committed), so it must be fetched here on every run -- without this, a fresh
+    # checkout (e.g. CI) has no file for register_models() to read and crashes.
+    download_file(
+        bucket_name="fab-open-configs",
+        file_name="custom_models.yaml",
+        write_path=REPO_ROOT / "custom_models.yaml",
+        require_auth=False,
+    )
     register_models(str(REPO_ROOT / "custom_models.yaml"))
 
 
