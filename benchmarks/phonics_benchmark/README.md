@@ -5,6 +5,9 @@ Config-driven benchmark harness for phonics experiments.
 For an end-to-end walkthrough of config and direct runs, cache reuse, error retries, and
 adding models, see the [CLI tutorial](docs/cli-tutorial.md).
 
+For building the container, deploying the Cloud Run Job, and launching cloud runs, see
+the [Cloud Run deployment guide](../../deploy/README.md).
+
 ## Run Decodability
 
 ```bash
@@ -123,13 +126,13 @@ provides the display name, and controls its string representation in the shared 
 Each run writes:
 
 - `results/<run_id>/config.json`: latest config snapshot with the exact raw config,
-  resolved paths, exact-byte `items_sha256`, run-level code git hash, and sanitized
-  model configs from FDLLM's registered model state.
+  resolved paths, exact-byte `items_sha256`, run-level code git hash and dirty-worktree
+  state, and sanitized model configs from FDLLM's registered model state.
 - `results/<run_id>/responses/responses_<model-file-id>.jsonl`: one result per item for
   each model. The file ID is the model name when it is already filename-safe, or a
   sanitized hash-suffixed form otherwise.
-- `results/<run_id>/log.json`: per-model execution provenance such as timestamp and git
-  hash.
+- `results/<run_id>/log.json`: per-model execution provenance such as timestamp, git
+  hash, and dirty-worktree state.
 
 Each result row includes `result_id`, `run_id`, `config_id`, `model_call_id`,
 `config_path`, `config_snapshot_path`, `model`, `benchmark_item_id`, `prompt`, raw

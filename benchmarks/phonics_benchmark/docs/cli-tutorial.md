@@ -179,3 +179,103 @@ uv run --frozen --package phonics-benchmark python \
 
 The script prints the number of result files and rows plus a per-model status summary.
 Change the final path to inspect any other run directory.
+
+## GCS-synced local smoke test
+
+With Application Default Credentials configured and a writable scratch bucket, add a run
+prefix to the temporary config:
+
+```bash
+PHONICS_SCRATCH_DEST="gs://your-scratch-bucket/phonics/runs/config-smoke/"
+jq --arg dest "$PHONICS_SCRATCH_DEST" \
+  '.results_dest = $dest' \
+  "$PHONICS_MANUAL_OUTPUT_DIR/config.json" \
+  > "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json"
+
+uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+  --config "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json" \
+  --skip-models-download
+```
+
+Watch the run prefix while the model call is in progress. `config.json` appears before
+the first call, and the model response file is replaced after every local checkpoint.
+Running the same command again pulls those artifacts before applying the normal result
+cache rules.
+
+Fetch only that model's responses into a separate local directory:
+
+```bash
+uv run --frozen --package phonics-benchmark phonics-benchmark fetch-results \
+  --src "$PHONICS_SCRATCH_DEST" \
+  --run-dir "$PHONICS_MANUAL_OUTPUT_DIR/fetched" \
+  --model gemini-3.1-pro-preview
+```
+
+## Run the container locally
+
+The container reads its config and items from GCS and writes its resolved config and
+results to a separate GCS run prefix. Prepare and upload those inputs:
+
+```bash
+GOOGLE_CLOUD_PROJECT="your-project-id"
+PHONICS_SCRATCH_BUCKET="gs://your-scratch-bucket"
+CONTAINER_RUN_ID="container-smoke"
+CONTAINER_ITEMS_URI="${PHONICS_SCRATCH_BUCKET}/phonics/datasets/${CONTAINER_RUN_ID}.jsonl"
+CONTAINER_CONFIG_URI="${PHONICS_SCRATCH_BUCKET}/phonics/run-configs/${CONTAINER_RUN_ID}.json"
+CONTAINER_RESULTS_DEST="${PHONICS_SCRATCH_BUCKET}/phonics/runs/${CONTAINER_RUN_ID}/"
+
+jq -n \
+  --arg run_id "$CONTAINER_RUN_ID" \
+  --arg items_uri "$CONTAINER_ITEMS_URI" \
+  --arg results_dest "$CONTAINER_RESULTS_DEST" \
+  '{
+    run_id: $run_id,
+    language: "sw",
+    items_path: $items_uri,
+    results_dest: $results_dest,
+    models: ["gemini-3.1-pro-preview"],
+    max_tokens: 1000,
+    chunk_size: 1,
+    model_workers: 1
+  }' > "$PHONICS_MANUAL_OUTPUT_DIR/container-config.json"
+
+gcloud storage cp \
+  "$PHONICS_MANUAL_OUTPUT_DIR/items.jsonl" \
+  "$CONTAINER_ITEMS_URI"
+
+gcloud storage cp \
+  "$PHONICS_MANUAL_OUTPUT_DIR/container-config.json" \
+  "$CONTAINER_CONFIG_URI"
+```
+
+The source config does not need an `output_dir`; `run-cloud` uses the container's
+writable `/workspace/outputs` directory. Build the image, then run it with the provider
+keys from the repository-root `.env`, the project used for GCS, and local Application
+Default Credentials:
+
+```bash
+CODE_GIT_DIRTY=false
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  CODE_GIT_DIRTY=true
+fi
+
+docker build \
+  --file deploy/phonics.Dockerfile \
+  --build-arg CODE_GIT_HASH="$(git rev-parse --short HEAD)" \
+  --build-arg CODE_GIT_DIRTY="$CODE_GIT_DIRTY" \
+  -t phonics-benchmark:local \
+  .
+
+docker run --rm \
+  --env-file .env \
+  -e GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/credentials/adc.json \
+  -v "$HOME/.config/gcloud/application_default_credentials.json:/credentials/adc.json:ro" \
+  phonics-benchmark:local \
+  run-cloud --config "$CONTAINER_CONFIG_URI"
+```
+
+The image runs as a non-root user and writes only beneath `/workspace`. It contains no
+provider secrets, `.env` files, benchmark datasets, or credentials; `--env-file` passes
+the `.env` values to this container process at runtime without adding the file to the
+image.

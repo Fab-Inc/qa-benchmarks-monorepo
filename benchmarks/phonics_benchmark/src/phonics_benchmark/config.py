@@ -9,6 +9,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from fab_benchmark_publisher import parse_gs_uri
+
 DEFAULT_RUN_ID = "default"
 DEFAULT_MAX_TOKENS = 10_000
 DEFAULT_CHUNK_SIZE = 20
@@ -32,6 +34,7 @@ class BenchmarkRunConfig:
     output_dir: Path
     models: list[str]
     items_path: Path
+    inputs_dir: Path | None = None
     prompt_name: str = DEFAULT_PROMPT_NAME
     env_path: Path | None = None
     custom_models_path: Path | None = None
@@ -40,6 +43,7 @@ class BenchmarkRunConfig:
     model_workers: int = DEFAULT_MODEL_WORKERS
     force: bool = False
     retry_errors: bool = False
+    results_dest: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
     raw_config: dict[str, Any] = field(default_factory=dict)
@@ -55,6 +59,7 @@ class BenchmarkRunConfig:
             "output_dir": str(self.output_dir),
             "models": self.models,
             "items_path": str(self.items_path),
+            "inputs_dir": str(self.inputs_dir) if self.inputs_dir else None,
             "prompt_name": self.prompt_name,
             "env_path": str(self.env_path) if self.env_path else None,
             "custom_models_path": (
@@ -65,6 +70,7 @@ class BenchmarkRunConfig:
             "model_workers": self.model_workers,
             "force": self.force,
             "retry_errors": self.retry_errors,
+            "results_dest": self.results_dest,
             "metadata": self.metadata,
             "extra": self.extra,
         }
@@ -124,6 +130,7 @@ def apply_execution_overrides(
     force: bool,
     retry_errors: bool,
     model_workers: int | None,
+    results_dest: str | None = None,
 ) -> BenchmarkRunConfig:
     """Apply explicitly supplied execution options to a validated config."""
 
@@ -139,6 +146,11 @@ def apply_execution_overrides(
             _validate_model_workers(model_workers)
             if model_workers is not None
             else config.model_workers
+        ),
+        results_dest=(
+            _validate_results_dest(results_dest)
+            if results_dest is not None
+            else config.results_dest
         ),
     )
 
@@ -177,6 +189,7 @@ def build_run_config(
     base_dir: Path,
     task: str,
     items_path: str | Path | None,
+    inputs_dir: str | Path | None = None,
     prompt_name: str = DEFAULT_PROMPT_NAME,
     env_path: str | Path | None = None,
     custom_models_path: str | Path | None = None,
@@ -185,6 +198,7 @@ def build_run_config(
     model_workers: int = DEFAULT_MODEL_WORKERS,
     force: bool = False,
     retry_errors: bool = False,
+    results_dest: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> BenchmarkRunConfig:
     """Build a validated run config from command-line values."""
@@ -195,6 +209,7 @@ def build_run_config(
         "output_dir": str(output_dir),
         "models": models,
         "items_path": str(items_path) if items_path is not None else None,
+        "inputs_dir": str(inputs_dir) if inputs_dir else None,
         "prompt_name": prompt_name,
         "env_path": str(env_path) if env_path else None,
         "custom_models_path": str(custom_models_path) if custom_models_path else None,
@@ -203,6 +218,7 @@ def build_run_config(
         "model_workers": model_workers,
         "force": force,
         "retry_errors": retry_errors,
+        "results_dest": results_dest,
         "metadata": metadata or {},
     }
     return _parse_run_config(
@@ -255,6 +271,12 @@ def _parse_run_config(
     if not isinstance(items_path, str) or not items_path.strip():
         raise ConfigError("'items_path' must be a non-empty string")
 
+    inputs_dir = raw_config.get("inputs_dir")
+    if inputs_dir is not None and (
+        not isinstance(inputs_dir, str) or not inputs_dir.strip()
+    ):
+        raise ConfigError("'inputs_dir' must be a non-empty string when provided")
+
     env_path = raw_config.get("env_path")
     if env_path is not None and not isinstance(env_path, str):
         raise ConfigError("'env_path' must be a string when provided")
@@ -297,12 +319,17 @@ def _parse_run_config(
     if not isinstance(metadata, dict):
         raise ConfigError("'metadata' must be an object when provided")
 
+    results_dest = raw_config.get("results_dest")
+    if results_dest is not None:
+        results_dest = _validate_results_dest(results_dest)
+
     known_keys = {
         "run_id",
         "language",
         "output_dir",
         "models",
         "items_path",
+        "inputs_dir",
         "prompt_name",
         "env_path",
         "custom_models_path",
@@ -312,6 +339,7 @@ def _parse_run_config(
         "force",
         "retry_errors",
         "metadata",
+        "results_dest",
     }
     extra = {key: value for key, value in raw_config.items() if key not in known_keys}
 
@@ -322,6 +350,7 @@ def _parse_run_config(
         output_dir=_resolve_path(output_dir, base_dir),
         models=models,
         items_path=_resolve_path(items_path, base_dir),
+        inputs_dir=_resolve_path(inputs_dir, base_dir) if inputs_dir else None,
         prompt_name=prompt_name,
         env_path=_resolve_path(env_path, base_dir) if env_path else None,
         custom_models_path=(
@@ -332,6 +361,7 @@ def _parse_run_config(
         model_workers=model_workers,
         force=force,
         retry_errors=retry_errors,
+        results_dest=results_dest,
         metadata=metadata,
         extra=extra,
         raw_config=raw_config,
@@ -369,6 +399,16 @@ def _validate_config_models(value: Any) -> list[str]:
 def _validate_model_workers(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ConfigError("'model_workers' must be a positive integer")
+    return value
+
+
+def _validate_results_dest(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError("'results_dest' must be a non-empty gs:// URI")
+    try:
+        parse_gs_uri(value)
+    except ValueError as e:
+        raise ConfigError(f"Invalid 'results_dest': {e}") from e
     return value
 
 
