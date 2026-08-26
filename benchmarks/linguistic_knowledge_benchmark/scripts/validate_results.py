@@ -1,0 +1,1267 @@
+#!/usr/bin/env python3
+"""
+Robustness/validation checks for a Linguistic-Knowledge benchmark run.
+Each check is a subcommand; --language and --run-id are mandatory on
+every one of them and are what locate the three CSVs `judge-bench` already produced for
+that run:
+
+    results/summary_linguistic-knowledge_<language>_<run-id>.csv                 SUMMARY
+    results/summary_linguistic-knowledge_<language>_<run-id>_detailed.csv        DETAILED
+    results/summary_linguistic-knowledge_<language>_<run-id>_judge_agreement.csv JUDGE AGREEMENT
+
+Three checks (judge-agreement's kappa, self-preference-bias, fallback-rate) additionally
+read the raw per-judge CSVs under cache/<language>/runs/<run-id>/responses_judged[_fallback]/
+-- the bare cache run-id is derived by stripping a trailing '_fallback' from --run-id,
+since that suffix is only ever appended to the results/ filenames, never to the cache
+directory (see cache_paths_for() below).
+
+Subcommands and their outputs (under --outdir/<language>/, --outdir defaults to
+results/validation/, filenames tagged with --label, default "<language>_<run-id>"):
+
+  judge-agreement        Raw pairwise judge agreement (re-reads judge-bench's own
+                          judge_agreement CSV) plus Cohen's kappa per judge pair (chance-
+                          corrected -- raw agreement is inflated when most answers are
+                          correct) and a full-consensus / split / tie-unscored breakdown.
+                          -> judge_agreement_kappa_<label>.csv
+
+  self-preference-bias   For each judge, the rate at which its verdict is more lenient
+                          (says correct) than the majority of the other two judges,
+                          split by whether the answering model shares the judge's
+                          provider -- a materially higher same-provider rate is the bias
+                          signal.
+                          -> self_preference_bias_<label>.csv
+
+  fallback-rate           Per model, the fraction of MCQ rows resolved by the
+                          --judge-fallback LLM pass vs still unscored after it, joined
+                          against overall accuracy -- flags whether a low score is a
+                          knowledge gap or a format-compliance/parsing issue. Requires a
+                          run-id with a fallback pass (cache/.../responses_judged_fallback/).
+                          -> fallback_rate_<label>.csv
+
+  bootstrap-ci            Per-model 95% CI on accuracy via a paired/cluster bootstrap over
+                          question_id (same resampled item set applied to every model each
+                          replicate), from the detailed CSV. The plot matches
+                          analyze_results.py's plot_accuracy() (provider-colored bars,
+                          value labels, provider legend), with the CI as error bars.
+                          -> bootstrap_ci_<label>.csv, bootstrap_ci_<label>.png
+
+  family-grid              A grid of small bar charts (one per model family, from
+                          data/model_families.csv), each family's models sorted by
+                          accuracy (highest first). The CSV also records each model's
+                          generation/size order_index (release_date, falling back to
+                          parameter size, both from data/models.csv), for a from-scratch
+                          old->new / small->big consistency check even though the plot
+                          itself is sorted by accuracy.
+                          -> family_grid_<label>.png, family_grid_<label>.csv
+
+  consistency             Run-to-run accuracy variance, from a run scored against a
+                          REPEATED dataset (see build_consistency_dataset.py: N copies of
+                          every question, question_id "<original_id>.<replicate>") --
+                          decodes the replicate back out of question_id, groups the
+                          detailed CSV's final judged (post-majority-vote) `<model>_correct`
+                          by replicate, and reports/plots each model's accuracy spread
+                          across the N replicates. Aborts with next-step instructions if
+                          the run's 3 result CSVs aren't present yet, or if the detailed
+                          CSV looks unscored (see build_consistency_dataset.py's docstring
+                          for why that happens and how to fix it).
+                          -> consistency_<label>.csv, consistency_<label>_raw.csv,
+                             consistency_<label>.png
+
+  all                     Runs every check above, in order, for this --language/--run-id.
+                          A check is SKIPPED (not overwritten) if its output file(s)
+                          already exist under <outdir>/<language>/ -- pass a different
+                          --label, or delete those files, to force a rerun. A check that
+                          errors (e.g. fallback-rate with no fallback pass for this run,
+                          or consistency with no repeated-dataset run yet) is reported and
+                          skipped, not fatal to the rest.
+
+Run (--language and --run-id are mandatory on every subcommand):
+    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/validate_results.py judge-agreement --language english --run-id final-137-items_fallback
+    uv run python .../validate_results.py self-preference-bias --language kiswahili --run-id final-135-items_fallback
+    uv run python .../validate_results.py fallback-rate --language english --run-id final-137-items_fallback
+    uv run python .../validate_results.py bootstrap-ci --language english --run-id final-137-items_fallback --n-bootstrap 2000
+    uv run python .../validate_results.py family-grid --language english --run-id final-137-items_fallback
+    uv run python .../validate_results.py consistency --language english --run-id validation-20x
+    uv run python .../validate_results.py all --language english --run-id final-137-items_fallback
+    uv run python .../validate_results.py all --language kiswahili --run-id final-135-items_fallback
+
+Producing a run for the "consistency" check (external to this script):
+    uv run python scripts/build_consistency_dataset.py --language english
+    # run-bench/judge-bench both take --dataset directly -- pass the SAME one to both,
+    # no dataset-file swapping and no separate detailed-CSV rebuild step needed.
+    # --dataset is FILENAME ONLY (always resolved as DATA_DIR/<dataset>):
+    uv run linguistic-knowledge-benchmark run-bench --language english --run-id validation-20x \\
+        --dataset linguistic_knowledge_eval_english_20x.json
+    uv run linguistic-knowledge-benchmark judge-bench --language english --run-id validation-20x \\
+        --dataset linguistic_knowledge_eval_english_20x.json --num-judges 3
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import os
+import sys
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from analyze_results import (
+    LANGUAGES,
+    _bar_colors,
+    _labels,
+    _provider_legend_handles,
+    load_detailed,
+    load_display_names,
+    load_judged_model,
+    load_provider_colors,
+    load_summary,
+)
+
+# scripts/ isn't part of the installed package, but the package itself is -- this import
+# is safe (unlike importing linguistic_knowledge_benchmark.cmd) because it never touches
+# cmd.py's app.callback(), the only place that pulls in typer/dotenv/network side effects.
+from linguistic_knowledge_benchmark.judge_bench import (
+    DEFAULT_JUDGE_MODELS,
+    compute_judge_agreement,
+)
+from matplotlib.patches import Patch
+
+CHECKS = [
+    "judge-agreement",
+    "self-preference-bias",
+    "fallback-rate",
+    "bootstrap-ci",
+    "family-grid",
+    "consistency",
+]
+
+DEFAULT_SEED = 0  # bootstrap-ci's --seed default, for reproducible CIs across reruns
+DEFAULT_N_REPLICATES = 20  # consistency's --n-replicates default; must match whatever
+# build_consistency_dataset.py --n-replicates was used to build the run's dataset
+
+# --------------------------------------------------------------------------- #
+# Console summary formatting (same pattern as filter_dataset.py / estimate_irt.py)
+# --------------------------------------------------------------------------- #
+_RULE = "=" * 70
+
+
+def _section(title: str) -> None:
+    print(f"\n{_RULE}\n{title}\n{_RULE}")
+
+
+def _kv(label: str, value) -> None:
+    print(f"  {label:<28}: {value}")
+
+
+# --------------------------------------------------------------------------- #
+# Path resolution
+# --------------------------------------------------------------------------- #
+def default_paths_for(language: str, results_dir: str, run_id: str) -> dict:
+    """summary/detailed/judge_agreement CSV paths -- --run-id used verbatim, exactly like
+    analyze_results.py's own default_paths_for (include the literal '_fallback' suffix in
+    --run-id if that's how the run was produced)."""
+    base = f"summary_linguistic-knowledge_{language}_{run_id}"
+    return {
+        "summary": os.path.join(results_dir, f"{base}.csv"),
+        "detailed": os.path.join(results_dir, f"{base}_detailed.csv"),
+        "judge_agreement": os.path.join(results_dir, f"{base}_judge_agreement.csv"),
+    }
+
+
+def cache_paths_for(language: str, root: str, run_id: str) -> tuple[str, bool]:
+    """(cache run-dir under cache/<language>/runs/, is_fallback).
+
+    The cache directory is never suffixed with '_fallback' -- that suffix is only ever
+    appended to the results/ filenames (fallback data lives in a responses_judged_fallback/
+    subdirectory of the SAME run). Since --run-id here may already have '_fallback' baked
+    into it (per the results/ naming convention), strip that one known suffix to recover
+    the bare cache run-id, rather than adding a separate CLI flag.
+    """
+    is_fallback = run_id.endswith("_fallback")
+    bare_run_id = run_id[: -len("_fallback")] if is_fallback else run_id
+    return os.path.join(root, "cache", language, "runs", bare_run_id), is_fallback
+
+
+def discover_models_in_run(cache_run_dir: str) -> list[str]:
+    """Model ids with a primary judged CSV under cache_run_dir/responses_judged/."""
+    judged_dir = os.path.join(cache_run_dir, "responses_judged")
+    if not os.path.isdir(judged_dir):
+        return []
+    prefix, suffix = "responses_judged_", ".csv"
+    return sorted(
+        f[len(prefix) : -len(suffix)]
+        for f in os.listdir(judged_dir)
+        if f.startswith(prefix) and f.endswith(suffix)
+    )
+
+
+def load_full_judged(
+    cache_run_dir: str, model: str, is_fallback: bool
+) -> pd.DataFrame | None:
+    """The fully-resolved judged CSV for `model`: the fallback pass's file (with its
+    final, post-fallback score_method) if is_fallback, else the primary pass's file.
+    None if the expected file doesn't exist."""
+    subdir = "responses_judged_fallback" if is_fallback else "responses_judged"
+    path = os.path.join(cache_run_dir, subdir, f"responses_judged_{model}.csv")
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
+def judge_models_from_summary(summary_df: pd.DataFrame) -> list[str]:
+    """The judge ensemble actually used for this run, from the summary CSV's
+    'llm_judges' column (a stringified python list); falls back to DEFAULT_JUDGE_MODELS
+    if that column is missing/unparseable, e.g. an older summary CSV."""
+    if "llm_judges" in summary_df.columns:
+        for val in summary_df["llm_judges"].dropna():
+            try:
+                parsed = ast.literal_eval(val) if isinstance(val, str) else val
+            except (ValueError, SyntaxError):
+                continue
+            if isinstance(parsed, list) and parsed:
+                return parsed
+    return list(DEFAULT_JUDGE_MODELS)
+
+
+def load_all_judged(cache_run_dir: str, models: list[str]) -> dict[str, pd.DataFrame]:
+    """model -> load_judged_model() result, skipping models with no judged CSV."""
+    out: dict[str, pd.DataFrame] = {}
+    for model in models:
+        df = load_judged_model(cache_run_dir, model)
+        if df is not None:
+            out[model] = df
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# 1. judge-agreement
+# --------------------------------------------------------------------------- #
+def compute_kappa(judged_df: pd.DataFrame, judge_models: list[str]) -> pd.DataFrame:
+    """Cohen's kappa per judge pair, over rows both judges scored (is_correct_<judge>
+    columns). Chance-corrected -- unlike raw agreement, kappa isn't inflated just because
+    most answers happen to be correct."""
+    cols = {jm: f"is_correct_{jm}" for jm in judge_models}
+    kappa = pd.DataFrame(index=judge_models, columns=judge_models, dtype=float)
+    for a in judge_models:
+        for b in judge_models:
+            if a == b:
+                kappa.loc[a, b] = 1.0
+                continue
+            both = judged_df[[cols[a], cols[b]]].dropna()
+            if both.empty:
+                kappa.loc[a, b] = float("nan")
+                continue
+            po = (both[cols[a]] == both[cols[b]]).mean()
+            pa_true = both[cols[a]].mean()
+            pb_true = both[cols[b]].mean()
+            pe = pa_true * pb_true + (1 - pa_true) * (1 - pb_true)
+            kappa.loc[a, b] = float("nan") if pe >= 1.0 else (po - pe) / (1 - pe)
+    return kappa
+
+
+def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    cache_run_dir, _ = cache_paths_for(args.language, root, args.run_id)
+
+    summary = load_summary(paths["summary"])
+    judge_models = judge_models_from_summary(summary)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("judge_models", judge_models)
+    _kv("cache_run_dir", cache_run_dir)
+
+    if len(judge_models) < 2:
+        raise SystemExit(
+            f"Only {len(judge_models)} judge(s) were used for this run -- nothing to "
+            "compute agreement/kappa over (need >=2)."
+        )
+
+    if os.path.exists(paths["judge_agreement"]):
+        precomputed = pd.read_csv(paths["judge_agreement"], index_col=0)
+        _section("RAW PAIRWISE AGREEMENT (from judge-bench's own output)")
+        print(precomputed.round(4).to_string())
+    else:
+        print(
+            f"\n(no {paths['judge_agreement']} found -- recomputing raw agreement below)"
+        )
+
+    models = discover_models_in_run(cache_run_dir)
+    if not models:
+        raise SystemExit(
+            f"No judged CSVs found under {cache_run_dir}/responses_judged/."
+        )
+    judged_by_model = load_all_judged(cache_run_dir, models)
+    all_judged = pd.concat(
+        [df.assign(model=m) for m, df in judged_by_model.items()], ignore_index=True
+    )
+
+    cols = [f"is_correct_{jm}" for jm in judge_models]
+    missing = [c for c in cols if c not in all_judged.columns]
+    if missing:
+        raise SystemExit(
+            f"judged CSVs are missing column(s) {missing} -- this run may have used a "
+            "different judge ensemble than recorded in the summary CSV's llm_judges."
+        )
+
+    raw_agreement = compute_judge_agreement(all_judged, judge_models, fallback=False)
+    kappa = compute_kappa(all_judged, judge_models)
+
+    _section("RAW AGREEMENT (recomputed across all models' judged rows)")
+    print(raw_agreement.round(4).to_string())
+    _section("COHEN'S KAPPA (chance-corrected)")
+    print(kappa.round(4).to_string())
+
+    sf = all_judged[all_judged["answer_type"] == "short_form"]
+    _section("CONSENSUS DISTRIBUTION (short_form rows, judge_agreement value counts)")
+    dist = sf["judge_agreement"].value_counts(dropna=False).sort_index()
+    for val, count in dist.items():
+        label = (
+            "no judge responded"
+            if pd.isna(val)
+            else ("full consensus" if val == 1.0 else f"agreement={val:.3f}")
+        )
+        print(f"  {label:<24} {count}")
+
+    os.makedirs(args.outdir, exist_ok=True)
+    out_path = os.path.join(args.outdir, f"judge_agreement_kappa_{args.label}.csv")
+    combined = (
+        raw_agreement.round(4)
+        .add_suffix("_raw_agreement")
+        .join(kappa.round(4).add_suffix("_kappa"))
+    )
+    combined.to_csv(out_path)
+    print(f"\nWrote: {out_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 2. self-preference-bias
+# --------------------------------------------------------------------------- #
+def compute_self_preference(
+    judged_by_model: dict[str, pd.DataFrame],
+    judge_models: list[str],
+    model_provider: dict,
+) -> pd.DataFrame:
+    """Per (judge, same_provider) leniency rate: among rows all `judge_models` scored,
+    the fraction where `judge` alone says correct while the OTHER two judges agree with
+    each other and say incorrect (rows where the other two disagree with each other have
+    no well-defined "majority of the others" and are excluded)."""
+    cols = {jm: f"is_correct_{jm}" for jm in judge_models}
+    rows: list[dict] = []
+    for model, df in judged_by_model.items():
+        if not all(cols[jm] in df.columns for jm in judge_models):
+            continue
+        model_prov = model_provider.get(model)
+        sub = df[list(cols.values())].dropna()
+        if sub.empty:
+            continue
+        for jm in judge_models:
+            other_cols = [cols[k] for k in judge_models if k != jm]
+            other_sum = sub[other_cols].sum(axis=1)
+            defined = other_sum.isin([0, len(other_cols)])  # the others agree
+            other_majority_true = other_sum[defined] == len(other_cols)
+            judge_verdict = sub.loc[defined, cols[jm]]
+            lenient = judge_verdict & ~other_majority_true
+            same_provider = model_provider.get(jm) == model_prov
+            rows.append(
+                {
+                    "judge": jm,
+                    "same_provider": same_provider,
+                    "n_rows": int(defined.sum()),
+                    "n_lenient": int(lenient.sum()),
+                }
+            )
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "judge",
+                "same_provider_leniency_rate",
+                "other_provider_leniency_rate",
+                "delta",
+                "n_same",
+                "n_other",
+            ]
+        )
+    long = pd.DataFrame(rows).groupby(["judge", "same_provider"], as_index=False).sum()
+
+    out_rows = []
+    for jm in judge_models:
+        same = long[(long["judge"] == jm) & (long["same_provider"])]
+        other = long[(long["judge"] == jm) & (~long["same_provider"])]
+        n_same = int(same["n_rows"].sum())
+        n_other = int(other["n_rows"].sum())
+        same_rate = same["n_lenient"].sum() / n_same if n_same else float("nan")
+        other_rate = other["n_lenient"].sum() / n_other if n_other else float("nan")
+        out_rows.append(
+            {
+                "judge": jm,
+                "same_provider_leniency_rate": same_rate,
+                "other_provider_leniency_rate": other_rate,
+                "delta": same_rate - other_rate,
+                "n_same": n_same,
+                "n_other": n_other,
+            }
+        )
+    return pd.DataFrame(out_rows)
+
+
+def run_self_preference_bias(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    cache_run_dir, _ = cache_paths_for(args.language, root, args.run_id)
+
+    summary = load_summary(paths["summary"])
+    judge_models = judge_models_from_summary(summary)
+    model_provider, _ = load_provider_colors(args.models_csv, args.providers_csv)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("judge_models", judge_models)
+
+    if len(judge_models) < 3:
+        raise SystemExit(
+            f"self-preference-bias needs a >=3-judge ensemble (this run used "
+            f"{len(judge_models)}) -- 'majority of the other judges' isn't well-defined "
+            "with fewer than 2 others."
+        )
+
+    missing_provider = [jm for jm in judge_models if jm not in model_provider]
+    if missing_provider:
+        print(
+            f"WARNING: no provider found in {args.models_csv} for judge(s) "
+            f"{missing_provider} -- their same-provider rows will be undercounted."
+        )
+
+    models = discover_models_in_run(cache_run_dir)
+    if not models:
+        raise SystemExit(
+            f"No judged CSVs found under {cache_run_dir}/responses_judged/."
+        )
+    judged_by_model = load_all_judged(cache_run_dir, models)
+
+    report = compute_self_preference(judged_by_model, judge_models, model_provider)
+
+    _section(
+        "SELF-PREFERENCE BIAS (leniency = says correct when the other judges agree it's not)"
+    )
+    for _, r in report.iterrows():
+        print(
+            f"  {r['judge']:<20} same-provider {r['same_provider_leniency_rate']:.3f} "
+            f"(n={r['n_same']})   other-provider {r['other_provider_leniency_rate']:.3f} "
+            f"(n={r['n_other']})   delta {r['delta']:+.3f}"
+        )
+
+    os.makedirs(args.outdir, exist_ok=True)
+    out_path = os.path.join(args.outdir, f"self_preference_bias_{args.label}.csv")
+    report.round(4).to_csv(out_path, index=False)
+    print(f"\nWrote: {out_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 3. fallback-rate
+# --------------------------------------------------------------------------- #
+def run_fallback_rate(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    cache_run_dir, is_fallback = cache_paths_for(args.language, root, args.run_id)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("cache_run_dir", cache_run_dir)
+
+    fallback_dir = os.path.join(cache_run_dir, "responses_judged_fallback")
+    if not is_fallback or not os.path.isdir(fallback_dir):
+        raise SystemExit(
+            f"No fallback pass found for this run (expected {fallback_dir}) -- "
+            "fallback-rate needs --run-id to be a run that was judged with "
+            "'judge-bench --judge-fallback' (pass the run-id with its '_fallback' suffix, "
+            "e.g. --run-id final-137-items_fallback)."
+        )
+
+    summary = load_summary(paths["summary"])
+    accuracy_by_model = dict(zip(summary["model"], summary["accuracy"]))
+
+    models = discover_models_in_run(cache_run_dir)
+    rows = []
+    for model in models:
+        df = load_full_judged(cache_run_dir, model, is_fallback=True)
+        if df is None:
+            continue
+        mcq = df[df["answer_type"] == "multiple_choice"]
+        mcq_total = len(mcq)
+        if mcq_total == 0:
+            continue
+        mcq_fallback_sent = int((mcq["score_method"] == "llm_fallback").sum())
+        mcq_still_unscored = int((mcq["score_method"] == "unscored").sum())
+        rows.append(
+            {
+                "model": model,
+                "mcq_total": mcq_total,
+                "mcq_fallback_sent": mcq_fallback_sent,
+                "mcq_fallback_rate": round(mcq_fallback_sent / mcq_total, 4),
+                "mcq_still_unscored": mcq_still_unscored,
+                "accuracy": accuracy_by_model.get(model),
+            }
+        )
+
+    report = pd.DataFrame(rows).sort_values("mcq_fallback_rate", ascending=False)
+
+    _section("FALLBACK RATE PER MODEL (sorted, highest first)")
+    for _, r in report.iterrows():
+        acc = "n/a" if pd.isna(r["accuracy"]) else f"{r['accuracy']:.1f}%"
+        flag = (
+            "  <-- check: format-compliance issue, not knowledge gap?"
+            if r["mcq_fallback_rate"] > 0.15
+            and (pd.notna(r["accuracy"]) and r["accuracy"] < 70)
+            else ""
+        )
+        print(
+            f"  {r['model']:<32} fallback {r['mcq_fallback_rate']:6.1%} "
+            f"({r['mcq_fallback_sent']}/{r['mcq_total']})   "
+            f"still-unscored {r['mcq_still_unscored']:3d}   accuracy {acc}{flag}"
+        )
+
+    os.makedirs(args.outdir, exist_ok=True)
+    out_path = os.path.join(args.outdir, f"fallback_rate_{args.label}.csv")
+    report.to_csv(out_path, index=False)
+    print(f"\nWrote: {out_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 4. bootstrap-ci
+# --------------------------------------------------------------------------- #
+CORRECT_MAP = {True: 1, False: 0, "True": 1, "False": 0}
+
+
+def bootstrap_ci_table(
+    detailed_path: str, n_bootstrap: int, ci_level: float, seed: int
+) -> pd.DataFrame:
+    """Paired/cluster bootstrap over question_id: the SAME resampled item index set is
+    applied to every model in a given replicate (not independent per-model resampling),
+    so the replicate distributions stay comparable across models (e.g. for a later
+    paired-significance check), at no extra cost."""
+    wide, _, models = load_detailed(detailed_path)
+    corr_cols = [f"{m}_correct" for m in models]
+    matrix = (
+        wide[corr_cols].map(lambda v: CORRECT_MAP.get(v, np.nan)).to_numpy(dtype=float)
+    )
+    n_items = matrix.shape[0]
+
+    # IMPORTANT: one shared index array per replicate (with replacement), applied to
+    # every model's column below via matrix[idx] -- NOT a fresh independent draw per
+    # model. This is deliberate ("paired"/cluster bootstrap): all models answer the same
+    # fixed item set, and item difficulty is correlated across models (a badly-worded
+    # item is hard for everyone), so a shared resample preserves that correlation instead
+    # of pretending each model saw its own random item pool. It doesn't change any single
+    # model's own CI below (a model's marginal bootstrap distribution only depends on its
+    # own draws, regardless of what other models' columns happened to share that draw) --
+    # what it buys is that replicate_acc's ROWS stay comparable across model columns, so
+    # a future paired-significance test between two models (accuracy_A[b] - accuracy_B[b]
+    # per replicate b) has correctly-small variance, instead of the inflated variance an
+    # independent-per-model resample would give that same subtraction.
+    rng = np.random.default_rng(seed)
+    replicate_acc = np.empty((n_bootstrap, len(models)), dtype=float)
+    for b in range(n_bootstrap):
+        idx = rng.integers(0, n_items, size=n_items)  # with replacement
+        with np.errstate(invalid="ignore"):
+            replicate_acc[b] = np.nanmean(matrix[idx], axis=0) * 100.0
+
+    alpha = 1.0 - ci_level
+    lo = np.nanpercentile(replicate_acc, 100 * alpha / 2, axis=0)
+    hi = np.nanpercentile(replicate_acc, 100 * (1 - alpha / 2), axis=0)
+    with np.errstate(invalid="ignore"):
+        point = np.nanmean(matrix, axis=0) * 100.0
+
+    return pd.DataFrame(
+        {
+            "model": models,
+            "accuracy": point,
+            "ci_low": lo,
+            "ci_high": hi,
+            "n_bootstrap": n_bootstrap,
+        }
+    ).sort_values("accuracy", ascending=False)
+
+
+def plot_bootstrap_ci(
+    report: pd.DataFrame,
+    out: str,
+    title: str,
+    display_names: dict | None,
+    model_provider: dict | None,
+    provider_color: dict | None,
+) -> None:
+    """Same design as analyze_results.py's plot_accuracy() -- provider-colored bars,
+    value labels, provider legend to the right -- with the bootstrap CI overlaid as
+    asymmetric error bars."""
+    model_provider = model_provider or {}
+    provider_color = provider_color or {}
+    s = report.sort_values("accuracy", ascending=False)
+    models = s["model"].tolist()
+    x = np.arange(len(models))
+    colors = _bar_colors(models, model_provider, provider_color)
+    handles = _provider_legend_handles(models, model_provider, provider_color)
+
+    lower = (s["accuracy"] - s["ci_low"]).clip(lower=0).to_numpy()
+    upper = (s["ci_high"] - s["accuracy"]).clip(lower=0).to_numpy()
+
+    fig, ax = plt.subplots(figsize=(12, 4.5))
+    ax.bar(x, s["accuracy"], color=colors)
+    ax.errorbar(
+        x,
+        s["accuracy"],
+        yerr=[lower, upper],
+        fmt="none",
+        ecolor="black",
+        elinewidth=1,
+        capsize=3,
+        zorder=3,
+    )
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(0, 106)
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        _labels(models, display_names), rotation=35, ha="right", fontsize=7
+    )
+    ax.set_title(title, fontweight="bold", pad=16, fontsize=15)
+    for xi, (a, hi) in enumerate(zip(s["accuracy"], s["ci_high"])):
+        ax.text(xi, hi + 1.5, f"{a:.0f}", ha="center", fontsize=7)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#eeeeee")
+    ax.set_axisbelow(True)
+
+    if handles:
+        ax.legend(
+            handles=handles,
+            title="Provider",
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            frameon=False,
+            fontsize=8,
+            title_fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def run_bootstrap_ci(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("n_bootstrap", args.n_bootstrap)
+    _kv("ci_level", args.ci_level)
+    _kv("seed", args.seed)
+
+    report = bootstrap_ci_table(
+        paths["detailed"], args.n_bootstrap, args.ci_level, args.seed
+    )
+
+    _section(f"BOOTSTRAP {args.ci_level:.0%} CI PER MODEL")
+    for _, r in report.iterrows():
+        print(
+            f"  {r['model']:<32} {r['accuracy']:5.1f}%   "
+            f"[{r['ci_low']:5.1f}, {r['ci_high']:5.1f}]"
+        )
+
+    os.makedirs(args.outdir, exist_ok=True)
+    out_path = os.path.join(args.outdir, f"bootstrap_ci_{args.label}.csv")
+    report.round(2).to_csv(out_path, index=False)
+
+    display_names = load_display_names(args.models_csv)
+    model_provider, provider_color = load_provider_colors(
+        args.models_csv, args.providers_csv
+    )
+    language_name = {"kiswahili": "Kiswahili"}.get(
+        args.language, args.language.capitalize()
+    )
+    png_path = os.path.join(args.outdir, f"bootstrap_ci_{args.label}.png")
+    plot_bootstrap_ci(
+        report,
+        png_path,
+        title=f"{language_name} Linguistic Knowledge Benchmark Performance "
+        f"-- Bootstrap {args.ci_level:.0%} CI",
+        display_names=display_names,
+        model_provider=model_provider,
+        provider_color=provider_color,
+    )
+
+    print(f"\nWrote:\n  {out_path}\n  {png_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 5. family-grid
+# --------------------------------------------------------------------------- #
+def parse_release_date(value) -> float:
+    """'MM/YYYY' -> a sortable float (year*12 + month); NaN if blank/unparseable."""
+    if pd.isna(value):
+        return float("nan")
+    try:
+        month, year = str(value).split("/")
+        return float(int(year) * 12 + int(month))
+    except (ValueError, AttributeError):
+        return float("nan")
+
+
+def load_family_order_keys(models_csv: str) -> tuple[dict, dict]:
+    """(model_id -> release_date sort key, model_id -> size) from data/models.csv."""
+    m = pd.read_csv(models_csv)
+    release = {
+        row.model_id: parse_release_date(row.release_date) for row in m.itertuples()
+    }
+    size = {
+        row.model_id: (float(row.size) if pd.notna(row.size) else float("nan"))
+        for row in m.itertuples()
+    }
+    return release, size
+
+
+def build_family_table(
+    families_csv: str, summary: pd.DataFrame, models_csv: str
+) -> pd.DataFrame:
+    """family, model, order_index, accuracy -- restricted to models present in `summary`,
+    ordered within each family by release_date (fallback: size; models with neither sort
+    last, tiebroken by model_id)."""
+    families = pd.read_csv(families_csv)
+    accuracy_by_model = dict(zip(summary["model"], summary["accuracy"]))
+    release, size = load_family_order_keys(models_csv)
+
+    present = families[families["model_id"].isin(accuracy_by_model)].copy()
+    missing = families[~families["model_id"].isin(accuracy_by_model)]
+    if len(missing):
+        print(
+            f"\n({len(missing)} model(s) in {families_csv} not in this run's summary -- "
+            f"skipped: {', '.join(missing['model_id'])})"
+        )
+
+    def sort_key(model_id: str):
+        r = release.get(model_id, float("nan"))
+        if not pd.isna(r):
+            return (0, r, model_id)
+        s = size.get(model_id, float("nan"))
+        return (1, s if not pd.isna(s) else float("inf"), model_id)
+
+    rows = []
+    for family, group in present.groupby("family"):
+        ordered = sorted(group["model_id"], key=sort_key)
+        for i, model_id in enumerate(ordered):
+            rows.append(
+                {
+                    "family": family,
+                    "model": model_id,
+                    "order_index": i,
+                    "accuracy": accuracy_by_model[model_id],
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def plot_family_grid(
+    table: pd.DataFrame,
+    out: str,
+    display_names: dict,
+    model_provider: dict | None = None,
+    provider_color: dict | None = None,
+) -> None:
+    """Bars colored by provider (data/providers.csv, via analyze_results.py's own
+    _bar_colors -- same palette as plot_accuracy()'s per-model bars), not a fixed color;
+    since every model in a family normally shares one provider, this colors each panel
+    by its family's provider and doubles as a visual family/provider cross-check."""
+    model_provider = model_provider or {}
+    provider_color = provider_color or {}
+    families = [f for f, g in table.groupby("family") if len(g) >= 2]
+    if not families:
+        print("\n(no family has >=2 models in this run -- skipping grid plot)")
+        return
+
+    ncols = 3
+    nrows = -(-len(families) // ncols)  # ceil
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(5 * ncols, 3.2 * nrows), squeeze=False
+    )
+
+    seen_providers: list[str] = []
+    for i, family in enumerate(families):
+        ax = axes[i // ncols][i % ncols]
+        g = table[table["family"] == family].sort_values("accuracy", ascending=False)
+        x = np.arange(len(g))
+        models = g["model"].tolist()
+        colors = _bar_colors(models, model_provider, provider_color)
+        bars = ax.bar(x, g["accuracy"], color=colors)
+        for b, a in zip(bars, g["accuracy"]):
+            ax.text(
+                b.get_x() + b.get_width() / 2,
+                a + 1,
+                f"{a:.0f}",
+                ha="center",
+                fontsize=7,
+            )
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            [display_names.get(m, m) for m in models],
+            rotation=35,
+            ha="right",
+            fontsize=7,
+        )
+        ax.set_ylim(0, 106)
+        ax.set_title(family, fontsize=10, fontweight="bold")
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.grid(axis="y", color="#eeeeee")
+        ax.set_axisbelow(True)
+        for prov in _provider_legend_handles(models, model_provider, provider_color):
+            if prov.get_label() not in seen_providers:
+                seen_providers.append(prov.get_label())
+
+    for j in range(len(families), nrows * ncols):
+        axes[j // ncols][j % ncols].set_visible(False)
+
+    fig.suptitle("Model-family consistency — accuracy by model", fontweight="bold")
+    if seen_providers:
+        handles = [Patch(facecolor=provider_color[p], label=p) for p in seen_providers]
+        fig.legend(
+            handles=handles,
+            title="Provider",
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            frameon=False,
+            fontsize=8,
+            title_fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def run_family_grid(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("model_families_csv", args.model_families_csv)
+
+    summary = load_summary(paths["summary"])
+    table = build_family_table(args.model_families_csv, summary, args.models_csv)
+    if table.empty:
+        raise SystemExit(
+            f"No model in {args.model_families_csv} matched this run's summary CSV."
+        )
+
+    _section("FAMILY TABLE (old->new / small->big within each family)")
+    for family, g in table.groupby("family"):
+        line = "  ".join(
+            f"{m}={a:.0f}"
+            for m, a in zip(g.sort_values("order_index")["model"], g["accuracy"])
+        )
+        print(f"  {family:<12} {line}")
+
+    display_names = load_display_names(args.models_csv)
+    model_provider, provider_color = load_provider_colors(
+        args.models_csv, args.providers_csv
+    )
+    os.makedirs(args.outdir, exist_ok=True)
+    png_path = os.path.join(args.outdir, f"family_grid_{args.label}.png")
+    plot_family_grid(table, png_path, display_names, model_provider, provider_color)
+    csv_path = os.path.join(args.outdir, f"family_grid_{args.label}.csv")
+    table.to_csv(csv_path, index=False)
+
+    print("\nWrote:")
+    if os.path.exists(png_path):
+        print(f"  {png_path}")
+    print(f"  {csv_path}")
+
+
+# --------------------------------------------------------------------------- #
+# 6. consistency
+# --------------------------------------------------------------------------- #
+def decode_replicate_width(n_replicates: int) -> int:
+    """Digit width the replicate suffix was zero-padded to -- see
+    build_consistency_dataset.py's docstring for why the padding matters."""
+    return max(len(str(n_replicates)), 2)
+
+
+def compute_consistency_table(
+    detailed_path: str, n_replicates: int
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(agg, raw) accuracy-per-replicate tables from a detailed CSV whose question_id
+    values are "<original_id>.<replicate>"-encoded (build_consistency_dataset.py).
+    Groups each model's final judged `<model>_correct` by the decoded replicate, then
+    aggregates mean/std/min/max across replicates per model."""
+    wide, _, models = load_detailed(detailed_path)
+    denom = 10 ** decode_replicate_width(n_replicates)
+
+    qid = pd.to_numeric(wide["question_id"], errors="coerce")
+    original_id = np.floor(qid)
+    replicate = ((qid - original_id) * denom).round()
+    valid = qid.notna() & replicate.between(1, n_replicates)
+    n_bad = int((~valid).sum())
+    if n_bad:
+        print(
+            f"WARNING: {n_bad}/{len(wide)} row(s) don't decode to a replicate in "
+            f"[1, {n_replicates}] -- excluded (check --n-replicates matches what "
+            "build_consistency_dataset.py used to build this run's dataset)."
+        )
+
+    rows = []
+    for model in models:
+        col = f"{model}_correct"
+        if col not in wide.columns:
+            continue
+        corr = wide[col].map(CORRECT_MAP)
+        for rep in range(1, n_replicates + 1):
+            mask = valid & (replicate == rep)
+            scored = corr[mask].dropna()
+            if len(scored) == 0:
+                continue
+            rows.append(
+                {"rep": rep, "model": model, "accuracy": float(scored.mean()) * 100.0}
+            )
+
+    raw = pd.DataFrame(rows, columns=["rep", "model", "accuracy"])
+    if raw.empty:
+        return pd.DataFrame(
+            columns=[
+                "model",
+                "mean_accuracy",
+                "std_accuracy",
+                "min_accuracy",
+                "max_accuracy",
+                "n_reps",
+            ]
+        ), raw
+
+    agg = (
+        raw.groupby("model")["accuracy"]
+        .agg(["mean", "std", "min", "max", "count"])
+        .rename(
+            columns={
+                "mean": "mean_accuracy",
+                "std": "std_accuracy",
+                "min": "min_accuracy",
+                "max": "max_accuracy",
+                "count": "n_reps",
+            }
+        )
+        .reset_index()
+        .sort_values("mean_accuracy", ascending=False)
+    )
+    return agg, raw
+
+
+def plot_consistency(
+    raw: pd.DataFrame,
+    agg: pd.DataFrame,
+    out: str,
+    display_names: dict | None,
+    model_provider: dict | None,
+    provider_color: dict | None,
+) -> None:
+    """One box (spread across all replicates) per model, ordered by mean accuracy,
+    colored by provider -- same palette as the other plots."""
+    model_provider = model_provider or {}
+    provider_color = provider_color or {}
+    order = agg.sort_values("mean_accuracy", ascending=False)["model"].tolist()
+    data = [raw.loc[raw["model"] == m, "accuracy"].to_numpy() for m in order]
+    colors = _bar_colors(order, model_provider, provider_color)
+
+    fig, ax = plt.subplots(figsize=(max(12, len(order) * 0.5), 5))
+    bp = ax.boxplot(data, patch_artist=True, widths=0.6, showfliers=True)
+    for patch, color in zip(bp["boxes"], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.85)
+    for median in bp["medians"]:
+        median.set_color("black")
+
+    ax.set_xticks(range(1, len(order) + 1))
+    ax.set_xticklabels(
+        _labels(order, display_names), rotation=35, ha="right", fontsize=7
+    )
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(0, 106)
+    n_reps = raw["rep"].nunique()
+    ax.set_title(
+        f"Run-to-run consistency -- accuracy across {n_reps} repeated runs per model",
+        fontweight="bold",
+        pad=16,
+        fontsize=13,
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#eeeeee")
+    ax.set_axisbelow(True)
+
+    handles = _provider_legend_handles(order, model_provider, provider_color)
+    if handles:
+        ax.legend(
+            handles=handles,
+            title="Provider",
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            frameon=False,
+            fontsize=8,
+            title_fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def run_consistency(args: argparse.Namespace, root: str) -> None:
+    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+
+    _section("CONFIG")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("n_replicates", args.n_replicates)
+
+    # --dataset is filename-only: always resolved as DATA_DIR/<dataset> by cmd.py.
+    dataset_arg = f"linguistic_knowledge_eval_{args.language}_{args.n_replicates}x.json"
+    missing = {name: p for name, p in paths.items() if not os.path.exists(p)}
+    if missing:
+        listing = "\n".join(f"  {name}: {p}" for name, p in missing.items())
+        raise SystemExit(
+            f"Missing result file(s) for --language {args.language} --run-id "
+            f"{args.run_id}:\n{listing}\n\n"
+            "This check needs the summary/detailed/judge_agreement CSVs from a run "
+            "scored against the REPEATED (consistency) dataset, not a normal run. To "
+            "produce them:\n"
+            f"  1. uv run python scripts/build_consistency_dataset.py --language "
+            f"{args.language} --n-replicates {args.n_replicates}   (if not already built)\n"
+            "  2. Pass that file as --dataset to BOTH commands (same --run-id for both):\n"
+            f"       uv run linguistic-knowledge-benchmark run-bench --language "
+            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg}\n"
+            f"       uv run linguistic-knowledge-benchmark judge-bench --language "
+            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg} "
+            "--num-judges 3"
+        )
+
+    wide, _, _models = load_detailed(paths["detailed"])
+    corr_cols = [c for c in wide.columns if c.endswith("_correct")]
+    if not corr_cols or wide[corr_cols].notna().to_numpy().sum() == 0:
+        raise SystemExit(
+            f"{paths['detailed']} has no scored rows for any model.\n"
+            "This is the failure mode where judge-bench's detailed CSV was merged "
+            "against the wrong dataset -- --dataset must be passed consistently to "
+            "BOTH run-bench and judge-bench (the same file, same --run-id). Re-run "
+            "judge-bench with it:\n"
+            f"  uv run linguistic-knowledge-benchmark judge-bench --language "
+            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg} "
+            "--num-judges 3 --force"
+        )
+
+    agg, raw = compute_consistency_table(paths["detailed"], args.n_replicates)
+    if raw.empty:
+        raise SystemExit(
+            "No row decoded to a valid replicate -- is --n-replicates set to what "
+            "build_consistency_dataset.py used to build this run's dataset?"
+        )
+
+    _section(
+        f"CONSISTENCY ACROSS {args.n_replicates} REPEATED RUNS (final judged score)"
+    )
+    for _, r in agg.iterrows():
+        print(
+            f"  {r['model']:<32} mean {r['mean_accuracy']:5.1f}%   "
+            f"std {r['std_accuracy']:4.1f}   "
+            f"[{r['min_accuracy']:5.1f}, {r['max_accuracy']:5.1f}]   n={int(r['n_reps'])}"
+        )
+
+    display_names = load_display_names(args.models_csv)
+    model_provider, provider_color = load_provider_colors(
+        args.models_csv, args.providers_csv
+    )
+
+    os.makedirs(args.outdir, exist_ok=True)
+    agg_path = os.path.join(args.outdir, f"consistency_{args.label}.csv")
+    agg.round(2).to_csv(agg_path, index=False)
+    raw_path = os.path.join(args.outdir, f"consistency_{args.label}_raw.csv")
+    raw.round(2).to_csv(raw_path, index=False)
+    png_path = os.path.join(args.outdir, f"consistency_{args.label}.png")
+    plot_consistency(raw, agg, png_path, display_names, model_provider, provider_color)
+
+    print(f"\nWrote:\n  {agg_path}\n  {raw_path}\n  {png_path}")
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+def build_parser(root: str) -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--language",
+        required=True,
+        choices=LANGUAGES,
+        help="which language's result CSVs to validate",
+    )
+    common.add_argument(
+        "--run-id",
+        required=True,
+        help="run-id passed to judge-bench; selects "
+        "summary_linguistic-knowledge_<language>_<run-id>[_detailed|_judge_agreement].csv "
+        "-- include the literal '_fallback' suffix if that's how the run was produced "
+        "(e.g. 'final-137-items_fallback')",
+    )
+    common.add_argument(
+        "--outdir",
+        default=os.path.join(root, "results", "validation"),
+        help="base output dir; this run's files go under <outdir>/<language>/",
+    )
+    common.add_argument("--label", default=None, help="tag for output filenames")
+    common.add_argument(
+        "--models-csv",
+        dest="models_csv",
+        default=os.path.join(root, "data", "models.csv"),
+    )
+    common.add_argument(
+        "--providers-csv",
+        dest="providers_csv",
+        default=os.path.join(root, "data", "providers.csv"),
+    )
+
+    sub = ap.add_subparsers(dest="check", required=True)
+    sub.add_parser(
+        "judge-agreement",
+        parents=[common],
+        help="raw + chance-corrected judge agreement",
+    )
+    sub.add_parser(
+        "self-preference-bias",
+        parents=[common],
+        help="does a judge score same-provider models more leniently?",
+    )
+    sub.add_parser(
+        "fallback-rate",
+        parents=[common],
+        help="per-model MCQ fallback-judging rate vs accuracy",
+    )
+    bootstrap = sub.add_parser(
+        "bootstrap-ci", parents=[common], help="per-model bootstrap accuracy CI"
+    )
+    bootstrap.add_argument("--n-bootstrap", type=int, default=1000)
+    bootstrap.add_argument("--ci-level", type=float, default=0.95)
+    bootstrap.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    family = sub.add_parser(
+        "family-grid", parents=[common], help="accuracy grid by model family/generation"
+    )
+    family.add_argument(
+        "--model-families-csv",
+        default=os.path.join(root, "data", "model_families.csv"),
+    )
+    consistency = sub.add_parser(
+        "consistency",
+        parents=[common],
+        help="run-to-run accuracy variance from a run scored against a repeated "
+        "dataset (see build_consistency_dataset.py); suggested --run-id: validation-20x",
+    )
+    consistency.add_argument(
+        "--n-replicates",
+        type=int,
+        default=DEFAULT_N_REPLICATES,
+        help="must match what build_consistency_dataset.py used for this run's dataset "
+        f"(default {DEFAULT_N_REPLICATES})",
+    )
+    all_checks = sub.add_parser(
+        "all",
+        parents=[common],
+        help="run every check for this language/run-id; skips (doesn't overwrite) any "
+        "check whose output file(s) already exist under <outdir>/<language>/",
+    )
+    all_checks.add_argument("--n-bootstrap", type=int, default=1000)
+    all_checks.add_argument("--ci-level", type=float, default=0.95)
+    all_checks.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    all_checks.add_argument(
+        "--model-families-csv",
+        default=os.path.join(root, "data", "model_families.csv"),
+    )
+    all_checks.add_argument("--n-replicates", type=int, default=DEFAULT_N_REPLICATES)
+    return ap
+
+
+RUNNERS = {
+    "judge-agreement": run_judge_agreement,
+    "self-preference-bias": run_self_preference_bias,
+    "fallback-rate": run_fallback_rate,
+    "bootstrap-ci": run_bootstrap_ci,
+    "family-grid": run_family_grid,
+    "consistency": run_consistency,
+}
+
+# Output file(s) each check writes, keyed by --label -- used by run_all() to decide
+# whether a check has already been run for this language/run-id/label and should be
+# skipped rather than overwritten.
+CHECK_OUTPUT_FILES = {
+    "judge-agreement": lambda label: [f"judge_agreement_kappa_{label}.csv"],
+    "self-preference-bias": lambda label: [f"self_preference_bias_{label}.csv"],
+    "fallback-rate": lambda label: [f"fallback_rate_{label}.csv"],
+    "bootstrap-ci": lambda label: [
+        f"bootstrap_ci_{label}.csv",
+        f"bootstrap_ci_{label}.png",
+    ],
+    "family-grid": lambda label: [f"family_grid_{label}.csv"],
+    "consistency": lambda label: [
+        f"consistency_{label}.csv",
+        f"consistency_{label}_raw.csv",
+        f"consistency_{label}.png",
+    ],
+}
+
+
+def run_all(args: argparse.Namespace, root: str) -> None:
+    """Run every check in CHECKS for this --language/--run-id, in order. A check is
+    SKIPPED (not overwritten) if all of its expected output files already exist under
+    <outdir>/<language>/ -- rerun with a different --label, or delete those files, to
+    force it. A check that errors (e.g. fallback-rate with no fallback pass for this
+    run) is reported and skipped too, rather than aborting the remaining checks."""
+    _section("RUNNING ALL CHECKS")
+    _kv("language", args.language)
+    _kv("run_id", args.run_id)
+    _kv("label", args.label)
+    _kv("outdir", args.outdir)
+
+    for check in CHECKS:
+        expected = [
+            os.path.join(args.outdir, name)
+            for name in CHECK_OUTPUT_FILES[check](args.label)
+        ]
+        if all(os.path.exists(p) for p in expected):
+            print(f"\n[{check}] output already exists -- skipping:")
+            for p in expected:
+                print(f"    {p}")
+            continue
+        print(f"\n[{check}] running...")
+        try:
+            RUNNERS[check](args, root)
+        except SystemExit as e:
+            print(f"[{check}] ABORTED: {e}")
+        except Exception as e:  # noqa: BLE001 -- keep running the remaining checks
+            print(f"[{check}] FAILED: {e}")
+
+
+RUNNERS["all"] = run_all
+
+
+def main() -> None:
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(here)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+
+    args = build_parser(root).parse_args()
+    if args.label is None:
+        args.label = f"{args.language}_{args.run_id}"
+    args.outdir = os.path.join(args.outdir, args.language)
+
+    RUNNERS[args.check](args, root)
+
+
+if __name__ == "__main__":
+    main()

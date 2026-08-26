@@ -41,12 +41,26 @@ Outputs (under --outdir, tagged with --label):
     judge_analysis_<label>.csv                 (c) per-model ensemble vs solo-judge accuracy
     judge_pairwise_agreement_<label>.csv       (c) pairwise judge agreement, all models combined
     judge_accuracy_<label>.png                 (c) grouped bars: ensemble vs each judge, per model
+    accuracy_by_model_size_<label>.png         only with --model-size: one accuracy barplot,
+                                                with bars colored by estimated RAM tier
+                                                (<4GB, 4-12GB, 12-35GB, >35GB) from
+                                                models.csv's `size`; Cloud bars are grey
+    accuracy_by_hardware_<label>.png           only with --hardware: four accuracy barplots,
+                                                grouped by estimated RAM tier (<4GB, 4-12GB,
+                                                12-35GB, >35GB) from models.csv's `size`
+    accuracy_boxplot_<label>.png               only with --boxplot: four hardware-tier
+                                                groups, each pairing English and Kiswahili
+                                                model-accuracy distributions
+    accuracy_swarplot_<label>.png              only with --swarplot: the paired boxplot
+                                                with individual model accuracies jittered
+                                                underneath
 
 Run (--language and --run-id are mandatory; --run-id selects the judge-bench run's
 CSVs, or pass --summary/--detailed to point at exact files instead):
     python benchmarks/linguistic_knowledge_benchmark/scripts/analyze_results.py --language english --run-id default
     python .../analyze_results.py --language kiswahili --run-id v10-full-dataset
     python .../analyze_results.py --language kiswahili --run-id default --summary ... --detailed ... --label ...
+    python .../analyze_results.py --language kiswahili --run-id default --model-size   # also write accuracy_by_model_size_*.png
 
 Restrict the domain×grade analysis to a band of models by overall accuracy
 (--min-accuracy / --max-accuracy, in %); the band is stamped into the plot titles
@@ -70,6 +84,33 @@ from matplotlib.patches import Patch
 
 # Fallback bar color for models with no provider / no provider color.
 DEFAULT_BAR_COLOR = "#4e79a7"
+
+# Model-size buckets for --model-size and hardware tiers for --hardware, by total
+# parameter count (models.csv's `size` column). Buckets use total params, not MoE
+# active params.
+SIZE_BUCKET_UNKNOWN = "12B+ / unknown"
+SIZE_BUCKETS = [
+    (0, 4e9, "<4B"),
+    (4e9, 12e9, "4-12B"),
+]
+SIZE_BUCKET_COLORS = {
+    "<4B": "#59a14f",
+    "4-12B": "#4e79a7",
+    SIZE_BUCKET_UNKNOWN: "#bab0ac",
+}
+
+HARDWARE_TIERS = [
+    (0, 4e9, "Mobile (<4GB RAM)"),
+    (4e9, 12e9, "Tablet (4-12GB RAM)"),
+    (12e9, 35e9, "Workstation (12-35GB RAM)"),
+    (35e9, float("inf"), "Cloud (>35GB RAM)"),
+]
+HARDWARE_TIER_COLORS = {
+    "Mobile (<4GB RAM)": "#59a14f",
+    "Tablet (4-12GB RAM)": "#4e79a7",
+    "Workstation (12-35GB RAM)": "#f28e2b",
+    "Cloud (>35GB RAM)": "#bab0ac",
+}
 
 # Fixed spine (same order as eda_pipeline.py) so empty domains/grades still show.
 DOMAINS = [f"D{i}" for i in range(1, 10)]
@@ -326,6 +367,62 @@ def _provider_legend_handles(
     return [Patch(facecolor=provider_color[p], label=p) for p in seen]
 
 
+def load_model_sizes(models_csv: str) -> dict:
+    """model_id -> total parameter count (float), from models.csv's `size` column.
+
+    Empty dict if the file or column is missing. A model present in the file with a
+    blank `size` (e.g. a closed-source model whose parameter count isn't published)
+    maps to None -- distinct from being absent, both bucket as SIZE_BUCKET_UNKNOWN.
+    """
+    if not os.path.exists(models_csv):
+        return {}
+    m = pd.read_csv(models_csv)
+    if "size" not in m.columns:
+        return {}
+    return {
+        row.model_id: (None if pd.isna(row.size) else float(row.size))
+        for row in m.itertuples()
+    }
+
+
+def size_bucket(size: float | None) -> str:
+    """Bucket label for a parameter count (see SIZE_BUCKETS), or SIZE_BUCKET_UNKNOWN
+    if size is None/NaN."""
+    if size is None or pd.isna(size):
+        return SIZE_BUCKET_UNKNOWN
+    for lo, hi, label in SIZE_BUCKETS:
+        if lo <= size < hi:
+            return label
+    return SIZE_BUCKET_UNKNOWN
+
+
+def hardware_tier(size: float | None) -> str:
+    """Return the estimated RAM tier for a total parameter count."""
+    if size is None or pd.isna(size):
+        return HARDWARE_TIERS[-1][2]
+    for lo, hi, label in HARDWARE_TIERS:
+        if lo <= size < hi:
+            return label
+    return HARDWARE_TIERS[-1][2]
+
+
+def _bar_colors_by_size(models: list[str], sizes: dict) -> list[str]:
+    """One bar color per model = its parameter-count bucket's color."""
+    return [SIZE_BUCKET_COLORS[size_bucket(sizes.get(m))] for m in models]
+
+
+def _size_bucket_legend_handles(models: list[str], sizes: dict) -> list[Patch]:
+    """Legend patches for the size buckets present among `models`, in bucket order
+    (smallest to largest, SIZE_BUCKET_UNKNOWN last)."""
+    order = [label for *_, label in SIZE_BUCKETS] + [SIZE_BUCKET_UNKNOWN]
+    present = {size_bucket(sizes.get(m)) for m in models}
+    return [
+        Patch(facecolor=SIZE_BUCKET_COLORS[label], label=label)
+        for label in order
+        if label in present
+    ]
+
+
 def load_detailed(path: str) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     """Return (wide detailed df, long correctness df, model list).
 
@@ -349,44 +446,44 @@ def load_detailed(path: str) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
 # --------------------------------------------------------------------------- #
 # Plots
 # --------------------------------------------------------------------------- #
-def plot_accuracy(
+def _plot_accuracy_bars(
     summary: pd.DataFrame,
     out: str,
-    title: str = "Linguistic Knowledge Benchmark Performance",
-    display_names: dict | None = None,
-    model_provider: dict | None = None,
-    provider_color: dict | None = None,
+    title: str,
+    display_names: dict | None,
+    colors: list[str],
+    legend_handles: list[Patch] | None,
+    legend_title: str | None,
 ) -> None:
+    """Shared renderer for the per-model accuracy bar chart: same bars/labels/style
+    for plot_accuracy() and plot_accuracy_by_size(), which differ only in how bars
+    are colored and what (if any) legend they show."""
     s = summary.sort_values("accuracy", ascending=False)
     models = s["model"].tolist()
     x = np.arange(len(models))
-    model_provider = model_provider or {}
-    provider_color = provider_color or {}
 
     fig, ax = plt.subplots(figsize=(12, 4.5))
-    colors = _bar_colors(models, model_provider, provider_color)
     bars = ax.bar(x, s["accuracy"], color=colors)
     ax.set_ylabel("Accuracy (%)")
     ax.set_ylim(0, 106)
     ax.set_xticks(x)
     ax.set_xticklabels(
-        _labels(models, display_names), rotation=35, ha="right", fontsize=8
+        _labels(models, display_names), rotation=35, ha="right", fontsize=7
     )
     ax.set_title(title, fontweight="bold", pad=16, fontsize=15)
     for b, a in zip(bars, s["accuracy"]):
         ax.text(
-            b.get_x() + b.get_width() / 2, a + 1, f"{a:.0f}", ha="center", fontsize=8
+            b.get_x() + b.get_width() / 2, a + 1, f"{a:.0f}", ha="center", fontsize=7
         )
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="y", color="#eeeeee")
     ax.set_axisbelow(True)
 
-    # Provider colour legend, placed to the right of the axes.
-    handles = _provider_legend_handles(models, model_provider, provider_color)
-    if handles:
+    # Colour legend, placed to the right of the axes.
+    if legend_handles:
         ax.legend(
-            handles=handles,
-            title="Provider",
+            handles=legend_handles,
+            title=legend_title,
             loc="center left",
             bbox_to_anchor=(1.01, 0.5),
             frameon=False,
@@ -395,6 +492,289 @@ def plot_accuracy(
         )
     fig.tight_layout()
     # bbox_inches="tight" so the right-hand legend is not clipped.
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_accuracy(
+    summary: pd.DataFrame,
+    out: str,
+    title: str = "Linguistic Knowledge Benchmark Performance",
+    display_names: dict | None = None,
+    model_provider: dict | None = None,
+    provider_color: dict | None = None,
+) -> None:
+    model_provider = model_provider or {}
+    provider_color = provider_color or {}
+    models = summary.sort_values("accuracy", ascending=False)["model"].tolist()
+    colors = _bar_colors(models, model_provider, provider_color)
+    handles = _provider_legend_handles(models, model_provider, provider_color)
+    _plot_accuracy_bars(
+        summary, out, title, display_names, colors, handles or None, "Provider"
+    )
+
+
+def plot_accuracy_by_size(
+    summary: pd.DataFrame,
+    out: str,
+    title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
+    display_names: dict | None = None,
+    sizes: dict | None = None,
+    model_provider: dict | None = None,
+    provider_color: dict | None = None,
+) -> None:
+    """Plot one accuracy barplot with bars colored by hardware/RAM tier."""
+    sizes = sizes or {}
+    ordered = summary.sort_values("accuracy", ascending=False)
+    models = ordered["model"].tolist()
+    colors = [HARDWARE_TIER_COLORS[hardware_tier(sizes.get(model))] for model in models]
+    present = {hardware_tier(sizes.get(model)) for model in models}
+    handles = [
+        Patch(facecolor=HARDWARE_TIER_COLORS[label], label=label)
+        for _, _, label in HARDWARE_TIERS
+        if label in present
+    ]
+    _plot_accuracy_bars(
+        summary,
+        out,
+        title,
+        display_names,
+        colors,
+        handles or None,
+        "Hardware tier",
+    )
+
+
+def plot_accuracy_by_hardware(
+    summary: pd.DataFrame,
+    out: str,
+    title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
+    display_names: dict | None = None,
+    sizes: dict | None = None,
+    model_provider: dict | None = None,
+    provider_color: dict | None = None,
+    cloud_grey: bool = False,
+) -> None:
+    """Plot one accuracy barplot per estimated hardware/RAM tier."""
+    sizes = sizes or {}
+    model_provider = model_provider or {}
+    provider_color = provider_color or {}
+    ordered = summary.sort_values("accuracy", ascending=False)
+    fig, axes = plt.subplots(1, len(HARDWARE_TIERS), figsize=(18, 5), sharey=True)
+
+    for ax, (_, _, tier_label) in zip(axes, HARDWARE_TIERS):
+        tier_summary = ordered[
+            ordered["model"].map(lambda model: hardware_tier(sizes.get(model)))
+            == tier_label
+        ]
+        models = tier_summary["model"].tolist()
+        x = np.arange(len(models))
+        colors = _bar_colors(models, model_provider, provider_color)
+        if cloud_grey and tier_label == HARDWARE_TIERS[-1][2]:
+            colors = [SIZE_BUCKET_COLORS[SIZE_BUCKET_UNKNOWN]] * len(models)
+        ax.bar(x, tier_summary["accuracy"], color=colors)
+        ax.set_title(tier_label, fontsize=10, fontweight="bold")
+        ax.set_ylim(0, 106)
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            _labels(models, display_names), rotation=45, ha="right", fontsize=7
+        )
+        ax.grid(axis="y", color="#eeeeee")
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+        for xi, accuracy in zip(x, tier_summary["accuracy"]):
+            ax.text(xi, accuracy + 1, f"{accuracy:.0f}", ha="center", fontsize=7)
+
+    axes[0].set_ylabel("Accuracy (%)")
+    handles = _provider_legend_handles(
+        ordered["model"].tolist(), model_provider, provider_color
+    )
+    if handles:
+        fig.legend(
+            handles=handles,
+            title="Provider",
+            loc="center left",
+            bbox_to_anchor=(1.0, 0.5),
+            frameon=False,
+            fontsize=8,
+            title_fontsize=9,
+        )
+    fig.suptitle(title, fontweight="bold", fontsize=15)
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_accuracy_boxplot(
+    summaries: dict[str, pd.DataFrame],
+    out: str,
+    title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
+    sizes: dict | None = None,
+) -> None:
+    """Plot boxplots whose whiskers are bootstrap 95% CIs for the mean."""
+    sizes = sizes or {}
+    tier_labels = [label for _, _, label in HARDWARE_TIERS]
+    languages = ["english", "kiswahili"]
+    language_labels = {"english": "English", "kiswahili": "Kiswahili"}
+    language_colors = {"english": "#4e79a7", "kiswahili": "#f28e2b"}
+    positions = np.arange(len(tier_labels)) * 3.0
+    width = 0.8
+    rng = np.random.default_rng(42)
+
+    def bootstrap_stats(values: list[float]) -> dict:
+        values_array = np.asarray(values, dtype=float)
+        if len(values_array) == 1:
+            ci_low = ci_high = float(values_array[0])
+        else:
+            samples = rng.choice(
+                values_array, size=(1000, len(values_array)), replace=True
+            )
+            means = samples.mean(axis=1)
+            ci_low, ci_high = np.percentile(means, [2.5, 97.5])
+        return {
+            "label": "",
+            "q1": float(np.percentile(values_array, 25)),
+            "med": float(np.percentile(values_array, 50)),
+            "q3": float(np.percentile(values_array, 75)),
+            "whislo": float(ci_low),
+            "whishi": float(ci_high),
+            "fliers": [],
+        }
+
+    stats_by_language = {}
+    for language in languages:
+        summary = summaries[language]
+        stats_by_language[language] = []
+        for tier_label in tier_labels:
+            values = summary.loc[
+                summary["model"].map(lambda model: hardware_tier(sizes.get(model)))
+                == tier_label,
+                "accuracy",
+            ].tolist()
+            stats_by_language[language].append(bootstrap_stats(values))
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    for offset, language in enumerate(languages):
+        position = positions + (offset - 0.5) * width
+        color = language_colors[language]
+        boxplot = ax.bxp(
+            stats_by_language[language],
+            positions=position,
+            widths=width,
+            patch_artist=True,
+            showfliers=False,
+            capprops={"color": color, "linewidth": 1.2},
+            whiskerprops={"color": color, "linewidth": 1.2},
+            boxprops={"facecolor": color, "alpha": 0.35},
+            medianprops={"color": "#222222", "linewidth": 1.5},
+        )
+        for patch in boxplot["boxes"]:
+            patch.set_label(language_labels[language])
+
+    ax.set_xticks(positions)
+    ax.set_xticklabels(tier_labels)
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(0, 106)
+    ax.set_title(
+        f"{title} (whiskers = 95% bootstrap CI for mean)",
+        fontweight="bold",
+        pad=16,
+        fontsize=15,
+    )
+    handles = [
+        Patch(
+            facecolor=language_colors[language],
+            label=language_labels[language],
+            alpha=0.35,
+        )
+        for language in languages
+    ]
+    ax.legend(handles=handles, frameon=False, title="Language")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#eeeeee")
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_accuracy_swarplot(
+    summaries: dict[str, pd.DataFrame],
+    out: str,
+    title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
+    sizes: dict | None = None,
+) -> None:
+    """Plot jittered model accuracies with transparent English/Kiswahili boxplots."""
+    sizes = sizes or {}
+    tier_labels = [label for _, _, label in HARDWARE_TIERS]
+    languages = ["english", "kiswahili"]
+    language_labels = {"english": "English", "kiswahili": "Kiswahili"}
+    language_colors = {"english": "#4e79a7", "kiswahili": "#f28e2b"}
+    positions = np.arange(len(tier_labels)) * 3.0
+    width = 0.8
+    rng = np.random.default_rng(42)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    for offset, language in enumerate(languages):
+        summary = summaries[language]
+        values_by_tier = []
+        for tier_label in tier_labels:
+            values = summary.loc[
+                summary["model"].map(lambda model: hardware_tier(sizes.get(model)))
+                == tier_label,
+                "accuracy",
+            ].tolist()
+            values_by_tier.append(values)
+
+        positions_for_language = positions + (offset - 0.5) * width
+        color = language_colors[language]
+        for position, values in zip(positions_for_language, values_by_tier):
+            if values:
+                jitter = rng.uniform(-width * 0.28, width * 0.28, len(values))
+                ax.scatter(
+                    position + jitter,
+                    values,
+                    s=24,
+                    color=color,
+                    alpha=0.65,
+                    edgecolors="white",
+                    linewidths=0.5,
+                    zorder=2,
+                )
+
+        boxplot = ax.boxplot(
+            values_by_tier,
+            positions=positions_for_language,
+            widths=width,
+            patch_artist=True,
+            manage_ticks=False,
+            medianprops={"color": "#222222", "linewidth": 1.5},
+            boxprops={"facecolor": color, "alpha": 0.18, "zorder": 3},
+            whiskerprops={"color": color, "zorder": 3},
+            capprops={"color": color, "zorder": 3},
+            flierprops={"marker": "", "alpha": 0},
+        )
+        for patch in boxplot["boxes"]:
+            patch.set_label(language_labels[language])
+
+    ax.set_xticks(positions)
+    ax.set_xticklabels(tier_labels)
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(0, 106)
+    ax.set_title(title, fontweight="bold", pad=16, fontsize=15)
+    handles = [
+        Patch(
+            facecolor=language_colors[language],
+            label=language_labels[language],
+            alpha=0.45,
+        )
+        for language in languages
+    ]
+    ax.legend(handles=handles, frameon=False, title="Language")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#eeeeee")
+    ax.set_axisbelow(True)
+    fig.tight_layout()
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
@@ -824,6 +1204,42 @@ def main() -> None:
         default=100.0,
         help="only include models with overall accuracy <= this (%%)",
     )
+    ap.add_argument(
+        "--model-size",
+        action="store_true",
+        help="also write accuracy_by_model_size_<label>.png: the same accuracy bars, "
+        "colored by parameter-count bucket (<4B, 4-12B; everything else grey) from "
+        "models.csv's `size` column instead of by provider",
+    )
+    ap.add_argument(
+        "--hardware",
+        action="store_true",
+        help="also write accuracy_by_hardware_<label>.png: four accuracy barplots "
+        "grouped by estimated RAM tier (<4GB, 4-12GB, 12-35GB, >35GB) from "
+        "models.csv's `size` column",
+    )
+    ap.add_argument(
+        "--boxplot",
+        action="store_true",
+        help="also write accuracy_boxplot_<label>.png: paired English/Kiswahili "
+        "model-accuracy distributions grouped by hardware tier",
+    )
+    ap.add_argument(
+        "--swarplot",
+        action="store_true",
+        help="also write accuracy_swarplot_<label>.png: paired English/Kiswahili "
+        "transparent boxplots over individual model accuracies by hardware tier",
+    )
+    ap.add_argument(
+        "--english-run-id",
+        default=None,
+        help="run-id for the English summary used by --boxplot (defaults to --run-id)",
+    )
+    ap.add_argument(
+        "--kiswahili-run-id",
+        default=None,
+        help="run-id for the Kiswahili summary used by --boxplot (defaults to --run-id)",
+    )
     args = ap.parse_args()
 
     defaults = default_paths_for(
@@ -898,6 +1314,75 @@ def main() -> None:
         title=f"{language_name} — MCQ vs short-form accuracy per model  (label = MCQ − short)",
         display_names=display_names,
     )
+    if args.model_size:
+        sizes = load_model_sizes(args.models_csv)
+        plot_accuracy_by_size(
+            summary,
+            out(f"accuracy_by_model_size_{args.label}.png"),
+            title=f"{language_name} Linguistic Knowledge Benchmark Performance — by hardware tier",
+            display_names=display_names,
+            sizes=sizes,
+            model_provider=model_provider,
+            provider_color=provider_color,
+        )
+    if args.hardware:
+        sizes = load_model_sizes(args.models_csv)
+        plot_accuracy_by_hardware(
+            summary,
+            out(f"accuracy_by_hardware_{args.label}.png"),
+            title=f"{language_name} Linguistic Knowledge Benchmark Performance — by hardware tier",
+            display_names=display_names,
+            sizes=sizes,
+            model_provider=model_provider,
+            provider_color=provider_color,
+        )
+    if args.boxplot:
+        run_ids = {
+            "english": args.english_run_id or args.run_id,
+            "kiswahili": args.kiswahili_run_id or args.run_id,
+        }
+        boxplot_summaries = {}
+        for language in LANGUAGES:
+            summary_path = default_paths_for(
+                language, os.path.join(root, "results"), run_ids[language]
+            )["summary"]
+            if not os.path.exists(summary_path):
+                raise SystemExit(
+                    f"Cannot create --boxplot: missing {language} summary at "
+                    f"{summary_path}; pass --{language}-run-id to select it"
+                )
+            boxplot_summaries[language] = load_summary(summary_path)
+        sizes = load_model_sizes(args.models_csv)
+        plot_accuracy_boxplot(
+            boxplot_summaries,
+            out(f"accuracy_boxplot_{args.label}.png"),
+            title="English and Kiswahili Linguistic Knowledge Benchmark Performance — by hardware tier",
+            sizes=sizes,
+        )
+    if args.swarplot:
+        if "boxplot_summaries" not in locals():
+            run_ids = {
+                "english": args.english_run_id or args.run_id,
+                "kiswahili": args.kiswahili_run_id or args.run_id,
+            }
+            boxplot_summaries = {}
+            for language in LANGUAGES:
+                summary_path = default_paths_for(
+                    language, os.path.join(root, "results"), run_ids[language]
+                )["summary"]
+                if not os.path.exists(summary_path):
+                    raise SystemExit(
+                        f"Cannot create --swarplot: missing {language} summary at "
+                        f"{summary_path}; pass --{language}-run-id to select it"
+                    )
+                boxplot_summaries[language] = load_summary(summary_path)
+        sizes = load_model_sizes(args.models_csv)
+        plot_accuracy_swarplot(
+            boxplot_summaries,
+            out(f"accuracy_swarplot_{args.label}.png"),
+            title="English and Kiswahili Linguistic Knowledge Benchmark Performance — by hardware tier",
+            sizes=sizes,
+        )
     cell = plot_domain_grade(
         long_sel, out(f"accuracy_by_domain_grade_{args.label}{tag}.png"), note
     )
@@ -947,12 +1432,21 @@ def main() -> None:
         print(f"  {dom} / {GRADE_LABEL.get(grade, grade):<3}  {v:5.1f}%")
 
     print("\nWrote:")
-    for p in [
+    written = [
         out(f"accuracy_by_model_{args.label}.png"),
         out(f"accuracy_mcq_vs_shortform_{args.label}.png"),
         out(f"accuracy_by_domain_grade_{args.label}{tag}.png"),
         out(f"accuracy_by_domain_grade_{args.label}{tag}.csv"),
-    ]:
+    ]
+    if args.model_size:
+        written.append(out(f"accuracy_by_model_size_{args.label}.png"))
+    if args.hardware:
+        written.append(out(f"accuracy_by_hardware_{args.label}.png"))
+    if args.boxplot:
+        written.append(out(f"accuracy_boxplot_{args.label}.png"))
+    if args.swarplot:
+        written.append(out(f"accuracy_swarplot_{args.label}.png"))
+    for p in written:
         print("  ", p)
 
     # ---- (c) judge disagreement / solo-judge accuracy (needs >=2 LLM judges) ----

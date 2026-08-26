@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 import pandas as pd
 import typer
 from dotenv import load_dotenv
-from fab_benchmark_publisher import download_file
 from fdllm import register_models
 
 from linguistic_knowledge_benchmark.judge_bench import (
@@ -30,6 +29,12 @@ from linguistic_knowledge_benchmark.shared_utils import (
 # Add a new language by adding an entry here and dropping its JSON in data/.
 # The medium of evaluation is English for every language: questions are written
 # in English (only their subject changes from language to language).
+#
+# This is the NORMAL way run-bench/judge-bench pick a dataset: each language points
+# directly at one fixed file here, no other configuration needed for everyday use.
+# `--dataset` on both commands (below) is an EXCEPTIONAL escape hatch that overrides
+# this for a single run -- e.g. scoring against the repeated dataset built by
+# scripts/build_consistency_dataset.py for the "consistency" validation check.
 DATASETS: dict[str, dict] = {
     "kiswahili": {
         "path": DATA_DIR / "linguistic_knowledge_eval_kiswahili.json",
@@ -75,12 +80,14 @@ def setup() -> None:
     # Load provider API keys from the repo-root .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
     load_dotenv(REPO_ROOT / ".env")
-    download_file(
-        bucket_name="fab-open-configs",
-        file_name="custom_models.yaml",
-        write_path=REPO_ROOT / "custom_models.yaml",
-        require_auth=False,
-    )
+    # Commented out for now until we can update sync gcp version to version in the
+    # fab-benchmarks-configs repo
+    # download_file(
+    #    bucket_name="fab-open-configs",
+    #    file_name="custom_models.yaml",
+    #    write_path=REPO_ROOT / "custom_models.yaml",
+    #    require_auth=False,
+    # )
     register_models(str(REPO_ROOT / "custom_models.yaml"))
 
 
@@ -122,6 +129,22 @@ def run_bench_cmd(
         "-l",
         help=f"Language to evaluate: one of {', '.join(DATASETS)}",
     ),
+    dataset: str | None = typer.Option(
+        None,
+        "--dataset",
+        help=(
+            "EXCEPTIONAL override: score against a different dataset JSON than this "
+            "language's normal one (the fixed path in the DATASETS registry above). "
+            "FILENAME ONLY, no path -- it's always resolved as DATA_DIR/<dataset>, "
+            "i.e. the file must live directly in data/ alongside the normal "
+            "per-language datasets (e.g. --dataset "
+            "linguistic_knowledge_eval_english_20x.json, not "
+            "data/linguistic_knowledge_eval_english_20x.json or an absolute path). "
+            "Normal usage never needs this. Exists for special one-off runs, e.g. the "
+            "repeated dataset scripts/build_consistency_dataset.py builds for the "
+            "'consistency' validation check."
+        ),
+    ),
 ) -> None:
     """Run Linguistic Knowledge evaluation on LLM models.
 
@@ -150,6 +173,7 @@ def run_bench_cmd(
         models_to_run = list(EVAL_MODELS.keys())
 
     entry = DATASETS[language]
+    dataset_path = DATA_DIR / dataset if dataset is not None else entry["path"]
     if timestamped_output and run_id is None:
         run_id = _timestamp_run_id()
     typer.echo(f"\n=== Running Linguistic Knowledge Benchmark ({language}) ===")
@@ -157,13 +181,18 @@ def run_bench_cmd(
         typer.echo(f"Run ID: {run_id}")
     else:
         typer.echo("Run ID: default (no --run-id supplied)")
+    if dataset is not None:
+        typer.echo(
+            f"NOTE: --dataset override in effect -- scoring against {dataset_path} "
+            f"instead of this language's normal dataset ({entry['path']})."
+        )
 
     for current_model in models_to_run:
         try:
             run_benchmark(
                 model_name=current_model,
                 language_name=entry["language_name"],
-                dataset_path=entry["path"],
+                dataset_path=dataset_path,
                 force=force,
                 retry_errors=retry_errors,
                 run_id=run_id,
@@ -231,6 +260,21 @@ def judge_bench_cmd(
             "responses_judged/ and writes to responses_judged_fallback/."
         ),
     ),
+    dataset: str | None = typer.Option(
+        None,
+        "--dataset",
+        help=(
+            "EXCEPTIONAL override: score against a different dataset JSON than this "
+            "language's normal one (the fixed path in the DATASETS registry above). "
+            "FILENAME ONLY, no path -- always resolved as DATA_DIR/<dataset>, so the "
+            "file must live directly in data/ (e.g. --dataset "
+            "linguistic_knowledge_eval_english_20x.json). Must match whatever "
+            "--dataset (if any) run-bench used to produce this run-id's responses, "
+            "since this also drives the detailed CSV's question metadata merge. "
+            "Normal usage never needs this; see run-bench --dataset's help for when "
+            "it does."
+        ),
+    ),
 ) -> None:
     """Judge Linguistic Knowledge evaluation results.
 
@@ -285,7 +329,12 @@ def judge_bench_cmd(
     typer.echo(f"Judging responses from: {input_dir}")
 
     # Capture the dataset path now: `entry` is reassigned later when merging log fields.
-    dataset_path = entry["path"]
+    dataset_path = DATA_DIR / dataset if dataset is not None else entry["path"]
+    if dataset is not None:
+        typer.echo(
+            f"NOTE: --dataset override in effect -- scoring against {dataset_path} "
+            f"instead of this language's normal dataset ({entry['path']})."
+        )
 
     summaries: list[dict[str, object]] = []
     judged_by_model: dict[str, pd.DataFrame] = {}
@@ -297,7 +346,7 @@ def judge_bench_cmd(
                 judged_df = judge_results_fallback(
                     model_name=current_model,
                     language_name=entry["language_name"],
-                    dataset_path=entry["path"],
+                    dataset_path=dataset_path,
                     judge_models=judge_models,
                     force=force,
                     run_id=run_id,
@@ -306,7 +355,7 @@ def judge_bench_cmd(
                 judged_df = judge_results(
                     model_name=current_model,
                     language_name=entry["language_name"],
-                    dataset_path=entry["path"],
+                    dataset_path=dataset_path,
                     judge_models=judge_models,
                     force=force,
                     run_id=run_id,

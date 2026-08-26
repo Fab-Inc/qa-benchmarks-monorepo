@@ -13,6 +13,7 @@ benchmarks/linguistic_knowledge_benchmark/data/*_workflow
 benchmarks/linguistic_knowledge_benchmark/results/analysis
 benchmarks/linguistic_knowledge_benchmark/results/web
 benchmarks/linguistic_knowledge_benchmark/results/summary_linguistic-knowledge_*_detailed.csv
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_*_[0-9]*x.json
 
 # ============================================================================
 # Python .gitignore template from

@@ -1,0 +1,4 @@
+,claude-sonnet-5_raw_agreement,gpt-5.6-terra_raw_agreement,gemini-3.6-flash_raw_agreement,claude-sonnet-5_kappa,gpt-5.6-terra_kappa,gemini-3.6-flash_kappa
+claude-sonnet-5,1.0,0.9462,0.936,1.0,0.8377,0.8108
+gpt-5.6-terra,0.9462,1.0,0.9669,0.8377,1.0,0.9095
+gemini-3.6-flash,0.936,0.9669,1.0,0.8108,0.9095,1.0
