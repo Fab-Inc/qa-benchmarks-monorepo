@@ -172,6 +172,31 @@ def test_run_bench_propagates_error(runner, monkeypatch) -> None:
     assert "ERROR" in result.output
 
 
+def test_run_bench_dataset_override_prints_note_and_forwards_path(
+    runner, monkeypatch
+) -> None:
+    mock = MagicMock()
+    monkeypatch.setattr(cmd, "run_benchmark", mock)
+    result = runner.invoke(
+        cmd.app,
+        [
+            "run-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--dataset",
+            "linguistic_knowledge_eval_kiswahili_20x.json",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "NOTE: --dataset override in effect" in result.output
+    assert (
+        mock.call_args.kwargs["dataset_path"]
+        == cmd.DATA_DIR / "linguistic_knowledge_eval_kiswahili_20x.json"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # judge-bench
 # --------------------------------------------------------------------------- #
@@ -401,6 +426,133 @@ def test_judge_bench_propagates_error(runner, monkeypatch, tmp_path) -> None:
     )
     assert result.exit_code == 1
     assert "ERROR" in result.output
+
+
+def test_judge_bench_rejects_num_judges_out_of_range(runner: CliRunner) -> None:
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--num-judges",
+            "0",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "--num-judges must be between" in result.output
+
+
+def test_judge_bench_explicit_judge_models_override_num_judges(
+    runner, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    judges = list(DEFAULT_JUDGE_MODELS[:2])
+    cols = {f"is_correct_{jm}": [] for jm in judges}
+    judge = MagicMock(return_value=pd.DataFrame(cols))
+    monkeypatch.setattr(cmd, "judge_results", judge)
+    # >1 judge means compute_summary()'s judge_agreement_mean/judge_disagreement_count
+    # keys are read unconditionally (see cmd.py's "if len(judge_models) > 1" branch) --
+    # unlike _patch_summary's single-judge-shaped fake, this needs both present.
+    monkeypatch.setattr(
+        cmd,
+        "compute_summary",
+        lambda df, model: {
+            "model": model,
+            "accuracy": 80.0,
+            "accuracy_mcq": 90.0,
+            "accuracy_short_form": 70.0,
+            "judge_agreement_mean": None,
+            "judge_disagreement_count": 0,
+        },
+    )
+    args = ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
+    for jm in judges:
+        args += ["--judge-model", jm]
+    result = runner.invoke(cmd.app, args)
+    assert result.exit_code == 0
+    assert judge.call_args.kwargs["judge_models"] == judges
+
+
+def test_judge_bench_dataset_override_prints_note_and_forwards_path(
+    runner, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    judge = MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []}))
+    monkeypatch.setattr(cmd, "judge_results", judge)
+    _patch_summary(monkeypatch)
+    result = runner.invoke(
+        cmd.app,
+        [
+            "judge-bench",
+            "--model",
+            VALID_MODEL,
+            "--language",
+            "kiswahili",
+            "--dataset",
+            "linguistic_knowledge_eval_kiswahili_20x.json",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "NOTE: --dataset override in effect" in result.output
+    assert (
+        judge.call_args.kwargs["dataset_path"]
+        == cmd.DATA_DIR / "linguistic_knowledge_eval_kiswahili_20x.json"
+    )
+
+
+def test_judge_bench_reports_missing_judge_columns(
+    runner, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    judges = list(DEFAULT_JUDGE_MODELS[:2])
+    # Only the first requested judge's column is present -- simulates data already
+    # judged with a narrower judge set, re-run with a wider one but no --force.
+    judge = MagicMock(return_value=pd.DataFrame({f"is_correct_{judges[0]}": []}))
+    monkeypatch.setattr(cmd, "judge_results", judge)
+    args = ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
+    for jm in judges:
+        args += ["--judge-model", jm]
+    result = runner.invoke(cmd.app, args)
+    assert result.exit_code == 1
+    assert "was already judged but only has results for" in result.output
+    assert "Re-run with --force to rejudge" in result.output
+
+
+def test_judge_bench_prints_and_saves_pairwise_agreement(
+    runner, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    judges = list(DEFAULT_JUDGE_MODELS[:2])
+    cols = {f"is_correct_{jm}": [] for jm in judges}
+    judge = MagicMock(return_value=pd.DataFrame(cols))
+    monkeypatch.setattr(cmd, "judge_results", judge)
+    monkeypatch.setattr(
+        cmd,
+        "compute_summary",
+        lambda df, model: {
+            "model": model,
+            "accuracy": 80.0,
+            "accuracy_mcq": 90.0,
+            "accuracy_short_form": 70.0,
+            "judge_agreement_mean": 0.75,
+            "judge_disagreement_count": 3,
+        },
+    )
+    agreement_df = pd.DataFrame([[1.0, 0.8], [0.8, 1.0]], index=judges, columns=judges)
+    monkeypatch.setattr(cmd, "compute_judge_agreement", lambda *a, **k: agreement_df)
+    args = ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
+    for jm in judges:
+        args += ["--judge-model", jm]
+    result = runner.invoke(cmd.app, args)
+    assert result.exit_code == 0
+    assert "Judge agreement: 75.00%" in result.output
+    assert "(3 disagreement(s))" in result.output
+    assert "Pairwise judge agreement" in result.output
+    name = "summary_linguistic-knowledge_kiswahili_default_judge_agreement.csv"
+    assert (tmp_path / "results" / name).exists()
 
 
 # --------------------------------------------------------------------------- #
