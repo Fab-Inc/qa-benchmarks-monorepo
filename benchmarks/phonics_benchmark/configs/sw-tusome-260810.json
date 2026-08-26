@@ -1,0 +1,34 @@
+{
+  "run_id": "sw-tusome-260810",
+  "language": "sw",
+  "items_path": "../data/kiswahili/benchmark_items.jsonl",
+  "prompt_name": "decodability_evaluation",
+  "output_dir": "../outputs",
+  "models": [
+    "gpt-5.6-terra",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "gemini-3.5-flash",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "kimi-k3"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 5,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili)",
+    "unique_texts": 59,
+    "unique_student_profiles": 74,
+    "filter_thresholds": {
+      "max_zero_nondecodable": 6,
+      "max_one_nondecodable": 10,
+      "max_nondecodable_ratio": 0.2,
+      "sample_size_other": 16,
+      "random_state": 42
+    },
+    "provenance": "scripts/ingest_benchmark_data.py -> build_benchmark_item_candidates.py -> filter_benchmark_items.py"
+  }
+}
