@@ -61,6 +61,23 @@ curated after running the benchmark, e.g. using Item Response Theory.
 See [`../README.md`](../README.md) to learn how to set up the run configuration and run
 the benchmark.
 
-## Analysing the benchmark
+## Generate benchmark report
 
-To do.
+Generate a report on benchmark run by running
+
+```shell
+uv run --package phonics-benchmark python \
+   benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+   --run-id $YOUR_RUN_ID \
+   --inspect-sample-size 10
+```
+
+Providing a number for the `--inspect-sample-size` flag will generate a sample of
+benchmark items and each model's responses for you to inspect manually, with only
+relevant columns.
+
+The following responses are excluded from scoring:
+
+- API error (`call_status` is not `success`): These can be re-attempted with
+  `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
+- Parsing error (`parse_ok` is `False`)

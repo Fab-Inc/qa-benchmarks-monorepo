@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 import pandas as pd
-from phonics_benchmark.results import save_results
+from phonics_benchmark.results import (
+    save_results,
+)
 
 
 def test_save_results_writes_jsonl_atomically(tmp_path: Path) -> None:
