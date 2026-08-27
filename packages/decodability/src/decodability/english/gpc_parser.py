@@ -97,10 +97,6 @@ def parse_gpcs(
     - Silent apostrophe: ``'`` positions are skipped without consuming
       a phoneme (``he's`` decodes as ``h + e + s``) — the curriculum
       treats possessive/contracted ``'s`` as an assumed correspondence.
-
-    A post-walk filter prefers parses that avoid the free pass whenever an
-    inventory aligned parse exists, so taught clusters (``ful`` for
-    ``careful``) win over letter-by-letter decomposition.
     """
 
     if max_split_gap < 1:
@@ -199,9 +195,4 @@ def parse_gpcs(
         return tuple(parses)
 
     all_parses = walk(0, 0, 0)
-    strip_free_parses = tuple(
-        parse
-        for parse in all_parses
-        if not any(match.gpc.is_reduced_vowel for match in parse)
-    )
-    return strip_free_parses if strip_free_parses else all_parses
+    return all_parses
