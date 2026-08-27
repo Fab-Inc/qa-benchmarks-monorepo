@@ -480,6 +480,28 @@ def test_judge_bench_dataset_override_prints_note_and_forwards_path(
     runner, monkeypatch, tmp_path
 ) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    # --dataset is filename-only, resolved as DATA_DIR/<dataset> (see cmd.py's help
+    # text) -- point DATA_DIR at tmp_path and write a minimal real dataset file there,
+    # rather than relying on a real (large, gitignored, not-committed) data/*_20x.json
+    # existing on disk. build_detailed() below actually reads this file for real
+    # (unlike judge_results, which is mocked), so it must be valid, parseable JSON
+    # with a question_id column -- a nonexistent path would raise FileNotFoundError.
+    monkeypatch.setattr(cmd, "DATA_DIR", tmp_path)
+    dataset_path = tmp_path / "fake_dataset.json"
+    dataset_path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": 1,
+                    "domain": "D1",
+                    "answer_type": "multiple_choice",
+                    "question": "Example question?",
+                    "expected_answers": ["A"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     judge = MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []}))
     monkeypatch.setattr(cmd, "judge_results", judge)
     _patch_summary(monkeypatch)
@@ -492,15 +514,12 @@ def test_judge_bench_dataset_override_prints_note_and_forwards_path(
             "--language",
             "kiswahili",
             "--dataset",
-            "linguistic_knowledge_eval_kiswahili_20x.json",
+            "fake_dataset.json",
         ],
     )
     assert result.exit_code == 0
     assert "NOTE: --dataset override in effect" in result.output
-    assert (
-        judge.call_args.kwargs["dataset_path"]
-        == cmd.DATA_DIR / "linguistic_knowledge_eval_kiswahili_20x.json"
-    )
+    assert judge.call_args.kwargs["dataset_path"] == dataset_path
 
 
 def test_judge_bench_reports_missing_judge_columns(
