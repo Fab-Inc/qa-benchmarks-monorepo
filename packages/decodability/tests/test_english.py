@@ -13,6 +13,7 @@ from decodability.english.gpc_parser import GPC, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.phoneme_overrides import CMUDICT_OVERRIDES
 from decodability.english.scorers import (
+    GPC_INVENTORY,
     score_known_gpcs_english,
     score_sight_words_english,
 )
@@ -445,3 +446,183 @@ class TestScorersEmptyKnowledge:
         """Empty sight_words set short-circuits to 0.0."""
         student = EnglishStudentKnowledge()
         assert score_sight_words_english("cat", student) == 0.0
+
+
+def _parse_corpus_word(word: str):
+    """Parse a real corpus word under the full UFLI inventory across every CMU
+    variant. Returns (variants, [(variant_index, parse), ...]).
+    """
+    variants = get_word_phonemes(word)
+    parses = [
+        (i, parse)
+        for i, variant in enumerate(variants)
+        for parse in parse_gpcs(word, variant, GPC_INVENTORY)
+    ]
+    return variants, parses
+
+
+class TestRegressionReducedVowelFreePassOnCorpusWords:
+    """Corpus words whose UFLI parse is only reachable via the parser's
+    reduced-vowel free pass: each pairs a bare vowel letter with an unstressed
+    schwa that no taught GPC covers. Regression guard for the free pass in
+    ``parse_gpcs`` — remove it and every one of these becomes undecodable.
+    """
+
+    @pytest.mark.parametrize(
+        "word, reduced_letter",
+        [
+            ("about", "a"),  # leading unstressed a — ultimate_phonics
+            ("sofa", "a"),  # trailing unstressed a — ultimate_phonics
+            ("lion", "o"),  # medial unstressed o — ultimate_phonics
+            ("apron", "o"),  # trailing unstressed o — ultimate_phonics
+            ("planet", "e"),  # trailing unstressed e — ultimate_phonics
+        ],
+    )
+    def test_corpus_word_parses_via_reduced_vowel_free_pass(
+        self, word: str, reduced_letter: str
+    ):
+        _, parses = _parse_corpus_word(word)
+        assert parses, f"{word} should parse under the full UFLI inventory"
+        assert any(
+            any(
+                match.gpc.is_reduced_vowel and match.gpc.grapheme == reduced_letter
+                for match in parse
+            )
+            for _, parse in parses
+        ), f"{word} should use the reduced-vowel free pass on '{reduced_letter}'"
+
+
+class TestRegressionSilentApostropheOnCorpusWords:
+    """Contractions and possessives from the corpora parse only because the
+    parser silently skips ``'`` positions. Regression guard for the silent-
+    apostrophe handling in ``parse_gpcs``.
+    """
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "he's",  # ufli
+            "it's",  # ufli
+            "don't",  # ufli
+            "let's",  # ufli
+            "that's",  # ufli
+        ],
+    )
+    def test_corpus_contraction_parses_with_silent_apostrophe(self, word: str):
+        _, parses = _parse_corpus_word(word)
+        assert parses, f"{word} should parse under the full UFLI inventory"
+        apostrophe_index = word.index("'")
+        for _, parse in parses:
+            covered = {
+                position for match in parse for position in match.letter_positions
+            }
+            assert apostrophe_index not in covered, (
+                f"apostrophe position should be uncovered in {word} parse"
+            )
+            assert all("'" not in match.gpc.grapheme for match in parse), (
+                f"no GPC should carry an apostrophe grapheme in {word} parse"
+            )
+
+
+class TestRegressionCotCaughtMergerOnCorpusWords:
+    """Words from the corpora that only parse under UFLI once cot-caught merger GPCs
+    were added. Each parametrization pins the expected new-GPC id — if the entry is
+    removed from ``UFLI_GPC_INVENTORY`` the parse either disappears or falls
+    back to a different (unattested) decomposition.
+    """
+
+    @pytest.mark.parametrize(
+        "word, gpc_id",
+        [
+            # G168 o → /ɔ/ (cot-caught un-merged; short-o words in the corpora
+            # whose CMU variant carries /ɔ/ rather than /ɑ/).
+            ("dog", "G168"),  # ufli
+            ("long", "G168"),  # ultimate_phonics
+            ("off", "G168"),  # ufli
+            # G169 au → /ɑ/
+            ("august", "G169"),  # ultimate_phonics
+            ("caution", "G169"),  # ultimate_phonics
+            # G170 augh → /ɑ/
+            ("caught", "G170"),  # ultimate_phonics
+            # G171 ough → /ɑ/
+            ("bought", "G171"),  # ultimate_phonics
+        ],
+    )
+    def test_corpus_word_parses_using_new_gpc(self, word: str, gpc_id: str):
+        _, parses = _parse_corpus_word(word)
+        assert parses, f"{word} should parse under the full UFLI inventory"
+        assert any(
+            any(match.gpc.id == gpc_id for match in parse) for _, parse in parses
+        ), f"{word} should parse via {gpc_id}"
+
+
+class TestRegressionNormalizePhonemesOnCorpusWords:
+    """Corpus words whose UFLI parse depends on the two CMUdict fixups in
+    ``_normalize_phonemes``: splitting /ɚ/ into /ə/+/r/ so ``er/ir/ur``
+    endings match the ``er → (ə, r)`` family, and reversing pre-r laxing so
+    coda ``/ɪ r/`` becomes ``/i r/`` and matches ``ee/ea → i``. Regression
+    guard for both fixups.
+    """
+
+    @pytest.mark.parametrize(
+        "word, expected_er_gpc",
+        [
+            ("sister", "G079"),  # ultimate_phonics: er → (ə, r)
+            ("after", "G079"),  # ultimate_phonics: er → (ə, r)
+            ("better", "G079"),  # ultimate_phonics: er → (ə, r)
+        ],
+    )
+    def test_r_colored_schwa_split_lets_er_ending_parse(
+        self, word: str, expected_er_gpc: str
+    ):
+        variants, parses = _parse_corpus_word(word)
+        # Fixup: no variant should still carry the raw /ɚ/ that CMU emits.
+        for variant in variants:
+            assert all(p.ipa != "ɚ" for p in variant), (
+                f"{word}: /ɚ/ should have been split into /ə/+/r/"
+            )
+        assert parses, f"{word} should parse under the full UFLI inventory"
+        assert any(
+            any(match.gpc.id == expected_er_gpc for match in parse)
+            for _, parse in parses
+        ), f"{word} should parse via {expected_er_gpc} (er → ə, r)"
+
+    @pytest.mark.parametrize(
+        "word, expected_vowel_gpc",
+        [
+            ("deer", "G085"),  # ultimate_phonics: ee → i
+            ("beer", "G085"),  # ultimate_phonics: ee → i
+            ("cheer", "G085"),  # ultimate_phonics: ee → i
+            ("year", "G086"),  # ultimate_phonics: ea → i
+        ],
+    )
+    def test_pre_r_laxing_reversal_lets_ee_ea_parse(
+        self, word: str, expected_vowel_gpc: str
+    ):
+        variants, parses = _parse_corpus_word(word)
+        # Fixup: coda /ɪ r/ should have been rewritten to /i r/.
+        for variant in variants:
+            ipas = tuple(p.ipa for p in variant)
+            assert "ɪ" not in ipas, (
+                f"{word}: coda /ɪ/+/r/ should have been re-tensed to /i/+/r/"
+            )
+        assert parses, f"{word} should parse under the full UFLI inventory"
+        assert any(
+            any(match.gpc.id == expected_vowel_gpc for match in parse)
+            for _, parse in parses
+        ), f"{word} should parse via {expected_vowel_gpc}"
+
+    def test_pre_r_laxing_reversal_preserves_prevocalic_ir(self):
+        """A pre-vocalic /ɪ r/ (``lyric`` /lɪrɪk/) is left alone — the fixup
+        only fires in coda position. Regression guard against overreach.
+        """
+        variants = get_word_phonemes("lyric")
+        assert variants
+        # Every variant should still carry the internal /ɪ/+/r/ pair.
+        assert all(
+            any(
+                v[i].ipa == "ɪ" and i + 1 < len(v) and v[i + 1].ipa == "r"
+                for i in range(len(v) - 1)
+            )
+            for v in variants
+        )
