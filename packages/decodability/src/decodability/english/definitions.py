@@ -7,8 +7,7 @@
   in UFLI Foundations. Inline comments annotate entries whose mapping needs
   contextual disambiguation (split digraphs, open syllables, positional
   variants, etc.).
-- ``UFLI_GPC_PAIRS`` / ``UFLI_GPC_PAIRS_FLAT``: derived lookup sets for the
-  parser (tuple-of-phonemes form) and the student-knowledge validator
+- ``UFLI_GPC_PAIRS_FLAT``: derived lookup sets for the student-knowledge validator
   (joined-IPA form).
 """
 
@@ -230,10 +229,6 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G171", "ough", ("ɑ",)),  # resolve cot-caught merger
     ("G172", "ssion", ("ʃ", "ə", "n")),
 ]
-
-UFLI_GPC_PAIRS: frozenset[tuple[str, tuple[str, ...]]] = frozenset(
-    (grapheme, phonemes) for _, grapheme, phonemes in UFLI_GPC_INVENTORY
-)
 
 # Student-facing form: the phoneme side is a single joined IPA string, so a
 # multi-phoneme GPC like ``("x", ("k", "s"))`` reads as ``("x", "ks")``. Used

@@ -3,7 +3,7 @@
 Run from the repository root with:
 
     uv run --frozen --package decodability python \
-        packages/decodability/examples/english_example.py
+        packages/decodability/scripts/english_example.py
 """
 
 from __future__ import annotations

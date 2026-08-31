@@ -4,8 +4,7 @@ Given a word, its phoneme sequence, and a GPC inventory, ``parse_gpcs``
 returns every valid parse — a tuple of ``GPCMatch`` objects covering
 every letter and every phoneme. The module is deliberately narrow: it
 does not pronounce, translate, or score; it only answers the alignment
-question. See ``parse_gpcs`` for the match kinds it recognizes and the
-taught-cluster preference applied to the result.
+question. See ``parse_gpcs`` for the match kinds it recognizes.
 """
 
 from __future__ import annotations
