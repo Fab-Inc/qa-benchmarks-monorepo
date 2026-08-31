@@ -1,0 +1,652 @@
+{
+  "G001": [
+    "at",
+    "cat"
+  ],
+  "G002": [
+    "map",
+    "ham"
+  ],
+  "G003": [
+    "sat",
+    "sip"
+  ],
+  "G004": [
+    "tap",
+    "mat"
+  ],
+  "G005": [
+    "pat",
+    "tip"
+  ],
+  "G006": [
+    "fan",
+    "fit"
+  ],
+  "G007": [
+    "it",
+    "sit"
+  ],
+  "G008": [
+    "nap",
+    "pin"
+  ],
+  "G009": [
+    "an",
+    "am",
+    "ham"
+  ],
+  "G010": [
+    "on",
+    "top"
+  ],
+  "G011": [
+    "dad",
+    "mad"
+  ],
+  "G012": [
+    "cat",
+    "cap"
+  ],
+  "G013": [
+    "up",
+    "mud"
+  ],
+  "G014": [
+    "got",
+    "pig"
+  ],
+  "G015": [
+    "bat",
+    "bit"
+  ],
+  "G016": [
+    "ed",
+    "pet"
+  ],
+  "G017": [
+    "cats",
+    "sits"
+  ],
+  "G018": [
+    "is",
+    "his",
+    "dogs"
+  ],
+  "G019": [
+    "kit",
+    "kid"
+  ],
+  "G020": [
+    "hat",
+    "hit"
+  ],
+  "G021": [
+    "rat",
+    "rip"
+  ],
+  "G022": [
+    "lap",
+    "lip"
+  ],
+  "G023": [
+    "wig",
+    "wet"
+  ],
+  "G024": [
+    "jam",
+    "jet"
+  ],
+  "G025": [
+    "yes",
+    "yam"
+  ],
+  "G026": [
+    "box",
+    "six"
+  ],
+  "G027": [
+    "quit",
+    "quiz"
+  ],
+  "G028": [
+    "van",
+    "vet"
+  ],
+  "G029": [
+    "zip",
+    "zag"
+  ],
+  "G030": [
+    "off",
+    "stuff"
+  ],
+  "G031": [
+    "hill",
+    "bell"
+  ],
+  "G032": [
+    "miss",
+    "grass"
+  ],
+  "G033": [
+    "buzz",
+    "fizz"
+  ],
+  "G034": [
+    "ball",
+    "fall"
+  ],
+  "G035": [
+    "roll",
+    "troll"
+  ],
+  "G036": [
+    "full",
+    "pull"
+  ],
+  "G037": [
+    "kick",
+    "sock"
+  ],
+  "G038": [
+    "ship",
+    "fish"
+  ],
+  "G039": [
+    "this",
+    "that"
+  ],
+  "G040": [
+    "thin",
+    "math"
+  ],
+  "G041": [
+    "chip",
+    "much"
+  ],
+  "G042": [
+    "when",
+    "whip"
+  ],
+  "G043": [
+    "phone",
+    "graph"
+  ],
+  "G044": [
+    "ring",
+    "song"
+  ],
+  "G045": [
+    "pink",
+    "honk"
+  ],
+  "G046": [
+    "make",
+    "cake"
+  ],
+  "G047": [
+    "like",
+    "time"
+  ],
+  "G048": [
+    "home",
+    "bone"
+  ],
+  "G049": [
+    "these",
+    "pete"
+  ],
+  "G050": [
+    "flute",
+    "rule"
+  ],
+  "G051": [
+    "mute",
+    "cube"
+  ],
+  "G052": [
+    "ice",
+    "race"
+  ],
+  "G053": [
+    "age",
+    "huge"
+  ],
+  "G054": [
+    "have",
+    "give",
+    "live"
+  ],
+  "G055": [
+    "boxes",
+    "wishes"
+  ],
+  "G056": [
+    "jumped",
+    "asked"
+  ],
+  "G057": [
+    "played",
+    "filled"
+  ],
+  "G058": [
+    "wanted",
+    "added"
+  ],
+  "G059": [
+    "jumping",
+    "singing"
+  ],
+  "G060": [
+    "baby",
+    "paper"
+  ],
+  "G061": [
+    "he",
+    "she",
+    "we",
+    "be",
+    "me"
+  ],
+  "G062": [
+    "hi",
+    "spider"
+  ],
+  "G063": [
+    "go",
+    "no",
+    "robot"
+  ],
+  "G064": [
+    "music",
+    "unit"
+  ],
+  "G065": [
+    "flu",
+    "ruby"
+  ],
+  "G066": [
+    "catch",
+    "match"
+  ],
+  "G067": [
+    "badge",
+    "fudge"
+  ],
+  "G068": [
+    "wild",
+    "child"
+  ],
+  "G069": [
+    "cold",
+    "gold"
+  ],
+  "G070": [
+    "find",
+    "kind"
+  ],
+  "G071": [
+    "bolt",
+    "colt"
+  ],
+  "G072": [
+    "most",
+    "host"
+  ],
+  "G073": [
+    "my",
+    "fly",
+    "cry"
+  ],
+  "G074": [
+    "happy",
+    "funny"
+  ],
+  "G075": [
+    "apple",
+    "little"
+  ],
+  "G076": [
+    "car",
+    "park"
+  ],
+  "G077": [
+    "for",
+    "corn",
+    "doctor"
+  ],
+  "G078": [
+    "more",
+    "store"
+  ],
+  "G079": [
+    "her",
+    "sister"
+  ],
+  "G080": [
+    "bird",
+    "first"
+  ],
+  "G081": [
+    "hurt",
+    "turn"
+  ],
+  "G082": [
+    "work",
+    "word",
+    "world"
+  ],
+  "G083": [
+    "rain",
+    "wait"
+  ],
+  "G084": [
+    "day",
+    "play"
+  ],
+  "G085": [
+    "see",
+    "keep"
+  ],
+  "G086": [
+    "eat",
+    "team"
+  ],
+  "G087": [
+    "key",
+    "monkey"
+  ],
+  "G088": [
+    "boat",
+    "road"
+  ],
+  "G089": [
+    "snow",
+    "grow"
+  ],
+  "G090": [
+    "toe",
+    "doe"
+  ],
+  "G091": [
+    "pie",
+    "tie"
+  ],
+  "G092": [
+    "high",
+    "night"
+  ],
+  "G093": [
+    "put",
+    "push"
+  ],
+  "G094": [
+    "book",
+    "look"
+  ],
+  "G095": [
+    "moon",
+    "food"
+  ],
+  "G096": [
+    "flew",
+    "chew"
+  ],
+  "G097": [
+    "fruit",
+    "suit"
+  ],
+  "G098": [
+    "blue",
+    "true"
+  ],
+  "G099": [
+    "haul",
+    "august"
+  ],
+  "G100": [
+    "saw",
+    "lawn"
+  ],
+  "G101": [
+    "caught",
+    "taught"
+  ],
+  "G102": [
+    "head",
+    "bread"
+  ],
+  "G103": [
+    "want",
+    "water",
+    "wash"
+  ],
+  "G104": [
+    "coin",
+    "boil"
+  ],
+  "G105": [
+    "boy",
+    "toy"
+  ],
+  "G106": [
+    "out",
+    "cloud"
+  ],
+  "G107": [
+    "cow",
+    "town"
+  ],
+  "G108": [
+    "knee",
+    "knot"
+  ],
+  "G109": [
+    "write",
+    "wrist"
+  ],
+  "G110": [
+    "lamb",
+    "comb"
+  ],
+  "G111": [
+    "faster",
+    "taller"
+  ],
+  "G112": [
+    "fastest",
+    "tallest"
+  ],
+  "G113": [
+    "quickly",
+    "sadly"
+  ],
+  "G114": [
+    "helpless",
+    "fearless"
+  ],
+  "G115": [
+    "helpful",
+    "careful"
+  ],
+  "G116": [
+    "undo",
+    "unhappy"
+  ],
+  "G117": [
+    "preview",
+    "preheat"
+  ],
+  "G118": [
+    "redo",
+    "replay"
+  ],
+  "G119": [
+    "dislike",
+    "distrust"
+  ],
+  "G120": [
+    "cried",
+    "tried"
+  ],
+  "G121": [
+    "flies",
+    "cries"
+  ],
+  "G122": [
+    "babies",
+    "ponies"
+  ],
+  "G123": [
+    "dollar",
+    "collar"
+  ],
+  "G124": [
+    "doctor",
+    "color"
+  ],
+  "G125": [
+    "hair",
+    "chair"
+  ],
+  "G126": [
+    "care",
+    "share"
+  ],
+  "G127": [
+    "bear",
+    "wear"
+  ],
+  "G128": [
+    "hear",
+    "near"
+  ],
+  "G129": [
+    "vein",
+    "rein"
+  ],
+  "G130": [
+    "eight",
+    "weigh"
+  ],
+  "G131": [
+    "they",
+    "hey"
+  ],
+  "G132": [
+    "great",
+    "break"
+  ],
+  "G133": [
+    "straight"
+  ],
+  "G134": [
+    "few",
+    "new"
+  ],
+  "G135": [
+    "feud",
+    "europe"
+  ],
+  "G136": [
+    "cue",
+    "rescue"
+  ],
+  "G137": [
+    "you",
+    "soup",
+    "group"
+  ],
+  "G138": [
+    "bought",
+    "thought"
+  ],
+  "G139": [
+    "though",
+    "dough"
+  ],
+  "G140": [
+    "city",
+    "cent",
+    "cycle"
+  ],
+  "G141": [
+    "gem",
+    "giant",
+    "gym"
+  ],
+  "G142": [
+    "chef",
+    "machine"
+  ],
+  "G143": [
+    "school",
+    "echo"
+  ],
+  "G144": [
+    "sign",
+    "gnat"
+  ],
+  "G145": [
+    "ghost",
+    "ghoul"
+  ],
+  "G146": [
+    "listen",
+    "castle",
+    "whistle"
+  ],
+  "G147": [
+    "action",
+    "nation"
+  ],
+  "G148": [
+    "vision",
+    "version"
+  ],
+  "G149": [
+    "mission",
+    "mansion"
+  ],
+  "G150": [
+    "picture",
+    "nature"
+  ],
+  "G151": [
+    "artist",
+    "dentist"
+  ],
+  "G152": [
+    "reddish",
+    "childish"
+  ],
+  "G153": [
+    "kindness",
+    "darkness"
+  ],
+  "G154": [
+    "payment",
+    "shipment"
+  ],
+  "G155": [
+    "washable",
+    "likable"
+  ],
+  "G156": [
+    "visible",
+    "possible"
+  ],
+  "G157": [
+    "bicycle",
+    "biplane"
+  ],
+  "G158": [
+    "triangle",
+    "tricycle"
+  ],
+  "G159": [
+    "unicorn",
+    "uniform"
+  ]
+}
