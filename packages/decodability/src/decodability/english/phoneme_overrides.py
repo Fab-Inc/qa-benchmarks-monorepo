@@ -14,4 +14,6 @@ Use to:
 - Correct a CMU pronunciation that doesn't match the curriculum's target.
 """
 
-CMUDICT_OVERRIDES: dict[str, list[list[str]]] = {}
+CMUDICT_OVERRIDES: dict[str, list[list[str]]] = {
+    "fine": [["F", "AY1", "N"]],
+}

@@ -256,6 +256,16 @@ class TestPhonemeOverrides:
         variants = get_word_phonemes("zzznotaword")
         assert variants == ((Phoneme("z", False), Phoneme("i", False)),)
 
+    def test_fine_has_only_one_pronunciation_variant(self):
+        variants = get_word_phonemes("fine")
+
+        assert len(variants) == 1
+        assert variants[0] == (
+            Phoneme("f", False),
+            Phoneme("aɪ", False),
+            Phoneme("n", False),
+        )
+
 
 class TestGPCValidation:
     @pytest.mark.parametrize(
