@@ -4,7 +4,8 @@ Build a repeated-question dataset for the "consistency" validation check: N copi
 every question in a language's eval dataset, grouped by item (all N copies of item 1,
 then all N copies of item 2, ...) -- not N full passes of the whole dataset back to
 back. Running run-bench/judge-bench against this file gives N independent samples per
-question, in one single run/cache folder -- the raw material for measuring run-to-run
+question, in one single experiment/cache folder -- the raw material for measuring
+replicate-to-replicate
 accuracy variance (see validate_results.py's "consistency" check, which reads the
 resulting summary/detailed/judge_agreement CSVs).
 
@@ -30,12 +31,12 @@ filename this script printed). Pass the SAME --dataset to both commands, since
 judge-bench's own "detailed" CSV is built by merging judged results onto whatever
 --dataset it was given; passing it consistently means the detailed CSV comes out
 correct on the first try, no separate rebuild step needed:
-    uv run linguistic-knowledge-benchmark run-bench --language english --run-id <run-id> \\
+    uv run linguistic-knowledge-benchmark run-bench --language english --experiment-id <experiment-id> \\
         --dataset linguistic_knowledge_eval_english_20x.json
-    uv run linguistic-knowledge-benchmark judge-bench --language english --run-id <run-id> \\
+    uv run linguistic-knowledge-benchmark judge-bench --language english --experiment-id <experiment-id> \\
         --dataset linguistic_knowledge_eval_english_20x.json --num-judges 3
 Then validate_results.py's "consistency" check reads the resulting
-summary/detailed/judge_agreement CSVs for that --run-id directly.
+summary/detailed/judge_agreement CSVs for that --experiment-id directly.
 
 Run (build the repeated dataset itself -- a separate, one-off step from the above):
     uv run python benchmarks/linguistic_knowledge_benchmark/scripts/build_consistency_dataset.py --language english
@@ -119,11 +120,11 @@ def main() -> None:
     print(
         "\nNext: pass this file's NAME (not a path -- --dataset is always resolved "
         "relative to data/) as --dataset to BOTH run-bench and judge-bench (same "
-        "--run-id for both), e.g.:\n"
+        "--experiment-id for both), e.g.:\n"
         f"  uv run linguistic-knowledge-benchmark run-bench --language {args.language} "
-        f"--run-id <run-id> --dataset {out_filename}\n"
+        f"--experiment-id <experiment-id> --dataset {out_filename}\n"
         f"  uv run linguistic-knowledge-benchmark judge-bench --language {args.language} "
-        f"--run-id <run-id> --dataset {out_filename} --num-judges 3"
+        f"--experiment-id <experiment-id> --dataset {out_filename} --num-judges 3"
     )
 
 

@@ -3,7 +3,7 @@
 Table of per-model error counts (total/mcq/short-form), for responses vs
 responses_judged.
 
-Scans cache/<language>/runs/<run-id>/responses/ and .../responses_judged/ -- every
+Scans cache/<language>/experiments/<experiment-id>/responses/ and .../responses_judged/ -- every
 per-model CSV written by run-bench / judge-bench -- and prints one row per model that
 has at least one error in either file, split by answer_type so you can tell whether
 --judge-fallback (which only re-judges null MCQ rows) is likely to help:
@@ -24,8 +24,8 @@ If responses_judged's mcq count is high, most of the unscored rows are MCQs that
 (it only targets multiple_choice).
 
 Run:
-    python benchmarks/linguistic_knowledge_benchmark/scripts/check_call_errors.py --language kiswahili --run-id final-135-items
-    python .../check_call_errors.py --language english --run-id default
+    python benchmarks/linguistic_knowledge_benchmark/scripts/check_call_errors.py --language kiswahili --experiment-id final-135-items
+    python .../check_call_errors.py --language english --experiment-id default
 """
 
 from __future__ import annotations
@@ -101,15 +101,17 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("--language", required=True, choices=LANGUAGES)
-    ap.add_argument("--run-id", required=True)
+    ap.add_argument("--experiment-id", required=True)
     args = ap.parse_args()
 
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
-    run_path = os.path.join(root, "cache", args.language, "runs", args.run_id)
+    experiment_path = os.path.join(
+        root, "cache", args.language, "experiments", args.experiment_id
+    )
 
-    responses_counts = scan_responses_dir(os.path.join(run_path, "responses"))
-    judged_counts = scan_judged_dir(os.path.join(run_path, "responses_judged"))
+    responses_counts = scan_responses_dir(os.path.join(experiment_path, "responses"))
+    judged_counts = scan_judged_dir(os.path.join(experiment_path, "responses_judged"))
 
     models = sorted(
         m
@@ -119,7 +121,7 @@ def main() -> None:
     )
 
     if not models:
-        print(f"No errors found under {run_path}")
+        print(f"No errors found under {experiment_path}")
         return
 
     col1, col2 = "responses (total/mcq/sf)", "responses_judged (total/mcq/sf)"

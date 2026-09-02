@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate leaderboard JSON files for the linguistic knowledge benchmark website.
+Generate the leaderboard JSON files for the foundational-literacy cluster's website.
 
-  * default_models = every model that has a result row for that language (no
+One run writes one set of files covering every benchmark x language pair configured in
+SOURCES - the cluster holds 3 benchmark types (LK / DA / DTG) x N languages, e.g.
+"LK English", "DA English", "LK Kiswahili", "DA Kiswahili", "DTG Kiswahili".
+
+  * default_models = every model that has a result row for that pair (no
     frontier-layering / provider-family dedup - the pool is already small enough to
     show in full).
   * cost/size frontier LINES are still computed (raw Pareto, matching the renderer's
@@ -13,22 +17,25 @@ This script only WRITES local JSON files under --outdir - it does not upload any
 Inputs:
   data/models.csv       model metadata (price, size, provider, open, release_date, ...)
   data/providers.csv    provider colors + SVG logos
-  --run-id (mandatory)  selects each language's judge-bench summary CSV:
-                            results/summary_linguistic-knowledge_<language>_<run-id>.csv
-  LANGUAGE_SOURCES below - per language, benchmark_domain/display_name/accuracy_column
-                            (edit this dict to add a language or change its accuracy column)
+  BENCHMARK_TYPES / LANGUAGES / SOURCES below - the benchmark x language matrix. Each
+                            SOURCES row hardcodes its own judge-bench summary CSV, so
+                            pairs do not have to share a experiment-id and may point at a
+                            sibling benchmark's results/ directory. Edit those tables to
+                            publish a different run or a new pair - no CLI override.
 
-Outputs (--outdir, default results/web/; <prefix> is fabai_<env>_, --env is just a
-filename tag here - no upload is performed):
-  <prefix>leaderboard_configmeta_linguistic_knowledge.json
-  <prefix>leaderboard_providermeta_linguistic_knowledge.json
-  <prefix>leaderboard_data_linguistic_knowledge.json
-  <prefix>leaderboard_data_costfrontier_linguistic_knowledge.json
-  <prefix>leaderboard_data_sizefrontier_linguistic_knowledge.json
+Outputs (--outdir, default results/web/) follow the website filename convention
+<timestamp>_<cluster-name>_<file-name>.json, where <timestamp> is ISO 8601 UTC with the
+time compacted (no colons - those are illegal in Windows filenames). The timestamp is
+generated fresh on every run and shared by all five files of that run, e.g.:
+  2026-08-27T142530Z_foundational-literacy_configmeta.json
+  2026-08-27T142530Z_foundational-literacy_providermeta.json
+  2026-08-27T142530Z_foundational-literacy_data.json
+  2026-08-27T142530Z_foundational-literacy_data-costfrontier.json
+  2026-08-27T142530Z_foundational-literacy_data-sizefrontier.json
 
-Run (--run-id is mandatory):
-    python benchmarks/linguistic_knowledge_benchmark/scripts/results_for_website.py --run-id default
-    python .../results_for_website.py --run-id v10-full-dataset --env prod --outdir /tmp/out
+Run (no arguments needed - the CSVs to publish are hardcoded in SOURCES):
+    python benchmarks/linguistic_knowledge_benchmark/scripts/results_for_website.py
+    python .../results_for_website.py --outdir /tmp/out
 """
 
 from __future__ import annotations
@@ -36,6 +43,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -45,27 +53,130 @@ ROOT = HERE.parent
 DATA_DIR = ROOT / "data"
 RESULTS_DIR = ROOT / "results"
 
-# Which accuracy column feeds each language's leaderboard entries, and the
-# benchmark_domain id used throughout the JSON output (matches the existing CDPK
-# multilingual leaderboard's EN/SW ids, so this benchmark's models line up with that
-# leaderboard's if the two are ever compared or merged). The summary CSV itself is
-# resolved from --run-id (see summary_csv_path below), not hardcoded here.
-LANGUAGE_SOURCES: dict[str, dict] = {
-    "english": {
-        "benchmark_domain": "EN",
-        "display_name": "English",
-        "accuracy_column": "accuracy",
-    },
-    "kiswahili": {
-        "benchmark_domain": "SW",
-        "display_name": "Kiswahili",
-        "accuracy_column": "accuracy",
-    },
+# Cluster this benchmark belongs to on the website; the middle segment of every output
+# filename (<timestamp>_<cluster-name>_<file-name>.json).
+CLUSTER_NAME = "foundational-literacy"
+
+# The foundational-literacy cluster is a matrix of benchmark types x languages: the
+# website shows one selector per (benchmark, language) pair, e.g. "LK English",
+# "DA English", "LK Kiswahili", "DA Kiswahili", "DTG Kiswahili". Add a benchmark type or a
+# language once below, then add one SOURCES row per pair you have results for.
+BENCHMARK_TYPES: dict[str, str] = {
+    "LK": "Linguistic Knowledge",
+    "DA": "Decodability Assessment",
+    "DTG": "Decodable Text Generation",
 }
 
+# code is the ISO 639-1 language code and feeds the benchmark_domain id (LK-sw);
+# display_name feeds the selector label (LK Kiswahili).
+LANGUAGES: dict[str, dict[str, str]] = {
+    "english": {"code": "en", "display_name": "English"},
+    "kiswahili": {"code": "sw", "display_name": "Kiswahili"},
+}
 
-def summary_csv_path(language: str, run_id: str) -> Path:
-    return RESULTS_DIR / f"summary_linguistic-knowledge_{language}_{run_id}.csv"
+# One row per (benchmark, language) pair to publish.
+#
+# summary_csv names the scores file to publish for that pair - every pair points at its
+# own file, so each benchmark keeps its results wherever it produces them. Relative paths
+# resolve under this benchmark's results/; absolute paths and ../ paths into a sibling
+# benchmark both work. summary_csv=None means "pair exists but has no results yet" - the
+# row is skipped with a note instead of failing the run.
+#
+# The file only has to carry these columns (anything else in it is ignored):
+#   model                            model id, must match a model_id in data/models.csv
+#                                    (rows that match nothing are dropped with a warning)
+#   <accuracy_column>                the score, 0-100 - "accuracy" unless overridden below
+#   scored_count, unscored_count     optional; feed the sample size n and the bad_format
+#                                    share. Without them both are reported as 0.
+#
+# accuracy_column selects which score column of that CSV becomes the leaderboard value.
+#
+# The order here defines the order of the columns on the website leaderboard. Rows with no
+# summary_csv still hold their slot, so filling one in later needs no reordering.
+SOURCES: list[dict] = [
+    {
+        "benchmark": "LK",
+        "language": "english",
+        "accuracy_column": "accuracy",
+        "summary_csv": "summary_linguistic-knowledge_english_final-137-items_fallback.csv",
+    },
+    {
+        "benchmark": "DA",
+        "language": "english",
+        "accuracy_column": "accuracy",
+        "summary_csv": None,
+    },
+    {
+        "benchmark": "LK",
+        "language": "kiswahili",
+        "accuracy_column": "accuracy",
+        "summary_csv": "summary_linguistic-knowledge_kiswahili_final-135-items_fallback.csv",
+    },
+    {
+        "benchmark": "DA",
+        "language": "kiswahili",
+        "accuracy_column": "accuracy",
+        "summary_csv": None,
+    },
+    {
+        "benchmark": "DTG",
+        "language": "kiswahili",
+        "accuracy_column": "accuracy",
+        "summary_csv": None,
+    },
+]
+
+
+def resolve_sources() -> tuple[list[dict], list[str]]:
+    """Expand SOURCES into (rows to publish, labels skipped for having no results yet).
+
+    Each published row carries the derived benchmark_domain id ("LK-sw"), the selector
+    label ("LK Kiswahili"), the resolved CSV path and its accuracy column.
+    """
+    script = Path(__file__).name
+    resolved: list[dict] = []
+    skipped: list[str] = []
+    for i, src in enumerate(SOURCES):
+        bench, lang = src["benchmark"], src["language"]
+        if bench not in BENCHMARK_TYPES:
+            raise SystemExit(
+                f"ERROR: SOURCES[{i}] benchmark '{bench}' is not in BENCHMARK_TYPES "
+                f"({', '.join(BENCHMARK_TYPES)}) - add it in {script}"
+            )
+        if lang not in LANGUAGES:
+            raise SystemExit(
+                f"ERROR: SOURCES[{i}] language '{lang}' is not in LANGUAGES "
+                f"({', '.join(LANGUAGES)}) - add it in {script}"
+            )
+        domain = f"{bench}-{LANGUAGES[lang]['code']}"
+        label = f"{bench} {LANGUAGES[lang]['display_name']}"
+        if not src["summary_csv"]:
+            skipped.append(label)
+            continue
+        configured = Path(src["summary_csv"])
+        path = configured if configured.is_absolute() else RESULTS_DIR / configured
+        if not path.is_file():
+            raise SystemExit(
+                f"ERROR: summary CSV for {label} not found: {path}\n"
+                f"       fix SOURCES[{i}]['summary_csv'] in {script}"
+            )
+        resolved.append(
+            {
+                "benchmark_domain": domain,
+                "display_name": label,
+                "summary_csv": path,
+                "accuracy_column": src["accuracy_column"],
+            }
+        )
+    domains = [r["benchmark_domain"] for r in resolved]
+    duplicates = sorted({d for d in domains if domains.count(d) > 1})
+    if duplicates:
+        raise SystemExit(
+            f"ERROR: duplicate benchmark/language pairs in SOURCES: {', '.join(duplicates)}"
+        )
+    if not resolved:
+        raise SystemExit("ERROR: no SOURCES row has a summary_csv - nothing to publish")
+    return resolved, skipped
 
 
 def _float_or_none(value: str | None) -> float | None:
@@ -113,8 +224,8 @@ def load_models(models_csv: Path) -> tuple[dict[str, dict], dict[str, int]]:
     return models_db, models_row_index
 
 
-def load_language_results(summary_csv: Path, accuracy_col: str) -> dict[str, dict]:
-    """model_id -> {accuracy, n, bad_format} for one language's summary CSV.
+def load_source_results(summary_csv: Path, accuracy_col: str) -> dict[str, dict]:
+    """model_id -> {accuracy, n, bad_format} for one (benchmark, language) summary CSV.
 
     bad_format is derived from unscored_count / (scored_count + unscored_count) as a
     proxy for "answers that couldn't be judged" - this benchmark's summary CSV has no
@@ -185,20 +296,27 @@ def frontier_line_segments(df_subset: pd.DataFrame, sorting_col: str) -> list[di
     return step_segments(pts)
 
 
-def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, object]:
-    """Assemble all 5 leaderboard payloads from the current CSVs on disk."""
+def build(
+    models_csv: Path, providers_csv: Path, sources: list[dict]
+) -> dict[str, object]:
+    """Assemble all 5 leaderboard payloads from the current CSVs on disk.
+
+    sources comes from resolve_sources(): one row per (benchmark, language) pair being
+    published, each with its own summary CSV.
+    """
     providers_db = load_providers(providers_csv)
     models_db, models_row_index = load_models(models_csv)
 
-    per_language_results = {
-        lang: load_language_results(
-            summary_csv_path(lang, run_id), cfg["accuracy_column"]
+    # benchmark_domain ("LK-sw") -> {model_id: {accuracy, n, bad_format}}
+    per_domain_results = {}
+    for src in sources:
+        print(f"  {src['display_name']}: {src['summary_csv'].name}")
+        per_domain_results[src["benchmark_domain"]] = load_source_results(
+            src["summary_csv"], src["accuracy_column"]
         )
-        for lang, cfg in LANGUAGE_SOURCES.items()
-    }
 
     bench_model_names: set[str] = set()
-    for results in per_language_results.values():
+    for results in per_domain_results.values():
         bench_model_names.update(results)
 
     unresolved = sorted(m for m in bench_model_names if m not in models_row_index)
@@ -257,18 +375,18 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
             "models": provider_models.get(pid, {}),
         }
 
-    # --- File 3: data (one record per model x language with a result) ---
+    # --- File 3: data (one record per model x benchmark-language pair with a result) ---
     data: list[dict] = []
     for model_name in bench_model_names:
         mid = model_id_map[model_name]
         pid = provider_id_map[get_provider(model_name)]
-        for lang, cfg in LANGUAGE_SOURCES.items():
-            entry = per_language_results[lang].get(model_name)
+        for src in sources:
+            entry = per_domain_results[src["benchmark_domain"]].get(model_name)
             if entry is None:
                 continue
             data.append(
                 {
-                    "benchmark_domain": cfg["benchmark_domain"],
+                    "benchmark_domain": src["benchmark_domain"],
                     "modelId": mid,
                     "providerId": pid,
                     "accuracy": entry["accuracy"],
@@ -280,15 +398,15 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
 
     # --- File 1: configmeta ---
     benchmarks_meta = {}
-    for lang, cfg in LANGUAGE_SOURCES.items():
-        results = per_language_results[lang]
+    for src in sources:
+        results = per_domain_results[src["benchmark_domain"]]
         default_models = sorted(
             (m for m in bench_model_names if m in results),
             key=lambda m: results[m]["accuracy"],
             reverse=True,
         )
-        benchmarks_meta[cfg["benchmark_domain"]] = {
-            "displayName": cfg["display_name"],
+        benchmarks_meta[src["benchmark_domain"]] = {
+            "displayName": src["display_name"],
             "categories": [],
             "default_models": [model_id_map[m] for m in default_models],
             "disabled_models": [],
@@ -296,8 +414,8 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
     config_meta = {
         "base_options": {
             "benchmarks": [
-                {"id": cfg["benchmark_domain"], "displayName": cfg["display_name"]}
-                for cfg in LANGUAGE_SOURCES.values()
+                {"id": src["benchmark_domain"], "displayName": src["display_name"]}
+                for src in sources
             ],
             "axes": {"x": "blended_price", "y": "accuracy"},
         },
@@ -313,13 +431,13 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
     for model_name in bench_model_names:
         meta = models_db[model_name]
         pid = provider_id_map[get_provider(model_name)]
-        for lang, cfg in LANGUAGE_SOURCES.items():
-            entry = per_language_results[lang].get(model_name)
+        for src in sources:
+            entry = per_domain_results[src["benchmark_domain"]].get(model_name)
             if entry is None:
                 continue
             rows.append(
                 {
-                    "benchmark": cfg["benchmark_domain"],
+                    "benchmark": src["benchmark_domain"],
                     "accuracy": entry["accuracy"],
                     "cost": meta["blended_price"],
                     "size": meta["size"],
@@ -331,14 +449,14 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
 
     cost_frontier = []
     size_frontier = []
-    for cfg in LANGUAGE_SOURCES.values():
-        lang_id = cfg["benchmark_domain"]
-        df = bench_df[bench_df["benchmark"] == lang_id]
+    for src in sources:
+        domain = src["benchmark_domain"]
+        df = bench_df[bench_df["benchmark"] == domain]
 
         cost_df = df[df["cost"].notnull() & (df["cost"] > 0)]
         cost_frontier.append(
             {
-                "benchmark_domain": lang_id,
+                "benchmark_domain": domain,
                 "lineSegments": frontier_line_segments(cost_df, "cost"),
                 "categories": [],
             }
@@ -349,18 +467,19 @@ def build(models_csv: Path, providers_csv: Path, run_id: str) -> dict[str, objec
         if segs:
             size_frontier.append(
                 {
-                    "benchmark_domain": lang_id,
+                    "benchmark_domain": domain,
                     "lineSegments": segs,
                     "categories": [],
                 }
             )
 
+    # Keys are the <file-name> segment of the output filenames.
     return {
-        "leaderboard_configmeta_linguistic_knowledge.json": config_meta,
-        "leaderboard_providermeta_linguistic_knowledge.json": provider_meta,
-        "leaderboard_data_linguistic_knowledge.json": data,
-        "leaderboard_data_costfrontier_linguistic_knowledge.json": cost_frontier,
-        "leaderboard_data_sizefrontier_linguistic_knowledge.json": size_frontier,
+        "configmeta": config_meta,
+        "providermeta": provider_meta,
+        "data": data,
+        "data-costfrontier": cost_frontier,
+        "data-sizefrontier": size_frontier,
     }
 
 
@@ -369,16 +488,10 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--run-id",
-        required=True,
-        help="run-id passed to judge-bench; selects each language's "
-        "summary_linguistic-knowledge_<language>_<run-id>.csv",
-    )
-    parser.add_argument(
-        "--env",
-        choices=("dev", "beta", "prod"),
-        default="dev",
-        help="filename prefix only (fabai_<env>_...) - no upload is performed",
+        "--cluster",
+        default=CLUSTER_NAME,
+        help="cluster-name segment of the output filenames "
+        f"(<timestamp>_<cluster-name>_<file-name>.json); default {CLUSTER_NAME}",
     )
     parser.add_argument(
         "--outdir",
@@ -392,11 +505,22 @@ def main() -> None:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    payloads = build(Path(args.models_csv), Path(args.providers_csv), args.run_id)
+    sources, skipped = resolve_sources()
+    if skipped:
+        print(f"No results yet, not published: {', '.join(skipped)}")
 
+    print("Reading summary CSVs:")
+    payloads = build(Path(args.models_csv), Path(args.providers_csv), sources)
+
+    # One timestamp per run, generated now, shared by all 5 files. UTC ISO 8601 with the
+    # time compacted: 2026-08-27T142530Z - sorts lexicographically, unambiguous about
+    # timezone, and colon-free so the filename stays valid on Windows.
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H%M%SZ")
+
+    print("Writing:")
     written_paths = []
-    for base_name, payload in payloads.items():
-        out_path = outdir / f"fabai_{args.env}_{base_name}"
+    for file_name, payload in payloads.items():
+        out_path = outdir / f"{timestamp}_{args.cluster}_{file_name}.json"
         out_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
@@ -404,12 +528,12 @@ def main() -> None:
         size_kb = out_path.stat().st_size // 1024
         print(f"  {out_path}  ({size_kb} KB)")
 
-    data_records = payloads["leaderboard_data_linguistic_knowledge.json"]
+    data_records = payloads["data"]
     unique_models = {row["modelId"] for row in data_records}
-    n_providers = len(payloads["leaderboard_providermeta_linguistic_knowledge.json"])
+    n_providers = len(payloads["providermeta"])
     print(
         f"\nDone. {n_providers} providers | {len(unique_models)} models | "
-        f"{len(LANGUAGE_SOURCES)} languages | {len(data_records)} data records"
+        f"{len(sources)} benchmarks | {len(data_records)} data records"
     )
 
 

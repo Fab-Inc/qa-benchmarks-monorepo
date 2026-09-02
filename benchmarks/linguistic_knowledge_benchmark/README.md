@@ -104,7 +104,7 @@ There are two `answer_type`s in current datasets, each scored differently (see
 | [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw responses. Holds the answer-type system prompts.                                                                                                     |
 | [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw responses — regex for MCQ (`parse_answer_mcq`), an LLM judge (or ensemble of judges, majority vote) for short-form — plus an optional LLM fallback for unparseable MCQ rows, and accuracy summaries. |
 | [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                                                               |
-| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `run_dir()` helper, and lists rate-limited models.                                            |
+| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `experiment_dir()` helper, and lists rate-limited models.                                     |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                                                        |
 | [`custom_models.yaml`](../../custom_models.yaml)                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                                                                  |
 | [`.env`](.env)                                                          | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                                                               |
@@ -117,10 +117,10 @@ benchmarks/linguistic_knowledge_benchmark/
   data/                                 # input datasets (tracked in git)
     linguistic_knowledge_eval_kiswahili.json
     linguistic_knowledge_eval_english.json
-  cache/                                # raw run artifacts (gitignored)
+  cache/                                # raw experiment artifacts (gitignored)
     <language>/                         # e.g. kiswahili/, english/
-      runs/
-        default/                        # outputs when no --run-id is given
+      experiments/
+        default/                        # outputs when no --experiment-id is given
           log.json                      # provenance: timestamp + git hash per model per stage
           responses/                    # stage 1: model responses, one CSV per model
             responses_<model>.csv
@@ -128,41 +128,42 @@ benchmarks/linguistic_knowledge_benchmark/
             responses_judged_<model>.csv
           responses_judged_fallback/    # stage 2 fallback (--judge-fallback only)
             responses_judged_<model>.csv
-        <run-id>/                       # non-overwriting named or timestamped run
+        <experiment-id>/                # non-overwriting named or timestamped experiment
           log.json
           responses/
           responses_judged/
   results/                              # final per-language summaries (tracked in git)
-    summary_linguistic-knowledge_<language>_<run-id>[_fallback].csv
+    summary_linguistic-knowledge_<language>_<experiment-id>[_fallback].csv
 ```
 
 **Filename convention for summaries:** fields are separated by `_`; spaces within a
-field are replaced by `-`. The run ID is always present (defaulting to `default`), which
-makes the filename machine-parseable into `{benchmark}_{language}_{run-id}[_{suffix}]`.
+field are replaced by `-`. The experiment ID is always present (defaulting to
+`default`), which makes the filename machine-parseable into
+`{benchmark}_{language}_{experiment-id}[_{suffix}]`.
 
 How outputs flow through the two stages:
 
-1. **`run-bench` → `cache/<language>/runs/<run-id>/responses/`** — each model's raw
-   responses are written to `responses_<model>.csv` (one row per question). `log.json`
-   is updated with `responses_timestamp-utc` and `responses_git-hash` for that model (or
-   the `responses_retry_*` variants when `--retry-errors` is used).
-1. **`judge-bench` → `cache/<language>/runs/<run-id>/responses_judged/`** — those
-   responses are scored and written to `responses_judged_<model>.csv` (the same rows
-   plus `is_correct` / `justification`). With `--judge-fallback`, an extra
+1. **`run-bench` → `cache/<language>/experiments/<experiment-id>/responses/`** — each
+   model's raw responses are written to `responses_<model>.csv` (one row per question).
+   `log.json` is updated with `responses_timestamp-utc` and `responses_git-hash` for
+   that model (or the `responses_retry_*` variants when `--retry-errors` is used).
+1. **`judge-bench` → `cache/<language>/experiments/<experiment-id>/responses_judged/`**
+   — those responses are scored and written to `responses_judged_<model>.csv` (the same
+   rows plus `is_correct` / `justification`). With `--judge-fallback`, an extra
    `responses_judged_fallback/` subfolder is produced for rescued MCQ rows. `log.json`
    is updated with `responses_judged_timestamp-utc` and `responses_judged_git-hash` (or
    the `responses_judged_fallback_*` variants).
 1. **`judge-bench` → `results/`** — accuracy is aggregated across all judged models into
-   `summary_linguistic-knowledge_<language>_<run-id>.csv`, with overall and
+   `summary_linguistic-knowledge_<language>_<experiment-id>.csv`, with overall and
    per-answer-type accuracy. The summary also includes all 10 provenance fields from
    `log.json` (including `llm_judges`/`llm_judges_fallback`, the judge model(s) used) so
    each row records exactly when, from which commit, and by which judge(s) each model's
    responses were produced.
 
-For a clean run, supply `--run-id` or `--timestamped-output` to write to a fresh,
-non-overwriting directory. `cache/` holds run artifacts and is **gitignored** (`data/`
-and `results/` are tracked) — delete it any time, or use `--force`, if you'd rather
-force a clean re-run in place.
+For a clean experiment, supply `--experiment-id` or `--timestamped-output` to write to a
+fresh, non-overwriting directory. `cache/` holds experiment artifacts and is
+**gitignored** (`data/` and `results/` are tracked) — delete it any time, or use
+`--force`, if you'd rather force a clean re-run in place.
 
 ## Setup
 
@@ -221,12 +222,14 @@ Options:
 - `-f, --force` — re-run even if cached responses exist.
 - `--retry-errors` — retry only rows with `call_status=error` from an existing responses
   CSV.
-- `--run-id` — write under `cache/<language>/runs/<run-id>/` instead of `runs/default/`.
-  Must be alphanumeric and hyphens only (no underscores).
-- `--timestamped-output` — generate a UTC timestamp run ID for a non-overwriting run.
+- `--experiment-id` — write under `cache/<language>/experiments/<experiment-id>/`
+  instead of `experiments/default/`. Must be alphanumeric and hyphens only (no
+  underscores).
+- `--timestamped-output` — generate a UTC timestamp experiment ID for a non-overwriting
+  experiment.
 
-Output: `cache/<language>/runs/default/responses/responses_<model>.csv` (or
-`runs/<run-id>/responses/` when `--run-id` is set)
+Output: `cache/<language>/experiments/default/responses/responses_<model>.csv` (or
+`experiments/<experiment-id>/responses/` when `--experiment-id` is set)
 
 The stage-1 CSV keeps model output separate from infrastructure failures:
 
@@ -234,7 +237,7 @@ The stage-1 CSV keeps model output separate from infrastructure failures:
 - `call_status` is `success` or `error`.
 - `error_type` and `error_message` are populated when the model call fails.
 - `retry_count` counts how many times a row was rerun with `--retry-errors` (0 on the
-  first successful run).
+  first successful experiment).
 
 If a cached CSV contains any `call_status=error` rows, a later `run-bench` returns the
 cached rows and prints a warning. Use `--retry-errors` to rerun only those failed rows.
@@ -261,8 +264,9 @@ Options:
   when `--judge-model` isn't given. 1 (default) = single judge; up to 3 for an ensemble
   with majority-vote scoring plus agreement columns.
 - `-f, --force` — re-judge even if judged results exist.
-- `--run-id` — read/write judged artifacts under `cache/<language>/runs/<run-id>/`. Must
-  be alphanumeric and hyphens only (no underscores).
+- `--experiment-id` — read/write judged artifacts under
+  `cache/<language>/experiments/<experiment-id>/`. Must be alphanumeric and hyphens only
+  (no underscores).
 - `--judge-fallback` — re-evaluate MCQ rows the regex *couldn't* parse (`is_correct` is
   null) with the LLM judge. Reads from `responses_judged/`, writes to
   `responses_judged_fallback/`.
@@ -279,13 +283,14 @@ silently mixing judges.
 Outputs:
 
 - Per-model judged CSV:
-  `cache/<language>/runs/<run-id>/responses_judged/responses_judged_<model>.csv`
+  `cache/<language>/experiments/<experiment-id>/responses_judged/responses_judged_<model>.csv`
 - Fallback CSV (with `--judge-fallback`):
-  `cache/<language>/runs/<run-id>/responses_judged_fallback/responses_judged_<model>.csv`
-- Summary across models: `results/summary_linguistic-knowledge_<language>_<run-id>.csv`
-  (or `..._<run-id>_fallback.csv` with `--judge-fallback`)
+  `cache/<language>/experiments/<experiment-id>/responses_judged_fallback/responses_judged_<model>.csv`
+- Summary across models:
+  `results/summary_linguistic-knowledge_<language>_<experiment-id>.csv` (or
+  `..._<experiment-id>_fallback.csv` with `--judge-fallback`)
 - Pairwise judge agreement (only with more than one judge):
-  `results/summary_linguistic-knowledge_<language>_<run-id>[_fallback]_judge_agreement.csv`
+  `results/summary_linguistic-knowledge_<language>_<experiment-id>[_fallback]_judge_agreement.csv`
 
 ### Typical end-to-end flow
 

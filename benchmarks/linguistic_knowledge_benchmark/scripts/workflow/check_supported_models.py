@@ -3,7 +3,7 @@
 Smoke-test every model in benchmark_default_models_display_names.yaml with a single
 throwaway question, via fdllm. Meant to be run before a full run-bench sweep over that
 (much larger) model list, to flag models that are no longer supported/registered or
-whose credentials/endpoint are currently broken -- without burning a full benchmark run
+whose credentials/endpoint are currently broken -- without burning a full benchmark experiment
 on them.
 
 Prints one line per model as it's tested, then a final list of the models that errored.

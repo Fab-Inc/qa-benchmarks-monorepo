@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Fit Item Response Theory to a Linguistic-Knowledge run and recommend a trimmed set.
+Fit Item Response Theory to a Linguistic-Knowledge experiment and recommend a trimmed
+set.
 
 Where it sits: this IS Stage 3b — the selection step (it replaced the old
 feature-map/hard-coded-quota assembler, stage_3b_assemble_v10.py). You run every
@@ -10,7 +11,7 @@ matrix here to select the final dataset.
 
 --language is the only CLI-configurable input; its two data sources are fixed, per-
 language constants (RESULTS_DETAILED_PATH / DATASET_PATH below), not CLI flags -- edit
-those dicts directly if the run being selected from changes:
+those dicts directly if the experiment being selected from changes:
   RESULTS_DETAILED_PATH[language]  the judged results CSV (one row per question,
       produced by judge-bench): question_id, domain, grade, answer_type, question,
       expected_answers, then per model a `<model>_output` and `<model>_correct`
@@ -68,8 +69,8 @@ It also prints two validation diagnostics (cf. Ramprasath 2026, IRT redundancy a
     High median = items genuinely separate models; high Gini (>0.6) = a few items carry
     most of the signal (very reducible), low Gini = signal spread over many items.
 
-Outputs — one directory per run, never overwritten (see --run-id below):
-  <outdir>/irt/<language>_runs/<run-id>/
+Outputs — one directory per experiment, never overwritten (see --experiment-id below):
+  <outdir>/irt/<language>_experiments/<experiment-id>/
     items.csv              per-item difficulty, p-value, point-biserial, selection_freq, flags
     models.csv              per-model ability, full vs selected accuracy, ranks
     selected_ids.json       the kept question_ids (sorted)
@@ -85,18 +86,19 @@ Outputs — one directory per run, never overwritten (see --run-id below):
                             printed per-domain coverage table below answers the same
                             question for domains in text form)
     selection_freq.png      selection_freq distribution over the candidate pool
---outdir defaults to results/; --run-id defaults to "default". If any of the above files
-already exist in that run's directory, the script aborts rather than overwrite them —
-pass a different --run-id (or delete the old run's directory) to rerun.
+--outdir defaults to results/; --experiment-id defaults to "default". If any of the above files
+already exist in that experiment's directory, the script aborts rather than overwrite
+them —
+pass a different --experiment-id (or delete the old run's directory) to rerun.
 
 Selection tuning (TARGET_N, CEILING, MIN_DISCRIMINATION, MAX_PVALUE, MIN_PVALUE,
 LEAVE_OUT above) edit those constants directly and
-rerun with a new --run-id.
+rerun with a new --experiment-id.
 
 Run (--language is the only required flag):
     uv run python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_irt.py --language kiswahili
-    uv run python .../estimate_irt.py --language english --run-id target150
-    uv run python .../estimate_irt.py --language kiswahili --outdir /tmp/irt-runs
+    uv run python .../estimate_irt.py --language english --experiment-id target150
+    uv run python .../estimate_irt.py --language kiswahili --outdir /tmp/irt-experiments
 """
 
 from __future__ import annotations
@@ -126,10 +128,11 @@ _CORRECT_MAP = {"true": 1, "false": 0, "1": 1, "0": 0}
 
 # The two data sources this script always uses -- one pair of paths per language, not a
 # CLI flag (see module docstring's Inputs section). Edit these directly to point at a
-# different run; --language just selects which entry.
+# different experiment; --language just selects which entry.
 #
-# Kiswahili's full-pool eval run is tagged "v10-full-dataset" (528 detailed rows -> 307
-# items scored); English's equivalent run (its whole 377-item stage_3b_dataset_full pool)
+# Kiswahili's full-pool eval experiment is tagged "v10-full-dataset" (528 detailed rows -> 307
+# items scored); English's equivalent experiment (its whole 377-item
+# stage_3b_dataset_full pool)
 # is simply tagged "default". Paths are relative to the package root (joined in main()).
 RESULTS_DETAILED_PATH = {
     "english": os.path.join(
@@ -150,7 +153,8 @@ DATASET_PATH = {
     ),
 }
 
-# Selection tuning, also not CLI flags -- edit these directly to change how a run is
+# Selection tuning, also not CLI flags -- edit these directly to change how an
+# experiment is
 # trimmed (see "How it selects a trimmed dataset" above for what each one controls).
 TARGET_N = 150  # target size of the selected set
 CEILING = 90.0  # top-accuracy ceiling to report against (soft; not hard-enforced)
@@ -170,7 +174,7 @@ def default_results_detailed_for(language: str, root: str) -> str:
     return os.path.join(root, RESULTS_DETAILED_PATH[language])
 
 
-# Fixed filenames written into each run's own directory (see main()'s --run-id / rundir).
+# Fixed filenames written into each experiment's own directory (see main()'s --experiment-id / experiment_dir).
 OUTPUT_FILENAMES = [
     "items.csv",
     "models.csv",
@@ -185,16 +189,16 @@ OUTPUT_FILENAMES = [
 ]
 
 
-def _refuse_if_exists(rundir: str, filenames: list[str]) -> None:
-    """Abort rather than silently overwrite a previous run's output files."""
-    if not os.path.isdir(rundir):
+def _refuse_if_exists(experiment_dir: str, filenames: list[str]) -> None:
+    """Abort rather than silently overwrite a previous experiment's output files."""
+    if not os.path.isdir(experiment_dir):
         return
-    clashes = [f for f in filenames if os.path.exists(os.path.join(rundir, f))]
+    clashes = [f for f in filenames if os.path.exists(os.path.join(experiment_dir, f))]
     if clashes:
         raise SystemExit(
-            f"refusing to overwrite existing run output in {rundir}:\n"
+            f"refusing to overwrite existing experiment output in {experiment_dir}:\n"
             + "\n".join(f"  - {f}" for f in clashes)
-            + "\nUse a different --run-id, or delete these files first."
+            + "\nUse a different --experiment-id, or delete these files first."
         )
 
 
@@ -315,7 +319,7 @@ def check_dataset_matches_results(
         )
     msg.append(
         "  Fix RESULTS_DETAILED_PATH / DATASET_PATH at the top of estimate_irt.py so "
-        "they refer to the same run for this language."
+        "they refer to the same experiment for this language."
     )
     raise SystemExit("\n".join(msg))
 
@@ -770,7 +774,7 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     one's starting size means a small domain/grade that got wiped out shows up as
     clearly as a large one.
 
-    `items` is every item that entered this IRT run (scored or not); "before"
+    `items` is every item that entered this IRT experiment (scored or not); "before"
     counts all of them, "after" counts only those with `selected=True`. Since
     selected is always a subset, the diff panel is >= 0 everywhere (cells never
     gain items).
@@ -885,45 +889,49 @@ def main() -> None:
         "--language",
         required=True,
         choices=LANGUAGES,
-        help="which language's run to analyse -- selects RESULTS_DETAILED_PATH / "
+        help="which language's experiment to analyse -- selects RESULTS_DETAILED_PATH / "
         "DATASET_PATH above, the only two data sources this script reads",
     )
     ap.add_argument(
         "--outdir",
         default=os.path.join(root, "results"),
         help="base results dir; this run's files go under "
-        "<outdir>/irt/<language>_runs/<run-id>/",
+        "<outdir>/irt/<language>_experiments/<experiment-id>/",
     )
     ap.add_argument(
-        "--run-id",
+        "--experiment-id",
         default="default",
-        help="tag for this run's output directory (results/irt/<language>_runs/<run-id>/); "
+        help="tag for this run's output directory (results/irt/<language>_experiments/<experiment-id>/); "
         "pass a specific name, or 'timestamp' to auto-generate one (YYYYmmdd-HHMMSS); "
-        "refuses to overwrite an existing run's files — pick a new --run-id instead",
+        "refuses to overwrite an existing experiment's files — pick a new --experiment-id instead",
     )
     args = ap.parse_args()
     args.results_detailed = os.path.join(root, RESULTS_DETAILED_PATH[args.language])
     args.dataset = os.path.join(root, DATASET_PATH[args.language])
 
-    if args.run_id == "timestamp":
-        args.run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    elif os.sep in args.run_id or "/" in args.run_id:
-        raise SystemExit(f"--run-id must be a bare name, not a path: {args.run_id!r}")
+    if args.experiment_id == "timestamp":
+        args.experiment_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    elif os.sep in args.experiment_id or "/" in args.experiment_id:
+        raise SystemExit(
+            f"--experiment-id must be a bare name, not a path: {args.experiment_id!r}"
+        )
 
-    rundir = os.path.join(args.outdir, "irt", f"{args.language}_runs", args.run_id)
-    _refuse_if_exists(rundir, OUTPUT_FILENAMES)
-    os.makedirs(rundir, exist_ok=True)
+    experiment_dir = os.path.join(
+        args.outdir, "irt", f"{args.language}_experiments", args.experiment_id
+    )
+    _refuse_if_exists(experiment_dir, OUTPUT_FILENAMES)
+    os.makedirs(experiment_dir, exist_ok=True)
 
     def out(name: str) -> str:
-        return os.path.join(rundir, name)
+        return os.path.join(experiment_dir, name)
 
     _section("CONFIG")
     _kv("language", args.language)
     _kv("results_detailed", args.results_detailed)
     _kv("dataset", args.dataset)
     _kv("outdir", args.outdir)
-    _kv("run_id", args.run_id)
-    _kv("rundir", rundir)
+    _kv("experiment_id", args.experiment_id)
+    _kv("experiment_dir", experiment_dir)
     _kv("TARGET_N", TARGET_N)
     _kv("CEILING", CEILING)
     _kv("MIN_DISCRIMINATION", MIN_DISCRIMINATION)

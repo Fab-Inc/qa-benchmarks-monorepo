@@ -20,7 +20,7 @@ from linguistic_knowledge_benchmark.shared_utils import (
     EVAL_MODELS,
     RATE_LIMITED_MODELS,
     english_language_name,
-    run_dir,
+    experiment_dir,
 )
 
 CALL_STATUS_SUCCESS = "success"
@@ -82,12 +82,13 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
-def _responses_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the responses directory for a language/run.
+def _responses_dir(language_name: str, experiment_id: str | None = None) -> Path:
+    """Return the responses directory for a language/experiment.
 
-    Always writes under runs/; omitting run_id uses the 'default' run.
+    Always writes under experiments/; omitting experiment_id uses the 'default'
+    experiment.
     """
-    return run_dir(language_name, run_id) / "responses"
+    return experiment_dir(language_name, experiment_id) / "responses"
 
 
 def git_hash() -> str | None:
@@ -107,10 +108,12 @@ def git_hash() -> str | None:
 
 
 def update_log(
-    run_directory: Path, model_name: str, fields: dict[str, str | list[str] | None]
+    experiment_directory: Path,
+    model_name: str,
+    fields: dict[str, str | list[str] | None],
 ) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
-    log_path = run_directory / "log.json"
+    log_path = experiment_directory / "log.json"
     log_data: dict = {}
     if log_path.exists():
         with open(log_path, encoding="utf-8") as _f:
@@ -166,7 +169,7 @@ def run_benchmark(
     dataset_path: Path,
     force: bool = False,
     retry_errors: bool = False,
-    run_id: str | None = None,
+    experiment_id: str | None = None,
     output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
     """Run the Linguistic Knowledge benchmark for a given model.
@@ -179,20 +182,20 @@ def run_benchmark(
         force: Force re-run even if cached results exist
         retry_errors: Retry rows with persisted call_status="error" in an
             existing cache file
-        run_id: Optional run ID; writes under
-            cache/<language>/runs/<run_id>/responses/.
+        experiment_id: Optional experiment ID; writes under
+            cache/<language>/experiments/<experiment_id>/responses/.
             Defaults to 'default' when not specified.
         output_dir: Directory to save results (default:
-            cache/<language>/runs/<run_id>/responses)
+            cache/<language>/experiments/<experiment_id>/responses)
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
         output, latency, total_tokens, completion_tokens, reasoning_tokens,
         call_status, error_type, error_message, retry_count
     """
     if output_dir is None:
-        output_dir = _responses_dir(language_name, run_id)
+        output_dir = _responses_dir(language_name, experiment_id)
     output_dir = Path(output_dir)
-    run_directory = output_dir.parent
+    experiment_directory = output_dir.parent
 
     # Validate model name
     if model_name not in EVAL_MODELS:
@@ -304,7 +307,7 @@ def run_benchmark(
     results_df.to_csv(cache_path, index=False)
     prefix = "responses_retry" if retry_errors else "responses"
     update_log(
-        run_directory,
+        experiment_directory,
         model_name,
         {
             f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),

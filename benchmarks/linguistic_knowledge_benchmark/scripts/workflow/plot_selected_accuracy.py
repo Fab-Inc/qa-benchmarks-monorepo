@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
 Plot per-model accuracy on a *selected* (trimmed) item subset — e.g. the IRT-selected
-dataset from estimate_irt.py — rather than the full run.
+dataset from estimate_irt.py — rather than the full experiment.
 
-The summary csv from `judge-bench` scores the FULL run; this recomputes accuracy from
+The summary csv from `judge-bench` scores the FULL experiment; this recomputes accuracy
+from
 the DETAILED csv restricted to --select-ids, then reuses analyze_results.py's plotting
-functions so the styling matches the full-run plots exactly.
+functions so the styling matches the full-experiment plots exactly.
 
---select-ids defaults to that --language's --run-id under estimate_irt.py's output tree
-(results/irt/<language>_runs/<run-id>/selected_ids.json) — pass just --language and
---run-id to plot any of its runs; override --select-ids directly for anything else.
+--select-ids defaults to that --language's --experiment-id under estimate_irt.py's output tree
+(results/irt/<language>_experiments/<experiment-id>/selected_ids.json) — pass just --language and
+--experiment-id to plot any of its experiments; override --select-ids directly for
+anything else.
 
 Outputs (under --outdir, tagged with --label):
     accuracy_by_model_<label>.png            overall accuracy per model
@@ -17,7 +19,7 @@ Outputs (under --outdir, tagged with --label):
 
 Run:
     python benchmarks/linguistic_knowledge_benchmark/scripts/workflow/plot_selected_accuracy.py --language kiswahili
-    python .../plot_selected_accuracy.py --language kiswahili --run-id target150
+    python .../plot_selected_accuracy.py --language kiswahili --experiment-id target150
     python .../plot_selected_accuracy.py --language kiswahili --select-ids ... --detailed ... --label ...
 """
 
@@ -78,10 +80,10 @@ def main() -> None:
     )
     ap.add_argument("--language", required=True, choices=LANGUAGES)
     ap.add_argument(
-        "--run-id",
-        dest="run_id",
+        "--experiment-id",
+        dest="experiment_id",
         default="default",
-        help="which estimate_irt.py run to plot (results/irt/<language>_runs/<run-id>/); "
+        help="which estimate_irt.py experiment to plot (results/irt/<language>_experiments/<experiment-id>/); "
         "ignored if --select-ids is passed explicitly",
     )
     ap.add_argument("--detailed", default=None)
@@ -90,7 +92,7 @@ def main() -> None:
         dest="select_ids",
         default=None,
         help="JSON array of question_ids to restrict accuracy to (default: "
-        "results/irt/<language>_runs/<run-id>/selected_ids.json)",
+        "results/irt/<language>_experiments/<experiment-id>/selected_ids.json)",
     )
     ap.add_argument("--outdir", default=os.path.join(root, "results", "analysis"))
     ap.add_argument("--label", default=None, help="tag for output filenames")
@@ -109,20 +111,26 @@ def main() -> None:
             root,
             "results",
             "irt",
-            f"{args.language}_runs",
-            args.run_id,
+            f"{args.language}_experiments",
+            args.experiment_id,
             "selected_ids.json",
         )
     if not os.path.exists(args.select_ids):
-        runs_dir = os.path.join(root, "results", "irt", f"{args.language}_runs")
-        available = sorted(os.listdir(runs_dir)) if os.path.isdir(runs_dir) else []
+        experiments_dir = os.path.join(
+            root, "results", "irt", f"{args.language}_experiments"
+        )
+        available = (
+            sorted(os.listdir(experiments_dir))
+            if os.path.isdir(experiments_dir)
+            else []
+        )
         raise SystemExit(
             f"no such --select-ids file: {args.select_ids}\n"
-            f"available --run-id values for --language {args.language}: "
+            f"available --experiment-id values for --language {args.language}: "
             + (", ".join(available) if available else "(none found)")
         )
     if args.label is None:
-        args.label = f"{args.language}_{args.run_id}"
+        args.label = f"{args.language}_{args.experiment_id}"
 
     os.makedirs(args.outdir, exist_ok=True)
 
@@ -143,7 +151,8 @@ def main() -> None:
     n_mcq = int((sel_meta["answer_type"] == "multiple_choice").sum())
     n_sf = int((sel_meta["answer_type"] == "short_form").sum())
 
-    # Display "Kiswahili" for the kiswahili run, otherwise the capitalized language name.
+    # Display "Kiswahili" for the kiswahili experiment, otherwise the capitalized language
+    # name.
     language_name = {"kiswahili": "Kiswahili"}.get(
         args.language, args.language.capitalize()
     )

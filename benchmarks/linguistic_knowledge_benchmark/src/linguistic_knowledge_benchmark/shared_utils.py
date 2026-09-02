@@ -20,12 +20,18 @@ RATE_LIMITED_MODELS = {
 }
 
 
-def run_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the run directory for a language/run.
+def experiment_dir(language_name: str, experiment_id: str | None = None) -> Path:
+    """Return the experiment directory for a language/experiment.
 
-    Always resolves under runs/; omitting run_id uses the 'default' run.
+    Always resolves under experiments/; omitting experiment_id uses the 'default'
+    experiment.
     """
-    return CACHE_BASE_DIR / language_name.lower() / "runs" / (run_id or "default")
+    return (
+        CACHE_BASE_DIR
+        / language_name.lower()
+        / "experiments"
+        / (experiment_id or "default")
+    )
 
 
 # Some registered language_name display values are the language's own endonym

@@ -21,7 +21,10 @@ from linguistic_knowledge_benchmark.run_bench import (
     load_dataset,
     update_log,
 )
-from linguistic_knowledge_benchmark.shared_utils import english_language_name, run_dir
+from linguistic_knowledge_benchmark.shared_utils import (
+    english_language_name,
+    experiment_dir,
+)
 
 # Independent judges spanning different providers
 # Kept to 3 (odd) so majority_vote() never ties.
@@ -245,7 +248,7 @@ def judge_results(
     dataset_path: Path,
     judge_models: list[str] | None = None,
     force: bool = False,
-    run_id: str | None = None,
+    experiment_id: str | None = None,
 ) -> pd.DataFrame:
     """Score model responses from the Linguistic Knowledge eval.
 
@@ -266,15 +269,15 @@ def judge_results(
             each judge's own verdict lands in
             `is_correct_<judge>`/`justification_<judge>`.
         force: Force re-judge even if judged results exist
-        run_id: Optional run ID; reads/writes under
-            cache/<language>/runs/<run_id>/.
+        experiment_id: Optional experiment ID; reads/writes under
+            cache/<language>/experiments/<experiment_id>/.
             Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct and justification columns
     """
     judge_models = judge_models if judge_models else DEFAULT_JUDGE_MODELS[:1]
-    language_dir = run_dir(language_name, run_id)
+    language_dir = experiment_dir(language_name, experiment_id)
     input_dir = language_dir / "responses"
     judged_dir = language_dir / "responses_judged"
     judge_system_prompt = _build_judge_system_prompt(language_name)
@@ -467,7 +470,7 @@ def judge_results_fallback(
     dataset_path: Path,
     judge_models: list[str] | None = None,
     force: bool = False,
-    run_id: str | None = None,
+    experiment_id: str | None = None,
 ) -> pd.DataFrame:
     """Re-judge null MCQ rows from responses_judged using LLM fallback.
 
@@ -486,15 +489,15 @@ def judge_results_fallback(
             `judge_disagreement_flag_fallback`,
             `is_correct_fallback_<judge>`/`justification_fallback_<judge>`).
         force: Force re-judge even if fallback results exist
-        run_id: Optional run ID; reads/writes under
-            cache/<language>/runs/<run_id>/.
+        experiment_id: Optional experiment ID; reads/writes under
+            cache/<language>/experiments/<experiment_id>/.
             Defaults to 'default' when not specified.
 
     Returns:
         DataFrame with added is_correct_fallback and justification_fallback
     """
     judge_models = judge_models if judge_models else DEFAULT_JUDGE_MODELS[:1]
-    language_dir = run_dir(language_name, run_id)
+    language_dir = experiment_dir(language_name, experiment_id)
     input_dir = language_dir / "responses_judged"
     fallback_dir = language_dir / "responses_judged_fallback"
 

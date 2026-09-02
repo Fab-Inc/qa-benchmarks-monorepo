@@ -316,7 +316,7 @@ def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
 
 
 def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
-    """output_dir=None derives cache/<language>/runs/default/responses."""
+    """output_dir=None derives cache/<language>/experiments/default/responses."""
     from conftest import sample_questions
 
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path / "cache")
@@ -332,7 +332,7 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
         tmp_path
         / "cache"
         / "kiswahili"
-        / "runs"
+        / "experiments"
         / "default"
         / "responses"
         / f"responses_{VALID_MODEL}.csv"
@@ -340,7 +340,9 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
     assert expected.exists()
 
 
-def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch):
+def test_run_benchmark_experiment_id_uses_experiment_specific_output_dir(
+    tmp_path, monkeypatch
+):
     from conftest import sample_questions
 
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path / "cache")
@@ -351,14 +353,14 @@ def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch
         VALID_MODEL,
         language_name="Kiswahili",
         dataset_path=ds,
-        run_id="run-123",
+        experiment_id="experiment-123",
     )
     expected = (
         tmp_path
         / "cache"
         / "kiswahili"
-        / "runs"
-        / "run-123"
+        / "experiments"
+        / "experiment-123"
         / "responses"
         / f"responses_{VALID_MODEL}.csv"
     )

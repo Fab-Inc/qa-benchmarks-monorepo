@@ -24,7 +24,7 @@ from linguistic_knowledge_benchmark.shared_utils import (
     DATA_DIR,
     EVAL_MODELS,
     REPO_ROOT,
-    run_dir,
+    experiment_dir,
 )
 
 # Add a new language by adding an entry here and dropping its JSON in data/.
@@ -34,7 +34,7 @@ from linguistic_knowledge_benchmark.shared_utils import (
 # This is the NORMAL way run-bench/judge-bench pick a dataset: each language points
 # directly at one fixed file here, no other configuration needed for everyday use.
 # `--dataset` on both commands (below) is an EXCEPTIONAL escape hatch that overrides
-# this for a single run -- e.g. scoring against the repeated dataset built by
+# this for a single experiment -- e.g. scoring against the repeated dataset built by
 # scripts/build_consistency_dataset.py for the "consistency" validation check.
 DATASETS: dict[str, dict] = {
     "kiswahili": {
@@ -47,21 +47,21 @@ DATASETS: dict[str, dict] = {
     },
 }
 
-# run-id must be alphanumeric + hyphens only (no underscores) so that underscores
+# experiment-id must be alphanumeric + hyphens only (no underscores) so that underscores
 # can be used as field separators in output filenames.
-_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
+_EXPERIMENT_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
 
-def _timestamp_run_id() -> str:
-    """Return a filesystem-safe UTC timestamp for non-overwriting runs."""
+def _timestamp_experiment_id() -> str:
+    """Return a filesystem-safe UTC timestamp for non-overwriting experiments."""
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _validate_run_id(run_id: str | None) -> None:
-    """Abort with a clear message if run_id contains invalid characters."""
-    if run_id and not _RUN_ID_RE.match(run_id):
+def _validate_experiment_id(experiment_id: str | None) -> None:
+    """Abort with a clear message if experiment_id contains invalid characters."""
+    if experiment_id and not _EXPERIMENT_ID_RE.match(experiment_id):
         typer.echo(
-            f"ERROR: --run-id '{run_id}' is invalid. "
+            f"ERROR: --experiment-id '{experiment_id}' is invalid. "
             "Use only alphanumeric characters and hyphens (no underscores).",
             err=True,
         )
@@ -82,8 +82,8 @@ def setup() -> None:
     # can find them. Existing environment variables take precedence (override=False).
     load_dotenv(REPO_ROOT / ".env")
     # custom_models.yaml is gitignored (it's synced from fab-open-configs, not
-    # committed), so it must be fetched here on every run -- without this, a fresh
-    # checkout (e.g. CI) has no file for register_models() to read and crashes.
+    # committed), so it must be fetched here on every invocation -- without this, a
+    # fresh checkout (e.g. CI) has no file for register_models() to read and crashes.
     download_file(
         bucket_name="fab-open-configs",
         file_name="custom_models.yaml",
@@ -112,18 +112,18 @@ def run_bench_cmd(
         "--retry-errors",
         help="Retry only rows with call_status=error in an existing responses CSV",
     ),
-    run_id: str | None = typer.Option(
+    experiment_id: str | None = typer.Option(
         None,
-        "--run-id",
+        "--experiment-id",
         help=(
-            "Write/read responses under cache/<language>/runs/<run-id>/. "
+            "Write/read responses under cache/<language>/experiments/<experiment-id>/. "
             "Alphanumeric and hyphens only. Defaults to 'default'."
         ),
     ),
     timestamped_output: bool = typer.Option(
         False,
         "--timestamped-output",
-        help="Generate a UTC timestamp run ID for a non-overwriting run",
+        help="Generate a UTC timestamp experiment ID for a non-overwriting experiment",
     ),
     language: str = typer.Option(
         ...,
@@ -142,8 +142,9 @@ def run_bench_cmd(
             "per-language datasets (e.g. --dataset "
             "linguistic_knowledge_eval_english_20x.json, not "
             "data/linguistic_knowledge_eval_english_20x.json or an absolute path). "
-            "Normal usage never needs this. Exists for special one-off runs, e.g. the "
-            "repeated dataset scripts/build_consistency_dataset.py builds for the "
+            "Normal usage never needs this. Exists for special one-off experiments, "
+            "e.g. the repeated dataset scripts/build_consistency_dataset.py builds for "
+            "the "
             "'consistency' validation check."
         ),
     ),
@@ -161,7 +162,7 @@ def run_bench_cmd(
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
         raise typer.Exit(1)
 
-    _validate_run_id(run_id)
+    _validate_experiment_id(experiment_id)
 
     if model:
         if model not in EVAL_MODELS:
@@ -176,13 +177,13 @@ def run_bench_cmd(
 
     entry = DATASETS[language]
     dataset_path = DATA_DIR / dataset if dataset is not None else entry["path"]
-    if timestamped_output and run_id is None:
-        run_id = _timestamp_run_id()
+    if timestamped_output and experiment_id is None:
+        experiment_id = _timestamp_experiment_id()
     typer.echo(f"\n=== Running Linguistic Knowledge Benchmark ({language}) ===")
-    if run_id:
-        typer.echo(f"Run ID: {run_id}")
+    if experiment_id:
+        typer.echo(f"Experiment ID: {experiment_id}")
     else:
-        typer.echo("Run ID: default (no --run-id supplied)")
+        typer.echo("Experiment ID: default (no --experiment-id supplied)")
     if dataset is not None:
         typer.echo(
             f"NOTE: --dataset override in effect -- scoring against {dataset_path} "
@@ -197,7 +198,7 @@ def run_bench_cmd(
                 dataset_path=dataset_path,
                 force=force,
                 retry_errors=retry_errors,
-                run_id=run_id,
+                experiment_id=experiment_id,
             )
         except Exception as e:
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
@@ -239,11 +240,12 @@ def judge_bench_cmd(
         "-f",
         help="Force re-judge even if judged results exist",
     ),
-    run_id: str | None = typer.Option(
+    experiment_id: str | None = typer.Option(
         None,
-        "--run-id",
+        "--experiment-id",
         help=(
-            "Read/write judged artifacts under cache/<language>/runs/<run-id>/. "
+            "Read/write judged artifacts under "
+            "cache/<language>/experiments/<experiment-id>/. "
             "Alphanumeric and hyphens only. Defaults to 'default'."
         ),
     ),
@@ -271,7 +273,8 @@ def judge_bench_cmd(
             "FILENAME ONLY, no path -- always resolved as DATA_DIR/<dataset>, so the "
             "file must live directly in data/ (e.g. --dataset "
             "linguistic_knowledge_eval_english_20x.json). Must match whatever "
-            "--dataset (if any) run-bench used to produce this run-id's responses, "
+            "--dataset (if any) run-bench used to produce this experiment-id's "
+            "responses, "
             "since this also drives the detailed CSV's question metadata merge. "
             "Normal usage never needs this; see run-bench --dataset's help for when "
             "it does."
@@ -288,7 +291,7 @@ def judge_bench_cmd(
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
         raise typer.Exit(1)
 
-    _validate_run_id(run_id)
+    _validate_experiment_id(experiment_id)
 
     if model:
         if model not in EVAL_MODELS:
@@ -315,19 +318,21 @@ def judge_bench_cmd(
 
     entry = DATASETS[language]
     mode = "fallback" if judge_fallback else "standard"
-    effective_run_id = run_id or "default"
+    effective_experiment_id = experiment_id or "default"
     # Report the directory this mode actually reads from: standard judging reads
     # the raw run-bench responses, while --judge-fallback re-scores the already-judged
     # CSVs, so its source is responses_judged/ (produced by a prior standard pass).
     input_subdir = "responses_judged" if judge_fallback else "responses"
-    input_dir = run_dir(language, effective_run_id) / input_subdir
+    input_dir = experiment_dir(language, effective_experiment_id) / input_subdir
 
     typer.echo(f"\n=== Judging Linguistic Knowledge Results ({language}, {mode}) ===")
     typer.echo(f"Judge model(s): {', '.join(judge_models)}")
-    if run_id:
-        typer.echo(f"Run ID: {effective_run_id}")
+    if experiment_id:
+        typer.echo(f"Experiment ID: {effective_experiment_id}")
     else:
-        typer.echo(f"Run ID: {effective_run_id} (no --run-id supplied)")
+        typer.echo(
+            f"Experiment ID: {effective_experiment_id} (no --experiment-id supplied)"
+        )
     typer.echo(f"Judging responses from: {input_dir}")
 
     # Capture the dataset path now: `entry` is reassigned later when merging log fields.
@@ -351,7 +356,7 @@ def judge_bench_cmd(
                     dataset_path=dataset_path,
                     judge_models=judge_models,
                     force=force,
-                    run_id=run_id,
+                    experiment_id=experiment_id,
                 )
             else:
                 judged_df = judge_results(
@@ -360,7 +365,7 @@ def judge_bench_cmd(
                     dataset_path=dataset_path,
                     judge_models=judge_models,
                     force=force,
-                    run_id=run_id,
+                    experiment_id=experiment_id,
                 )
 
             col_prefix = "is_correct_fallback_" if judge_fallback else "is_correct_"
@@ -380,7 +385,7 @@ def judge_bench_cmd(
                     "requested judge(s).\n"
                     "  - Re-run with a matching --num-judges (or --judge-model) "
                     "selection if you don't need a different judge set.\n"
-                    "  - Use a different --run-id to start a fresh run.",
+                    "  - Use a different --experiment-id to start a fresh experiment.",
                     err=True,
                 )
                 raise typer.Exit(1)
@@ -407,13 +412,13 @@ def judge_bench_cmd(
             typer.echo(f"ERROR [{current_model}]: {e}", err=True)
             raise typer.Exit(1)
 
-    # If run directory missing, show only the "directory not found" diagnostic.
+    # If experiment directory missing, show only the "directory not found" diagnostic.
     if not summaries and not input_dir.exists():
         typer.echo(
             f"\nNothing judged: expected directory not found — {input_dir}\n"
-            f"No run '{effective_run_id}' exists for {language}. If you meant a "
-            "timestamped run, re-run with its --run-id; otherwise run 'run-bench' "
-            "first."
+            f"No experiment '{effective_experiment_id}' exists for {language}. If you "
+            "meant a timestamped experiment, re-run with its --experiment-id; "
+            "otherwise run 'run-bench' first."
         )
         return
 
@@ -426,13 +431,14 @@ def judge_bench_cmd(
     if not summaries:
         typer.echo(
             f"\nNothing judged: no result files in {input_dir}\n"
-            "The directory exists but is empty. Run 'run-bench' for this run-id first."
+            "The directory exists but is empty. Run 'run-bench' for this "
+            "experiment-id first."
         )
         return
 
     results_dir = BENCH_DIR / "results"
     results_dir.mkdir(exist_ok=True)
-    log_path = run_dir(language, effective_run_id) / "log.json"
+    log_path = experiment_dir(language, effective_experiment_id) / "log.json"
     log_data: dict[str, dict[str, str | None]] = {}
     if log_path.exists():
         with open(log_path, encoding="utf-8") as _f:
@@ -457,7 +463,7 @@ def judge_bench_cmd(
     fallback_suffix = "_fallback" if judge_fallback else ""
     summary_name = (
         f"summary_linguistic-knowledge_{language}"
-        f"_{effective_run_id}{fallback_suffix}.csv"
+        f"_{effective_experiment_id}{fallback_suffix}.csv"
     )
     summary_path = results_dir / summary_name
     summary_df.to_csv(summary_path, index=False)
@@ -467,13 +473,13 @@ def judge_bench_cmd(
     detailed_df = build_detailed(judged_by_model, dataset_path)
     detailed_name = (
         f"summary_linguistic-knowledge_{language}"
-        f"_{effective_run_id}{fallback_suffix}_detailed.csv"
+        f"_{effective_experiment_id}{fallback_suffix}_detailed.csv"
     )
     detailed_path = results_dir / detailed_name
     detailed_df.to_csv(detailed_path, index=False)
     typer.echo(f"Detailed results saved to {detailed_path}")
 
-    # Pairwise judge agreement across every judged row this run, only meaningful
+    # Pairwise judge agreement across every judged row this experiment, only meaningful
     # with an ensemble (single-judge agreement is trivially 1.0).
     if len(judge_models) > 1 and judged_by_model:
         all_judged = pd.concat(judged_by_model.values(), ignore_index=True)
@@ -484,11 +490,13 @@ def judge_bench_cmd(
         except KeyError:
             agreement_matrix = None
         if agreement_matrix is not None:
-            typer.echo("\nPairwise judge agreement (across all judged rows this run):")
+            typer.echo(
+                "\nPairwise judge agreement (across all judged rows this experiment):"
+            )
             typer.echo(agreement_matrix.round(3).to_string())
             agreement_name = (
                 f"summary_linguistic-knowledge_{language}"
-                f"_{effective_run_id}{fallback_suffix}_judge_agreement.csv"
+                f"_{effective_experiment_id}{fallback_suffix}_judge_agreement.csv"
             )
             agreement_path = results_dir / agreement_name
             agreement_matrix.to_csv(agreement_path)

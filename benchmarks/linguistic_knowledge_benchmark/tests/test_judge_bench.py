@@ -12,7 +12,7 @@ from linguistic_knowledge_benchmark import judge_bench, shared_utils
 # small helpers
 # --------------------------------------------------------------------------- #
 def _responses_dir(base, language="kiswahili"):
-    d = base / language / "runs" / "default" / "responses"
+    d = base / language / "experiments" / "default" / "responses"
     d.mkdir(parents=True)
     return d
 
@@ -173,7 +173,7 @@ def test_judge_results_cache_hit(tmp_path, monkeypatch):
             }
         ],
     )
-    judged = tmp_path / "kiswahili" / "runs" / "default" / "responses_judged"
+    judged = tmp_path / "kiswahili" / "experiments" / "default" / "responses_judged"
     judged.mkdir(parents=True)
     pd.DataFrame([{"question_id": 1, "is_correct": True}]).to_csv(
         judged / f"responses_judged_{VALID_MODEL}.csv", index=False
@@ -252,14 +252,14 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     out = (
         tmp_path
         / "kiswahili"
-        / "runs"
+        / "experiments"
         / "default"
         / "responses_judged"
         / f"responses_judged_{VALID_MODEL}.csv"
     )
     assert out.exists()
-    # log.json written at run dir level
-    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
+    # log.json written at experiment dir level
+    log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     assert log_path.exists()
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert "responses_judged_timestamp-utc" in entry
@@ -310,7 +310,7 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
     assert bool(df.loc[1, "is_correct_judge-c"]) is False
     assert df.loc[1, "justification_judge-c"] == "no-c"
 
-    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     assert json.loads(log_path.read_text())[VALID_MODEL]["llm_judges"] == judges
 
 
@@ -380,9 +380,11 @@ def test_judge_results_strips_think_block_before_llm_judge(
     assert "1 row(s) contain <think>" in capsys.readouterr().out
 
 
-def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
+def test_judge_results_experiment_id_uses_experiment_specific_dirs(
+    tmp_path, monkeypatch
+):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
-    responses = tmp_path / "kiswahili" / "runs" / "run-123" / "responses"
+    responses = tmp_path / "kiswahili" / "experiments" / "experiment-123" / "responses"
     responses.mkdir(parents=True)
     _write_responses(
         responses,
@@ -401,14 +403,14 @@ def test_judge_results_run_id_uses_run_specific_dirs(tmp_path, monkeypatch):
         VALID_MODEL,
         language_name="Kiswahili",
         dataset_path=ds,
-        run_id="run-123",
+        experiment_id="experiment-123",
     )
 
     assert (
         tmp_path
         / "kiswahili"
-        / "runs"
-        / "run-123"
+        / "experiments"
+        / "experiment-123"
         / "responses_judged"
         / f"responses_judged_{VALID_MODEL}.csv"
     ).exists()
@@ -444,7 +446,7 @@ def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
 # judge_results_fallback
 # --------------------------------------------------------------------------- #
 def _judged_dir(base, language="kiswahili"):
-    d = base / language / "runs" / "default" / "responses_judged"
+    d = base / language / "experiments" / "default" / "responses_judged"
     d.mkdir(parents=True)
     return d
 
@@ -463,7 +465,9 @@ def test_fallback_cache_hit(tmp_path, monkeypatch):
     pd.DataFrame(
         [{"question_id": 1, "is_correct": True, "answer_type": "multiple_choice"}]
     ).to_csv(judged / f"responses_judged_{VALID_MODEL}.csv", index=False)
-    fb = tmp_path / "kiswahili" / "runs" / "default" / "responses_judged_fallback"
+    fb = (
+        tmp_path / "kiswahili" / "experiments" / "default" / "responses_judged_fallback"
+    )
     fb.mkdir(parents=True)
     pd.DataFrame([{"question_id": 1, "is_correct_fallback": True}]).to_csv(
         fb / f"responses_judged_{VALID_MODEL}.csv", index=False
@@ -497,13 +501,13 @@ def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     out = (
         tmp_path
         / "kiswahili"
-        / "runs"
+        / "experiments"
         / "default"
         / "responses_judged_fallback"
         / f"responses_judged_{VALID_MODEL}.csv"
     )
     assert out.exists()
-    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert "responses_judged_fallback_timestamp-utc" in entry
     assert entry["responses_judged_fallback_git-hash"] == "fb123"
@@ -648,7 +652,7 @@ def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch)
     assert bool(df.loc[0, "is_correct_fallback_judge-c"]) is False
     assert df.loc[0, "justification_fallback_judge-c"] == "no-c"
 
-    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
     assert entry["llm_judges_fallback"] == judges
 

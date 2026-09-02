@@ -2,7 +2,7 @@
 """
 Estimate the $ cost of one "model run" -- run-bench + judge-bench for a single model on
 all items of one language -- from data already sitting in
-cache/<language>/runs/<run-id>/. No new API calls are made.
+cache/<language>/experiments/<experiment-id>/. No new API calls are made.
 
 Two cost components, tracked with different precision:
 
@@ -28,8 +28,8 @@ Two cost components, tracked with different precision:
 
   Regex-scored MCQ rows (most rows, most models) cost nothing at judge time -- only
   short_form rows ever reach an LLM judge. Which judge(s) were actually used for a given
-  model/run is read from that run's log.json (llm_judges), not assumed, since the judge
-  ensemble is a per-run choice (see judge_bench.judge_results()'s judge_models arg), not
+  model/experiment is read from that experiment's log.json (llm_judges), not assumed,
+  since the judge ensemble is a per-experiment choice (see judge_bench.judge_results()'s judge_models arg), not
   a fixed constant.
 
   Only run-bench + the main judge-bench pass are covered here -- a --judge-fallback pass,
@@ -38,9 +38,9 @@ Two cost components, tracked with different precision:
   relative to the two components above, and skipping it keeps this script's logic (and
   the console/CSV output) to exactly the two-component estimate described above.
 
-Note on --run-id: unlike scripts/analyze_results.py / validate_results.py, this script
-reads cache/<language>/runs/<run-id>/ directly (responses/, responses_judged/) rather
-than results/ CSVs, so it takes the bare cache run-id with no "_fallback" suffix (e.g.
+Note on --experiment-id: unlike scripts/analyze_results.py / validate_results.py, this script
+reads cache/<language>/experiments/<experiment-id>/ directly (responses/, responses_judged/) rather
+than results/ CSVs, so it takes the bare cache experiment-id with no "_fallback" suffix (e.g.
 "final-137-items", not "final-137-items_fallback").
 
 Output: printed to the terminal only, nothing written to disk. A compact per-model table
@@ -52,8 +52,8 @@ Output: printed to the terminal only, nothing written to disk. A compact per-mod
     from the min/mean/max, not silently treated as free.
 
 Run:
-    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_run_cost.py --language english --run-id final-137-items
-    uv run python .../estimate_run_cost.py --language kiswahili --run-id final-135-items
+    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/estimate_experiment_cost.py --language english --experiment-id final-137-items
+    uv run python .../estimate_experiment_cost.py --language kiswahili --experiment-id final-135-items
 """
 
 from __future__ import annotations
@@ -228,17 +228,17 @@ def main() -> None:
     )
     ap.add_argument("--language", required=True, choices=LANGUAGES)
     ap.add_argument(
-        "--run-id",
+        "--experiment-id",
         required=True,
-        help="Bare cache run-id, e.g. 'final-137-items' (no '_fallback' suffix -- see "
-        "the module docstring's note on --run-id).",
+        help="Bare cache experiment-id, e.g. 'final-137-items' (no '_fallback' suffix -- see "
+        "the module docstring's note on --experiment-id).",
     )
     ap.add_argument(
         "--dataset",
         default=None,
         help="Filename only (resolved as data/<dataset>), matching run-bench/judge-bench's "
         "own --dataset override. Defaults to this language's normal dataset; only needed "
-        "if this run-id was produced against a different one (e.g. a consistency-check "
+        "if this experiment-id was produced against a different one (e.g. a consistency-check "
         "repeated dataset).",
     )
     ap.add_argument("--models-csv", default=None)
@@ -255,15 +255,17 @@ def main() -> None:
         LANGUAGE_DISPLAY_NAMES[args.language]
     )
 
-    run_path = os.path.join(root, "cache", args.language, "runs", args.run_id)
-    responses_dir = os.path.join(run_path, "responses")
-    judged_dir = os.path.join(run_path, "responses_judged")
-    log_path = os.path.join(run_path, "log.json")
+    experiment_path = os.path.join(
+        root, "cache", args.language, "experiments", args.experiment_id
+    )
+    responses_dir = os.path.join(experiment_path, "responses")
+    judged_dir = os.path.join(experiment_path, "responses_judged")
+    log_path = os.path.join(experiment_path, "log.json")
 
     if not os.path.isdir(responses_dir):
         raise SystemExit(
-            f"No run found: {responses_dir} does not exist.\n"
-            f"Check --language/--run-id -- --run-id is the bare cache run-id "
+            f"No experiment found: {responses_dir} does not exist.\n"
+            f"Check --language/--experiment-id -- --experiment-id is the bare cache experiment-id "
             "(no '_fallback' suffix)."
         )
 

@@ -41,8 +41,8 @@ def test_datasets_map_is_parameterized() -> None:
         assert {"path", "language_name"} <= entry.keys()
 
 
-def test_timestamp_run_id_format() -> None:
-    assert re.match(r"^\d{8}T\d{6}Z$", cmd._timestamp_run_id())
+def test_timestamp_experiment_id_format() -> None:
+    assert re.match(r"^\d{8}T\d{6}Z$", cmd._timestamp_experiment_id())
 
 
 # --------------------------------------------------------------------------- #
@@ -62,7 +62,7 @@ def test_run_bench_rejects_unknown_model(runner: CliRunner) -> None:
     assert "not found" in result.output
 
 
-def test_run_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
+def test_run_bench_rejects_invalid_experiment_id(runner: CliRunner) -> None:
     result = runner.invoke(
         cmd.app,
         [
@@ -71,7 +71,7 @@ def test_run_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
             VALID_MODEL,
             "--language",
             "kiswahili",
-            "--run-id",
+            "--experiment-id",
             "my_run",
         ],
     )
@@ -87,7 +87,7 @@ def test_run_bench_single_model_forwards_params(runner, monkeypatch) -> None:
     )
     assert result.exit_code == 0
     mock.assert_called_once()
-    assert "Run ID: default (no --run-id supplied)" in result.output
+    assert "Experiment ID: default (no --experiment-id supplied)" in result.output
     kwargs = mock.call_args.kwargs
     assert kwargs["model_name"] == VALID_MODEL
     assert kwargs["language_name"] == "Kiswahili"
@@ -114,20 +114,22 @@ def test_run_bench_forwards_retry_and_run_options(runner, monkeypatch) -> None:
             "--language",
             "kiswahili",
             "--retry-errors",
-            "--run-id",
-            "run-123",
+            "--experiment-id",
+            "experiment-123",
         ],
     )
     assert result.exit_code == 0
     kwargs = mock.call_args.kwargs
     assert kwargs["retry_errors"] is True
-    assert kwargs["run_id"] == "run-123"
+    assert kwargs["experiment_id"] == "experiment-123"
 
 
-def test_run_bench_timestamped_output_generates_run_id(runner, monkeypatch) -> None:
+def test_run_bench_timestamped_output_generates_experiment_id(
+    runner, monkeypatch
+) -> None:
     mock = MagicMock()
     monkeypatch.setattr(cmd, "run_benchmark", mock)
-    monkeypatch.setattr(cmd, "_timestamp_run_id", lambda: "20260608T120000Z")
+    monkeypatch.setattr(cmd, "_timestamp_experiment_id", lambda: "20260608T120000Z")
     result = runner.invoke(
         cmd.app,
         [
@@ -140,8 +142,8 @@ def test_run_bench_timestamped_output_generates_run_id(runner, monkeypatch) -> N
         ],
     )
     assert result.exit_code == 0
-    assert "Run ID: 20260608T120000Z" in result.output
-    assert mock.call_args.kwargs["run_id"] == "20260608T120000Z"
+    assert "Experiment ID: 20260608T120000Z" in result.output
+    assert mock.call_args.kwargs["experiment_id"] == "20260608T120000Z"
 
 
 def test_run_bench_rejects_force_with_retry_errors(runner) -> None:
@@ -227,7 +229,7 @@ def test_judge_bench_rejects_unknown_model(runner: CliRunner) -> None:
     assert "not found" in result.output
 
 
-def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
+def test_judge_bench_rejects_invalid_experiment_id(runner: CliRunner) -> None:
     result = runner.invoke(
         cmd.app,
         [
@@ -236,7 +238,7 @@ def test_judge_bench_rejects_invalid_run_id(runner: CliRunner) -> None:
             VALID_MODEL,
             "--language",
             "kiswahili",
-            "--run-id",
+            "--experiment-id",
             "my_run",
         ],
     )
@@ -257,7 +259,7 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
     )
     assert result.exit_code == 0
-    assert "Run ID: default (no --run-id supplied)" in result.output
+    assert "Experiment ID: default (no --experiment-id supplied)" in result.output
     summary_path = (
         tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
@@ -279,9 +281,9 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
     )
     _patch_summary(monkeypatch)
 
-    run_dir = tmp_path / "kiswahili" / "runs" / "default"
-    run_dir.mkdir(parents=True)
-    (run_dir / "log.json").write_text(
+    experiment_dir = tmp_path / "kiswahili" / "experiments" / "default"
+    experiment_dir.mkdir(parents=True)
+    (experiment_dir / "log.json").write_text(
         json.dumps(
             {VALID_MODEL: {"responses_timestamp-utc": "2020-01-01T00:00:00+00:00"}}
         )
@@ -298,7 +300,7 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
     assert df.loc[0, "responses_timestamp-utc"] == "2020-01-01T00:00:00+00:00"
 
 
-def test_judge_bench_run_id_writes_run_specific_summary(
+def test_judge_bench_experiment_id_writes_experiment_specific_summary(
     runner, monkeypatch, tmp_path
 ) -> None:
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
@@ -313,15 +315,17 @@ def test_judge_bench_run_id_writes_run_specific_summary(
             VALID_MODEL,
             "--language",
             "kiswahili",
-            "--run-id",
-            "run-123",
+            "--experiment-id",
+            "experiment-123",
         ],
     )
     assert result.exit_code == 0
-    assert "Run ID: run-123" in result.output
-    assert judge.call_args.kwargs["run_id"] == "run-123"
+    assert "Experiment ID: experiment-123" in result.output
+    assert judge.call_args.kwargs["experiment_id"] == "experiment-123"
     assert (
-        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_run-123.csv"
+        tmp_path
+        / "results"
+        / "summary_linguistic-knowledge_kiswahili_experiment-123.csv"
     ).exists()
 
 
@@ -357,8 +361,8 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
     assert (tmp_path / "results" / name).exists()
 
 
-def test_timestamp_run_id_is_filesystem_safe() -> None:
-    assert re.fullmatch(r"\d{8}T\d{6}Z", cmd._timestamp_run_id())
+def test_timestamp_experiment_id_is_filesystem_safe() -> None:
+    assert re.fullmatch(r"\d{8}T\d{6}Z", cmd._timestamp_experiment_id())
 
 
 def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -> None:
@@ -370,7 +374,7 @@ def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -
         MagicMock(return_value=pd.DataFrame({DEFAULT_JUDGE_COL: []})),
     )
     _patch_summary(monkeypatch)
-    log_path = tmp_path / "kiswahili" / "runs" / "default" / "log.json"
+    log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     log_path.parent.mkdir(parents=True)
     log_path.write_text(json.dumps({VALID_MODEL: {"responses_git-hash": "deadbee"}}))
 
@@ -405,7 +409,9 @@ def test_judge_bench_reports_empty_directory(runner, monkeypatch, tmp_path) -> N
     monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     # The responses directory exists but holds no result files for the model.
-    (tmp_path / "kiswahili" / "runs" / "default" / "responses").mkdir(parents=True)
+    (tmp_path / "kiswahili" / "experiments" / "default" / "responses").mkdir(
+        parents=True
+    )
     monkeypatch.setattr(
         cmd, "judge_results", MagicMock(side_effect=FileNotFoundError("no file"))
     )

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analyse a Linguistic-Knowledge benchmark run from its two result CSVs.
+Analyse a Linguistic-Knowledge benchmark experiment from its two result CSVs.
 
 Inputs (both produced by `judge-bench`):
   * SUMMARY csv   — one row per model: accuracy, accuracy_mcq, accuracy_short_form.
@@ -8,13 +8,14 @@ Inputs (both produced by `judge-bench`):
                     question, expected_answers, then per model a `<model>_output` and
                     `<model>_correct` (True/False, blank = unscored) column.
 
-If either CSV is missing (e.g. deleted after the run), it's rebuilt automatically from
-the per-model judged CSVs still under cache/<language>/runs/<run-id>/responses_judged/
+If either CSV is missing (e.g. deleted after the experiment), it's rebuilt automatically
+from
+the per-model judged CSVs still under cache/<language>/experiments/<experiment-id>/responses_judged/
 (and responses_judged_fallback/, if a --judge-fallback pass was run), using the same
 judge_bench.compute_summary()/build_detailed() functions judge-bench itself uses --
 no LLM judge calls, no re-running judge-bench. This needs the eval dataset the run was
 actually scored against (--dataset; defaults to the language's standard dataset, wrong
-for a run-id scored against a different pool -- see --dataset below). Before writing
+for a experiment-id scored against a different pool -- see --dataset below). Before writing
 anything, the rebuild cross-checks the judged question_ids/answer_types against
 --dataset and ABORTS (no CSV written) if they don't line up -- e.g. the shipped,
 IRT-selected dataset colliding on renumbered question_ids with a different item pool
@@ -25,13 +26,13 @@ Questions it answers:
       bars from the summary, plus the overall gap (also cross-checked from the detailed).
   (b) Which domain/grade are models getting wrong?  -> a domain x grade accuracy heatmap
       plus by-domain and by-grade bars, computed from the detailed correctness columns.
-  (c) When the run used >=2 LLM judges (short_form items only): how much do the judges
+  (c) When the experiment used >=2 LLM judges (short_form items only): how much do the judges
       disagree, and what would each model's accuracy be if scored by only ONE judge
       instead of the ensemble?  -> per-model solo-judge accuracy deltas and a pairwise
       judge-agreement matrix, read from judge-bench's per-model judged CSVs under
-      cache/<language>/runs/<run-id>/responses_judged/ (not the two CSVs above, which
+      cache/<language>/experiments/<experiment-id>/responses_judged/ (not the two CSVs above, which
       only carry each model's final combined verdict). Silently skipped for single-judge
-      runs, since there's nothing to compare a lone judge against.
+      experiments, since there's nothing to compare a lone judge against.
 
 Outputs (under --outdir, tagged with --label):
     accuracy_by_model_<label>.png
@@ -55,12 +56,12 @@ Outputs (under --outdir, tagged with --label):
                                                 with individual model accuracies jittered
                                                 underneath
 
-Run (--language and --run-id are mandatory; --run-id selects the judge-bench run's
+Run (--language and --experiment-id are mandatory; --experiment-id selects the judge-bench run's
 CSVs, or pass --summary/--detailed to point at exact files instead):
-    python benchmarks/linguistic_knowledge_benchmark/scripts/analyze_results.py --language english --run-id default
-    python .../analyze_results.py --language kiswahili --run-id v10-full-dataset
-    python .../analyze_results.py --language kiswahili --run-id default --summary ... --detailed ... --label ...
-    python .../analyze_results.py --language kiswahili --run-id default --model-size   # also write accuracy_by_model_size_*.png
+    python benchmarks/linguistic_knowledge_benchmark/scripts/analyze_results.py --language english --experiment-id default
+    python .../analyze_results.py --language kiswahili --experiment-id v10-full-dataset
+    python .../analyze_results.py --language kiswahili --experiment-id default --summary ... --detailed ... --label ...
+    python .../analyze_results.py --language kiswahili --experiment-id default --model-size   # also write accuracy_by_model_size_*.png
 
 Restrict the domain×grade analysis to a band of models by overall accuracy
 (--min-accuracy / --max-accuracy, in %); the band is stamped into the plot titles
@@ -127,24 +128,24 @@ LANGUAGES = ["english", "kiswahili"]
 # plain dict here, rather than importing cmd.py, so this script doesn't pull in its
 # CLI-only dependencies (typer, dotenv, fab_benchmark_publisher) for the common case
 # where a rebuild isn't needed). Only used by rebuild_summary_and_detailed() below;
-# override with --dataset for a run-id scored against a different pool (e.g. the IRT
-# full-dataset run, whose dataset is stage_3b_dataset_full.json, not this file).
+# override with --dataset for a experiment-id scored against a different pool (e.g. the IRT
+# full-dataset experiment, whose dataset is stage_3b_dataset_full.json, not this file).
 DEFAULT_DATASET_PATH = {
     "english": os.path.join("data", "linguistic_knowledge_eval_english.json"),
     "kiswahili": os.path.join("data", "linguistic_knowledge_eval_kiswahili.json"),
 }
 
 
-def default_paths_for(language: str, results_dir: str, run_id: str) -> dict:
+def default_paths_for(language: str, results_dir: str, experiment_id: str) -> dict:
     return {
         "summary": os.path.join(
-            results_dir, f"summary_linguistic-knowledge_{language}_{run_id}.csv"
+            results_dir, f"summary_linguistic-knowledge_{language}_{experiment_id}.csv"
         ),
         "detailed": os.path.join(
             results_dir,
-            f"summary_linguistic-knowledge_{language}_{run_id}_detailed.csv",
+            f"summary_linguistic-knowledge_{language}_{experiment_id}_detailed.csv",
         ),
-        "label": f"{language}_{run_id}",
+        "label": f"{language}_{experiment_id}",
     }
 
 
@@ -157,9 +158,9 @@ def load_summary(path: str) -> pd.DataFrame:
     return df.sort_values("accuracy", ascending=False).reset_index(drop=True)
 
 
-def _discover_judged_models(cache_run_dir: str) -> list[str]:
-    """Model ids with a primary judged CSV under cache_run_dir/responses_judged/."""
-    judged_dir = os.path.join(cache_run_dir, "responses_judged")
+def _discover_judged_models(cache_experiment_dir: str) -> list[str]:
+    """Model ids with a primary judged CSV under cache_experiment_dir/responses_judged/."""
+    judged_dir = os.path.join(cache_experiment_dir, "responses_judged")
     if not os.path.isdir(judged_dir):
         return []
     prefix, suffix = "responses_judged_", ".csv"
@@ -170,7 +171,7 @@ def _discover_judged_models(cache_run_dir: str) -> list[str]:
     )
 
 
-def _load_full_judged(cache_run_dir: str, model: str) -> pd.DataFrame | None:
+def _load_full_judged(cache_experiment_dir: str, model: str) -> pd.DataFrame | None:
     """Load the complete judged frame for `model`: the fallback pass's CSV if one
     exists, else the primary judged CSV. judge_results_fallback() writes its output
     by reading the full primary CSV and adding fallback columns on top, so the
@@ -179,12 +180,14 @@ def _load_full_judged(cache_run_dir: str, model: str) -> pd.DataFrame | None:
     this is the complete frame compute_summary()/build_detailed() expect.
     """
     fallback = os.path.join(
-        cache_run_dir, "responses_judged_fallback", f"responses_judged_{model}.csv"
+        cache_experiment_dir,
+        "responses_judged_fallback",
+        f"responses_judged_{model}.csv",
     )
     if os.path.exists(fallback):
         return pd.read_csv(fallback)
     primary = os.path.join(
-        cache_run_dir, "responses_judged", f"responses_judged_{model}.csv"
+        cache_experiment_dir, "responses_judged", f"responses_judged_{model}.csv"
     )
     if os.path.exists(primary):
         return pd.read_csv(primary)
@@ -254,14 +257,14 @@ def _check_dataset_matches_judged(
 
 def rebuild_summary_and_detailed(
     language: str,
-    run_id: str,
+    experiment_id: str,
     root: str,
     dataset_path: str,
     summary_path: str,
     detailed_path: str,
 ) -> None:
     """Recreate a deleted summary/detailed CSV pair from the per-model judged CSVs
-    still under cache/<language>/runs/<run-id>/, using the exact same functions
+    still under cache/<language>/experiments/<experiment-id>/, using the exact same functions
     cmd.py's judge-bench command uses to build them the first time
     (judge_bench.compute_summary / judge_bench.build_detailed) -- no LLM judge
     calls, no re-running judge-bench, just recomputing from what's already cached.
@@ -271,26 +274,28 @@ def rebuild_summary_and_detailed(
         compute_summary,
     )
 
-    cache_run_dir = os.path.join(root, "cache", language, "runs", run_id)
-    model_ids = _discover_judged_models(cache_run_dir)
+    cache_experiment_dir = os.path.join(
+        root, "cache", language, "experiments", experiment_id
+    )
+    model_ids = _discover_judged_models(cache_experiment_dir)
     if not model_ids:
         raise SystemExit(
             f"Cannot rebuild {os.path.basename(summary_path)}: no judged CSVs found "
-            f"under {os.path.join(cache_run_dir, 'responses_judged')}.\n"
-            "Run 'judge-bench' for this language/run-id first."
+            f"under {os.path.join(cache_experiment_dir, 'responses_judged')}.\n"
+            "Run 'judge-bench' for this language/experiment-id first."
         )
     if not os.path.exists(dataset_path):
         raise SystemExit(
             f"Cannot rebuild {os.path.basename(detailed_path)}: dataset not found "
             f"at {dataset_path}.\nPass --dataset to point at the JSON this run's "
             "responses were actually scored against (e.g. the IRT full-dataset "
-            "pool, if --run-id is a run like 'v10-full-dataset')."
+            "pool, if --experiment-id is an experiment like 'v10-full-dataset')."
         )
 
     judged_by_model: dict[str, pd.DataFrame] = {}
     summaries = []
     for model in model_ids:
-        df = _load_full_judged(cache_run_dir, model)
+        df = _load_full_judged(cache_experiment_dir, model)
         if df is None:
             continue
         judged_by_model[model] = df
@@ -309,7 +314,7 @@ def rebuild_summary_and_detailed(
 
     print(
         f"Rebuilt from {len(judged_by_model)} cached judged CSV(s) in "
-        f"{os.path.join(cache_run_dir, 'responses_judged')}:\n"
+        f"{os.path.join(cache_experiment_dir, 'responses_judged')}:\n"
         f"  {summary_path}\n  {detailed_path}"
     )
 
@@ -921,7 +926,7 @@ def plot_domain_grade(
 # The summary/detailed CSVs only carry each model's FINAL combined verdict
 # (majority vote across judges, for short_form items); the per-judge verdicts
 # only exist in judge-bench's per-model judged CSVs under
-# cache/<language>/runs/<run-id>/responses_judged/. This section reads those
+# cache/<language>/experiments/<experiment-id>/responses_judged/. This section reads those
 # directly to answer: how much do judges disagree, and how would each model's
 # accuracy shift if only one judge (instead of the ensemble) had scored it?
 # --------------------------------------------------------------------------- #
@@ -941,17 +946,19 @@ def judge_names_from_columns(columns) -> list[str]:
     return names
 
 
-def load_judged_model(cache_run_dir: str, model: str) -> pd.DataFrame | None:
+def load_judged_model(cache_experiment_dir: str, model: str) -> pd.DataFrame | None:
     """Load a model's judged CSV (primary pass), merged with its fallback pass's
-    per-judge columns if a fallback run exists. None if no judged CSV exists."""
+    per-judge columns if a fallback pass exists. None if no judged CSV exists."""
     primary = os.path.join(
-        cache_run_dir, "responses_judged", f"responses_judged_{model}.csv"
+        cache_experiment_dir, "responses_judged", f"responses_judged_{model}.csv"
     )
     if not os.path.exists(primary):
         return None
     df = pd.read_csv(primary)
     fallback = os.path.join(
-        cache_run_dir, "responses_judged_fallback", f"responses_judged_{model}.csv"
+        cache_experiment_dir,
+        "responses_judged_fallback",
+        f"responses_judged_{model}.csv",
     )
     if os.path.exists(fallback):
         fb = pd.read_csv(fallback)
@@ -1054,7 +1061,7 @@ def plot_judge_accuracy(
 
 def judge_analysis(
     models: list[str],
-    cache_run_dir: str,
+    cache_experiment_dir: str,
     outdir: str,
     label: str,
     language_name: str = "",
@@ -1062,13 +1069,13 @@ def judge_analysis(
     """Per-model ensemble-vs-solo-judge accuracy + judge (dis)agreement.
 
     Silently no-ops (with a one-line note) for models scored by fewer than 2 LLM
-    judges — single-judge runs have nothing to compare against.
+    judges — single-judge experiments have nothing to compare against.
     """
     rows = []
     judged_dfs: dict[str, pd.DataFrame] = {}
     all_judges: set[str] = set()
     for model in models:
-        df = load_judged_model(cache_run_dir, model)
+        df = load_judged_model(cache_experiment_dir, model)
         if df is None:
             continue
         judges = judge_names_from_columns(df.columns)
@@ -1098,7 +1105,7 @@ def judge_analysis(
 
     if not rows:
         print(
-            "\n(c) Judge analysis: no model in this run was scored by >=2 LLM "
+            "\n(c) Judge analysis: no model in this experiment was scored by >=2 LLM "
             "judges - skipping (nothing to compare a single judge against)."
         )
         return
@@ -1160,22 +1167,22 @@ def main() -> None:
         help="which language's result CSVs to analyse",
     )
     ap.add_argument(
-        "--run-id",
+        "--experiment-id",
         required=True,
-        help="run-id passed to judge-bench; selects "
-        "summary_linguistic-knowledge_<language>_<run-id>[_detailed].csv",
+        help="experiment-id passed to judge-bench; selects "
+        "summary_linguistic-knowledge_<language>_<experiment-id>[_detailed].csv",
     )
-    # --summary/--detailed/--label default to that language's --run-id run
-    # (see default_paths_for above); override individually for a specific run.
+    # --summary/--detailed/--label default to that language's --experiment-id
+    # (see default_paths_for above); override individually for a specific experiment.
     ap.add_argument("--summary", default=None)
     ap.add_argument("--detailed", default=None)
     ap.add_argument(
         "--dataset",
         default=None,
-        help="eval dataset JSON this run's responses were scored against; only used "
+        help="eval dataset JSON this experiment's responses were scored against; only used "
         "to rebuild --summary/--detailed if they're missing (defaults to the "
-        "language's standard dataset -- override for a run-id scored against a "
-        "different pool, e.g. an IRT full-dataset run)",
+        "language's standard dataset -- override for a experiment-id scored against a "
+        "different pool, e.g. an IRT full-dataset experiment)",
     )
     ap.add_argument("--outdir", default=os.path.join(root, "results", "analysis"))
     ap.add_argument("--label", default=None, help="tag for output filenames")
@@ -1231,19 +1238,19 @@ def main() -> None:
         "transparent boxplots over individual model accuracies by hardware tier",
     )
     ap.add_argument(
-        "--english-run-id",
+        "--english-experiment-id",
         default=None,
-        help="run-id for the English summary used by --boxplot (defaults to --run-id)",
+        help="experiment-id for the English summary used by --boxplot (defaults to --experiment-id)",
     )
     ap.add_argument(
-        "--kiswahili-run-id",
+        "--kiswahili-experiment-id",
         default=None,
-        help="run-id for the Kiswahili summary used by --boxplot (defaults to --run-id)",
+        help="experiment-id for the Kiswahili summary used by --boxplot (defaults to --experiment-id)",
     )
     args = ap.parse_args()
 
     defaults = default_paths_for(
-        args.language, os.path.join(root, "results"), args.run_id
+        args.language, os.path.join(root, "results"), args.experiment_id
     )
     for key in ("summary", "detailed", "label"):
         if getattr(args, key) is None:
@@ -1264,7 +1271,12 @@ def main() -> None:
             "not found -- rebuilding from cached judged CSVs instead of re-judging."
         )
         rebuild_summary_and_detailed(
-            args.language, args.run_id, root, args.dataset, args.summary, args.detailed
+            args.language,
+            args.experiment_id,
+            root,
+            args.dataset,
+            args.summary,
+            args.detailed,
         )
 
     summary = load_summary(args.summary)
@@ -1337,19 +1349,19 @@ def main() -> None:
             provider_color=provider_color,
         )
     if args.boxplot:
-        run_ids = {
-            "english": args.english_run_id or args.run_id,
-            "kiswahili": args.kiswahili_run_id or args.run_id,
+        experiment_ids = {
+            "english": args.english_experiment_id or args.experiment_id,
+            "kiswahili": args.kiswahili_experiment_id or args.experiment_id,
         }
         boxplot_summaries = {}
         for language in LANGUAGES:
             summary_path = default_paths_for(
-                language, os.path.join(root, "results"), run_ids[language]
+                language, os.path.join(root, "results"), experiment_ids[language]
             )["summary"]
             if not os.path.exists(summary_path):
                 raise SystemExit(
                     f"Cannot create --boxplot: missing {language} summary at "
-                    f"{summary_path}; pass --{language}-run-id to select it"
+                    f"{summary_path}; pass --{language}-experiment-id to select it"
                 )
             boxplot_summaries[language] = load_summary(summary_path)
         sizes = load_model_sizes(args.models_csv)
@@ -1361,19 +1373,19 @@ def main() -> None:
         )
     if args.swarplot:
         if "boxplot_summaries" not in locals():
-            run_ids = {
-                "english": args.english_run_id or args.run_id,
-                "kiswahili": args.kiswahili_run_id or args.run_id,
+            experiment_ids = {
+                "english": args.english_experiment_id or args.experiment_id,
+                "kiswahili": args.kiswahili_experiment_id or args.experiment_id,
             }
             boxplot_summaries = {}
             for language in LANGUAGES:
                 summary_path = default_paths_for(
-                    language, os.path.join(root, "results"), run_ids[language]
+                    language, os.path.join(root, "results"), experiment_ids[language]
                 )["summary"]
                 if not os.path.exists(summary_path):
                     raise SystemExit(
                         f"Cannot create --swarplot: missing {language} summary at "
-                        f"{summary_path}; pass --{language}-run-id to select it"
+                        f"{summary_path}; pass --{language}-experiment-id to select it"
                     )
                 boxplot_summaries[language] = load_summary(summary_path)
         sizes = load_model_sizes(args.models_csv)
@@ -1450,8 +1462,10 @@ def main() -> None:
         print("  ", p)
 
     # ---- (c) judge disagreement / solo-judge accuracy (needs >=2 LLM judges) ----
-    cache_run_dir = os.path.join(root, "cache", args.language, "runs", args.run_id)
-    judge_analysis(models, cache_run_dir, args.outdir, args.label, language_name)
+    cache_experiment_dir = os.path.join(
+        root, "cache", args.language, "experiments", args.experiment_id
+    )
+    judge_analysis(models, cache_experiment_dir, args.outdir, args.label, language_name)
 
 
 if __name__ == "__main__":

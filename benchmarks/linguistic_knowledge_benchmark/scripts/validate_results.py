@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Robustness/validation checks for a Linguistic-Knowledge benchmark run.
-Each check is a subcommand; --language and --run-id are mandatory on
+Robustness/validation checks for a Linguistic-Knowledge benchmark experiment.
+Each check is a subcommand; --language and --experiment-id are mandatory on
 every one of them and are what locate the three CSVs `judge-bench` already produced for
-that run:
+that experiment:
 
-    results/summary_linguistic-knowledge_<language>_<run-id>.csv                 SUMMARY
-    results/summary_linguistic-knowledge_<language>_<run-id>_detailed.csv        DETAILED
-    results/summary_linguistic-knowledge_<language>_<run-id>_judge_agreement.csv JUDGE AGREEMENT
+    results/summary_linguistic-knowledge_<language>_<experiment-id>.csv                 SUMMARY
+    results/summary_linguistic-knowledge_<language>_<experiment-id>_detailed.csv        DETAILED
+    results/summary_linguistic-knowledge_<language>_<experiment-id>_judge_agreement.csv JUDGE AGREEMENT
 
 Three checks (judge-agreement's kappa, self-preference-bias, fallback-rate) additionally
-read the raw per-judge CSVs under cache/<language>/runs/<run-id>/responses_judged[_fallback]/
--- the bare cache run-id is derived by stripping a trailing '_fallback' from --run-id,
+read the raw per-judge CSVs under cache/<language>/experiments/<experiment-id>/responses_judged[_fallback]/
+-- the bare cache experiment-id is derived by stripping a trailing '_fallback' from --experiment-id,
 since that suffix is only ever appended to the results/ filenames, never to the cache
 directory (see cache_paths_for() below).
 
 Subcommands and their outputs (under --outdir/<language>/, --outdir defaults to
-results/validation/, filenames tagged with --label, default "<language>_<run-id>"):
+results/validation/, filenames tagged with --label, default "<language>_<experiment-id>"):
 
   judge-agreement        Raw pairwise judge agreement (re-reads judge-bench's own
                           judge_agreement CSV) plus Cohen's kappa per judge pair (chance-
@@ -35,7 +35,7 @@ results/validation/, filenames tagged with --label, default "<language>_<run-id>
                           --judge-fallback LLM pass vs still unscored after it, joined
                           against overall accuracy -- flags whether a low score is a
                           knowledge gap or a format-compliance/parsing issue. Requires a
-                          run-id with a fallback pass (cache/.../responses_judged_fallback/).
+                          experiment-id with a fallback pass (cache/.../responses_judged_fallback/).
                           -> fallback_rate_<label>.csv
 
   bootstrap-ci            Per-model 95% CI on accuracy via a paired/cluster bootstrap over
@@ -54,45 +54,47 @@ results/validation/, filenames tagged with --label, default "<language>_<run-id>
                           itself is sorted by accuracy.
                           -> family_grid_<label>.png, family_grid_<label>.csv
 
-  consistency             Run-to-run accuracy variance, from a run scored against a
+  consistency             Replicate-to-replicate accuracy variance, from an experiment
+                          scored against a
                           REPEATED dataset (see build_consistency_dataset.py: N copies of
                           every question, question_id "<original_id>.<replicate>") --
                           decodes the replicate back out of question_id, groups the
                           detailed CSV's final judged (post-majority-vote) `<model>_correct`
                           by replicate, and reports/plots each model's accuracy spread
                           across the N replicates. Aborts with next-step instructions if
-                          the run's 3 result CSVs aren't present yet, or if the detailed
+                          the experiment's 3 result CSVs aren't present yet, or if the detailed
                           CSV looks unscored (see build_consistency_dataset.py's docstring
                           for why that happens and how to fix it).
                           -> consistency_<label>.csv, consistency_<label>_raw.csv,
                              consistency_<label>.png
 
-  all                     Runs every check above, in order, for this --language/--run-id.
+  all                     Runs every check above, in order, for this --language/--experiment-id.
                           A check is SKIPPED (not overwritten) if its output file(s)
                           already exist under <outdir>/<language>/ -- pass a different
                           --label, or delete those files, to force a rerun. A check that
-                          errors (e.g. fallback-rate with no fallback pass for this run,
-                          or consistency with no repeated-dataset run yet) is reported and
+                          errors (e.g. fallback-rate with no fallback pass for this
+                          experiment, or consistency with no repeated-dataset experiment
+                          yet) is reported and
                           skipped, not fatal to the rest.
 
-Run (--language and --run-id are mandatory on every subcommand):
-    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/validate_results.py judge-agreement --language english --run-id final-137-items_fallback
-    uv run python .../validate_results.py self-preference-bias --language kiswahili --run-id final-135-items_fallback
-    uv run python .../validate_results.py fallback-rate --language english --run-id final-137-items_fallback
-    uv run python .../validate_results.py bootstrap-ci --language english --run-id final-137-items_fallback --n-bootstrap 2000
-    uv run python .../validate_results.py family-grid --language english --run-id final-137-items_fallback
-    uv run python .../validate_results.py consistency --language english --run-id validation-20x
-    uv run python .../validate_results.py all --language english --run-id final-137-items_fallback
-    uv run python .../validate_results.py all --language kiswahili --run-id final-135-items_fallback
+Run (--language and --experiment-id are mandatory on every subcommand):
+    uv run python benchmarks/linguistic_knowledge_benchmark/scripts/validate_results.py judge-agreement --language english --experiment-id final-137-items_fallback
+    uv run python .../validate_results.py self-preference-bias --language kiswahili --experiment-id final-135-items_fallback
+    uv run python .../validate_results.py fallback-rate --language english --experiment-id final-137-items_fallback
+    uv run python .../validate_results.py bootstrap-ci --language english --experiment-id final-137-items_fallback --n-bootstrap 2000
+    uv run python .../validate_results.py family-grid --language english --experiment-id final-137-items_fallback
+    uv run python .../validate_results.py consistency --language english --experiment-id validation-20x
+    uv run python .../validate_results.py all --language english --experiment-id final-137-items_fallback
+    uv run python .../validate_results.py all --language kiswahili --experiment-id final-135-items_fallback
 
-Producing a run for the "consistency" check (external to this script):
+Producing an experiment for the "consistency" check (external to this script):
     uv run python scripts/build_consistency_dataset.py --language english
     # run-bench/judge-bench both take --dataset directly -- pass the SAME one to both,
     # no dataset-file swapping and no separate detailed-CSV rebuild step needed.
     # --dataset is FILENAME ONLY (always resolved as DATA_DIR/<dataset>):
-    uv run linguistic-knowledge-benchmark run-bench --language english --run-id validation-20x \\
+    uv run linguistic-knowledge-benchmark run-bench --language english --experiment-id validation-20x \\
         --dataset linguistic_knowledge_eval_english_20x.json
-    uv run linguistic-knowledge-benchmark judge-bench --language english --run-id validation-20x \\
+    uv run linguistic-knowledge-benchmark judge-bench --language english --experiment-id validation-20x \\
         --dataset linguistic_knowledge_eval_english_20x.json --num-judges 3
 """
 
@@ -141,7 +143,7 @@ CHECKS = [
 
 DEFAULT_SEED = 0  # bootstrap-ci's --seed default, for reproducible CIs across reruns
 DEFAULT_N_REPLICATES = 20  # consistency's --n-replicates default; must match whatever
-# build_consistency_dataset.py --n-replicates was used to build the run's dataset
+# build_consistency_dataset.py --n-replicates was used to build the experiment's dataset
 
 # --------------------------------------------------------------------------- #
 # Console summary formatting (same pattern as filter_dataset.py / estimate_irt.py)
@@ -160,11 +162,11 @@ def _kv(label: str, value) -> None:
 # --------------------------------------------------------------------------- #
 # Path resolution
 # --------------------------------------------------------------------------- #
-def default_paths_for(language: str, results_dir: str, run_id: str) -> dict:
-    """summary/detailed/judge_agreement CSV paths -- --run-id used verbatim, exactly like
+def default_paths_for(language: str, results_dir: str, experiment_id: str) -> dict:
+    """summary/detailed/judge_agreement CSV paths -- --experiment-id used verbatim, exactly like
     analyze_results.py's own default_paths_for (include the literal '_fallback' suffix in
-    --run-id if that's how the run was produced)."""
-    base = f"summary_linguistic-knowledge_{language}_{run_id}"
+    --experiment-id if that's how the experiment was produced)."""
+    base = f"summary_linguistic-knowledge_{language}_{experiment_id}"
     return {
         "summary": os.path.join(results_dir, f"{base}.csv"),
         "detailed": os.path.join(results_dir, f"{base}_detailed.csv"),
@@ -172,23 +174,27 @@ def default_paths_for(language: str, results_dir: str, run_id: str) -> dict:
     }
 
 
-def cache_paths_for(language: str, root: str, run_id: str) -> tuple[str, bool]:
-    """(cache run-dir under cache/<language>/runs/, is_fallback).
+def cache_paths_for(language: str, root: str, experiment_id: str) -> tuple[str, bool]:
+    """(cache experiment-dir under cache/<language>/experiments/, is_fallback).
 
     The cache directory is never suffixed with '_fallback' -- that suffix is only ever
     appended to the results/ filenames (fallback data lives in a responses_judged_fallback/
-    subdirectory of the SAME run). Since --run-id here may already have '_fallback' baked
+    subdirectory of the SAME experiment). Since --experiment-id here may already have '_fallback' baked
     into it (per the results/ naming convention), strip that one known suffix to recover
-    the bare cache run-id, rather than adding a separate CLI flag.
+    the bare cache experiment-id, rather than adding a separate CLI flag.
     """
-    is_fallback = run_id.endswith("_fallback")
-    bare_run_id = run_id[: -len("_fallback")] if is_fallback else run_id
-    return os.path.join(root, "cache", language, "runs", bare_run_id), is_fallback
+    is_fallback = experiment_id.endswith("_fallback")
+    bare_experiment_id = (
+        experiment_id[: -len("_fallback")] if is_fallback else experiment_id
+    )
+    return os.path.join(
+        root, "cache", language, "experiments", bare_experiment_id
+    ), is_fallback
 
 
-def discover_models_in_run(cache_run_dir: str) -> list[str]:
-    """Model ids with a primary judged CSV under cache_run_dir/responses_judged/."""
-    judged_dir = os.path.join(cache_run_dir, "responses_judged")
+def discover_models_in_experiment(cache_experiment_dir: str) -> list[str]:
+    """Model ids with a primary judged CSV under cache_experiment_dir/responses_judged/."""
+    judged_dir = os.path.join(cache_experiment_dir, "responses_judged")
     if not os.path.isdir(judged_dir):
         return []
     prefix, suffix = "responses_judged_", ".csv"
@@ -200,20 +206,20 @@ def discover_models_in_run(cache_run_dir: str) -> list[str]:
 
 
 def load_full_judged(
-    cache_run_dir: str, model: str, is_fallback: bool
+    cache_experiment_dir: str, model: str, is_fallback: bool
 ) -> pd.DataFrame | None:
     """The fully-resolved judged CSV for `model`: the fallback pass's file (with its
     final, post-fallback score_method) if is_fallback, else the primary pass's file.
     None if the expected file doesn't exist."""
     subdir = "responses_judged_fallback" if is_fallback else "responses_judged"
-    path = os.path.join(cache_run_dir, subdir, f"responses_judged_{model}.csv")
+    path = os.path.join(cache_experiment_dir, subdir, f"responses_judged_{model}.csv")
     if not os.path.exists(path):
         return None
     return pd.read_csv(path)
 
 
 def judge_models_from_summary(summary_df: pd.DataFrame) -> list[str]:
-    """The judge ensemble actually used for this run, from the summary CSV's
+    """The judge ensemble actually used for this experiment, from the summary CSV's
     'llm_judges' column (a stringified python list); falls back to DEFAULT_JUDGE_MODELS
     if that column is missing/unparseable, e.g. an older summary CSV."""
     if "llm_judges" in summary_df.columns:
@@ -227,11 +233,13 @@ def judge_models_from_summary(summary_df: pd.DataFrame) -> list[str]:
     return list(DEFAULT_JUDGE_MODELS)
 
 
-def load_all_judged(cache_run_dir: str, models: list[str]) -> dict[str, pd.DataFrame]:
+def load_all_judged(
+    cache_experiment_dir: str, models: list[str]
+) -> dict[str, pd.DataFrame]:
     """model -> load_judged_model() result, skipping models with no judged CSV."""
     out: dict[str, pd.DataFrame] = {}
     for model in models:
-        df = load_judged_model(cache_run_dir, model)
+        df = load_judged_model(cache_experiment_dir, model)
         if df is not None:
             out[model] = df
     return out
@@ -264,21 +272,23 @@ def compute_kappa(judged_df: pd.DataFrame, judge_models: list[str]) -> pd.DataFr
 
 
 def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
-    cache_run_dir, _ = cache_paths_for(args.language, root, args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
+    cache_experiment_dir, _ = cache_paths_for(args.language, root, args.experiment_id)
 
     summary = load_summary(paths["summary"])
     judge_models = judge_models_from_summary(summary)
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("judge_models", judge_models)
-    _kv("cache_run_dir", cache_run_dir)
+    _kv("cache_experiment_dir", cache_experiment_dir)
 
     if len(judge_models) < 2:
         raise SystemExit(
-            f"Only {len(judge_models)} judge(s) were used for this run -- nothing to "
+            f"Only {len(judge_models)} judge(s) were used for this experiment -- nothing "
             "compute agreement/kappa over (need >=2)."
         )
 
@@ -291,12 +301,12 @@ def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
             f"\n(no {paths['judge_agreement']} found -- recomputing raw agreement below)"
         )
 
-    models = discover_models_in_run(cache_run_dir)
+    models = discover_models_in_experiment(cache_experiment_dir)
     if not models:
         raise SystemExit(
-            f"No judged CSVs found under {cache_run_dir}/responses_judged/."
+            f"No judged CSVs found under {cache_experiment_dir}/responses_judged/."
         )
-    judged_by_model = load_all_judged(cache_run_dir, models)
+    judged_by_model = load_all_judged(cache_experiment_dir, models)
     all_judged = pd.concat(
         [df.assign(model=m) for m, df in judged_by_model.items()], ignore_index=True
     )
@@ -305,7 +315,7 @@ def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
     missing = [c for c in cols if c not in all_judged.columns]
     if missing:
         raise SystemExit(
-            f"judged CSVs are missing column(s) {missing} -- this run may have used a "
+            f"judged CSVs are missing column(s) {missing} -- this experiment may have used a "
             "different judge ensemble than recorded in the summary CSV's llm_judges."
         )
 
@@ -411,8 +421,10 @@ def compute_self_preference(
 
 
 def run_self_preference_bias(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
-    cache_run_dir, _ = cache_paths_for(args.language, root, args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
+    cache_experiment_dir, _ = cache_paths_for(args.language, root, args.experiment_id)
 
     summary = load_summary(paths["summary"])
     judge_models = judge_models_from_summary(summary)
@@ -420,12 +432,12 @@ def run_self_preference_bias(args: argparse.Namespace, root: str) -> None:
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("judge_models", judge_models)
 
     if len(judge_models) < 3:
         raise SystemExit(
-            f"self-preference-bias needs a >=3-judge ensemble (this run used "
+            f"self-preference-bias needs a >=3-judge ensemble (this experiment used "
             f"{len(judge_models)}) -- 'majority of the other judges' isn't well-defined "
             "with fewer than 2 others."
         )
@@ -437,12 +449,12 @@ def run_self_preference_bias(args: argparse.Namespace, root: str) -> None:
             f"{missing_provider} -- their same-provider rows will be undercounted."
         )
 
-    models = discover_models_in_run(cache_run_dir)
+    models = discover_models_in_experiment(cache_experiment_dir)
     if not models:
         raise SystemExit(
-            f"No judged CSVs found under {cache_run_dir}/responses_judged/."
+            f"No judged CSVs found under {cache_experiment_dir}/responses_judged/."
         )
-    judged_by_model = load_all_judged(cache_run_dir, models)
+    judged_by_model = load_all_judged(cache_experiment_dir, models)
 
     report = compute_self_preference(judged_by_model, judge_models, model_provider)
 
@@ -466,30 +478,34 @@ def run_self_preference_bias(args: argparse.Namespace, root: str) -> None:
 # 3. fallback-rate
 # --------------------------------------------------------------------------- #
 def run_fallback_rate(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
-    cache_run_dir, is_fallback = cache_paths_for(args.language, root, args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
+    cache_experiment_dir, is_fallback = cache_paths_for(
+        args.language, root, args.experiment_id
+    )
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
-    _kv("cache_run_dir", cache_run_dir)
+    _kv("experiment_id", args.experiment_id)
+    _kv("cache_experiment_dir", cache_experiment_dir)
 
-    fallback_dir = os.path.join(cache_run_dir, "responses_judged_fallback")
+    fallback_dir = os.path.join(cache_experiment_dir, "responses_judged_fallback")
     if not is_fallback or not os.path.isdir(fallback_dir):
         raise SystemExit(
-            f"No fallback pass found for this run (expected {fallback_dir}) -- "
-            "fallback-rate needs --run-id to be a run that was judged with "
-            "'judge-bench --judge-fallback' (pass the run-id with its '_fallback' suffix, "
-            "e.g. --run-id final-137-items_fallback)."
+            f"No fallback pass found for this experiment (expected {fallback_dir}) -- "
+            "fallback-rate needs --experiment-id to be an experiment judged with "
+            "'judge-bench --judge-fallback' (pass the experiment-id with its '_fallback' suffix, "
+            "e.g. --experiment-id final-137-items_fallback)."
         )
 
     summary = load_summary(paths["summary"])
     accuracy_by_model = dict(zip(summary["model"], summary["accuracy"]))
 
-    models = discover_models_in_run(cache_run_dir)
+    models = discover_models_in_experiment(cache_experiment_dir)
     rows = []
     for model in models:
-        df = load_full_judged(cache_run_dir, model, is_fallback=True)
+        df = load_full_judged(cache_experiment_dir, model, is_fallback=True)
         if df is None:
             continue
         mcq = df[df["answer_type"] == "multiple_choice"]
@@ -651,11 +667,13 @@ def plot_bootstrap_ci(
 
 
 def run_bootstrap_ci(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("n_bootstrap", args.n_bootstrap)
     _kv("ci_level", args.ci_level)
     _kv("seed", args.seed)
@@ -737,8 +755,8 @@ def build_family_table(
     missing = families[~families["model_id"].isin(accuracy_by_model)]
     if len(missing):
         print(
-            f"\n({len(missing)} model(s) in {families_csv} not in this run's summary -- "
-            f"skipped: {', '.join(missing['model_id'])})"
+            f"\n({len(missing)} model(s) in {families_csv} not in this experiment's "
+            f"summary -- skipped: {', '.join(missing['model_id'])})"
         )
 
     def sort_key(model_id: str):
@@ -769,67 +787,84 @@ def plot_family_grid(
     display_names: dict,
     model_provider: dict | None = None,
     provider_color: dict | None = None,
+    language: str | None = None,
 ) -> None:
-    """Bars colored by provider (data/providers.csv, via analyze_results.py's own
-    _bar_colors -- same palette as plot_accuracy()'s per-model bars), not a fixed color;
-    since every model in a family normally shares one provider, this colors each panel
-    by its family's provider and doubles as a visual family/provider cross-check."""
+    """One shared axis, not a subplot grid -- a subplot per family gave every family
+    the same on-screen WIDTH regardless of how many models it has, so bars in a
+    10-model family were squeezed thin next to bars in a 3-model family stretched
+    wide (bar width has no meaning here, so that variation was misleading). Every bar
+    here is the same width; families stay visually separated by an extra gap, a light
+    divider line, and a centered label above each cluster. Bars colored by provider
+    (data/providers.csv, via analyze_results.py's own _bar_colors -- same palette as
+    plot_accuracy()'s per-model bars); `language`, if given, is prefixed onto the
+    title."""
     model_provider = model_provider or {}
     provider_color = provider_color or {}
     families = [f for f, g in table.groupby("family") if len(g) >= 2]
     if not families:
-        print("\n(no family has >=2 models in this run -- skipping grid plot)")
+        print("\n(no family has >=2 models in this experiment -- skipping grid plot)")
         return
 
-    ncols = 3
-    nrows = -(-len(families) // ncols)  # ceil
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(5 * ncols, 3.2 * nrows), squeeze=False
-    )
-
+    gap = 1.0  # extra spacing (in bar-width units) between the last bar of one
+    # family and the first bar of the next, on top of the normal 1-unit bar spacing
+    x_positions: list[float] = []
+    accuracies: list[float] = []
+    colors: list[str] = []
+    tick_labels: list[str] = []
+    family_bounds: list[tuple[str, float, float]] = []  # (family, first_x, last_x)
     seen_providers: list[str] = []
-    for i, family in enumerate(families):
-        ax = axes[i // ncols][i % ncols]
+
+    cursor = 0.0
+    for family in families:
         g = table[table["family"] == family].sort_values("accuracy", ascending=False)
-        x = np.arange(len(g))
         models = g["model"].tolist()
-        colors = _bar_colors(models, model_provider, provider_color)
-        bars = ax.bar(x, g["accuracy"], color=colors)
-        for b, a in zip(bars, g["accuracy"]):
-            ax.text(
-                b.get_x() + b.get_width() / 2,
-                a + 1,
-                f"{a:.0f}",
-                ha="center",
-                fontsize=7,
-            )
-        ax.set_xticks(x)
-        ax.set_xticklabels(
-            [display_names.get(m, m) for m in models],
-            rotation=35,
-            ha="right",
-            fontsize=7,
-        )
-        ax.set_ylim(0, 106)
-        ax.set_title(family, fontsize=10, fontweight="bold")
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.grid(axis="y", color="#eeeeee")
-        ax.set_axisbelow(True)
+        start = cursor
+        for _ in models:
+            x_positions.append(cursor)
+            cursor += 1.0
+        accuracies.extend(g["accuracy"].tolist())
+        colors.extend(_bar_colors(models, model_provider, provider_color))
+        tick_labels.extend(display_names.get(m, m) for m in models)
+        family_bounds.append((family, start, cursor - 1.0))
         for prov in _provider_legend_handles(models, model_provider, provider_color):
             if prov.get_label() not in seen_providers:
                 seen_providers.append(prov.get_label())
+        cursor += gap
 
-    for j in range(len(families), nrows * ncols):
-        axes[j // ncols][j % ncols].set_visible(False)
+    fig, ax = plt.subplots(figsize=(max(14, cursor * 0.42), 5))
+    bars = ax.bar(x_positions, accuracies, width=0.8, color=colors)
+    for b, a in zip(bars, accuracies):
+        ax.text(
+            b.get_x() + b.get_width() / 2, a + 2, f"{a:.0f}", ha="center", fontsize=7
+        )
 
-    fig.suptitle("Model-family consistency — accuracy by model", fontweight="bold")
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(tick_labels, rotation=35, ha="right", fontsize=7)
+    ax.set_ylim(0, 118)
+    ax.set_yticks(range(0, 101, 20))
+    ax.set_ylabel("Accuracy (%)")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#eeeeee")
+    ax.set_axisbelow(True)
+
+    for family, start, end in family_bounds:
+        ax.text(
+            (start + end) / 2, 110, family, ha="center", fontsize=10, fontweight="bold"
+        )
+    for (_, _, prev_end), (_, next_start, _) in zip(family_bounds, family_bounds[1:]):
+        ax.axvline((prev_end + next_start) / 2, color="#dddddd", linewidth=1, zorder=0)
+
+    title = "Model-family consistency — accuracy by model"
+    if language:
+        title = f"{language.capitalize()} Linguistic Knowledge Benchmark -- {title}"
+    ax.set_title(title, fontweight="bold", pad=16, fontsize=13)
     if seen_providers:
         handles = [Patch(facecolor=provider_color[p], label=p) for p in seen_providers]
-        fig.legend(
+        ax.legend(
             handles=handles,
             title="Provider",
             loc="center left",
-            bbox_to_anchor=(1.0, 0.5),
+            bbox_to_anchor=(1.005, 0.5),
             frameon=False,
             fontsize=8,
             title_fontsize=9,
@@ -840,18 +875,20 @@ def plot_family_grid(
 
 
 def run_family_grid(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("model_families_csv", args.model_families_csv)
 
     summary = load_summary(paths["summary"])
     table = build_family_table(args.model_families_csv, summary, args.models_csv)
     if table.empty:
         raise SystemExit(
-            f"No model in {args.model_families_csv} matched this run's summary CSV."
+            f"No model in {args.model_families_csv} matched this experiment's summary CSV."
         )
 
     _section("FAMILY TABLE (old->new / small->big within each family)")
@@ -868,7 +905,9 @@ def run_family_grid(args: argparse.Namespace, root: str) -> None:
     )
     os.makedirs(args.outdir, exist_ok=True)
     png_path = os.path.join(args.outdir, f"family_grid_{args.label}.png")
-    plot_family_grid(table, png_path, display_names, model_provider, provider_color)
+    plot_family_grid(
+        table, png_path, display_names, model_provider, provider_color, args.language
+    )
     csv_path = os.path.join(args.outdir, f"family_grid_{args.label}.csv")
     table.to_csv(csv_path, index=False)
 
@@ -906,7 +945,7 @@ def compute_consistency_table(
         print(
             f"WARNING: {n_bad}/{len(wide)} row(s) don't decode to a replicate in "
             f"[1, {n_replicates}] -- excluded (check --n-replicates matches what "
-            "build_consistency_dataset.py used to build this run's dataset)."
+            "build_consistency_dataset.py used to build this experiment's dataset)."
         )
 
     rows = []
@@ -962,9 +1001,11 @@ def plot_consistency(
     display_names: dict | None,
     model_provider: dict | None,
     provider_color: dict | None,
+    language: str | None = None,
 ) -> None:
     """One box (spread across all replicates) per model, ordered by mean accuracy,
-    colored by provider -- same palette as the other plots."""
+    colored by provider -- same palette as the other plots. `language`, if given,
+    becomes a figure-level suptitle above the existing (replicate-count) title."""
     model_provider = model_provider or {}
     provider_color = provider_color or {}
     order = agg.sort_values("mean_accuracy", ascending=False)["model"].tolist()
@@ -987,7 +1028,8 @@ def plot_consistency(
     ax.set_ylim(0, 106)
     n_reps = raw["rep"].nunique()
     ax.set_title(
-        f"Run-to-run consistency -- accuracy across {n_reps} repeated runs per model",
+        f"Replicate-to-replicate consistency -- accuracy across {n_reps} repeated "
+        f"replicates per model",
         fontweight="bold",
         pad=16,
         fontsize=13,
@@ -1007,17 +1049,26 @@ def plot_consistency(
             fontsize=8,
             title_fontsize=9,
         )
+    if language:
+        fig.suptitle(
+            f"{language.capitalize()} Linguistic Knowledge Benchmark Performance",
+            fontweight="bold",
+            fontsize=15,
+            y=1.03,
+        )
     fig.tight_layout()
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
 def run_consistency(args: argparse.Namespace, root: str) -> None:
-    paths = default_paths_for(args.language, os.path.join(root, "results"), args.run_id)
+    paths = default_paths_for(
+        args.language, os.path.join(root, "results"), args.experiment_id
+    )
 
     _section("CONFIG")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("n_replicates", args.n_replicates)
 
     # --dataset is filename-only: always resolved as DATA_DIR/<dataset> by cmd.py.
@@ -1026,18 +1077,19 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
     if missing:
         listing = "\n".join(f"  {name}: {p}" for name, p in missing.items())
         raise SystemExit(
-            f"Missing result file(s) for --language {args.language} --run-id "
-            f"{args.run_id}:\n{listing}\n\n"
-            "This check needs the summary/detailed/judge_agreement CSVs from a run "
-            "scored against the REPEATED (consistency) dataset, not a normal run. To "
+            f"Missing result file(s) for --language {args.language} --experiment-id "
+            f"{args.experiment_id}:\n{listing}\n\n"
+            "This check needs the summary/detailed/judge_agreement CSVs from an "
+            "experiment scored against the REPEATED (consistency) dataset, not a normal "
+            "one. To "
             "produce them:\n"
             f"  1. uv run python scripts/build_consistency_dataset.py --language "
             f"{args.language} --n-replicates {args.n_replicates}   (if not already built)\n"
-            "  2. Pass that file as --dataset to BOTH commands (same --run-id for both):\n"
+            "  2. Pass that file as --dataset to BOTH commands (same --experiment-id for both):\n"
             f"       uv run linguistic-knowledge-benchmark run-bench --language "
-            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg}\n"
+            f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg}\n"
             f"       uv run linguistic-knowledge-benchmark judge-bench --language "
-            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg} "
+            f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg} "
             "--num-judges 3"
         )
 
@@ -1048,10 +1100,10 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
             f"{paths['detailed']} has no scored rows for any model.\n"
             "This is the failure mode where judge-bench's detailed CSV was merged "
             "against the wrong dataset -- --dataset must be passed consistently to "
-            "BOTH run-bench and judge-bench (the same file, same --run-id). Re-run "
+            "BOTH run-bench and judge-bench (the same file, same --experiment-id). Re-run "
             "judge-bench with it:\n"
             f"  uv run linguistic-knowledge-benchmark judge-bench --language "
-            f"{args.language} --run-id {args.run_id} --dataset {dataset_arg} "
+            f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg} "
             "--num-judges 3 --force"
         )
 
@@ -1059,7 +1111,7 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
     if raw.empty:
         raise SystemExit(
             "No row decoded to a valid replicate -- is --n-replicates set to what "
-            "build_consistency_dataset.py used to build this run's dataset?"
+            "build_consistency_dataset.py used to build this experiment's dataset?"
         )
 
     _section(
@@ -1083,7 +1135,9 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
     raw_path = os.path.join(args.outdir, f"consistency_{args.label}_raw.csv")
     raw.round(2).to_csv(raw_path, index=False)
     png_path = os.path.join(args.outdir, f"consistency_{args.label}.png")
-    plot_consistency(raw, agg, png_path, display_names, model_provider, provider_color)
+    plot_consistency(
+        raw, agg, png_path, display_names, model_provider, provider_color, args.language
+    )
 
     print(f"\nWrote:\n  {agg_path}\n  {raw_path}\n  {png_path}")
 
@@ -1103,17 +1157,17 @@ def build_parser(root: str) -> argparse.ArgumentParser:
         help="which language's result CSVs to validate",
     )
     common.add_argument(
-        "--run-id",
+        "--experiment-id",
         required=True,
-        help="run-id passed to judge-bench; selects "
-        "summary_linguistic-knowledge_<language>_<run-id>[_detailed|_judge_agreement].csv "
-        "-- include the literal '_fallback' suffix if that's how the run was produced "
+        help="experiment-id passed to judge-bench; selects "
+        "summary_linguistic-knowledge_<language>_<experiment-id>[_detailed|_judge_agreement].csv "
+        "-- include the literal '_fallback' suffix if that's how the experiment was produced "
         "(e.g. 'final-137-items_fallback')",
     )
     common.add_argument(
         "--outdir",
         default=os.path.join(root, "results", "validation"),
-        help="base output dir; this run's files go under <outdir>/<language>/",
+        help="base output dir; this experiment's files go under <outdir>/<language>/",
     )
     common.add_argument("--label", default=None, help="tag for output filenames")
     common.add_argument(
@@ -1159,20 +1213,21 @@ def build_parser(root: str) -> argparse.ArgumentParser:
     consistency = sub.add_parser(
         "consistency",
         parents=[common],
-        help="run-to-run accuracy variance from a run scored against a repeated "
-        "dataset (see build_consistency_dataset.py); suggested --run-id: validation-20x",
+        help="replicate-to-replicate accuracy variance from an experiment scored against a "
+        "repeated "
+        "dataset (see build_consistency_dataset.py); suggested --experiment-id: validation-20x",
     )
     consistency.add_argument(
         "--n-replicates",
         type=int,
         default=DEFAULT_N_REPLICATES,
-        help="must match what build_consistency_dataset.py used for this run's dataset "
+        help="must match what build_consistency_dataset.py used for this experiment's dataset "
         f"(default {DEFAULT_N_REPLICATES})",
     )
     all_checks = sub.add_parser(
         "all",
         parents=[common],
-        help="run every check for this language/run-id; skips (doesn't overwrite) any "
+        help="run every check for this language/experiment-id; skips (doesn't overwrite) any "
         "check whose output file(s) already exist under <outdir>/<language>/",
     )
     all_checks.add_argument("--n-bootstrap", type=int, default=1000)
@@ -1196,7 +1251,7 @@ RUNNERS = {
 }
 
 # Output file(s) each check writes, keyed by --label -- used by run_all() to decide
-# whether a check has already been run for this language/run-id/label and should be
+# whether a check has already been run for this language/experiment-id/label and should be
 # skipped rather than overwritten.
 CHECK_OUTPUT_FILES = {
     "judge-agreement": lambda label: [f"judge_agreement_kappa_{label}.csv"],
@@ -1216,14 +1271,14 @@ CHECK_OUTPUT_FILES = {
 
 
 def run_all(args: argparse.Namespace, root: str) -> None:
-    """Run every check in CHECKS for this --language/--run-id, in order. A check is
+    """Run every check in CHECKS for this --language/--experiment-id, in order. A check is
     SKIPPED (not overwritten) if all of its expected output files already exist under
     <outdir>/<language>/ -- rerun with a different --label, or delete those files, to
     force it. A check that errors (e.g. fallback-rate with no fallback pass for this
     run) is reported and skipped too, rather than aborting the remaining checks."""
     _section("RUNNING ALL CHECKS")
     _kv("language", args.language)
-    _kv("run_id", args.run_id)
+    _kv("experiment_id", args.experiment_id)
     _kv("label", args.label)
     _kv("outdir", args.outdir)
 
@@ -1257,7 +1312,7 @@ def main() -> None:
 
     args = build_parser(root).parse_args()
     if args.label is None:
-        args.label = f"{args.language}_{args.run_id}"
+        args.label = f"{args.language}_{args.experiment_id}"
     args.outdir = os.path.join(args.outdir, args.language)
 
     RUNNERS[args.check](args, root)
