@@ -6,8 +6,9 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from conftest import VALID_MODEL
+from conftest import VALID_MODEL, sample_questions, write_dataset
 from linguistic_knowledge_benchmark import cmd, shared_utils
+from linguistic_knowledge_benchmark.cmd import DATASETS as REGISTERED_DATASETS
 from linguistic_knowledge_benchmark.judge_bench import DEFAULT_JUDGE_MODELS
 from typer.testing import CliRunner
 
@@ -25,6 +26,27 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def stub_registered_datasets(monkeypatch, tmp_path_factory):
+    """Point every registered language at a tiny on-disk dataset.
+
+    The real data/linguistic_knowledge_eval_<language>.json item sets are gitignored
+    (kept private ahead of open-sourcing the repo), so they are absent on every fresh
+    clone and in CI. judge-bench reads the registered path for real -- build_detailed()
+    is not mocked in these tests -- so without this every judge-bench test would pass
+    locally and fail in CI with FileNotFoundError. Autouse so new tests inherit it.
+    """
+    dataset_path = write_dataset(
+        tmp_path_factory.mktemp("registered_datasets") / "dataset.json",
+        sample_questions(),
+    )
+    monkeypatch.setattr(
+        cmd,
+        "DATASETS",
+        {key: {**entry, "path": dataset_path} for key, entry in cmd.DATASETS.items()},
+    )
+
+
 # --------------------------------------------------------------------------- #
 # help / structure
 # --------------------------------------------------------------------------- #
@@ -37,7 +59,9 @@ def test_help_lists_commands(runner: CliRunner) -> None:
 
 
 def test_datasets_map_is_parameterized() -> None:
-    for entry in cmd.DATASETS.values():
+    # REGISTERED_DATASETS, not cmd.DATASETS: this checks the real registry, which
+    # stub_registered_datasets replaces for every test in this module.
+    for entry in REGISTERED_DATASETS.values():
         assert {"path", "language_name"} <= entry.keys()
 
 
