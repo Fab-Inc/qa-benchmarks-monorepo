@@ -82,6 +82,10 @@ def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
     Apply grapheme and phoneme translations to normalize the input.
 
     Example: ``"a /æ/, qu /kw/"`` -> ``[("a", "æ"), ("qu", "kw")]``.
+
+    Exact duplicate pairs are dropped, keeping first-seen order. Note that one
+    grapheme may legitimately appear more than once with *different* phonemes
+    (``th`` -> ``ð`` and ``th`` -> ``θ``); only whole-pair repeats collapse.
     """
     pairs = []
     for item in split_list(value):
@@ -89,7 +93,7 @@ def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
         grapheme = grapheme.strip().strip(_POSITIONAL_MARKERS).replace("_", "-")
         phoneme = phoneme.strip().strip("/").translate(_PHONEME_TRANSLATION)
         pairs.append((grapheme, phoneme))
-    return pairs
+    return list(dict.fromkeys(pairs))
 
 
 # Registry: maps language_iso_code to the fields that belong in student_knowledge
