@@ -6,17 +6,38 @@ multiple_choice question with zero or more than one expected answer would
 have the extra entries silently ignored.
 """
 
+from pathlib import Path
+
 import pytest
 from linguistic_knowledge_benchmark.cmd import DATASETS
 from linguistic_knowledge_benchmark.run_bench import load_dataset
+from linguistic_knowledge_benchmark.shared_utils import DATA_DIR
 
 VALID_ANSWER_TYPES = {"multiple_choice", "short_form"}
 
 
+def _dataset_path_for(language_key: str, entry: dict) -> Path | None:
+    """The full item set if present locally, else the tracked 20-item public subset
+    (data/hf_subset_<language>_20.json). The full sets are gitignored -- kept private
+    ahead of open-sourcing the repo -- so they're absent on every fresh clone/CI run,
+    not just occasionally; falling back to the subset keeps this test meaningful
+    there instead of validating nothing. None if neither file exists."""
+    full_path = Path(entry["path"])
+    if full_path.exists():
+        return full_path
+    subset_path = DATA_DIR / f"hf_subset_{language_key}_20.json"
+    return subset_path if subset_path.exists() else None
+
+
 def _all_questions():
-    """Yield (language_key, question) for every registered dataset."""
+    """Yield (language_key, question) for every registered dataset with an available
+    file (see _dataset_path_for) -- a language with neither file present is skipped
+    rather than crashing collection for every other test in this file."""
     for language_key, entry in DATASETS.items():
-        for question in load_dataset(entry["path"]):
+        path = _dataset_path_for(language_key, entry)
+        if path is None:
+            continue
+        for question in load_dataset(path):
             yield language_key, question
 
 
