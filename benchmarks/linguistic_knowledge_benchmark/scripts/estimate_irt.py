@@ -133,10 +133,14 @@ _CORRECT_MAP = {"true": 1, "false": 0, "1": 1, "0": 0}
 # Kiswahili's full-pool eval experiment is tagged "v10-full-dataset" (528 detailed rows -> 307
 # items scored); English's equivalent experiment (its whole 377-item
 # stage_3b_dataset_full pool)
-# is simply tagged "default". Paths are relative to the package root (joined in main()).
+# is tagged "full-run". Paths are relative to the package root (joined in main()).
+# NOTE: these must point at the FULL POOL, not a final trimmed set -- the
+# final-137-items CSVs hold only the already-selected items (and 120 models, not the
+# 10-model selection panel), so pointing here at one of those would silently re-select
+# from a set that has already been selected.
 RESULTS_DETAILED_PATH = {
     "english": os.path.join(
-        "results", "summary_linguistic-knowledge_english_default_detailed.csv"
+        "results", "summary_linguistic-knowledge_english_full-run_detailed.csv"
     ),
     "kiswahili": os.path.join(
         "results",
@@ -162,6 +166,15 @@ MIN_DISCRIMINATION = 0.0  # drop items whose point-biserial is below this
 MAX_PVALUE = 1.0  # drop items more than this fraction of models get right (e.g. 0.9)
 MIN_PVALUE = 0.0  # drop items fewer than this fraction of models get right
 LEAVE_OUT = 2  # models omitted per selection_freq subpanel (2 = leave-two-out)
+
+# Font sizes for coverage_comparison.png, in one place. Matplotlib's defaults (and
+# _draw_coverage_heatmap's) are sized for a normal-width plot; on this 30-inch-wide
+# five-panel strip, printed into a report, they come out unreadably small.
+FS_SUPTITLE = 30
+FS_PANEL_TITLE = 20
+FS_TICK = 16
+FS_VALUE = 15  # heatmap cell counts and bar value labels
+FS_AXIS_LABEL = 16
 
 
 def default_results_detailed_for(language: str, root: str) -> str:
@@ -718,14 +731,34 @@ def _domain_grade_matrix(df: pd.DataFrame) -> np.ndarray:
     return np.nan_to_num(mat.to_numpy(dtype=float))
 
 
-def _draw_coverage_heatmap(ax, data: np.ndarray, title: str, cmap: str) -> None:
-    """Shared domain x grade heatmap rendering (axes/ticks/cell-value annotations)."""
+def _draw_coverage_heatmap(
+    ax,
+    data: np.ndarray,
+    title: str,
+    cmap: str,
+    *,
+    tick_fontsize: int = 9,
+    cell_fontsize: int = 8,
+    title_fontsize: int | None = None,
+) -> None:
+    """Shared domain x grade heatmap rendering (axes/ticks/cell-value annotations).
+
+    The font sizes are parameters because this helper serves two very differently
+    sized figures: plot_coverage()'s single 9x6 panel (the defaults) and
+    plot_coverage_comparison()'s 30-inch-wide five-panel strip, where the defaults
+    render far too small to read. Passing sizes keeps the small figure unchanged.
+    """
     im = ax.imshow(data, cmap=cmap, aspect="auto", vmin=0)
     ax.set_xticks(range(len(GRADES)))
-    ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=9)
+    ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=tick_fontsize)
     ax.set_yticks(range(len(DOMAINS)))
-    ax.set_yticklabels(DOMAINS, fontsize=9)
-    ax.set_title(f"{title}  (n={int(data.sum())})", fontweight="bold", pad=8)
+    ax.set_yticklabels(DOMAINS, fontsize=tick_fontsize)
+    ax.set_title(
+        f"{title}  (n={int(data.sum())})",
+        fontweight="bold",
+        pad=8,
+        fontsize=title_fontsize,
+    )
     vmax = data.max() if data.max() > 0 else 1.0
     for r in range(data.shape[0]):
         for c in range(data.shape[1]):
@@ -736,7 +769,7 @@ def _draw_coverage_heatmap(ax, data: np.ndarray, title: str, cmap: str) -> None:
                 "·" if n == 0 else str(n),
                 ha="center",
                 va="center",
-                fontsize=8,
+                fontsize=cell_fontsize,
                 color="#222222" if data[r, c] < vmax * 0.6 else "white",
             )
     return im
@@ -764,7 +797,9 @@ def _pct_dropped(before_totals: np.ndarray, after_totals: np.ndarray) -> np.ndar
         )
 
 
-def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
+def plot_coverage_comparison(
+    items: pd.DataFrame, out: str, language: str | None = None
+) -> None:
     """Domain x grade heatmap: the full item bank, the selected set, the difference
     (items dropped per cell), then -- on the right -- each domain's % dropped and
     each grade's % dropped, each proportional to its OWN before-cut total (not the
@@ -777,7 +812,8 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     `items` is every item that entered this IRT experiment (scored or not); "before"
     counts all of them, "after" counts only those with `selected=True`. Since
     selected is always a subset, the diff panel is >= 0 everywhere (cells never
-    gain items).
+    gain items). `language`, if given, is prefixed onto the title -- the figure is
+    otherwise identical between languages and impossible to tell apart in a report.
     """
     before = _domain_grade_matrix(items)
     after = _domain_grade_matrix(items[items["selected"]])
@@ -787,15 +823,26 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     pct_dropped_grade = _pct_dropped(before.sum(axis=0), after.sum(axis=0))
 
     fig, axes = plt.subplots(
-        1, 5, figsize=(30, 6), gridspec_kw={"width_ratios": [1, 1, 1, 0.7, 0.7]}
+        1, 5, figsize=(30, 7.5), gridspec_kw={"width_ratios": [1, 1, 1, 0.7, 0.7]}
     )
-    im0 = _draw_coverage_heatmap(axes[0], before, "Full item bank (before)", "Blues")
-    im1 = _draw_coverage_heatmap(axes[1], after, "Selected set (after)", "Blues")
+    heat_kw = dict(
+        tick_fontsize=FS_TICK,
+        cell_fontsize=FS_VALUE,
+        title_fontsize=FS_PANEL_TITLE,
+    )
+    im0 = _draw_coverage_heatmap(
+        axes[0], before, "Full item bank (before)", "Blues", **heat_kw
+    )
+    im1 = _draw_coverage_heatmap(
+        axes[1], after, "Selected set (after)", "Blues", **heat_kw
+    )
     im2 = _draw_coverage_heatmap(
-        axes[2], diff, "Dropped in the cut (before − after)", "Reds"
+        axes[2], diff, "Dropped in the cut (before − after)", "Reds", **heat_kw
     )
     for ax, im in zip(axes[:3], [im0, im1, im2]):
-        fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02, label="items")
+        cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
+        cbar.set_label("items", fontsize=FS_AXIS_LABEL)
+        cbar.ax.tick_params(labelsize=FS_TICK)
 
     # 4th panel: % of each domain's own before-cut total that got dropped.
     # Row-aligned with the heatmaps (same DOMAINS order, D1 at top) so a row reads
@@ -807,17 +854,23 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     )
     ax.barh(y, np.nan_to_num(pct_dropped_domain), color=colors)
     ax.set_yticks(y)
-    ax.set_yticklabels(DOMAINS, fontsize=9)
+    ax.set_yticklabels(DOMAINS, fontsize=FS_TICK)
     ax.invert_yaxis()  # D1 at top, matching the heatmaps' row order
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("% of domain dropped")
+    # Headroom past 100 so a 100%-dropped bar's value label still fits inside the
+    # axes instead of colliding with the neighbouring panel.
+    ax.set_xlim(0, 118)
+    ax.set_xlabel("% of domain dropped", fontsize=FS_AXIS_LABEL)
+    ax.tick_params(axis="x", labelsize=FS_TICK)
     ax.set_title(
-        "% dropped\n(of domain's own total)", fontweight="bold", fontsize=10, pad=8
+        "% dropped\n(of domain's own total)",
+        fontweight="bold",
+        fontsize=FS_PANEL_TITLE,
+        pad=8,
     )
     for i, pct in enumerate(pct_dropped_domain):
         label = "n/a" if np.isnan(pct) else f"{pct:.0f}%"
         x = 0 if np.isnan(pct) else pct
-        ax.text(x + 2, i, label, va="center", fontsize=8)
+        ax.text(x + 2, i, label, va="center", fontsize=FS_VALUE)
     ax.spines[["top", "right"]].set_visible(False)
 
     # 5th panel: % of each grade's own before-cut total that got dropped, grade on
@@ -829,21 +882,28 @@ def plot_coverage_comparison(items: pd.DataFrame, out: str) -> None:
     )
     ax.bar(x, np.nan_to_num(pct_dropped_grade), color=colors)
     ax.set_xticks(x)
-    ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=9)
-    ax.set_ylim(0, 100)
-    ax.set_ylabel("% of grade dropped")
+    ax.set_xticklabels([GRADE_LABEL[g] for g in GRADES], fontsize=FS_TICK)
+    # Same headroom as the domain panel: a 100% bar's label would otherwise run
+    # into the title.
+    ax.set_ylim(0, 118)
+    ax.set_ylabel("% of grade dropped", fontsize=FS_AXIS_LABEL)
+    ax.tick_params(axis="y", labelsize=FS_TICK)
     ax.set_title(
-        "% dropped\n(of grade's own total)", fontweight="bold", fontsize=10, pad=8
+        "% dropped\n(of grade's own total)",
+        fontweight="bold",
+        fontsize=FS_PANEL_TITLE,
+        pad=8,
     )
     for i, pct in enumerate(pct_dropped_grade):
         label = "n/a" if np.isnan(pct) else f"{pct:.0f}%"
         y_ = 0 if np.isnan(pct) else pct
-        ax.text(i, y_ + 2, label, ha="center", fontsize=8)
+        ax.text(i, y_ + 2, label, ha="center", fontsize=FS_VALUE)
     ax.spines[["top", "right"]].set_visible(False)
 
-    fig.suptitle(
-        "Domain × grade coverage: before vs after the IRT cut", fontweight="bold"
-    )
+    title = "Domain × grade coverage: before vs after item selection"
+    if language:
+        title = f"{language.capitalize()} Linguistic Knowledge Benchmark -- {title}"
+    fig.suptitle(title, fontweight="bold", fontsize=FS_SUPTITLE)
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
@@ -1066,7 +1126,9 @@ def main() -> None:
     plot_diagnostics(items, out("diagnostics.png"))
     plot_accuracy_shift(tbl, CEILING, out("accuracy_shift.png"))
     plot_coverage(items, out("coverage.png"))
-    plot_coverage_comparison(items, out("coverage_comparison.png"))
+    plot_coverage_comparison(
+        items, out("coverage_comparison.png"), language=args.language
+    )
     plot_selection_freq(items, LEAVE_OUT, out("selection_freq.png"))
 
     # ---- console summary ----

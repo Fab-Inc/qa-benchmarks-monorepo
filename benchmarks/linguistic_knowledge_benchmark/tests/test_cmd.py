@@ -269,6 +269,61 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
     assert "responses_judged_git-hash" in df.columns
 
 
+def test_judge_bench_skips_model_over_call_error_rate(
+    runner, monkeypatch, tmp_path
+) -> None:
+    """A model refused by the error-rate gate is announced twice (inline and in the
+    end-of-run block) and, with no other model to judge, produces no summary at all."""
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    responses = tmp_path / "kiswahili" / "experiments" / "default" / "responses"
+    responses.mkdir(parents=True)
+    monkeypatch.setattr(
+        cmd,
+        "judge_results",
+        MagicMock(
+            side_effect=cmd.TooManyCallErrorsError("20/100 rows failed to call (20.0%)")
+        ),
+    )
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(
+        cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
+    )
+    assert result.exit_code == 0
+    assert f"SKIPPING {VALID_MODEL}" in result.output
+    assert "NOT JUDGED" in result.output
+    assert "every model with results exceeded" in result.output
+    assert not (
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
+    ).exists()
+
+
+def test_judge_bench_summary_excludes_only_the_over_limit_model(
+    runner, monkeypatch, tmp_path
+) -> None:
+    """The gate skips per model: a healthy model still gets judged and summarized."""
+    monkeypatch.setattr(cmd, "BENCH_DIR", tmp_path)
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    monkeypatch.setattr(cmd, "EVAL_MODELS", {VALID_MODEL: "Valid", "bad-model": "Bad"})
+
+    def _judge(model_name, **kwargs):
+        if model_name == "bad-model":
+            raise cmd.TooManyCallErrorsError("30/100 rows failed to call (30.0%)")
+        return pd.DataFrame({DEFAULT_JUDGE_COL: []})
+
+    monkeypatch.setattr(cmd, "judge_results", _judge)
+    _patch_summary(monkeypatch)
+
+    result = runner.invoke(cmd.app, ["judge-bench", "--language", "kiswahili"])
+    assert result.exit_code == 0
+    assert "SKIPPING bad-model" in result.output
+    df = pd.read_csv(
+        tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
+    )
+    assert df["model"].tolist() == [VALID_MODEL]
+
+
 def test_judge_bench_standard_reads_existing_log_for_provenance(
     runner, monkeypatch, tmp_path
 ) -> None:

@@ -7,12 +7,30 @@ outputs/
 data/raw/
 data/interim/
 data/processed/
+
+# LKB's cache of run-bench/judge-bench responses -- local scratch, not committed.
 benchmarks/linguistic_knowledge_benchmark/cache/
+# Synced from fab-open-configs at runtime (see cmd.py's setup()), not committed.
 custom_models.yaml
+
+# Post-analysis/plotting outputs -- all one-command-regenerable
 benchmarks/linguistic_knowledge_benchmark/results/analysis
 benchmarks/linguistic_knowledge_benchmark/results/web
+benchmarks/linguistic_knowledge_benchmark/results/validation
+benchmarks/linguistic_knowledge_benchmark/results/consistency
+benchmarks/linguistic_knowledge_benchmark/results/paper_figures
+# scripts/workflow/check_supported_models.py --report output (model smoke-test).
+benchmarks/linguistic_knowledge_benchmark/check_full.csv
+# Per-question detail CSV -- Ignored as too large to commit
 benchmarks/linguistic_knowledge_benchmark/results/summary_linguistic-knowledge_*_detailed.csv
+# The N-times-repeated dataset build_consistency_dataset.py builds for the
+# "consistency" check -- large, regenerable with that one script.
 benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_*_[0-9]*x.json
+# Full private item sets -- kept local-only ahead of open-sourcing the repo; only
+# the curated 20-item public subset (data/hf_subset_*.json) stays tracked.
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_english.json
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_kiswahili.json
+
 .vscode/
 
 # Benchmark data is not committed: the repo is to be open sourced, and part of the

@@ -1,4 +1,0 @@
-judge,same_provider_leniency_rate,other_provider_leniency_rate,delta,n_same,n_other
-claude-sonnet-5,0.1172,0.0386,0.0786,145,2047
-gpt-5.6-terra,0.0,0.0,0.0,385,1737
-gemini-3.6-flash,0.0,0.0,0.0,357,1788

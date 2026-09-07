@@ -120,6 +120,22 @@ GRADE_LABEL = {g: ("BP" if g == "beyond_primary" else g) for g in GRADES}
 ACC_CMAP = "RdYlGn"  # low accuracy = red (getting it wrong), high = green
 _CORRECT_MAP = {True: 1, False: 0, "True": 1, "False": 0}
 
+# Per-model accuracy bar chart geometry (_plot_accuracy_bars). The figure width scales
+# with the model count so each bar keeps the same slot however many models a run has:
+# BAR_SLOT_INCHES is that slot, MIN_FIG_WIDTH_INCHES keeps a handful of models from
+# rendering as a stubby chart, and MAX_FIG_WIDTH_INCHES caps the PNG's pixel width
+# (at dpi=150, 44in is ~6600px) -- past that cap the fonts start shrinking again.
+BAR_SLOT_INCHES = 0.30
+MIN_FIG_WIDTH_INCHES = 10.0
+MAX_FIG_WIDTH_INCHES = 44.0
+# Fraction of each slot the bar itself fills (matplotlib's own default is 0.8). Near 1
+# the bars nearly touch, leaving only a hairline of background between them; the bars
+# stay distinguishable because adjacent models are usually different provider colours.
+# Absolute bar width is BAR_WIDTH_FRACTION * BAR_SLOT_INCHES, so thinner bars AND tight
+# spacing means lowering BAR_SLOT_INCHES -- which narrows the figure and, via slot_pt
+# below, shrinks the fonts again.
+BAR_WIDTH_FRACTION = 0.85
+
 # Language keys match cmd.py's DATASETS and the result CSVs' own naming
 # (summary_linguistic-knowledge_<language>_<label>.csv).
 LANGUAGES = ["english", "kiswahili"]
@@ -462,23 +478,52 @@ def _plot_accuracy_bars(
 ) -> None:
     """Shared renderer for the per-model accuracy bar chart: same bars/labels/style
     for plot_accuracy() and plot_accuracy_by_size(), which differ only in how bars
-    are colored and what (if any) legend they show."""
+    are colored and what (if any) legend they show.
+
+    The figure WIDTH grows with the number of models (BAR_SLOT_INCHES each, floored at
+    MIN_FIG_WIDTH_INCHES) instead of being fixed: at a fixed width, 120 models leave
+    each bar ~1.5mm and the rotated names and value labels collide into an unreadable
+    band. Growing the canvas keeps the per-model slot constant, so the fonts below can
+    stay at a readable size however many models are plotted.
+    """
     s = summary.sort_values("accuracy", ascending=False)
     models = s["model"].tolist()
     x = np.arange(len(models))
 
-    fig, ax = plt.subplots(figsize=(12, 4.5))
-    bars = ax.bar(x, s["accuracy"], color=colors)
+    n_models = max(len(models), 1)
+    fig_width = min(
+        MAX_FIG_WIDTH_INCHES, max(MIN_FIG_WIDTH_INCHES, n_models * BAR_SLOT_INCHES)
+    )
+    # Points of horizontal room per model, once the width above is fixed (72pt = 1in).
+    # Fonts are sized from that, so they shrink only when the width cap is what's
+    # binding (very many models) rather than on every added model.
+    slot_pt = 72.0 * fig_width / n_models
+    label_fontsize = float(np.clip(slot_pt * 0.55, 5.0, 11.0))
+    value_fontsize = float(np.clip(slot_pt * 0.50, 4.5, 10.0))
+    # Grow the height with the width too: the rotated name band below the axes is a
+    # fixed height, so a wide-but-short figure spends most of its canvas on labels and
+    # squashes the bars themselves into a ribbon.
+    fig_height = float(np.clip(fig_width * 0.24, 6.0, 12.0))
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    bars = ax.bar(x, s["accuracy"], width=BAR_WIDTH_FRACTION, color=colors)
     ax.set_ylabel("Accuracy (%)")
     ax.set_ylim(0, 106)
     ax.set_xticks(x)
     ax.set_xticklabels(
-        _labels(models, display_names), rotation=35, ha="right", fontsize=7
+        _labels(models, display_names),
+        rotation=35,
+        ha="right",
+        fontsize=label_fontsize,
     )
     ax.set_title(title, fontweight="bold", pad=16, fontsize=15)
     for b, a in zip(bars, s["accuracy"]):
         ax.text(
-            b.get_x() + b.get_width() / 2, a + 1, f"{a:.0f}", ha="center", fontsize=7
+            b.get_x() + b.get_width() / 2,
+            a + 1,
+            f"{a:.0f}",
+            ha="center",
+            fontsize=value_fontsize,
         )
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="y", color="#eeeeee")

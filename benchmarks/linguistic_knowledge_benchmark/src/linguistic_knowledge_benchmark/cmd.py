@@ -12,6 +12,8 @@ from fdllm import register_models
 
 from linguistic_knowledge_benchmark.judge_bench import (
     DEFAULT_JUDGE_MODELS,
+    MAX_CALL_ERROR_RATE,
+    TooManyCallErrorsError,
     build_detailed,
     compute_judge_agreement,
     compute_summary,
@@ -346,6 +348,7 @@ def judge_bench_cmd(
     summaries: list[dict[str, object]] = []
     judged_by_model: dict[str, pd.DataFrame] = {}
     skipped_models: list[str] = []
+    error_rate_skipped: list[str] = []
 
     for current_model in models_to_judge:
         try:
@@ -406,6 +409,12 @@ def judge_bench_cmd(
 
         except typer.Exit:
             raise
+        except TooManyCallErrorsError as e:
+            # Loud, per-model, as it happens: this is a model whose results are
+            # incomplete enough to be misleading, so it is judged nowhere and appears
+            # in neither the summary nor the detailed CSV.
+            typer.echo(f"\n!! SKIPPING {current_model}: {e}", err=True)
+            error_rate_skipped.append(current_model)
         except FileNotFoundError:
             skipped_models.append(current_model)
         except Exception as e:
@@ -428,7 +437,26 @@ def judge_bench_cmd(
             f"{', '.join(skipped_models)}"
         )
 
+    # Repeated at the end because the per-model warning above scrolls away behind the
+    # judging progress bars of every model that followed it.
+    if error_rate_skipped:
+        typer.echo(
+            f"\n!! NOT JUDGED -- more than {MAX_CALL_ERROR_RATE:.0%} of rows failed "
+            f"to call ({len(error_rate_skipped)} model(s)): "
+            f"{', '.join(error_rate_skipped)}\n"
+            "   These are absent from the summary and detailed CSVs. Re-run them "
+            "with 'run-bench --retry-errors', then judge again."
+        )
+
     if not summaries:
+        if error_rate_skipped:
+            # Don't claim the directory is empty when it isn't: every model that had
+            # results was skipped by the error-rate gate above.
+            typer.echo(
+                "\nNothing judged: every model with results exceeded the "
+                f"{MAX_CALL_ERROR_RATE:.0%} call-error limit. No summary written."
+            )
+            return
         typer.echo(
             f"\nNothing judged: no result files in {input_dir}\n"
             "The directory exists but is empty. Run 'run-bench' for this "

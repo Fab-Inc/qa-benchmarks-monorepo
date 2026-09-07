@@ -102,6 +102,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import os
 import sys
 
@@ -142,6 +143,13 @@ CHECKS = [
 ]
 
 DEFAULT_SEED = 0  # bootstrap-ci's --seed default, for reproducible CIs across reruns
+
+# benchmark_domain key to read out of a benchmark_default_models.json (written by
+# scripts/results_for_website.py, which ids its pairs "<benchmark>-<ISO 639-1 code>").
+DEFAULT_MODELS_DOMAIN = {"english": "LK-en", "kiswahili": "LK-sw"}
+# Appended to the auto-generated --label when --models-json filters the model set, so a
+# filtered run cannot silently overwrite the all-models outputs. An explicit --label wins.
+DEFAULT_MODELS_LABEL_SUFFIX = "_default-models"
 DEFAULT_N_REPLICATES = 20  # consistency's --n-replicates default; must match whatever
 # build_consistency_dataset.py --n-replicates was used to build the experiment's dataset
 
@@ -666,6 +674,47 @@ def plot_bootstrap_ci(
     plt.close(fig)
 
 
+def load_default_models(models_json: str, language: str) -> list[str]:
+    """The model ids this language's leaderboard pre-selects, from a
+    benchmark_default_models.json written by scripts/results_for_website.py.
+
+    That file is keyed by benchmark_domain ("LK-en"/"LK-sw"), one entry per published
+    (benchmark, language) pair, so the language picks the entry. Each run folder under
+    results/web/<timestamp>/ has its own copy and they differ by curation setting --
+    point at a specific one rather than assuming "the latest".
+    """
+    with open(models_json, encoding="utf-8") as fh:
+        by_domain = json.load(fh)
+    domain = DEFAULT_MODELS_DOMAIN.get(language)
+    if domain not in by_domain:
+        raise SystemExit(
+            f"ERROR: no '{domain}' entry in {models_json} "
+            f"(found: {', '.join(sorted(by_domain)) or 'nothing'})"
+        )
+    return list(by_domain[domain])
+
+
+def filter_to_models(
+    report: pd.DataFrame, keep: list[str], models_json: str
+) -> pd.DataFrame:
+    """Restrict a per-model table to `keep`, reporting both directions of mismatch."""
+    have = set(report["model"])
+    missing = [m for m in keep if m not in have]
+    if missing:
+        print(
+            f"\nWARNING: {len(missing)} model(s) in {models_json} have no result in "
+            f"this experiment and are not plotted: {', '.join(sorted(missing))}"
+        )
+    out = report[report["model"].isin(keep)].copy()
+    if out.empty:
+        raise SystemExit(
+            f"ERROR: none of the {len(keep)} models in {models_json} have a result in "
+            "this experiment -- is it the right language/experiment-id?"
+        )
+    print(f"Filtered to {len(out)}/{len(report)} models from {models_json}")
+    return out
+
+
 def run_bootstrap_ci(args: argparse.Namespace, root: str) -> None:
     paths = default_paths_for(
         args.language, os.path.join(root, "results"), args.experiment_id
@@ -681,6 +730,17 @@ def run_bootstrap_ci(args: argparse.Namespace, root: str) -> None:
     report = bootstrap_ci_table(
         paths["detailed"], args.n_bootstrap, args.ci_level, args.seed
     )
+    # Filter AFTER the bootstrap, not before: each replicate resamples items and every
+    # model is scored on that same resampled set, so a model's CI does not depend on
+    # which other models are in the table. Dropping rows here therefore gives exactly
+    # the intervals an all-models run would report, just fewer bars.
+    if args.models_json:
+        _kv("models_json", args.models_json)
+        report = filter_to_models(
+            report,
+            load_default_models(args.models_json, args.language),
+            args.models_json,
+        )
 
     _section(f"BOOTSTRAP {args.ci_level:.0%} CI PER MODEL")
     for _, r in report.iterrows():
@@ -704,8 +764,10 @@ def run_bootstrap_ci(args: argparse.Namespace, root: str) -> None:
     plot_bootstrap_ci(
         report,
         png_path,
-        title=f"{language_name} Linguistic Knowledge Benchmark Performance "
-        f"-- Bootstrap {args.ci_level:.0%} CI",
+        # The CI level belongs in the figure caption, not the title -- the error bars
+        # are self-evidently intervals, and the exact level is printed to the console
+        # and recorded in bootstrap_ci_<label>.csv.
+        title=f"{language_name} Linguistic Knowledge Benchmark Performance",
         display_names=display_names,
         model_provider=model_provider,
         provider_color=provider_color,
@@ -1203,6 +1265,15 @@ def build_parser(root: str) -> argparse.ArgumentParser:
     bootstrap.add_argument("--n-bootstrap", type=int, default=1000)
     bootstrap.add_argument("--ci-level", type=float, default=0.95)
     bootstrap.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    bootstrap.add_argument(
+        "--models-json",
+        default=None,
+        help="plot only the models this language is pre-selected on, from a "
+        "benchmark_default_models.json written by results_for_website.py (e.g. "
+        "results/web/<timestamp>/benchmark_default_models.json). Each run folder has "
+        "its own and they differ by curation setting, so name the one you mean. "
+        f"Auto-appends '{DEFAULT_MODELS_LABEL_SUFFIX}' to --label unless you set it.",
+    )
     family = sub.add_parser(
         "family-grid", parents=[common], help="accuracy grid by model family/generation"
     )
@@ -1313,6 +1384,10 @@ def main() -> None:
     args = build_parser(root).parse_args()
     if args.label is None:
         args.label = f"{args.language}_{args.experiment_id}"
+        # A filtered run writes different numbers under the same name otherwise, and
+        # would silently overwrite the all-models CSV/PNG.
+        if getattr(args, "models_json", None):
+            args.label += DEFAULT_MODELS_LABEL_SUFFIX
     args.outdir = os.path.join(args.outdir, args.language)
 
     RUNNERS[args.check](args, root)

@@ -272,9 +272,9 @@ minimax-m3,MiniMax,False,https://platform.minimax.io/docs/guides/models-intro,06
 claude-fable-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview#model-comparison-table,06/2026,,,10.0,50.0,Claude Fable 5,True,True
 llama-3.1-8b-instruct,Meta,True,https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct,07/2024,8000000000.0,,0.02,0.03,Llama-3.1 8B,False,False
 llama-3.2-11b-vision-instruct,Meta,True,https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct,09/2024,11000000000.0,,0.345,0.345,Llama-3.2 11B,False,True
-claude-sonnet-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,06/2026,,,3.0,15.0,Claude Sonnet 5,True,True
+claude-sonnet-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,06/2026,,,2.0,10.0,Claude Sonnet 5,True,True
 grok-4.5,xAI,False,https://docs.x.ai/developers/models/grok-4.5,07/2026,,,2.0,6.0,Grok-4.5,True,True
-gpt-5.6-sol,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-sol,07/2026,,,5.0,30.0,GPT-5.6 Sol,True,True
+gpt-5.6-sol,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-sol,07/2026,,,4.0,20.0,GPT-5.6 Sol,True,True
 gpt-5.6-terra,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-terra,07/2026,,,2.0,12.0,GPT-5.6 Terra,True,True
 gpt-5.6-luna,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-luna,07/2026,,,0.2,1.2,GPT-5.6 Luna,True,True
 muse-spark-1.1,Meta,False,https://dev.meta.ai/docs/getting-started/models#muse-spark,07/2026,,,1.25,4.25,Muse Spark 1.1,True,True
@@ -284,3 +284,19 @@ glm-5.2,Z.ai,True,https://huggingface.co/zai-org/GLM-5.2,06/2026,753000000000.0,
 gemini-3.6-flash,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash,07/2026,,,1.5,7.5,Gemini-3.6 Flash,True,True
 gemini-3.5-flash-lite,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite,07/2026,,,0.3,2.50,Gemini-3.5 Flash-Lite,True,True
 claude-opus-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,07/2026,,,5.0,25.0,Claude Opus 5,True,True
+inkling-small,Thinking Machines,True,https://huggingface.co/thinkingmachines/Inkling-Small,07/2026,276000000000,12000000000,0.45,1.2,Inkling Small,True,True
+qwen3.7-flash,Alibaba,False,https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash,07/2026,,,0.03,0.13,Qwen3.7 Flash,True,True
+deepseek-v4-flash-0731,DeepSeek-AI,True,https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731,07/2026,284000000000.0,13000000000,0.14,0.28,Deepseek V4 Flash,True,False
+qwen3.8-max,Alibaba,False,https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max,08/2026,2400000000000,,2.0,6.0,Qwen3.8 Max,True,True
+muse-spark-1.2,Meta,False,https://dev.meta.ai/docs/models#available-models,08/2026,,,1.25,4.25,Muse Spark 1.2,True,True
+muse-glimmer-30b,Meta,True,https://huggingface.co/meta-models/Muse-Glimmer-30B,08/2026,30000000000.0,,0.35,1.5,Muse Glimmer 30B,True,True
+gemini-3.7-flash,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash,08/2026,,,0.75,3.75,Gemini-3.7 Flash,True,True
+grok-4.6,xAI,False,https://docs.x.ai/developers/models/grok-4.6,08/2026,,,2.0,6.0,Grok-4.6,True,True
+qwen3.8-2.4t-a95b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.8-2.4T-A95B,08/2026,2400000000000.0,95000000000.0,2.0,6.0,Qwen3.8 2.4T A95B,True,False
+nemotron-3-nano-30b-a3b,NVIDIA,True,https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16,12/2025,30000000000.0,3500000000.0,0.05,0.20,Nemotron-3 Nano,True,False
+nemotron-3-ultra-550b-a55b,NVIDIA,True,https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16,06/2026,550000000000.0,55000000000.0,0.50,2.20,Nemotron-3 Ultra,True,False
+deepseek-v4-pro-0813,DeepSeek-AI,True,https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813,08/2026,1600000000000.0,49000000000.0,1.32,3.96,Deepseek V4 Pro,True,False
+nemotron-3.5-lightning,NVIDIA,True,https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16,08/2026,30000000000.0,3000000000.0,0.08,0.20,Nemotron-3.5 Lightning,True,False
+hf-gemma-4-12b-it,Google,True,https://huggingface.co/google/gemma-4-12B-it,06/2026,12000000000.0,,,,Gemma-4 12B,True,True
+qwen3.8-27b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.8-27B,08/2026,27000000000.0,,0.45,3.20,Qwen3.8 27B,True,True
+glm-5.3,Z.ai,True,https://huggingface.co/zai-org/GLM-5.3,08/2026,753000000000.0,,1.4,4.4,GLM-5.3,True,False

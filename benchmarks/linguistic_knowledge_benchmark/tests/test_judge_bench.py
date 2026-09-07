@@ -185,8 +185,75 @@ def test_judge_results_cache_hit(tmp_path, monkeypatch):
     assert bool(df.loc[0, "is_correct"]) is True
 
 
+@pytest.mark.parametrize(
+    "n_errors, n_rows, raises",
+    [
+        (6, 100, True),  # 6% > 5%
+        (5, 100, False),  # exactly at the limit is allowed
+        (0, 20, False),
+        (20, 20, True),
+    ],
+)
+def test_check_call_error_rate_limit(n_errors, n_rows, raises):
+    df = pd.DataFrame(
+        {"call_status": ["error"] * n_errors + ["success"] * (n_rows - n_errors)}
+    )
+    if not raises:
+        judge_bench.check_call_error_rate(df, VALID_MODEL)
+        return
+    with pytest.raises(judge_bench.TooManyCallErrorsError) as excinfo:
+        judge_bench.check_call_error_rate(df, VALID_MODEL, language_name="Kiswahili")
+    message = str(excinfo.value)
+    assert f"{n_errors}/{n_rows}" in message
+    # The message has to carry the fix, since a skipped model is silently absent
+    # from the summary otherwise.
+    assert f"run-bench --model {VALID_MODEL} --retry-errors --language kiswahili" in (
+        message
+    )
+
+
+def test_check_call_error_rate_tolerates_frames_without_call_status():
+    judge_bench.check_call_error_rate(pd.DataFrame({"output": ["a"]}), VALID_MODEL)
+    judge_bench.check_call_error_rate(pd.DataFrame(), VALID_MODEL)
+
+
+def test_judge_results_skips_model_over_error_rate(tmp_path, monkeypatch):
+    """A model over the limit is refused BEFORE any judging, and before the
+    judged-cache shortcut, so it can't reach compute_summary()."""
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    responses = _responses_dir(tmp_path)
+    _write_responses(
+        responses,
+        [
+            dict(
+                question_id=i,
+                answer_type="short_form",
+                expected_answers="x",
+                output="" if i < 3 else "x",
+                call_status="error" if i < 3 else "success",
+            )
+            for i in range(10)
+        ],
+    )
+    write_dataset(
+        tmp_path / "ds.json",
+        [{"question_id": i, "question": f"q{i}"} for i in range(10)],
+    )
+    # No FakeCaller is installed: reaching the judge at all would raise something else.
+    with pytest.raises(judge_bench.TooManyCallErrorsError):
+        judge_bench.judge_results(
+            VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
+        )
+    judged = tmp_path / "kiswahili" / "experiments" / "default" / "responses_judged"
+    assert not judged.exists()
+
+
 def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    # This fixture is 1 error row in 5 (20%), well over MAX_CALL_ERROR_RATE; the point
+    # here is how an error row is SCORED (unscored, with the error in the
+    # justification), not the skip gate, which has its own tests below.
+    monkeypatch.setattr(judge_bench, "MAX_CALL_ERROR_RATE", 1.0)
     responses = _responses_dir(tmp_path)
     rows = [
         dict(
@@ -543,6 +610,9 @@ def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
 
 def test_fallback_skips_null_rows_with_no_output(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    # As above: this fixture's error row exceeds MAX_CALL_ERROR_RATE, but what's under
+    # test is that a null row with no output isn't sent to the fallback judge.
+    monkeypatch.setattr(judge_bench, "MAX_CALL_ERROR_RATE", 1.0)
     judged = _judged_dir(tmp_path)
     pd.DataFrame(
         [

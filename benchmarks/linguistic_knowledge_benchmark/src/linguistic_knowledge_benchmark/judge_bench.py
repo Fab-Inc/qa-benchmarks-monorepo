@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from tqdm import tqdm
 
 from linguistic_knowledge_benchmark.run_bench import (
+    CALL_STATUS_ERROR,
     git_hash,
     load_dataset,
     update_log,
@@ -25,6 +26,14 @@ from linguistic_knowledge_benchmark.shared_utils import (
     english_language_name,
     experiment_dir,
 )
+
+# Share of a model's rows that may have call_status="error" and still be judged.
+# Above this the model is skipped entirely: its accuracy would be computed from
+# whichever items happened to succeed, which is a biased subset of the dataset, and
+# that number would then sit in the summary CSV next to models that answered
+# everything. Such a model needs re-running ('run-bench --retry-errors'), not judging,
+# so it's kept out of judging AND out of the summary rather than footnoted in it.
+MAX_CALL_ERROR_RATE = 0.05
 
 # Independent judges spanning different providers
 # Kept to 3 (odd) so majority_vote() never ties.
@@ -89,6 +98,42 @@ def count_think_blocks(outputs: pd.Series) -> int:
     """Number of rows in `outputs` containing a <think> tag."""
     return int(
         outputs.astype(str).str.contains("<think>", case=False, regex=False).sum()
+    )
+
+
+class TooManyCallErrorsError(Exception):
+    """A model's responses hold a larger share of failed calls than
+    MAX_CALL_ERROR_RATE allows, so it is not judged at all."""
+
+
+def check_call_error_rate(
+    df: pd.DataFrame, model_name: str, *, language_name: str | None = None
+) -> None:
+    """Raise TooManyCallErrorsError when more than MAX_CALL_ERROR_RATE of `df`'s rows
+    are call errors.
+
+    The limit is read from the module global on every call rather than bound as a
+    default argument, so it stays the single place to change it (and tests exercising
+    error-row handling can raise it out of the way).
+
+    A frame with no call_status column predates that column (or is empty), and counts
+    as zero errors rather than being treated as suspect. The message names the re-run
+    command, since re-running is the only thing that makes such a model judgeable.
+    """
+    n_rows = len(df)
+    if n_rows == 0 or "call_status" not in df.columns:
+        return
+    n_errors = int((df["call_status"].astype(str) == CALL_STATUS_ERROR).sum())
+    rate = n_errors / n_rows
+    if rate <= MAX_CALL_ERROR_RATE:
+        return
+    retry_cmd = f"run-bench --model {model_name} --retry-errors"
+    if language_name:
+        retry_cmd += f" --language {language_name.lower()}"
+    raise TooManyCallErrorsError(
+        f"{n_errors}/{n_rows} rows failed to call ({rate:.1%}), above the "
+        f"{MAX_CALL_ERROR_RATE:.0%} MAX_CALL_ERROR_RATE. Not judged and left out of "
+        f"the summary -- re-run first: {retry_cmd}"
     )
 
 
@@ -291,6 +336,14 @@ def judge_results(
             f"--language {language_name.lower()}' first."
         )
 
+    # Load step 1 results
+    results_df = pd.read_csv(input_path)
+
+    # Gate on the run's call-error rate BEFORE the judged-cache shortcut below, so a
+    # model that was judged in an earlier pass (when the gate didn't exist, or with
+    # --force) still can't slip into this run's summary.
+    check_call_error_rate(results_df, model_name, language_name=language_name)
+
     # Check judged cache
     output_path = judged_dir / f"responses_judged_{model_name}.csv"
     if not force and output_path.exists():
@@ -298,9 +351,6 @@ def judge_results(
             f"Judged results already exist for {model_name}. Use --force to re-judge."
         )
         return pd.read_csv(output_path)
-
-    # Load step 1 results
-    results_df = pd.read_csv(input_path)
 
     # Create judge callers only if needed for short_form, fail fast if any judge
     # model isn't registered (same policy as the old single-judge behavior).
@@ -506,14 +556,18 @@ def judge_results_fallback(
     if not input_path.exists():
         raise FileNotFoundError(f"No result to judge for {model_name}. ")
 
+    df = pd.read_csv(input_path)
+    # Same gate as judge_results(): the judged CSV carries call_status through, so a
+    # model with too many failed calls is kept out of the fallback pass and its
+    # summary too, not just out of the standard one.
+    check_call_error_rate(df, model_name, language_name=language_name)
+
     output_path = fallback_dir / f"responses_judged_{model_name}.csv"
     if not force and output_path.exists():
         print(
             f"Fallback results already exist for {model_name}. Use --force to re-judge."
         )
         return pd.read_csv(output_path)
-
-    df = pd.read_csv(input_path)
     if "score_method" not in df.columns:
         df["score_method"] = SCORE_METHOD_UNSCORED
     if "parsed_answer" not in df.columns:

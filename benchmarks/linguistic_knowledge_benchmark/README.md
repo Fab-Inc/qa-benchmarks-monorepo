@@ -41,8 +41,13 @@ prompts. Fill in a column as each language's components are finalized.
 | --------------------------------- | ------------------------------------------ | ---------------------------------------- |
 | **Language key** (CLI `-l`)       | `kiswahili`                                | `english`                                |
 | **Dataset file** (`data/`)        | `linguistic_knowledge_eval_kiswahili.json` | `linguistic_knowledge_eval_english.json` |
+| **Items**                         | 135 (70 MCQ / 65 short-form)               | 137 (99 MCQ / 38 short-form)             |
 | **Question formats** (MCQ / open) | `multiple_choice`, `short_form`            | `multiple_choice`, `short_form`          |
 | **Status**                        | Active                                     | Active                                   |
+
+The full item sets are **not committed** (see
+[Data and output folders](#data-and-output-folders)); only the curated 20-item public
+subsets (`data/hf_subset_<language>_20.json`) are tracked.
 
 Questions are written in English for every language (see above), so there is no
 per-language "question language" column.
@@ -61,22 +66,24 @@ the following structure:
 {
   "question_id": 1,
   "domain": "D1",
-  "subdomain": "metalanguage",
+  "subdomain": "digraphs as single graphemes",
   "grade": "G1",
   "answer_type": "multiple_choice",
-  "question": "Which pair of Latin letters is NOT used in writing standard Swahili?",
+  "question": "In the written word fedha, the letters d and h together stand for how many consonant sounds?",
   "options": {
-    "A": "f and h",
-    "B": "q and x",
-    "C": "c and j",
-    "D": "v and z"
+    "A": "one single sound",
+    "B": "three separate sounds",
+    "C": "two separate sounds",
+    "D": "no sound at all"
   },
-  "expected_answers": ["B"],
-  "linguistic_feature": "Letter inventory",
+  "expected_answers": ["A"],
+  "linguistic_feature": "Digraphs spell a single sound",
+  "svr_strand": "decoding",
+  "geeap_component": "systematic_phonics",
   "sources": [
     {
-      "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:Ch.2:The Alphabet",
-      "tier": "other"
+      "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.7:Ch.2 opening paragraph",
+      "tier": "student_material"
     }
   ],
   "grade_placement_evidence": "curriculum_anchored"
@@ -103,20 +110,22 @@ There are two `answer_type`s in current datasets, each scored differently (see
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw responses. Holds the answer-type system prompts.                                                                                                     |
 | [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw responses — regex for MCQ (`parse_answer_mcq`), an LLM judge (or ensemble of judges, majority vote) for short-form — plus an optional LLM fallback for unparseable MCQ rows, and accuracy summaries. |
-| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, registers models, and holds the per-language `DATASETS` registry.                                                                               |
+| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, syncs and registers models, and holds the per-language `DATASETS` registry.                                                                     |
 | [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `experiment_dir()` helper, and lists rate-limited models.                                     |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                                                        |
-| [`custom_models.yaml`](../../custom_models.yaml)                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses.                                                                                                                                  |
-| [`.env`](.env)                                                          | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                                                               |
+| `custom_models.yaml` (repo root)                                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses. Gitignored — the CLI downloads it from the `fab-open-configs` bucket on every invocation.                                        |
+| [`.env`](../../.env) (repo root)                                        | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                                                               |
+| [`scripts/`](scripts/)                                                  | Standalone post-processing and dataset-workflow scripts (analysis, validation checks, IRT, cost estimation, Hugging Face publishing). Not part of the two-stage CLI.                                                         |
 | [`tests/`](tests/)                                                      | Unit tests for the CLI, runner, and judge.                                                                                                                                                                                   |
 
 ## Data and output folders
 
 ```text
 benchmarks/linguistic_knowledge_benchmark/
-  data/                                 # input datasets (tracked in git)
-    linguistic_knowledge_eval_kiswahili.json
-    linguistic_knowledge_eval_english.json
+  data/                                 # input datasets
+    linguistic_knowledge_eval_kiswahili.json   # full item set (gitignored)
+    linguistic_knowledge_eval_english.json     # full item set (gitignored)
+    hf_subset_<language>_20.json               # public 20-item subset (tracked)
   cache/                                # raw experiment artifacts (gitignored)
     <language>/                         # e.g. kiswahili/, english/
       experiments/
@@ -134,6 +143,8 @@ benchmarks/linguistic_knowledge_benchmark/
           responses_judged/
   results/                              # final per-language summaries (tracked in git)
     summary_linguistic-knowledge_<language>_<experiment-id>[_fallback].csv
+    summary_linguistic-knowledge_<language>_<experiment-id>[_fallback]_judge_agreement.csv
+    summary_linguistic-knowledge_<language>_<experiment-id>[_fallback]_detailed.csv  # gitignored (too large)
 ```
 
 **Filename convention for summaries:** fields are separated by `_`; spaces within a
@@ -155,15 +166,18 @@ How outputs flow through the two stages:
    the `responses_judged_fallback_*` variants).
 1. **`judge-bench` → `results/`** — accuracy is aggregated across all judged models into
    `summary_linguistic-knowledge_<language>_<experiment-id>.csv`, with overall and
-   per-answer-type accuracy. The summary also includes all 10 provenance fields from
-   `log.json` (including `llm_judges`/`llm_judges_fallback`, the judge model(s) used) so
-   each row records exactly when, from which commit, and by which judge(s) each model's
-   responses were produced.
+   per-answer-type accuracy, plus a `..._detailed.csv` holding one row per question with
+   each model's raw output and correctness. The summary also includes all 10 provenance
+   fields from `log.json` (including `llm_judges`/`llm_judges_fallback`, the judge
+   model(s) used) so each row records exactly when, from which commit, and by which
+   judge(s) each model's responses were produced.
 
 For a clean experiment, supply `--experiment-id` or `--timestamped-output` to write to a
 fresh, non-overwriting directory. `cache/` holds experiment artifacts and is
-**gitignored** (`data/` and `results/` are tracked) — delete it any time, or use
-`--force`, if you'd rather force a clean re-run in place.
+**gitignored** — delete it any time, or use `--force`, if you'd rather force a clean
+re-run in place. `results/` keeps the summary CSVs in git; its per-question `_detailed`
+CSVs and the script-generated subfolders (`analysis/`, `validation/`, `consistency/`,
+`irt/`, `paper_figures/`, `web/`) are gitignored and regenerable.
 
 ## Setup
 
@@ -185,9 +199,10 @@ OPENAI_API_KEY="..."      # GPT models
 GEMINI_API_KEY="..."      # Gemini / Gemma models
 ```
 
-Which env var a model needs is determined by its provider group in
-[`custom_models.yaml`](../../custom_models.yaml) (`Api_Key_Env_Var`). A real environment
-variable always takes precedence over the `.env` file.
+Which env var a model needs is determined by its provider group in `custom_models.yaml`
+(`Api_Key_Env_Var`). That file is gitignored and re-downloaded into the repo root on
+every CLI invocation, so there is nothing to set up by hand. A real environment variable
+always takes precedence over the `.env` file.
 
 ## Running the benchmark
 
@@ -227,6 +242,10 @@ Options:
   underscores).
 - `--timestamped-output` — generate a UTC timestamp experiment ID for a non-overwriting
   experiment.
+- `--dataset` — exceptional override: use a different dataset JSON than this language's
+  registered one. Filename only (resolved as `data/<dataset>`). Normal usage never needs
+  it; it exists for one-off experiments such as the repeated dataset built by
+  `scripts/build_consistency_dataset.py`.
 
 Output: `cache/<language>/experiments/default/responses/responses_<model>.csv` (or
 `experiments/<experiment-id>/responses/` when `--experiment-id` is set)
@@ -270,6 +289,14 @@ Options:
 - `--judge-fallback` — re-evaluate MCQ rows the regex *couldn't* parse (`is_correct` is
   null) with the LLM judge. Reads from `responses_judged/`, writes to
   `responses_judged_fallback/`.
+- `--dataset` — same exceptional override as `run-bench`; must match whatever
+  `--dataset` (if any) produced this experiment's responses, since it also drives the
+  detailed CSV's question metadata.
+
+A model whose responses contain more than 5% `call_status=error` rows is **not judged at
+all** and appears in neither the summary nor the detailed CSV — its accuracy would come
+from a biased subset of items. Re-run it with `run-bench --retry-errors`, then judge
+again.
 
 With more than one judge (`--num-judges` > 1 or multiple `--judge-model`), short-form
 `is_correct`/`justification` reflect the majority verdict (ties are left unscored) and
@@ -289,6 +316,8 @@ Outputs:
 - Summary across models:
   `results/summary_linguistic-knowledge_<language>_<experiment-id>.csv` (or
   `..._<experiment-id>_fallback.csv` with `--judge-fallback`)
+- Per-question detail across models (gitignored):
+  `results/summary_linguistic-knowledge_<language>_<experiment-id>[_fallback]_detailed.csv`
 - Pairwise judge agreement (only with more than one judge):
   `results/summary_linguistic-knowledge_<language>_<experiment-id>[_fallback]_judge_agreement.csv`
 
