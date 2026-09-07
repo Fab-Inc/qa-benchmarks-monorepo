@@ -20,6 +20,7 @@ from typing import Any
 
 import pandas as pd
 import typer
+from decodability.kiswahili.definitions import ClusterPattern
 from phonics_benchmark.data_io import validate_student_knowledge, write_dataset
 from phonics_benchmark.models import DecodableText, StudentKnowledge
 
@@ -28,12 +29,39 @@ DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 STUDENT_PROFILES_SHEET = "Student Profiles"
 TEXTS_SHEET = "Texts"
 
+NONE_SENTINELS = {"none", "n/a", "na", "-"}
+WORKBOOK_CLUSTER_PATTERNS: dict[str, ClusterPattern] = {
+    "m/n + c": ClusterPattern.PRENASALISED,
+    "n + c": ClusterPattern.PRENASALISED,
+    "c + w": ClusterPattern.LABIALISED_GLIDE,
+    "c + y": ClusterPattern.PALATALISED_GLIDE,
+    "m/n + c + w": ClusterPattern.PRENASALISED_LABIALISED_GLIDE,
+    "m/n + c + y": ClusterPattern.PRENASALISED_PALATALISED_GLIDE,
+}
+
 
 def split_list(value: str) -> list[str]:
     """Split a comma-separated cell value into a stripped, non-empty list."""
-    if not value:
+    if not value or value.strip().casefold() in NONE_SENTINELS:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def parse_cluster_patterns(value: str) -> list[str]:
+    """Map workbook cluster-pattern shorthand onto ClusterPattern codes."""
+    codes: list[str] = []
+
+    for token in split_list(value):
+        pattern = WORKBOOK_CLUSTER_PATTERNS.get(token.casefold())
+        if pattern is None:
+            raise ValueError(
+                f"Unrecognised cluster pattern '{token}'. Expected one of: "
+                f"{', '.join(sorted(WORKBOOK_CLUSTER_PATTERNS))}"
+            )
+
+        codes.append(pattern.value)
+
+    return list(dict.fromkeys(codes))
 
 
 # Registry: maps language_iso_code -> the fields that belong in student_knowledge,
@@ -43,7 +71,7 @@ STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
     "sw": {
         "graphemes": split_list,
         "clusters": split_list,
-        "cluster_patterns": split_list,
+        "cluster_patterns": parse_cluster_patterns,
         "whole_words": split_list,
     }
 }
