@@ -64,28 +64,31 @@ def parse_cluster_patterns(value: str) -> list[str]:
     return list(dict.fromkeys(codes))
 
 
-_GRAPHEME_TRANSLATION = str.maketrans({"_": "-", "-": ""})
+# Positional markers sit at the edge of a grapheme and are written with either a
+# hyphen (-ing, pre-) or an underscore (_ce, _ge); both are stripped. A *medial*
+# underscore instead marks a split digraph (a_e, o_e) and becomes the hyphen the
+# inventory uses (a-e, o-e). Order matters: strip the edges before rewriting, or
+# a leading marker survives as a hyphen the inventory has no entry for.
+_POSITIONAL_MARKERS = "-_"
+
+# The inventory and ARPABET_TO_IPA in decodability.english.definitions spell the
+# voiced velar stop with ASCII "g" (U+0067), but the workbook may carry the
+# typographically correct IPA script g (U+0261). Fold it so parsed pairs match.
+_PHONEME_TRANSLATION = str.maketrans({"ɡ": "g"})
 
 
 def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
     """Parse comma-separated ``grapheme /phoneme/`` pairs from a cell value.
+    Apply grapheme and phoneme translations to normalize the input.
 
     Example: ``"a /æ/, qu /kw/"`` -> ``[("a", "æ"), ("qu", "kw")]``.
-    Empty entries are dropped; the slashes wrapping each phoneme are stripped.
-    In the grapheme, ``_`` becomes ``-`` and any existing ``-`` is removed —
-    the underscore is the template's escape for a real hyphen, while a bare
-    hyphen (e.g. ``-s``) is a positional marker to strip.
     """
-    if not value:
-        return []
     pairs = []
-    for item in value.split(","):
-        item = item.strip()
-        if not item:
-            continue
+    for item in split_list(value):
         grapheme, _, phoneme = item.partition("/")
-        grapheme = grapheme.strip().translate(_GRAPHEME_TRANSLATION)
-        pairs.append((grapheme, phoneme.strip().strip("/")))
+        grapheme = grapheme.strip().strip(_POSITIONAL_MARKERS).replace("_", "-")
+        phoneme = phoneme.strip().strip("/").translate(_PHONEME_TRANSLATION)
+        pairs.append((grapheme, phoneme))
     return pairs
 
 
@@ -102,8 +105,8 @@ STUDENT_KNOWLEDGE_FIELDS: dict[
         "whole_words": split_list,
     },
     "en": {
-        "graphemes": extract_gpc_pairs,
-        "whole_words": split_list,
+        "gpcs": extract_gpc_pairs,
+        "sight_words": split_list,
     },
 }
 

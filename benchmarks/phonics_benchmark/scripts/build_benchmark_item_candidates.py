@@ -64,6 +64,16 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
         },
         "score_column": "kenya_tusome_score",
     },
+    "en": {
+        "scoring_methods": [
+            "score_known_gpcs_english",
+            "score_sight_words_english",
+        ],
+        "aggregations": {
+            "ufli_score": {"name": "ufli_curriculum_aggregator"},
+        },
+        "score_column": "ufli_score",
+    },
 }
 
 
