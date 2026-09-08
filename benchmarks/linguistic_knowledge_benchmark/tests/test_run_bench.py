@@ -151,9 +151,9 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
     log_path = out.parent / "log.json"
     assert log_path.exists()
     entry = json.loads(log_path.read_text())[VALID_MODEL]
-    assert "responses_timestamp-utc" in entry
-    assert entry["responses_git-hash"] == "abc1234"
-    assert "responses_retry_timestamp-utc" not in entry
+    assert "responses_timestamp_utc" in entry
+    assert entry["responses_git_hash"] == "abc1234"
+    assert "responses_retry_timestamp_utc" not in entry
 
 
 def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
@@ -292,9 +292,9 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
     assert len(caller.calls) == 1
     # retry run writes responses_retry_* fields, not responses_*
     log_entry = json.loads((out.parent / "log.json").read_text())[VALID_MODEL]
-    assert "responses_retry_timestamp-utc" in log_entry
-    assert log_entry["responses_retry_git-hash"] == "retry456"
-    assert "responses_timestamp-utc" not in log_entry
+    assert "responses_retry_timestamp_utc" in log_entry
+    assert log_entry["responses_retry_git_hash"] == "retry456"
+    assert "responses_timestamp_utc" not in log_entry
 
 
 def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):

@@ -59,6 +59,11 @@ def _timestamp_experiment_id() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _format_accuracy(value: float | None) -> str:
+    """Accuracy for console display; 'n/a' when there was no scored row to average."""
+    return "n/a" if value is None else f"{value}%"
+
+
 def _validate_experiment_id(experiment_id: str | None) -> None:
     """Abort with a clear message if experiment_id contains invalid characters."""
     if experiment_id and not _EXPERIMENT_ID_RE.match(experiment_id):
@@ -398,14 +403,35 @@ def judge_bench_cmd(
             judged_by_model[current_model] = judged_df
 
             typer.echo(f"\n{current_model}:")
-            typer.echo(f"  Overall accuracy: {summary['accuracy']}%")
-            typer.echo(f"  MCQ accuracy: {summary['accuracy_mcq']}%")
-            typer.echo(f"  Short-form accuracy: {summary['accuracy_short_form']}%")
-            if len(judge_models) > 1 and summary["judge_agreement_mean"] is not None:
-                typer.echo(
-                    f"  Judge agreement: {summary['judge_agreement_mean']:.2%} "
-                    f"({summary['judge_disagreement_count']} disagreement(s))"
-                )
+            typer.echo(f"  Overall accuracy: {_format_accuracy(summary['accuracy'])}")
+            typer.echo(f"  MCQ accuracy: {_format_accuracy(summary['accuracy_mcq'])}")
+            typer.echo(
+                "  Short-form accuracy: "
+                f"{_format_accuracy(summary['accuracy_short_form'])}"
+            )
+            # One line per judging pass. .get() because compute_summary() omits the
+            # mcq fallback keys entirely for a standard pass, and gated on the mean
+            # rather than len(judge_models): a --judge-fallback invocation carries the
+            # short_form pass's columns through, so its own judge count says nothing
+            # about whether those were an ensemble.
+            for label, mean_key, count_key in (
+                (
+                    "Short-form judge agreement",
+                    "short_form_judge_agreement_mean",
+                    "short_form_judge_disagreement_count",
+                ),
+                (
+                    "MCQ fallback judge agreement",
+                    "mcq_judge_fallback_agreement_mean",
+                    "mcq_judge_fallback_disagreement_count",
+                ),
+            ):
+                mean = summary.get(mean_key)
+                if mean is not None:
+                    typer.echo(
+                        f"  {label}: {mean:.2%} "
+                        f"({summary.get(count_key, 0)} disagreement(s))"
+                    )
 
         except typer.Exit:
             raise
@@ -472,17 +498,23 @@ def judge_bench_cmd(
         with open(log_path, encoding="utf-8") as _f:
             log_data = json.load(_f)
     log_fields = [
-        "responses_timestamp-utc",
-        "responses_git-hash",
-        "responses_retry_timestamp-utc",
-        "responses_retry_git-hash",
-        "responses_judged_timestamp-utc",
-        "responses_judged_git-hash",
-        "llm_judges",
-        "responses_judged_fallback_timestamp-utc",
-        "responses_judged_fallback_git-hash",
-        "llm_judges_fallback",
+        "responses_timestamp_utc",
+        "responses_git_hash",
+        "responses_retry_timestamp_utc",
+        "responses_retry_git_hash",
+        "responses_judged_timestamp_utc",
+        "responses_judged_git_hash",
+        "short_form_llm_judges",
     ]
+    # log.json accumulates across passes, so a standard run's entry can already hold
+    # the fallback pass's fields from an earlier --judge-fallback run. Only a fallback
+    # summary reports them, so a standard summary has no fallback column at all.
+    if judge_fallback:
+        log_fields += [
+            "responses_judged_fallback_timestamp_utc",
+            "responses_judged_fallback_git_hash",
+            "mcq_llm_judges_fallback",
+        ]
     for s in summaries:
         entry = log_data.get(str(s.get("model", "")), {})
         for field in log_fields:

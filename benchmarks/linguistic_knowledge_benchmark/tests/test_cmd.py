@@ -289,8 +289,8 @@ def test_judge_bench_standard_writes_summary(runner, monkeypatch, tmp_path) -> N
     )
     assert summary_path.exists()
     df = pd.read_csv(summary_path)
-    assert "responses_timestamp-utc" in df.columns
-    assert "responses_judged_git-hash" in df.columns
+    assert "responses_timestamp_utc" in df.columns
+    assert "responses_judged_git_hash" in df.columns
 
 
 def test_judge_bench_skips_model_over_call_error_rate(
@@ -364,7 +364,7 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
     experiment_dir.mkdir(parents=True)
     (experiment_dir / "log.json").write_text(
         json.dumps(
-            {VALID_MODEL: {"responses_timestamp-utc": "2020-01-01T00:00:00+00:00"}}
+            {VALID_MODEL: {"responses_timestamp_utc": "2020-01-01T00:00:00+00:00"}}
         )
     )
 
@@ -376,7 +376,7 @@ def test_judge_bench_standard_reads_existing_log_for_provenance(
         tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
     df = pd.read_csv(summary_path)
-    assert df.loc[0, "responses_timestamp-utc"] == "2020-01-01T00:00:00+00:00"
+    assert df.loc[0, "responses_timestamp_utc"] == "2020-01-01T00:00:00+00:00"
 
 
 def test_judge_bench_experiment_id_writes_experiment_specific_summary(
@@ -455,7 +455,7 @@ def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -
     _patch_summary(monkeypatch)
     log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     log_path.parent.mkdir(parents=True)
-    log_path.write_text(json.dumps({VALID_MODEL: {"responses_git-hash": "deadbee"}}))
+    log_path.write_text(json.dumps({VALID_MODEL: {"responses_git_hash": "deadbee"}}))
 
     result = runner.invoke(
         cmd.app, ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
@@ -464,7 +464,7 @@ def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -
     summary = pd.read_csv(
         tmp_path / "results" / "summary_linguistic-knowledge_kiswahili_default.csv"
     )
-    assert summary.loc[0, "responses_git-hash"] == "deadbee"
+    assert summary.loc[0, "responses_git_hash"] == "deadbee"
 
 
 def test_judge_bench_skips_on_missing_results(runner, monkeypatch, tmp_path) -> None:
@@ -538,9 +538,8 @@ def test_judge_bench_explicit_judge_models_override_num_judges(
     cols = {f"is_correct_{jm}": [] for jm in judges}
     judge = MagicMock(return_value=pd.DataFrame(cols))
     monkeypatch.setattr(cmd, "judge_results", judge)
-    # >1 judge means compute_summary()'s judge_agreement_mean/judge_disagreement_count
-    # keys are read unconditionally (see cmd.py's "if len(judge_models) > 1" branch) --
-    # unlike _patch_summary's single-judge-shaped fake, this needs both present.
+    # cmd.py reads both passes' agreement keys unconditionally, gating each printed
+    # line on its own mean being non-None, so every key has to be present here.
     monkeypatch.setattr(
         cmd,
         "compute_summary",
@@ -549,8 +548,10 @@ def test_judge_bench_explicit_judge_models_override_num_judges(
             "accuracy": 80.0,
             "accuracy_mcq": 90.0,
             "accuracy_short_form": 70.0,
-            "judge_agreement_mean": None,
-            "judge_disagreement_count": 0,
+            "short_form_judge_agreement_mean": None,
+            "short_form_judge_disagreement_count": 0,
+            "mcq_judge_fallback_agreement_mean": None,
+            "mcq_judge_fallback_disagreement_count": 0,
         },
     )
     args = ["judge-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
@@ -641,8 +642,10 @@ def test_judge_bench_prints_and_saves_pairwise_agreement(
             "accuracy": 80.0,
             "accuracy_mcq": 90.0,
             "accuracy_short_form": 70.0,
-            "judge_agreement_mean": 0.75,
-            "judge_disagreement_count": 3,
+            "short_form_judge_agreement_mean": 0.75,
+            "short_form_judge_disagreement_count": 3,
+            "mcq_judge_fallback_agreement_mean": 1.0,
+            "mcq_judge_fallback_disagreement_count": 0,
         },
     )
     agreement_df = pd.DataFrame([[1.0, 0.8], [0.8, 1.0]], index=judges, columns=judges)
@@ -652,8 +655,9 @@ def test_judge_bench_prints_and_saves_pairwise_agreement(
         args += ["--judge-model", jm]
     result = runner.invoke(cmd.app, args)
     assert result.exit_code == 0
-    assert "Judge agreement: 75.00%" in result.output
-    assert "(3 disagreement(s))" in result.output
+    # Each pass reports on its own line, so neither can be mistaken for the other.
+    assert "Short-form judge agreement: 75.00% (3 disagreement(s))" in result.output
+    assert "MCQ fallback judge agreement: 100.00% (0 disagreement(s))" in result.output
     assert "Pairwise judge agreement" in result.output
     name = "summary_linguistic-knowledge_kiswahili_default_judge_agreement.csv"
     assert (tmp_path / "results" / name).exists()

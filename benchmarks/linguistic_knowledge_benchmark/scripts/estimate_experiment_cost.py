@@ -28,7 +28,7 @@ Two cost components, tracked with different precision:
 
   Regex-scored MCQ rows (most rows, most models) cost nothing at judge time -- only
   short_form rows ever reach an LLM judge. Which judge(s) were actually used for a given
-  model/experiment is read from that experiment's log.json (llm_judges), not assumed,
+  model/experiment is read from that experiment's log.json (short_form_llm_judges), not assumed,
   since the judge ensemble is a per-experiment choice (see judge_bench.judge_results()'s judge_models arg), not
   a fixed constant.
 
@@ -297,7 +297,7 @@ def main() -> None:
         has_judged = os.path.exists(judged_path)
         if has_judged:
             judged_df = pd.read_csv(judged_path)
-            judge_models = log_data.get(model, {}).get("llm_judges") or list(
+            judge_models = log_data.get(model, {}).get("short_form_llm_judges") or list(
                 DEFAULT_JUDGE_MODELS[:1]
             )
             judge_cost, judge_calls, judge_prompt_tok, judge_completion_tok = (

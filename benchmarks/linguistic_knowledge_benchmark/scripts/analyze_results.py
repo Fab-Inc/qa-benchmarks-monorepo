@@ -379,13 +379,26 @@ def _bar_colors(
 def _provider_legend_handles(
     models: list[str], model_provider: dict, provider_color: dict
 ) -> list[Patch]:
-    """Legend patches for the providers present among `models`, in first-seen order."""
-    seen: list[str] = []
-    for m in models:
-        prov = model_provider.get(m)
-        if prov in provider_color and prov not in seen:
-            seen.append(prov)
-    return [Patch(facecolor=provider_color[p], label=p) for p in seen]
+    """Legend patches for the providers present among `models`, in providers.csv order.
+
+    providers.csv's row order IS the canonical provider order: that file already maps
+    provider -> colour, so one file decides both, and re-ordering any legend is a
+    one-line edit there. Ordering by anything read off the plotted models instead
+    (first-seen order, model count, best accuracy) gives the same provider a
+    different legend slot in every figure -- bars are sorted by accuracy, which
+    differs per language and per experiment -- so the English and Kiswahili legends
+    could not be read against each other. Same shape as the hardware-tier legends:
+    canonical order, filtered to what is actually present (see plot_accuracy_by_size).
+
+    Providers missing from providers.csv are dropped -- with no colour there is no
+    patch to draw.
+    """
+    present = {model_provider.get(m) for m in models} & provider_color.keys()
+    return [
+        Patch(facecolor=provider_color[p], label=p)
+        for p in provider_color
+        if p in present
+    ]
 
 
 def load_model_sizes(models_csv: str) -> dict:

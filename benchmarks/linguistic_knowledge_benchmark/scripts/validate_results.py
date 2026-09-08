@@ -131,7 +131,6 @@ from linguistic_knowledge_benchmark.judge_bench import (
     DEFAULT_JUDGE_MODELS,
     compute_judge_agreement,
 )
-from matplotlib.patches import Patch
 
 CHECKS = [
     "judge-agreement",
@@ -227,11 +226,11 @@ def load_full_judged(
 
 
 def judge_models_from_summary(summary_df: pd.DataFrame) -> list[str]:
-    """The judge ensemble actually used for this experiment, from the summary CSV's
-    'llm_judges' column (a stringified python list); falls back to DEFAULT_JUDGE_MODELS
-    if that column is missing/unparseable, e.g. an older summary CSV."""
-    if "llm_judges" in summary_df.columns:
-        for val in summary_df["llm_judges"].dropna():
+    """The short_form judge ensemble used for this experiment, from the summary CSV's
+    'short_form_llm_judges' column (a stringified python list); falls back to
+    DEFAULT_JUDGE_MODELS if that column is missing/unparseable."""
+    if "short_form_llm_judges" in summary_df.columns:
+        for val in summary_df["short_form_llm_judges"].dropna():
             try:
                 parsed = ast.literal_eval(val) if isinstance(val, str) else val
             except (ValueError, SyntaxError):
@@ -324,7 +323,7 @@ def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
     if missing:
         raise SystemExit(
             f"judged CSVs are missing column(s) {missing} -- this experiment may have used a "
-            "different judge ensemble than recorded in the summary CSV's llm_judges."
+            "different judge ensemble than the summary CSV's short_form_llm_judges."
         )
 
     raw_agreement = compute_judge_agreement(all_judged, judge_models, fallback=False)
@@ -874,7 +873,7 @@ def plot_family_grid(
     colors: list[str] = []
     tick_labels: list[str] = []
     family_bounds: list[tuple[str, float, float]] = []  # (family, first_x, last_x)
-    seen_providers: list[str] = []
+    plotted_models: list[str] = []
 
     cursor = 0.0
     for family in families:
@@ -888,9 +887,7 @@ def plot_family_grid(
         colors.extend(_bar_colors(models, model_provider, provider_color))
         tick_labels.extend(display_names.get(m, m) for m in models)
         family_bounds.append((family, start, cursor - 1.0))
-        for prov in _provider_legend_handles(models, model_provider, provider_color):
-            if prov.get_label() not in seen_providers:
-                seen_providers.append(prov.get_label())
+        plotted_models.extend(models)
         cursor += gap
 
     fig, ax = plt.subplots(figsize=(max(14, cursor * 0.42), 5))
@@ -920,8 +917,11 @@ def plot_family_grid(
     if language:
         title = f"{language.capitalize()} Linguistic Knowledge Benchmark -- {title}"
     ax.set_title(title, fontweight="bold", pad=16, fontsize=13)
-    if seen_providers:
-        handles = [Patch(facecolor=provider_color[p], label=p) for p in seen_providers]
+    # Built from every plotted model at once, so the providers come out in
+    # providers.csv order like every other provider legend -- accumulating them
+    # family by family ordered the legend by family iteration instead.
+    handles = _provider_legend_handles(plotted_models, model_provider, provider_color)
+    if handles:
         ax.legend(
             handles=handles,
             title="Provider",

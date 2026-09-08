@@ -120,11 +120,13 @@ def _section(title: str) -> None:
 def print_pooled_summary(summary_df: pd.DataFrame) -> None:
     _section("SUMMARY (pooled across all replicates at once)")
     for _, r in summary_df.iterrows():
-        agreement = r.get("judge_agreement_mean")
+        # .get() so a summary CSV without the column degrades to "n/a", not a KeyError.
+        agreement = r.get("short_form_judge_agreement_mean")
         agreement_str = f"{agreement:.2%}" if pd.notna(agreement) else "n/a"
         print(
             f"  {r['model']:<32} accuracy {r['accuracy']:5.1f}%   "
-            f"scored {int(r['scored_count'])}   judge_agreement {agreement_str}"
+            f"scored {int(r['scored_count'])}   "
+            f"short_form_judge_agreement {agreement_str}"
         )
 
 

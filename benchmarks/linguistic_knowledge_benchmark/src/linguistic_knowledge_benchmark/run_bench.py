@@ -310,8 +310,8 @@ def run_benchmark(
         experiment_directory,
         model_name,
         {
-            f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),
-            f"{prefix}_git-hash": git_hash(),
+            f"{prefix}_timestamp_utc": datetime.now(UTC).isoformat(),
+            f"{prefix}_git_hash": git_hash(),
         },
     )
     print(f"Results saved to {cache_path}")

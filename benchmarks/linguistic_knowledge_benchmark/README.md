@@ -156,13 +156,13 @@ How outputs flow through the two stages:
 
 1. **`run-bench` → `cache/<language>/experiments/<experiment-id>/responses/`** — each
    model's raw responses are written to `responses_<model>.csv` (one row per question).
-   `log.json` is updated with `responses_timestamp-utc` and `responses_git-hash` for
+   `log.json` is updated with `responses_timestamp_utc` and `responses_git_hash` for
    that model (or the `responses_retry_*` variants when `--retry-errors` is used).
 1. **`judge-bench` → `cache/<language>/experiments/<experiment-id>/responses_judged/`**
    — those responses are scored and written to `responses_judged_<model>.csv` (the same
    rows plus `is_correct` / `justification`). With `--judge-fallback`, an extra
    `responses_judged_fallback/` subfolder is produced for rescued MCQ rows. `log.json`
-   is updated with `responses_judged_timestamp-utc` and `responses_judged_git-hash` (or
+   is updated with `responses_judged_timestamp_utc` and `responses_judged_git_hash` (or
    the `responses_judged_fallback_*` variants).
 1. **`judge-bench` → `results/`** — accuracy is aggregated across all judged models into
    `summary_linguistic-knowledge_<language>_<experiment-id>.csv`, with overall and

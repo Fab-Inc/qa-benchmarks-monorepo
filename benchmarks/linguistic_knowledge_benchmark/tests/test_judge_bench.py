@@ -329,9 +329,9 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
     log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     assert log_path.exists()
     entry = json.loads(log_path.read_text())[VALID_MODEL]
-    assert "responses_judged_timestamp-utc" in entry
-    assert entry["responses_judged_git-hash"] == "judge123"
-    assert "responses_judged_fallback_timestamp-utc" not in entry
+    assert "responses_judged_timestamp_utc" in entry
+    assert entry["responses_judged_git_hash"] == "judge123"
+    assert "responses_judged_fallback_timestamp_utc" not in entry
 
 
 def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):
@@ -378,7 +378,9 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
     assert df.loc[1, "justification_judge-c"] == "no-c"
 
     log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
-    assert json.loads(log_path.read_text())[VALID_MODEL]["llm_judges"] == judges
+    assert (
+        json.loads(log_path.read_text())[VALID_MODEL]["short_form_llm_judges"] == judges
+    )
 
 
 def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
@@ -576,8 +578,8 @@ def test_fallback_no_null_rows_writes_empty_columns(tmp_path, monkeypatch):
     assert out.exists()
     log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
-    assert "responses_judged_fallback_timestamp-utc" in entry
-    assert entry["responses_judged_fallback_git-hash"] == "fb123"
+    assert "responses_judged_fallback_timestamp_utc" in entry
+    assert entry["responses_judged_fallback_git_hash"] == "fb123"
 
 
 def test_fallback_rejudges_null_rows(tmp_path, monkeypatch):
@@ -724,7 +726,7 @@ def test_fallback_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch)
 
     log_path = tmp_path / "kiswahili" / "experiments" / "default" / "log.json"
     entry = json.loads(log_path.read_text())[VALID_MODEL]
-    assert entry["llm_judges_fallback"] == judges
+    assert entry["mcq_llm_judges_fallback"] == judges
 
 
 def test_fallback_judge_not_registered(tmp_path, monkeypatch):
@@ -772,6 +774,41 @@ def test_compute_summary_basic():
     assert summary["accuracy"] == round(2 / 3 * 100, 2)
     assert summary["accuracy_mcq"] == 50.0
     assert "accuracy_essay" not in summary
+
+
+def test_compute_summary_unscored_accuracies_are_none_not_zero():
+    """An accuracy with no scored row is unmeasured, and must not read as 0%.
+
+    A model whose calls all failed, or whose every MCQ answer was unparseable,
+    would otherwise be published at 0% -- indistinguishable from a model that
+    answered everything wrong.
+    """
+    df = pd.DataFrame(
+        [
+            {"answer_type": "multiple_choice", "is_correct": None},
+            {"answer_type": "short_form", "is_correct": None},
+        ]
+    )
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["accuracy"] is None
+    assert summary["accuracy_mcq"] is None
+    assert summary["accuracy_short_form"] is None
+    assert summary["scored_count"] == 0
+    assert summary["unscored_count"] == 2
+
+
+def test_compute_summary_unscored_answer_type_is_none_while_other_scores():
+    """One answer_type going unscored must not drag the other, or the overall, to 0."""
+    df = pd.DataFrame(
+        [
+            {"answer_type": "short_form", "is_correct": True},
+            {"answer_type": "multiple_choice", "is_correct": None},
+        ]
+    )
+    summary = judge_bench.compute_summary(df, "m")
+    assert summary["accuracy"] == 100.0
+    assert summary["accuracy_short_form"] == 100.0
+    assert summary["accuracy_mcq"] is None
 
 
 def test_compute_summary_uses_fallback_when_present():
@@ -869,8 +906,11 @@ def test_build_detailed_skips_incomplete_frame(tmp_path):
 def test_compute_summary_no_judge_agreement_columns_returns_none_and_zero():
     df = pd.DataFrame([{"answer_type": "multiple_choice", "is_correct": True}])
     summary = judge_bench.compute_summary(df, "m")
-    assert summary["judge_agreement_mean"] is None
-    assert summary["judge_disagreement_count"] == 0
+    assert summary["short_form_judge_agreement_mean"] is None
+    assert summary["short_form_judge_disagreement_count"] == 0
+    # Not a fallback frame, so its columns are absent rather than null.
+    assert "mcq_judge_fallback_agreement_mean" not in summary
+    assert "mcq_judge_fallback_disagreement_count" not in summary
 
 
 def test_compute_summary_includes_judge_agreement_stats():
@@ -897,8 +937,67 @@ def test_compute_summary_includes_judge_agreement_stats():
         ]
     )
     summary = judge_bench.compute_summary(df, "m")
-    assert summary["judge_agreement_mean"] == pytest.approx((1.0 + 2 / 3) / 2, rel=1e-3)
-    assert summary["judge_disagreement_count"] == 1
+    assert summary["short_form_judge_agreement_mean"] == pytest.approx(
+        (1.0 + 2 / 3) / 2, rel=1e-3
+    )
+    assert summary["short_form_judge_disagreement_count"] == 1
+    # No fallback pass ran, so a standard summary carries no fallback column.
+    assert "mcq_judge_fallback_agreement_mean" not in summary
+    assert "mcq_judge_fallback_disagreement_count" not in summary
+
+
+def test_compute_summary_keeps_passes_separate_when_both_present():
+    """A fallback frame carries BOTH passes' columns; neither may mask the other.
+
+    Easy to get wrong because the fallback flag column is False -- not null -- on
+    every row the fallback judge never saw, so any attempt to combine the two
+    passes' flags lets those False values hide real short_form disagreements.
+    """
+    df = pd.DataFrame(
+        [
+            # Short_form: 3-judge ensemble, one row split 2-1.
+            {
+                "answer_type": "short_form",
+                "is_correct": True,
+                "judge_agreement": 2 / 3,
+                "judge_disagreement_flag": True,
+                "is_correct_fallback": None,
+                "judge_agreement_fallback": None,
+                "judge_disagreement_flag_fallback": False,
+            },
+            {
+                "answer_type": "short_form",
+                "is_correct": False,
+                "judge_agreement": 1.0,
+                "judge_disagreement_flag": False,
+                "is_correct_fallback": None,
+                "judge_agreement_fallback": None,
+                "judge_disagreement_flag_fallback": False,
+            },
+            # MCQ row the regex could not parse, recovered by a single fallback judge.
+            {
+                "answer_type": "multiple_choice",
+                "is_correct": None,
+                "judge_agreement": None,
+                "judge_disagreement_flag": False,
+                "is_correct_fallback": True,
+                "judge_agreement_fallback": 1.0,
+                "judge_disagreement_flag_fallback": False,
+            },
+        ]
+    )
+    summary = judge_bench.compute_summary(df, "m")
+
+    # Short_form stats reflect only short_form rows, and survive the fallback pass.
+    assert summary["short_form_judge_agreement_mean"] == pytest.approx(
+        (2 / 3 + 1.0) / 2, rel=1e-3
+    )
+    assert summary["short_form_judge_disagreement_count"] == 1
+    # Fallback stats cover only the rows the fallback judge actually scored.
+    assert summary["mcq_judge_fallback_agreement_mean"] == pytest.approx(1.0)
+    assert summary["mcq_judge_fallback_disagreement_count"] == 0
+    # Accuracy still prefers the fallback verdict where it is populated.
+    assert summary["scored_count"] == 3
 
 
 def test_compute_judge_agreement_pairwise():

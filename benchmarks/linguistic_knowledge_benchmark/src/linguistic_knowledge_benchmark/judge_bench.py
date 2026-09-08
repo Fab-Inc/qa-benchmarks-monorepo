@@ -503,9 +503,9 @@ def judge_results(
         language_dir,
         model_name,
         {
-            "responses_judged_timestamp-utc": datetime.now(UTC).isoformat(),
-            "responses_judged_git-hash": git_hash(),
-            "llm_judges": judge_models,
+            "responses_judged_timestamp_utc": datetime.now(UTC).isoformat(),
+            "responses_judged_git_hash": git_hash(),
+            "short_form_llm_judges": judge_models,
         },
     )
     print(f"Judged results saved to {output_path}")
@@ -630,11 +630,11 @@ def judge_results_fallback(
             language_dir,
             model_name,
             {
-                "responses_judged_fallback_timestamp-utc": datetime.now(
+                "responses_judged_fallback_timestamp_utc": datetime.now(
                     UTC
                 ).isoformat(),
-                "responses_judged_fallback_git-hash": git_hash(),
-                "llm_judges_fallback": judge_models,
+                "responses_judged_fallback_git_hash": git_hash(),
+                "mcq_llm_judges_fallback": judge_models,
             },
         )
         return df
@@ -691,24 +691,31 @@ def judge_results_fallback(
         language_dir,
         model_name,
         {
-            "responses_judged_fallback_timestamp-utc": datetime.now(UTC).isoformat(),
-            "responses_judged_fallback_git-hash": git_hash(),
-            "llm_judges_fallback": judge_models,
+            "responses_judged_fallback_timestamp_utc": datetime.now(UTC).isoformat(),
+            "responses_judged_fallback_git_hash": git_hash(),
+            "mcq_llm_judges_fallback": judge_models,
         },
     )
     print(f"Fallback results saved to {output_path}")
     return df
 
 
-def _combine_fallback_priority(df: pd.DataFrame, *cols: str) -> pd.Series | None:
-    """First existing column in `cols` (fallback-pass columns listed first),
-    NaN-filled by the next existing one. None if none of `cols` exist."""
-    combined = None
-    for c in cols:
-        if c not in df.columns:
-            continue
-        combined = df[c] if combined is None else combined.fillna(df[c])
-    return combined
+def _agreement_stats(
+    judged_df: pd.DataFrame, agreement_col: str, flag_col: str
+) -> tuple[float | None, int]:
+    """(mean agreement, disagreement count) for one judging pass's columns.
+
+    The mean is None when the column is absent or has no scored row: a pass run
+    with a single judge records nothing, and 0.0 there would read as total
+    disagreement rather than "not measured".
+    """
+    mean: float | None = None
+    if agreement_col in judged_df.columns:
+        scored = judged_df[agreement_col].dropna()
+        if len(scored):
+            mean = round(scored.mean(), 4)
+    count = int(judged_df[flag_col].sum()) if flag_col in judged_df.columns else 0
+    return mean, count
 
 
 def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, object]:
@@ -716,9 +723,21 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
 
     When ``is_correct_fallback`` is present (from ``--judge-fallback``),
     accuracy is computed from the best-available result: fallback where
-    populated, else the original ``is_correct``. Judge-agreement stats (present
-    only when short_form/fallback rows were scored by more than one judge) are
-    combined the same way.
+    populated, else the original ``is_correct``.
+
+    Every accuracy is ``None`` when it has no scored row to average over, rather
+    than 0.0, so an unmeasured score cannot be read as a measured 0%.
+
+    Judge agreement is reported once per pass and never combined, because the two
+    passes ask different questions about different rows.
+    ``short_form_judge_agreement_mean`` is the ensemble deciding whether a
+    free-text answer means the same as the expected one;
+    ``mcq_judge_fallback_agreement_mean`` is the (usually single-judge) pass
+    deciding which letter an unparseable MCQ answer pointed at. A single average
+    over both would describe neither.
+
+    The ``mcq_judge_fallback_*`` keys appear only when ``judged_df`` comes from a
+    fallback pass, so a standard pass's summary has no fallback column.
 
     Args:
         judged_df: DataFrame with is_correct column (and optionally
@@ -726,10 +745,15 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
         model_name: Model name for the summary
 
     Returns:
-        Dict with model, accuracy, and per-type accuracy
+        Dict with model, accuracy, per-type accuracy, and the short_form judge
+        stats -- plus the mcq fallback ones for a fallback frame
     """
+    # judge_results_fallback() writes the primary CSV plus its own columns, so this
+    # is what distinguishes the two passes' frames.
+    is_fallback_frame = "is_correct_fallback" in judged_df.columns
+
     # Use fallback where available, else original is_correct
-    if "is_correct_fallback" in judged_df.columns:
+    if is_fallback_frame:
         effective = judged_df["is_correct_fallback"].fillna(judged_df["is_correct"])
     else:
         effective = judged_df["is_correct"]
@@ -738,42 +762,47 @@ def compute_summary(judged_df: pd.DataFrame, model_name: str) -> dict[str, objec
     scored_df = effective[scored_mask]
     total_scored = len(scored_df)
     correct = scored_df.sum()
-    accuracy = correct / total_scored * 100 if total_scored > 0 else 0.0
+    # None, not 0.0, when nothing was scored: an unmeasured accuracy is not the same
+    # observation as a measured 0%, and the two are indistinguishable once written to
+    # the summary CSV. Consumers read the empty cell as missing data.
+    accuracy = round(correct / total_scored * 100, 2) if total_scored else None
 
-    by_type = {}
+    by_type: dict[str, float | None] = {}
     for atype in judged_df["answer_type"].unique():
         type_mask = judged_df["answer_type"] == atype
         subset = effective[type_mask]
         subset_scored = subset[subset.notna()]
         if len(subset_scored) == 0:
-            by_type[atype] = 0.0
+            by_type[atype] = None
         else:
             by_type[atype] = round(subset_scored.sum() / len(subset_scored) * 100, 2)
 
-    agreement = _combine_fallback_priority(
-        judged_df, "judge_agreement_fallback", "judge_agreement"
-    )
-    agreement_scored = agreement[agreement.notna()] if agreement is not None else None
-    disagreement = _combine_fallback_priority(
-        judged_df, "judge_disagreement_flag_fallback", "judge_disagreement_flag"
+    # Short_form ensemble (primary pass) and MCQ fallback pass, kept apart -- see
+    # this function's docstring for why they are not pooled into one figure.
+    short_form_agreement, short_form_disagreements = _agreement_stats(
+        judged_df, "judge_agreement", "judge_disagreement_flag"
     )
 
-    return {
+    summary: dict[str, object] = {
         "model": model_name,
-        "accuracy": round(accuracy, 2),
+        "accuracy": accuracy,
         "scored_count": total_scored,
         "unscored_count": int((~scored_mask).sum()),
-        "accuracy_mcq": by_type.get("multiple_choice", 0.0),
-        "accuracy_short_form": by_type.get("short_form", 0.0),
-        "judge_agreement_mean": (
-            round(agreement_scored.mean(), 4)
-            if agreement_scored is not None and len(agreement_scored)
-            else None
-        ),
-        "judge_disagreement_count": (
-            int(disagreement.sum()) if disagreement is not None else 0
-        ),
+        # No default: an answer_type absent from the dataset is also unmeasured.
+        "accuracy_mcq": by_type.get("multiple_choice"),
+        "accuracy_short_form": by_type.get("short_form"),
+        "short_form_judge_agreement_mean": short_form_agreement,
+        "short_form_judge_disagreement_count": short_form_disagreements,
     }
+
+    if is_fallback_frame:
+        mcq_agreement, mcq_disagreements = _agreement_stats(
+            judged_df, "judge_agreement_fallback", "judge_disagreement_flag_fallback"
+        )
+        summary["mcq_judge_fallback_agreement_mean"] = mcq_agreement
+        summary["mcq_judge_fallback_disagreement_count"] = mcq_disagreements
+
+    return summary
 
 
 def build_detailed(
