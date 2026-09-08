@@ -24,8 +24,8 @@ Writes, into `{run directory}/report`:
 
 - ``results_with_scoring.csv`` — every model/item row with its decodability counts
 - ``summary_by_model.csv`` — one row per model
-- ``summary_by_difficulty.csv`` / ``summary_by_scenario.csv`` — breakdowns
-- ``score_by_difficulty.png`` / ``score_by_scenario.png``
+- ``summary_by_phase.csv`` / ``summary_by_scenario.csv`` — breakdowns
+- ``score_by_phase.png`` / ``score_by_scenario.png``
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -39,14 +39,14 @@ import pandas as pd
 import typer
 from phonics_benchmark.parsing import extract_generated_text
 from phonics_benchmark.plots import (
-    save_score_by_difficulty_plot,
+    save_score_by_phase_plot,
     save_score_by_scenario_plot,
 )
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.scoring import (
     add_per_item_decodability,
-    summarize_by_difficulty,
     summarize_by_model,
+    summarize_by_phase,
     summarize_by_scenario,
 )
 from phonics_benchmark.utils import require_columns
@@ -65,7 +65,7 @@ ITEM_METADATA_COLUMNS = [
     "student_knowledge",
     "scenario_id",
     "student_knowledge_id",
-    "difficulty_bucket",
+    "curriculum_phase",
     "n_graphemes_known",
     "n_clusters_known",
     "n_cluster_patterns_known",
@@ -77,7 +77,7 @@ INSPECTION_COLUMNS = [
     "benchmark_item_id",
     "model",
     "scenario_id",
-    "difficulty_bucket",
+    "curriculum_phase",
     "latency_seconds",
     "tokens_used_completion",
     "student_knowledge",
@@ -306,12 +306,12 @@ def report_on_run(
     written.append("summary_by_model.csv")
 
     # Does the score fall away as the student knows fewer graphemes?
-    if "difficulty_bucket" in results.columns:
-        by_difficulty = summarize_by_difficulty(results)
-        by_difficulty.to_csv(report_dir / "summary_by_difficulty.csv", index=False)
-        written.append("summary_by_difficulty.csv")
-        plot_path = report_dir / "score_by_difficulty.png"
-        save_score_by_difficulty_plot(by_difficulty, plot_path)
+    if "curriculum_phase" in results.columns:
+        by_phase = summarize_by_phase(results)
+        by_phase.to_csv(report_dir / "summary_by_phase.csv", index=False)
+        written.append("summary_by_phase.csv")
+        plot_path = report_dir / "score_by_phase.png"
+        save_score_by_phase_plot(by_phase, plot_path)
         written.append(plot_path.name)
 
     # Which text types are hardest to keep decodable?

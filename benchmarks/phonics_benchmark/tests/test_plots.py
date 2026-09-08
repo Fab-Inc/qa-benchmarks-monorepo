@@ -5,20 +5,20 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from phonics_benchmark.plots import (
-    save_item_difficulty_histogram,
-    save_score_by_difficulty_plot,
+    save_item_phase_histogram,
+    save_score_by_phase_plot,
     save_score_by_scenario_plot,
 )
 
 
 @pytest.fixture
-def by_difficulty() -> pd.DataFrame:
+def by_phase() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"model": "m1", "difficulty_bucket": "very-early", "graded_score": 0.1},
-            {"model": "m1", "difficulty_bucket": "late", "graded_score": 0.8},
-            {"model": "m2", "difficulty_bucket": "very-early", "graded_score": 0.2},
-            {"model": "m2", "difficulty_bucket": "late", "graded_score": 0.9},
+            {"model": "m1", "curriculum_phase": "very-early", "graded_score": 0.1},
+            {"model": "m1", "curriculum_phase": "late", "graded_score": 0.8},
+            {"model": "m2", "curriculum_phase": "very-early", "graded_score": 0.2},
+            {"model": "m2", "curriculum_phase": "late", "graded_score": 0.9},
         ]
     )
 
@@ -33,10 +33,10 @@ def by_scenario() -> pd.DataFrame:
     )
 
 
-def test_saves_score_by_difficulty(by_difficulty: pd.DataFrame, tmp_path: Path) -> None:
+def test_saves_score_by_phase(by_phase: pd.DataFrame, tmp_path: Path) -> None:
     """The plot file is written, creating its parent directory."""
-    output = tmp_path / "report" / "score_by_difficulty.png"
-    save_score_by_difficulty_plot(by_difficulty, output)
+    output = tmp_path / "report" / "score_by_phase.png"
+    save_score_by_phase_plot(by_phase, output)
     assert output.is_file()
 
 
@@ -47,17 +47,15 @@ def test_saves_score_by_scenario(by_scenario: pd.DataFrame, tmp_path: Path) -> N
     assert output.is_file()
 
 
-def test_saves_item_difficulty_histogram(tmp_path: Path) -> None:
+def test_saves_item_phase_histogram(tmp_path: Path) -> None:
     """The item-set composition plot is written at build time."""
-    items = pd.DataFrame({"difficulty_bucket": ["early", "early", "late"]})
+    items = pd.DataFrame({"curriculum_phase": ["early", "early", "late"]})
     output = tmp_path / "items.png"
-    save_item_difficulty_histogram(items, output)
+    save_item_phase_histogram(items, output)
     assert output.is_file()
 
 
 def test_requires_its_columns(tmp_path: Path) -> None:
     """A frame without the score column fails rather than writing a blank plot."""
     with pytest.raises(ValueError, match="missing required column"):
-        save_score_by_difficulty_plot(
-            pd.DataFrame({"model": ["m1"]}), tmp_path / "x.png"
-        )
+        save_score_by_phase_plot(pd.DataFrame({"model": ["m1"]}), tmp_path / "x.png")

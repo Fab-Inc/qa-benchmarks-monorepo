@@ -38,7 +38,7 @@ from phonics_benchmark.data_io import (
     write_json,
 )
 from phonics_benchmark.models import GenerationBenchmarkItem
-from phonics_benchmark.plots import save_item_difficulty_histogram
+from phonics_benchmark.plots import save_item_phase_histogram
 from phonics_benchmark.prompts import get_scenarios
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -88,9 +88,7 @@ def main(
     data_dir = get_data_dir(language, data_root)
     summary = {"full": summarize_items(items), "dev": summarize_items(dev_items)}
     write_json(summary, data_dir / "benchmark_items_summary.json")
-    save_item_difficulty_histogram(
-        items, data_dir / "benchmark_items_by_difficulty.png"
-    )
+    save_item_phase_histogram(items, data_dir / "benchmark_items_by_phase.png")
 
     typer.echo(json.dumps(summary, indent=2))
     typer.echo(f"Wrote item sets to {data_dir}")

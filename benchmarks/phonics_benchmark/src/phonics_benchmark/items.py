@@ -17,7 +17,7 @@ def load_benchmark_items(
 
     Only the fields the run actually needs are kept: the id, the scenario the
     model is asked to write for, and the student knowledge injected into the
-    prompt. Additional dataset fields (difficulty bucket, provenance) are
+    prompt. Additional dataset fields (curriculum phase, provenance) are
     accepted and ignored here — the report script re-joins them from the same
     items file, which the recorded ``items_sha256`` proves is unchanged.
     """

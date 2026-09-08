@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from phonics_benchmark.curation import (
     build_generation_items,
-    get_difficulty_bucket,
+    get_curriculum_phase,
     profiles_to_dataframe,
     sample_dev_profiles,
     summarize_items,
@@ -33,8 +33,8 @@ def make_profile(
     )
 
 
-class TestGetDifficultyBucket:
-    """Mapping grapheme counts onto reporting buckets."""
+class TestGetCurriculumPhase:
+    """Mapping grapheme counts onto reporting phases."""
 
     @pytest.mark.parametrize(
         ("n_graphemes", "expected"),
@@ -51,9 +51,9 @@ class TestGetDifficultyBucket:
             (99, "late"),
         ],
     )
-    def test_bucket_boundaries(self, n_graphemes: int, expected: str) -> None:
+    def test_phase_boundaries(self, n_graphemes: int, expected: str) -> None:
         """Boundaries are inclusive of their upper bound, and 'late' is open."""
-        assert get_difficulty_bucket(n_graphemes) == expected
+        assert get_curriculum_phase(n_graphemes) == expected
 
 
 class TestProfilesToDataFrame:
@@ -71,7 +71,7 @@ class TestProfilesToDataFrame:
         assert len(frame) == 5
         assert set(frame["student_knowledge_id"]) == {f"id-{i}" for i in range(5)}
 
-    def test_derives_counts_and_bucket(self) -> None:
+    def test_derives_counts_and_phase(self) -> None:
         """Grouping columns are derived once, here, from the knowledge itself."""
         frame = profiles_to_dataframe(
             [
@@ -87,7 +87,7 @@ class TestProfilesToDataFrame:
         assert row["n_graphemes_known"] == 3
         assert row["n_clusters_known"] == 1
         assert row["n_cluster_patterns_known"] == 1
-        assert row["difficulty_bucket"] == "very-early"
+        assert row["curriculum_phase"] == "very-early"
 
     def test_counts_absent_cluster_fields_as_zero(self) -> None:
         """A profile taught no clusters yet records zero, not a missing value."""
@@ -147,10 +147,10 @@ class TestBuildGenerationItems:
     def test_carries_the_grouping_columns_onto_every_item(
         self, profiles: pd.DataFrame
     ) -> None:
-        """Each item knows its own difficulty and cluster counts for the report."""
+        """Each item knows its own phase and cluster counts for the report."""
         items = build_generation_items(profiles, SCENARIOS)
         for column in (
-            "difficulty_bucket",
+            "curriculum_phase",
             "n_graphemes_known",
             "n_clusters_known",
             "n_cluster_patterns_known",
@@ -183,29 +183,27 @@ class TestSampleDevProfiles:
         records += [make_profile(f"late-{i}", ["a"] * 30) for i in range(10)]
         return profiles_to_dataframe(records)
 
-    def test_samples_the_requested_number_per_bucket(
+    def test_samples_the_requested_number_per_phase(
         self, profiles: pd.DataFrame
     ) -> None:
-        """Each bucket contributes its configured share, keeping the range."""
+        """Each phase contributes its configured share, keeping the range."""
         sampled = sample_dev_profiles(
-            profiles, bucket_sizes={"very-early": 3, "late": 5}
+            profiles, phase_sizes={"very-early": 3, "late": 5}
         )
-        assert sampled["difficulty_bucket"].value_counts().to_dict() == {
+        assert sampled["curriculum_phase"].value_counts().to_dict() == {
             "very-early": 3,
             "late": 5,
         }
 
-    def test_a_small_bucket_contributes_all_it_has(
-        self, profiles: pd.DataFrame
-    ) -> None:
+    def test_a_small_phase_contributes_all_it_has(self, profiles: pd.DataFrame) -> None:
         """Asking for more than exist takes everything rather than failing."""
-        sampled = sample_dev_profiles(profiles, bucket_sizes={"very-early": 99})
+        sampled = sample_dev_profiles(profiles, phase_sizes={"very-early": 99})
         assert len(sampled) == 10
 
-    def test_absent_buckets_are_skipped(self, profiles: pd.DataFrame) -> None:
-        """A bucket with no profiles simply contributes nothing."""
-        sampled = sample_dev_profiles(profiles, bucket_sizes={"mid": 5, "late": 2})
-        assert set(sampled["difficulty_bucket"]) == {"late"}
+    def test_absent_phases_are_skipped(self, profiles: pd.DataFrame) -> None:
+        """A phase with no profiles simply contributes nothing."""
+        sampled = sample_dev_profiles(profiles, phase_sizes={"mid": 5, "late": 2})
+        assert set(sampled["curriculum_phase"]) == {"late"}
 
     def test_is_reproducible(self, profiles: pd.DataFrame) -> None:
         """A fixed seed makes the dev set a stable set of items across runs."""
@@ -219,16 +217,16 @@ class TestSampleDevProfiles:
         self, profiles: pd.DataFrame
     ) -> None:
         """The seed is doing real work, not silently ignored."""
-        first = sample_dev_profiles(profiles, bucket_sizes={"late": 3})
-        other = sample_dev_profiles(profiles, bucket_sizes={"late": 3}, random_state=7)
+        first = sample_dev_profiles(profiles, phase_sizes={"late": 3})
+        other = sample_dev_profiles(profiles, phase_sizes={"late": 3}, random_state=7)
         assert list(first["student_knowledge_id"]) != list(
             other["student_knowledge_id"]
         )
 
-    def test_no_matching_bucket_raises(self, profiles: pd.DataFrame) -> None:
+    def test_no_matching_phase_raises(self, profiles: pd.DataFrame) -> None:
         """A sample that would be empty is an error."""
         with pytest.raises(ValueError, match="Dev sample is empty"):
-            sample_dev_profiles(profiles, bucket_sizes={"mid": 5})
+            sample_dev_profiles(profiles, phase_sizes={"mid": 5})
 
 
 class TestSummarizeItems:
@@ -246,7 +244,7 @@ class TestSummarizeItems:
         assert summary["Total items"] == 4
         assert summary["Unique profiles"] == 2
         assert summary["Unique scenarios"] == 2
-        assert summary["Profiles per difficulty bucket"] == {
+        assert summary["Profiles per curriculum phase"] == {
             "late": 1,
             "very-early": 1,
         }

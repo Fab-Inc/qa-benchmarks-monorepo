@@ -8,8 +8,8 @@ from phonics_benchmark.scoring import (
     REFERENCE_LENGTH,
     add_per_item_decodability,
     graded_score,
-    summarize_by_difficulty,
     summarize_by_model,
+    summarize_by_phase,
     summarize_by_scenario,
 )
 
@@ -247,21 +247,21 @@ class TestBreakdowns:
             build_row(
                 "Mama anaona paka.",
                 benchmark_item_id="a",
-                difficulty_bucket="late",
+                curriculum_phase="late",
                 scenario_id="story",
             ),
             build_row(
                 "Mama anaona mwalimu.",
                 benchmark_item_id="b",
-                difficulty_bucket="very-early",
+                curriculum_phase="very-early",
                 scenario_id="dialogue",
             ),
         ]
         return add_per_item_decodability(pd.DataFrame(rows), "sw")
 
-    def test_by_difficulty(self, scored: pd.DataFrame) -> None:
-        """Each model/bucket pair gets its own mean score and item count."""
-        result = summarize_by_difficulty(scored).set_index("difficulty_bucket")
+    def test_by_phase(self, scored: pd.DataFrame) -> None:
+        """Each model/phase pair gets its own mean score and item count."""
+        result = summarize_by_phase(scored).set_index("curriculum_phase")
         assert result.loc["late", "graded_score"] == 1.0
         assert result.loc["very-early", "graded_score"] < 1.0
         assert result.loc["late", "n_items"] == 1
@@ -277,4 +277,4 @@ class TestBreakdowns:
     ) -> None:
         """Missing the grouping column is an error, not an empty frame."""
         with pytest.raises(ValueError, match="missing required column"):
-            summarize_by_difficulty(scored.drop(columns=["difficulty_bucket"]))
+            summarize_by_phase(scored.drop(columns=["curriculum_phase"]))

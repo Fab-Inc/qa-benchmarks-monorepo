@@ -228,15 +228,15 @@ def _summarize_by(results: pd.DataFrame, dimension: str) -> pd.DataFrame:
     )
 
 
-@require_columns(["model", "difficulty_bucket", "graded_score", "strict_pass"])
-def summarize_by_difficulty(results: pd.DataFrame) -> pd.DataFrame:
-    """Per-model score by student difficulty bucket.
+@require_columns(["model", "curriculum_phase", "graded_score", "strict_pass"])
+def summarize_by_phase(results: pd.DataFrame) -> pd.DataFrame:
+    """Per-model score by student curriculum phase.
 
     The most informative breakdown in the benchmark: a profile that teaches four
     graphemes leaves almost no writable vocabulary, while a full inventory
     leaves most of the language available.
     """
-    return _summarize_by(results, "difficulty_bucket")
+    return _summarize_by(results, "curriculum_phase")
 
 
 @require_columns(["model", "scenario_id", "graded_score", "strict_pass"])

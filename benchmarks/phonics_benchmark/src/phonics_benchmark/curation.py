@@ -7,22 +7,22 @@ from typing import Any
 
 import pandas as pd
 
-from phonics_benchmark.models import DifficultyBucket, StudentKnowledge
+from phonics_benchmark.models import CurriculumPhase, StudentKnowledge
 
-# Difficulty buckets by number of graphemes the student has been taught, each
-# with its inclusive upper bound. The last bucket is open-ended (None): a
+# Curriculum phases by number of graphemes the student has been taught, each
+# with its inclusive upper bound. The last phase is open-ended (None): a
 # profile that knows the whole inventory still belongs in "late".
-DIFFICULTY_BUCKETS: tuple[tuple[str, int | None], ...] = (
+CURRICULUM_PHASES: tuple[tuple[str, int | None], ...] = (
     ("very-early", 10),
     ("early", 17),
     ("mid", 24),
     ("late", None),
 )
 
-# How many profiles of each bucket the dev set samples. Weighted towards the
-# larger buckets while keeping the sparse "very-early" bucket represented,
+# How many profiles of each phase the dev set samples. Weighted towards the
+# larger phases while keeping the sparse "very-early" phase represented,
 # because that is where the task is hardest.
-DEV_SET_BUCKET_SIZES: Mapping[str, int] = {
+DEV_SET_PHASE_SIZES: Mapping[str, int] = {
     "very-early": 6,
     "early": 8,
     "mid": 8,
@@ -32,12 +32,12 @@ DEV_SET_BUCKET_SIZES: Mapping[str, int] = {
 DEV_SET_RANDOM_STATE = 42
 
 
-def get_difficulty_bucket(n_graphemes: int) -> DifficultyBucket:
-    """Return the difficulty bucket for a profile that knows n_graphemes.
+def get_curriculum_phase(n_graphemes: int) -> CurriculumPhase:
+    """Return the curriculum phase for a profile that knows n_graphemes.
 
-    The final bucket is the catch-all, so every grapheme count maps somewhere.
+    The final phase is the catch-all, so every grapheme count maps somewhere.
     """
-    *bounded, (open_ended, _) = DIFFICULTY_BUCKETS
+    *bounded, (open_ended, _) = CURRICULUM_PHASES
     for name, upper_bound in bounded:
         assert upper_bound is not None
         if n_graphemes <= upper_bound:
@@ -50,7 +50,7 @@ def profiles_to_dataframe(profiles: Iterable[StudentKnowledge]) -> pd.DataFrame:
 
     Adds the derived columns the benchmark groups and reports by:
     ``n_graphemes_known``, ``n_clusters_known``, ``n_cluster_patterns_known``
-    and ``difficulty_bucket``.
+    and ``curriculum_phase``.
 
     Cluster counts are recorded because they carry real signal that the grapheme
     count alone hides: only the grade-2 profiles have been taught consonant
@@ -86,7 +86,7 @@ def profiles_to_dataframe(profiles: Iterable[StudentKnowledge]) -> pd.DataFrame:
     frame["n_graphemes_known"] = count("graphemes")
     frame["n_clusters_known"] = count("clusters")
     frame["n_cluster_patterns_known"] = count("cluster_patterns")
-    frame["difficulty_bucket"] = frame["n_graphemes_known"].apply(get_difficulty_bucket)
+    frame["curriculum_phase"] = frame["n_graphemes_known"].apply(get_curriculum_phase)
     return frame.sort_values("student_knowledge_id").reset_index(drop=True)
 
 
@@ -122,26 +122,26 @@ def build_generation_items(
 def sample_dev_profiles(
     profiles: pd.DataFrame,
     *,
-    bucket_sizes: Mapping[str, int] = DEV_SET_BUCKET_SIZES,
+    phase_sizes: Mapping[str, int] = DEV_SET_PHASE_SIZES,
     random_state: int = DEV_SET_RANDOM_STATE,
 ) -> pd.DataFrame:
     """Take a stratified sample of profiles for the fast dev item set.
 
-    Sampling per difficulty bucket keeps the full difficulty range represented
-    rather than letting the larger, easier buckets dominate. A bucket with fewer
+    Sampling per curriculum phase keeps the full range represented rather than
+    letting the larger, later phases dominate. A phase with fewer
     profiles than requested contributes all of them. Seeded for reproducibility,
     so the dev set is a fixed set of items rather than a fresh draw per run.
     """
     sampled = []
-    for bucket, size in bucket_sizes.items():
-        available = profiles[profiles["difficulty_bucket"] == bucket]
+    for phase, size in phase_sizes.items():
+        available = profiles[profiles["curriculum_phase"] == phase]
         if available.empty:
             continue
         n = min(size, len(available))
         sampled.append(available.sample(n, random_state=random_state))
 
     if not sampled:
-        raise ValueError("Dev sample is empty: no profiles matched any bucket")
+        raise ValueError("Dev sample is empty: no profiles matched any phase")
 
     return pd.concat(sampled).sort_values("student_knowledge_id").reset_index(drop=True)
 
@@ -156,11 +156,11 @@ def summarize_items(items: pd.DataFrame) -> dict[str, Any]:
         "Total items": len(items),
         "Unique profiles": int(items["student_knowledge_id"].nunique()),
         "Unique scenarios": int(items["scenario_id"].nunique()),
-        "Items per difficulty bucket": items["difficulty_bucket"]
+        "Items per curriculum phase": items["curriculum_phase"]
         .value_counts()
         .sort_index()
         .to_dict(),
-        "Profiles per difficulty bucket": profiles["difficulty_bucket"]
+        "Profiles per curriculum phase": profiles["curriculum_phase"]
         .value_counts()
         .sort_index()
         .to_dict(),

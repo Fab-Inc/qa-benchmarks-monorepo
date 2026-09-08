@@ -64,7 +64,7 @@ all recorded so under-length or degenerately repetitive responses can be audited
 | `pooled_n_fail_<scorer>`                                                | Which scorer rejected each failure, e.g. untaught grapheme vs untaught cluster |
 | `mean_n_words`, `mean_unique_word_ratio`, `under_reference_length_rate` | Length/diversity diagnostics, never scored                                     |
 
-All of these are also broken out by student difficulty bucket and by scenario.
+All of these are also broken out by student curriculum phase and by scenario.
 
 ## Consonant clusters and the difficulty gradient
 
@@ -89,10 +89,10 @@ Because the grapheme count alone hides this, every item records `n_clusters_know
 `n_cluster_patterns_known` alongside `n_graphemes_known`, and `results_with_scoring.csv`
 carries all three so you can split any metric by cluster knowledge.
 
-Measured against a 1,171-word reference vocabulary, the difficulty buckets come out
+Measured against a 1,171-word reference vocabulary, the curriculum phases come out
 monotone and wide:
 
-| Bucket       | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
+| Phase        | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
 | ------------ | --------- | -------- | --------------- | ------------------------------------- |
 | `very-early` | ≤10       | 17       | 0               | 0.3% / 5.2% / 12.0%                   |
 | `early`      | 11–17     | 37       | 2               | 7.7% / 24.5% / 35.4%                  |
@@ -103,7 +103,7 @@ The `very-early` end is genuinely severe: `tusome-ke-stage-01` teaches two graph
 (`a`, `m`) and five sight words, leaving four usable words in the reference vocabulary.
 A 50-word text there is necessarily very repetitive — which the scenarios explicitly
 allow, since repetition is normal for an early reader. It is still achievable: a text
-built only from that profile's own vocabulary scores a perfect 1.0. Read the per-bucket
+built only from that profile's own vocabulary scores a perfect 1.0. Read the per-phase
 breakdown rather than the pooled score.
 
 ## Run the benchmark
@@ -218,7 +218,7 @@ The runner accepts completed JSONL artifacts selected through `items_path` in co
 `--items-path` with direct CLI options. It does not join or compose benchmark inputs.
 Each line must be an object containing a non-empty `benchmark_item_id`, a non-empty
 `scenario_id`, a non-whitespace `scenario`, and object-valued `student_knowledge`.
-Additional dataset-owned fields (`difficulty_bucket`, `student_knowledge_id`,
+Additional dataset-owned fields (`curriculum_phase`, `student_knowledge_id`,
 `n_graphemes_known`, `n_clusters_known`, `n_cluster_patterns_known`) are accepted and
 ignored by the runner; the report script re-joins them from the same file, which the
 recorded `items_sha256` proves is unchanged. The selected language registry validates
@@ -273,7 +273,7 @@ uv run --package phonics-benchmark python \
 The report reads the run's language and item set from the run's own `config.json`
 snapshot rather than from flags, so a run is always scored against the exact items it
 was executed on, and writes `results_with_scoring.csv`, `summary_by_model.csv`,
-`summary_by_difficulty.csv`, `summary_by_scenario.csv`, two plots, and (with
+`summary_by_phase.csv`, `summary_by_scenario.csv`, two plots, and (with
 `--inspect-sample-size`) `sampled_items_for_inspection.csv`.
 
 The runner saves recognized provider SDK API and transport failures propagated by FDLLM

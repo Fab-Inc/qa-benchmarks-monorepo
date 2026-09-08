@@ -41,7 +41,7 @@
     "clusters": [],
     "cluster_patterns": []
   },
-  "difficulty_bucket": "mid",
+  "curriculum_phase": "mid",
   "n_graphemes_known": 22,
   "n_clusters_known": 0,
   "n_cluster_patterns_known": 0

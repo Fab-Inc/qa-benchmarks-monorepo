@@ -55,7 +55,7 @@ ITEM_RECORD = {
         "cluster_patterns": [],
         "whole_words": ["mama", "paka"],
     },
-    "difficulty_bucket": "very-early",
+    "curriculum_phase": "very-early",
     "n_graphemes_known": 1,
     "n_clusters_known": 0,
     "n_cluster_patterns_known": 0,
@@ -285,7 +285,7 @@ class TestDataFrameBoundary:
                 {
                     **ITEM_RECORD,
                     "benchmark_item_id": "bi-bad",
-                    "difficulty_bucket": "not-a-bucket",
+                    "curriculum_phase": "not-a-phase",
                 },
             ]
         )

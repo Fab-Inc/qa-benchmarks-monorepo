@@ -14,7 +14,7 @@ data/
     ├── benchmark_items.jsonl            (not in git)
     ├── benchmark_items_dev.jsonl        (not in git)
     ├── benchmark_items_summary.json               (not in git)
-    └── benchmark_items_by_difficulty.png          (not in git)
+    └── benchmark_items_by_phase.png          (not in git)
 ```
 
 > [!IMPORTANT]\
@@ -139,7 +139,7 @@ checker in `packages/decodability` grades whatever the model writes.
 | `student_knowledge_id`     | string | References a `student_knowledge_id` in `student_knowledge_profiles.jsonl` |
 | `language_iso_code`        | string | ISO 639-1 language code                                                   |
 | `student_knowledge`        | object | Phonics units the student has been taught                                 |
-| `difficulty_bucket`        | string | `very-early` / `early` / `mid` / `late`, from `n_graphemes_known`         |
+| `curriculum_phase`         | string | `very-early` / `early` / `mid` / `late`, from `n_graphemes_known`         |
 | `n_graphemes_known`        | int    | How many graphemes the profile teaches                                    |
 | `n_clusters_known`         | int    | How many explicit consonant clusters the profile teaches                  |
 | `n_cluster_patterns_known` | int    | How many generative cluster patterns it teaches                           |
@@ -158,7 +158,7 @@ checker in `packages/decodability` grades whatever the model writes.
       "whole_words": ["mama","ama","anaona","na","paka"],
       "cluster_patterns": ["prenasalised", "labialised_glide", "palatalised_glide"]
    },
-   "difficulty_bucket": "mid",
+   "curriculum_phase": "mid",
    "n_graphemes_known": 23,
    "n_clusters_known": 0,
    "n_cluster_patterns_known": 0
@@ -169,29 +169,29 @@ Every canonical profile becomes items: all 156 ids are distinct and so are all 1
 knowledge blobs, so there is nothing to deduplicate. 156 profiles x 4 scenarios = 624
 items in the full set.
 
-## Difficulty buckets
+## Curriculum phases
 
-Buckets are assigned from the number of graphemes taught, with inclusive upper bounds
-(`curation.DIFFICULTY_BUCKETS`). They matter because the writable vocabulary varies by
+Phases are assigned from the number of graphemes taught, with inclusive upper bounds
+(`curation.CURRICULUM_PHASES`). They matter because the writable vocabulary varies by
 more than two orders of magnitude across them — measured against a 1,171-word reference
 vocabulary:
 
-| Bucket       | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
+| Phase        | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
 | ------------ | --------- | -------- | --------------- | ------------------------------------- |
 | `very-early` | ≤10       | 17       | 0               | 0.3% / 5.2% / 12.0%                   |
 | `early`      | 11–17     | 37       | 2               | 7.7% / 24.5% / 35.4%                  |
 | `mid`        | 18–24     | 41       | 1               | 31.9% / 47.2% / 63.1%                 |
 | `late`       | 25+       | 61       | 18              | 41.1% / 68.3% / 98.6%                 |
 
-Cluster knowledge is the other axis and it is not captured by the bucket: it is taught
-in grade 2, so it concentrates in `late`, and at a fixed 31 graphemes it swings the
+Cluster knowledge is the other axis and it is not captured by the phase: it is taught in
+grade 2, so it concentrates in `late`, and at a fixed 31 graphemes it swings the
 readable vocabulary from 74.1% (`tusome-ke-stage-16`, grade-1 endpoint) to 98.6%
 (`tusome-ke-g2-j10`). That is why every item records `n_clusters_known` and
 `n_cluster_patterns_known` — so any metric can be split by it.
 
 The `very-early` end is severe: `tusome-ke-stage-01` teaches two graphemes and five
 sight words, leaving four usable words in the reference vocabulary. A 50-word text there
-is necessarily repetitive, which the scenarios allow. Read the per-bucket breakdown
+is necessarily repetitive, which the scenarios allow. Read the per-phase breakdown
 rather than only the pooled score.
 
 ## Adding a new dataset

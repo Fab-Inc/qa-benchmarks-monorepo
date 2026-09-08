@@ -98,7 +98,7 @@ def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None
         b'{"benchmark_item_id":"item-1","scenario_id":"story",'
         b'"scenario":"  Write a story.  ",'
         b'"student_knowledge":{"graphemes":["a","m"],"whole_words":["mama"]},'
-        b'"difficulty_bucket":"very-early","n_graphemes_known":2}\n'
+        b'"curriculum_phase":"very-early","n_graphemes_known":2}\n'
         b'{"benchmark_item_id":"item-2","scenario_id":"dialogue",'
         b'"scenario":"Write a dialogue.",'
         b'"student_knowledge":{"graphemes":["a","i"],"whole_words":[]}}\n'

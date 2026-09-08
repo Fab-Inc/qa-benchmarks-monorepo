@@ -6,10 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 
-# Student profiles are bucketed by how much of the grapheme inventory they have
-# been taught. The benchmark reports scores per bucket because the amount of
+# Student profiles are grouped by how much of the grapheme inventory they have
+# been taught. The benchmark reports scores per phase because the amount of
 # writable vocabulary varies by more than an order of magnitude across them.
-DifficultyBucket = Literal["very-early", "early", "mid", "late"]
+CurriculumPhase = Literal["very-early", "early", "mid", "late"]
 
 
 class StudentKnowledge(BaseModel):
@@ -34,7 +34,7 @@ class GenerationBenchmarkItem(BaseModel):
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
     student_knowledge: dict[str, Any]
-    difficulty_bucket: DifficultyBucket
+    curriculum_phase: CurriculumPhase
     n_graphemes_known: int = Field(ge=0)
     n_clusters_known: int = Field(ge=0)
     n_cluster_patterns_known: int = Field(ge=0)

@@ -29,13 +29,13 @@ This writes to `data/<language>/`:
   `src/phonics_benchmark/scenarios.yaml` (156 x 4 = 624 items for Kiswahili)
 - `benchmark_items_dev.jsonl`: a stratified sample of 30 profiles x 4 scenarios = 120
   items, for fast iteration
-- `benchmark_items_summary.json`: item counts and composition per difficulty bucket
-- `benchmark_items_by_difficulty.png`: the same composition as a bar chart
+- `benchmark_items_summary.json`: item counts and composition per curriculum phase
+- `benchmark_items_by_phase.png`: the same composition as a bar chart
 
 Every profile's `student_knowledge` is validated against the language's model in
 `decodability` before any items are written, so a bad grapheme or a cluster that
 overlaps a known cluster pattern fails here rather than mid-run. Each item is stamped
-with its `difficulty_bucket`, `n_graphemes_known`, `n_clusters_known` and
+with its `curriculum_phase`, `n_graphemes_known`, `n_clusters_known` and
 `n_cluster_patterns_known` so the report can break scores down by them.
 
 ### Re-deriving profiles from a workbook (rarely needed)

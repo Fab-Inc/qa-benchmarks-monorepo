@@ -7,41 +7,42 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from phonics_benchmark.curation import DIFFICULTY_BUCKETS
+from phonics_benchmark.curation import CURRICULUM_PHASES
 from phonics_benchmark.utils import require_columns
 
-BUCKET_ORDER = [name for name, _ in DIFFICULTY_BUCKETS]
+PHASE_ORDER = [name for name, _ in CURRICULUM_PHASES]
 
 
-@require_columns(["model", "difficulty_bucket", "graded_score"])
-def save_score_by_difficulty_plot(
-    score_by_difficulty: pd.DataFrame,
+@require_columns(["model", "curriculum_phase", "graded_score"])
+def save_score_by_phase_plot(
+    score_by_phase: pd.DataFrame,
     output_path: Path,
     *,
-    title: str = "Decodable-Text Score vs. Student Difficulty",
+    title: str = "Decodable-Text Score by Curriculum Phase",
 ) -> None:
-    """Save a per-model line plot of graded score across difficulty buckets.
+    """Save a per-model line plot of graded score across curriculum phases.
 
-    Buckets are plotted in curriculum order rather than alphabetically, so the
-    line reads left-to-right from the least-taught student to the most-taught.
+    Phases are plotted in curriculum order rather than alphabetically, so the
+    line reads left-to-right from the least-taught student to the most-taught,
+    i.e. hardest to easiest for the model.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    buckets_present = set(score_by_difficulty["difficulty_bucket"])
-    present = [b for b in BUCKET_ORDER if b in buckets_present]
-    positions = {bucket: index for index, bucket in enumerate(present)}
+    phases_present = set(score_by_phase["curriculum_phase"])
+    present = [p for p in PHASE_ORDER if p in phases_present]
+    positions = {phase: index for index, phase in enumerate(present)}
 
     plt.figure(figsize=(10, 6))
-    for model_name, group in score_by_difficulty.groupby("model"):
-        group = group[group["difficulty_bucket"].isin(positions)]
-        group = group.assign(_x=group["difficulty_bucket"].map(positions)).sort_values(
+    for model_name, group in score_by_phase.groupby("model"):
+        group = group[group["curriculum_phase"].isin(positions)]
+        group = group.assign(_x=group["curriculum_phase"].map(positions)).sort_values(
             "_x"
         )
         plt.plot(group["_x"], group["graded_score"], marker="o", label=model_name)
 
     plt.xticks(range(len(present)), present)
     plt.title(title)
-    plt.xlabel("Student Difficulty Bucket (graphemes taught)")
+    plt.xlabel("Curriculum Phase (graphemes taught \u2014 earlier is harder)")
     plt.ylabel("Graded Score (mean)")
     plt.ylim(0.0, 1.0)
     plt.legend()
@@ -75,23 +76,23 @@ def save_score_by_scenario_plot(
     plt.close()
 
 
-@require_columns(["difficulty_bucket"])
-def save_item_difficulty_histogram(
+@require_columns(["curriculum_phase"])
+def save_item_phase_histogram(
     items: pd.DataFrame,
     output_path: Path,
     *,
-    title: str = "Benchmark Items per Difficulty Bucket",
+    title: str = "Benchmark Items per Curriculum Phase",
 ) -> None:
-    """Save a bar chart of how many items fall in each difficulty bucket."""
+    """Save a bar chart of how many items fall in each curriculum phase."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    counts = items["difficulty_bucket"].value_counts()
-    counts = counts.reindex([b for b in BUCKET_ORDER if b in counts.index])
+    counts = items["curriculum_phase"].value_counts()
+    counts = counts.reindex([p for p in PHASE_ORDER if p in counts.index])
 
     plt.figure(figsize=(10, 6))
     plt.bar(counts.index, counts.to_numpy())
     plt.title(title)
-    plt.xlabel("Student Difficulty Bucket (graphemes taught)")
+    plt.xlabel("Curriculum Phase (graphemes taught)")
     plt.ylabel("Number of Items")
     plt.savefig(output_path)
     plt.close()
