@@ -1,0 +1,30 @@
+{
+  "run_id": "sw-generation-full",
+  "language": "sw",
+  "items_path": "../data/kiswahili/benchmark_items_generation.jsonl",
+  "prompt_name": "decodable_text_generation",
+  "output_dir": "../outputs",
+  "models": [
+    "gpt-5.6-terra",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "gemini-3.5-flash",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "kimi-k3"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 5,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili) student knowledge profiles",
+    "task": "generate a text in which every word is decodable for the student",
+    "item_set": "full (every distinct student profile)",
+    "scenarios": ["story", "informational", "dialogue", "sentences"],
+    "cluster_knowledge_source": "placeholder_all_patterns",
+    "cluster_knowledge_caveat": "Profiles carry no real cluster knowledge; all native cluster patterns are marked known as a placeholder. See curation.apply_placeholder_cluster_knowledge.",
+    "provenance": "scripts/ingest_benchmark_data.py -> scripts/build_generation_benchmark_items.py"
+  }
+}

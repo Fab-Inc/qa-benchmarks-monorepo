@@ -1,10 +1,11 @@
 {
-  "benchmark_item_id": "SW-KE-S11",
+  "benchmark_item_id": "story_tusome-ke-stage-11",
+  "scenario_id": "story",
+  "scenario": "Write a short story of about 50 words for this student to read.",
+  "student_knowledge_id": "tusome-ke-stage-11",
   "language_iso_code": "sw",
   "curriculum_stage": 11,
   "grade": 1,
-  "content": "Petero na rafiki yake walisafiri kwa pikipiki hadi sokoni. Barabarani waliona foleni ya magari. Waliona ng'ombe na mbuzi shambani. Petero alinunua farasi mdogo. Jioni walirudi wakiwa na furaha.",
-  "student_knowledge_id": "tusome-ke-stage-11",
   "student_knowledge": {
     "graphemes": [
       "a",
@@ -38,8 +39,7 @@
       "paka"
     ]
   },
-  "nondecodable_words": [
-    "ng'ombe",
-    "shambani"
-  ]
+  "difficulty_bucket": "mid",
+  "n_graphemes_known": 22,
+  "cluster_knowledge_source": "dataset"
 }

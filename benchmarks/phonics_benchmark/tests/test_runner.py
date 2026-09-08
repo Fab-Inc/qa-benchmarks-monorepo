@@ -23,7 +23,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import DEFAULT_MAX_TOKENS
-from phonics_benchmark.prompts import build_decodability_prompt
+from phonics_benchmark.prompts import build_generation_prompt
 from phonics_benchmark.results import save_results
 from phonics_benchmark.runner import (
     download_default_custom_models,
@@ -95,10 +95,12 @@ def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None
 
     items_path = tmp_path / "items.jsonl"
     artifact = (
-        b'{"benchmark_item_id":"item-1","content":"  Mama anaona kuku.  ",'
+        b'{"benchmark_item_id":"item-1","scenario_id":"story",'
+        b'"scenario":"  Write a story.  ",'
         b'"student_knowledge":{"graphemes":["a","m"],"whole_words":["mama"]},'
-        b'"text_id":"text-1","expected_answer":["kuku"]}\n'
-        b'{"benchmark_item_id":"item-2","content":"Tai ni ndege.",'
+        b'"difficulty_bucket":"very-early","n_graphemes_known":2}\n'
+        b'{"benchmark_item_id":"item-2","scenario_id":"dialogue",'
+        b'"scenario":"Write a dialogue.",'
         b'"student_knowledge":{"graphemes":["a","i"],"whole_words":[]}}\n'
     )
     items_path.write_bytes(artifact)
@@ -108,14 +110,16 @@ def test_load_benchmark_items_reads_exact_jsonl_snapshot(tmp_path: Path) -> None
     assert items_sha256 == sha256(artifact).hexdigest()
     assert len(items) == 2
     assert items[0]["benchmark_item_id"] == "item-1"
-    assert items[0]["content"] == "  Mama anaona kuku.  "
+    assert items[0]["scenario"] == "  Write a story.  "
+    assert items[0]["scenario_id"] == "story"
     assert items[0]["student_knowledge"] == {
         "graphemes": ["a", "m"],
         "whole_words": ["mama"],
     }
     assert set(items[0]) == {
         "benchmark_item_id",
-        "content",
+        "scenario_id",
+        "scenario",
         "student_knowledge",
     }
 
@@ -124,11 +128,12 @@ def test_contract_fixture_exposes_completed_execution_envelope() -> None:
     items, _items_sha256 = load_benchmark_items(CONTRACT_FIXTURE)
 
     assert [item["benchmark_item_id"] for item in items] == [
-        "bi-SW-KE-S2-tusome-ke-stage-01",
-        "bi-SW-KE-S4-tusome-ke-stage-02",
+        "story_tusome-ke-stage-02",
+        "informational_tusome-ke-g2-wk13",
     ]
     assert all(
-        set(item) == {"benchmark_item_id", "content", "student_knowledge"}
+        set(item)
+        == {"benchmark_item_id", "scenario_id", "scenario", "student_knowledge"}
         for item in items
     )
 
@@ -153,18 +158,25 @@ def test_load_benchmark_items_rejects_padded_ids(
         (b"", "No benchmark items"),
         (b"\n", "blank JSONL"),
         (
-            b'{"benchmark_item_id":"item-1","content":"Text",'
-            b'"student_knowledge":{}}\n\n',
+            b'{"benchmark_item_id":"item-1","scenario_id":"story",'
+            b'"scenario":"Text","student_knowledge":{}}\n\n',
             "blank JSONL",
         ),
         (b"not-json\n", "invalid JSON"),
         (b"[]\n", "must be an object"),
         (
-            b'{"benchmark_item_id":"item-1","content":" ","student_knowledge":{}}\n',
-            "content",
+            b'{"benchmark_item_id":"item-1","scenario_id":"story",'
+            b'"scenario":" ","student_knowledge":{}}\n',
+            "scenario",
         ),
         (
-            b'{"benchmark_item_id":"item-1","content":"Text","student_knowledge":[]}\n',
+            b'{"benchmark_item_id":"item-1","scenario":"Text",'
+            b'"student_knowledge":{}}\n',
+            "scenario_id",
+        ),
+        (
+            b'{"benchmark_item_id":"item-1","scenario_id":"story",'
+            b'"scenario":"Text","student_knowledge":[]}\n',
             "student_knowledge",
         ),
         (b"\xff", "UTF-8"),
@@ -318,10 +330,10 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
     }
     assert len(rows) == 4
     assert calls == [
-        ("sw", "decodability", "model-a", "item-1"),
-        ("sw", "decodability", "model-a", "item-2"),
-        ("sw", "decodability", "model-b", "item-1"),
-        ("sw", "decodability", "model-b", "item-2"),
+        ("sw", "decodable-text-generation", "model-a", "item-1"),
+        ("sw", "decodable-text-generation", "model-a", "item-2"),
+        ("sw", "decodable-text-generation", "model-b", "item-1"),
+        ("sw", "decodable-text-generation", "model-b", "item-2"),
     ]
 
     result_ids = {row["result_id"] for row in rows}
@@ -511,8 +523,8 @@ def test_prompts_are_rendered_once_per_item_before_workers(tmp_path: Path) -> No
     )
 
     with patch(
-        "phonics_benchmark.runner.build_decodability_prompt",
-        wraps=build_decodability_prompt,
+        "phonics_benchmark.runner.build_generation_prompt",
+        wraps=build_generation_prompt,
     ) as build_prompt:
         output = run_from_config_file(
             config_path,
@@ -1358,7 +1370,7 @@ def test_prepare_fdllm_uses_default_custom_models_path(tmp_path: Path) -> None:
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
-        task="decodability",
+        task="decodable-text-generation",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
         items_path=tmp_path / "items.jsonl",
@@ -1390,7 +1402,7 @@ def test_prepare_fdllm_preserves_explicit_custom_models_path(tmp_path: Path) -> 
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
-        task="decodability",
+        task="decodable-text-generation",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
         items_path=tmp_path / "items.jsonl",
@@ -1413,7 +1425,7 @@ def test_default_evaluator_uses_qfb_call_record(tmp_path: Path) -> None:
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
-        task="decodability",
+        task="decodable-text-generation",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
         items_path=tmp_path / "items.jsonl",
@@ -1459,7 +1471,7 @@ def test_default_evaluator_uses_configured_max_tokens(tmp_path: Path) -> None:
     config = BenchmarkRunConfig(
         run_id="experiment-a",
         language="sw",
-        task="decodability",
+        task="decodable-text-generation",
         output_dir=tmp_path / "outputs",
         models=["model-a"],
         items_path=tmp_path / "items.jsonl",
@@ -1679,12 +1691,12 @@ def _write_items_jsonl(tmp_path: Path, items: list[dict]) -> Path:
     records = [
         {
             "benchmark_item_id": item.get("benchmark_item_id", item.get("id")),
-            "content": item.get("content", item.get("text")),
+            "scenario_id": item.get("scenario_id", "story"),
+            "scenario": item.get("scenario", item.get("text", "Write a story.")),
             "student_knowledge": item.get(
                 "student_knowledge",
                 {"graphemes": ["a"], "whole_words": []},
             ),
-            "text_id": f"text-{index}",
             "student_knowledge_id": f"student-{index}",
         }
         for index, item in enumerate(items, start=1)

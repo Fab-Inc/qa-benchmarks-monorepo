@@ -7,11 +7,14 @@ Run from the repository root with (as an example):
         --language kiswahili \\
         --workbook path/to/benchmark_template.xlsx
 
-The workbook is a template filled in by language experts, with a "Student
-Profiles" tab and a "Texts" tab. Machine-read columns are identified by exact
-header name (case-sensitive), independent of column order, so the template
-can carry additional expert-context columns without breaking this script.
-Rows with a blank ID column are treated as spacing/notes and skipped.
+The workbook is a template filled in by language experts. Only its "Student
+Profiles" tab is read: the benchmark now asks the model to *write* a text
+rather than giving it one, so the workbook's "Texts" tab is ignored.
+
+Machine-read columns are identified by exact header name (case-sensitive),
+independent of column order, so the template can carry additional
+expert-context columns without breaking this script. Rows with a blank ID
+column are treated as spacing/notes and skipped.
 """
 
 from collections.abc import Callable
@@ -21,12 +24,11 @@ from typing import Any
 import pandas as pd
 import typer
 from phonics_benchmark.data_io import validate_student_knowledge, write_dataset
-from phonics_benchmark.models import DecodableText, StudentKnowledge
+from phonics_benchmark.models import StudentKnowledge
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 STUDENT_PROFILES_SHEET = "Student Profiles"
-TEXTS_SHEET = "Texts"
 
 
 def split_list(value: str) -> list[str]:
@@ -123,17 +125,6 @@ def extract_student_profiles(
     ]
 
 
-def extract_texts(df: pd.DataFrame) -> list[DecodableText]:
-    return [
-        DecodableText(
-            text_id=str(row.text_id),
-            language_iso_code=str(row.language_iso_code),
-            content=str(row.content),
-        )
-        for row in df.itertuples(index=False)
-    ]
-
-
 def ingest_benchmark_data(
     language: str = typer.Option(
         ...,
@@ -156,9 +147,8 @@ def ingest_benchmark_data(
         help="Root data directory. Defaults to the package's data/ folder.",
     ),
 ) -> None:
-    """Parse a data-entry workbook into decodable texts and student profiles."""
+    """Parse a data-entry workbook into student knowledge profiles."""
     student_df = pd.read_excel(workbook, sheet_name=STUDENT_PROFILES_SHEET)
-    texts_df = pd.read_excel(workbook, sheet_name=TEXTS_SHEET)
 
     student_iso = get_language_iso_code(student_df, f"'{STUDENT_PROFILES_SHEET}' sheet")
 
@@ -175,26 +165,16 @@ def ingest_benchmark_data(
         "student_knowledge_id",
         f"'{STUDENT_PROFILES_SHEET}' sheet",
     )
-    texts_df = preprocess_sheet_data(
-        texts_df,
-        {"text_id", "language_iso_code", "content"},
-        "text_id",
-        f"'{TEXTS_SHEET}' sheet",
-    )
 
     profiles = extract_student_profiles(student_df, student_fields)
     validate_student_knowledge(profiles, strict=True)
-    texts = extract_texts(texts_df)
 
-    data_dir = write_dataset(language, data_root, texts=texts, profiles=profiles)
+    data_dir = write_dataset(language, data_root, profiles=profiles)
 
+    typer.echo(f"Wrote {len(profiles)} student knowledge profiles to {data_dir}")
     typer.echo(
-        f"Wrote {len(profiles)} student knowledge profiles and "
-        f"{len(texts)} decodable texts to {data_dir}"
-    )
-    typer.echo(
-        "Next: build_benchmark_item_candidates.py to pair them and add analysis "
-        "columns."
+        "Next: build_generation_benchmark_items.py to cross them with the "
+        "generation scenarios."
     )
 
 

@@ -1,4 +1,4 @@
-"""Tests for phonics benchmark run configuration."""
+"""Tests for benchmark run configuration."""
 
 import json
 from hashlib import sha256
@@ -60,7 +60,7 @@ def test_load_run_config_resolves_paths_and_models(tmp_path: Path) -> None:
 
     assert config.run_id == "experiment-a"
     assert config.language == "sw"
-    assert config.task == "decodability"
+    assert config.task == "decodable-text-generation"
     assert config.items_path == (tmp_path / "items.jsonl").resolve()
     assert config.inputs_dir == (tmp_path / "inputs").resolve()
     assert config.output_dir == (tmp_path / "outputs").resolve()
@@ -128,12 +128,12 @@ def test_config_identity_uses_exact_effective_shared_payload(tmp_path: Path) -> 
     changed_limit = load_run_config(_write_config(tmp_path, max_tokens=123))
     changed_language = load_run_config(_write_config(tmp_path, language="xx"))
     changed_prompt = load_run_config(
-        _write_config(tmp_path, prompt_name="decodability_evaluation_valid_graphemes")
+        _write_config(tmp_path, prompt_name="custom-prompt-variant")
     )
 
     assert omitted_default.to_identity_dict() == {
         "language": "sw",
-        "task": "decodability",
+        "task": "decodable-text-generation",
         "prompt_name": DEFAULT_PROMPT_NAME,
         "max_tokens": DEFAULT_MAX_TOKENS,
     }
@@ -388,13 +388,11 @@ def test_prompt_name_defaults_and_is_not_swallowed_by_extra(tmp_path: Path) -> N
     assert "prompt_name" not in default.extra
 
     configured = load_run_config(
-        _write_config(tmp_path, prompt_name="decodability_evaluation_valid_graphemes")
+        _write_config(tmp_path, prompt_name="custom-prompt-variant")
     )
-    assert configured.prompt_name == "decodability_evaluation_valid_graphemes"
+    assert configured.prompt_name == "custom-prompt-variant"
     assert "prompt_name" not in configured.extra
-    assert configured.to_resolved_dict()["prompt_name"] == (
-        "decodability_evaluation_valid_graphemes"
-    )
+    assert configured.to_resolved_dict()["prompt_name"] == ("custom-prompt-variant")
 
 
 def test_load_run_config_rejects_non_string_prompt_name(tmp_path: Path) -> None:

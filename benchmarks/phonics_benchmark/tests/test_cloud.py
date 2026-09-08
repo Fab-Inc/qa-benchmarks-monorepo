@@ -657,7 +657,7 @@ def _build_config(tmp_path: Path) -> BenchmarkRunConfig:
         output_dir=tmp_path / "outputs",
         models=["model-a"],
         base_dir=tmp_path,
-        task="decodability",
+        task="decodable-text-generation",
         items_path=items_path,
         results_dest="gs://results/phonics/runs/experiment-a/",
     )
@@ -668,7 +668,8 @@ def _item_jsonl() -> str:
         json.dumps(
             {
                 "benchmark_item_id": "item-1",
-                "content": "Mama.",
+                "scenario_id": "story",
+                "scenario": "Write a story.",
                 "student_knowledge": {"graphemes": ["m", "a"]},
             }
         )

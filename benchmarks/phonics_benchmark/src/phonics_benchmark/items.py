@@ -13,7 +13,14 @@ from phonics_benchmark.config import ConfigError
 def load_benchmark_items(
     items_path: str | Path,
 ) -> tuple[list[dict[str, Any]], str]:
-    """Load normalized execution items and hash the exact JSONL bytes consumed."""
+    """Load normalized execution items and hash the exact JSONL bytes consumed.
+
+    Only the fields the run actually needs are kept: the id, the scenario the
+    model is asked to write for, and the student knowledge injected into the
+    prompt. Additional dataset fields (difficulty bucket, provenance) are
+    accepted and ignored here — the report script re-joins them from the same
+    items file, which the recorded ``items_sha256`` proves is unchanged.
+    """
 
     path = Path(items_path)
     try:
@@ -62,10 +69,16 @@ def load_benchmark_items(
                 f"'{benchmark_item_id}'"
             )
 
-        content = record.get("content")
-        if not isinstance(content, str) or not content.strip():
+        scenario_id = record.get("scenario_id")
+        if not isinstance(scenario_id, str) or not scenario_id:
             raise ConfigError(
-                f"{path}:{line_number}: content must be a non-empty, "
+                f"{path}:{line_number}: scenario_id must be a non-empty string"
+            )
+
+        scenario = record.get("scenario")
+        if not isinstance(scenario, str) or not scenario.strip():
+            raise ConfigError(
+                f"{path}:{line_number}: scenario must be a non-empty, "
                 "non-whitespace string"
             )
 
@@ -79,7 +92,8 @@ def load_benchmark_items(
         items.append(
             {
                 "benchmark_item_id": benchmark_item_id,
-                "content": content,
+                "scenario_id": scenario_id,
+                "scenario": scenario,
                 "student_knowledge": student_knowledge,
             }
         )

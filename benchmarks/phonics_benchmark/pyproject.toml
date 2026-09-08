@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "phonics-benchmark"
 version = "0.1.0"
-description = "Phonics benchmark package"
+description = "Benchmark for generating decodable text from a student knowledge profile"
 requires-python = ">=3.13"
 dependencies = [
   "decodability",

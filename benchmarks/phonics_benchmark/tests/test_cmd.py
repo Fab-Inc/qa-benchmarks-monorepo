@@ -35,9 +35,7 @@ def test_main_succeeds(runner: CliRunner) -> None:
     assert "Usage:" in result.stdout
 
 
-def test_run_decodability_command_uses_config(
-    runner: CliRunner, tmp_path: Path
-) -> None:
+def test_run_generation_command_uses_config(runner: CliRunner, tmp_path: Path) -> None:
     """The decodability command delegates to the config-driven runner."""
 
     config_path = tmp_path / "run.json"
@@ -60,7 +58,7 @@ def test_run_decodability_command_uses_config(
         ) as download_models,
         patch("phonics_benchmark.cmd.execute_run", return_value=output) as run,
     ):
-        result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
+        result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
 
     assert result.exit_code == 0
     download_models.assert_called_once_with()
@@ -74,7 +72,7 @@ def test_run_decodability_command_uses_config(
     assert "Results:" in result.stdout
 
 
-def test_run_decodability_materializes_gcs_items_with_local_results(
+def test_run_generation_materializes_gcs_items_with_local_results(
     runner: CliRunner,
     tmp_path: Path,
 ) -> None:
@@ -120,7 +118,7 @@ def test_run_decodability_materializes_gcs_items_with_local_results(
     ):
         result = runner.invoke(
             app,
-            ["run-decodability", "--config", str(config_path)],
+            ["run-generation", "--config", str(config_path)],
         )
 
     assert result.exit_code == 0
@@ -189,7 +187,7 @@ def test_gcs_items_honor_configured_inputs_directory(tmp_path: Path) -> None:
     )
 
 
-def test_run_decodability_command_fails_when_calls_have_errors(
+def test_run_generation_command_fails_when_calls_have_errors(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """The command reports a failing status when any model call failed."""
@@ -212,7 +210,7 @@ def test_run_decodability_command_fails_when_calls_have_errors(
         patch("phonics_benchmark.cmd.download_default_custom_models"),
         patch("phonics_benchmark.cmd.execute_run", return_value=output),
     ):
-        result = runner.invoke(app, ["run-decodability", "--config", str(config_path)])
+        result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
 
     assert result.exit_code == 1
     assert "Errors: 1" in result.stdout
@@ -225,7 +223,7 @@ def test_run_decodability_command_fails_when_calls_have_errors(
         ("--retry-errors", False, True),
     ],
 )
-def test_run_decodability_command_execution_flags_override_config(
+def test_run_generation_command_execution_flags_override_config(
     runner: CliRunner,
     tmp_path: Path,
     flag: str,
@@ -256,7 +254,7 @@ def test_run_decodability_command_execution_flags_override_config(
     ):
         result = runner.invoke(
             app,
-            ["run-decodability", "--config", str(config_path), flag],
+            ["run-generation", "--config", str(config_path), flag],
         )
 
     assert result.exit_code == 0
@@ -273,7 +271,7 @@ def test_run_decodability_command_execution_flags_override_config(
         (["--model-workers", "2"], 2),
     ],
 )
-def test_run_decodability_command_model_workers_overrides_config_when_supplied(
+def test_run_generation_command_model_workers_overrides_config_when_supplied(
     runner: CliRunner,
     tmp_path: Path,
     cli_args: list[str],
@@ -302,14 +300,14 @@ def test_run_decodability_command_model_workers_overrides_config_when_supplied(
     ):
         result = runner.invoke(
             app,
-            ["run-decodability", "--config", str(config_path), *cli_args],
+            ["run-generation", "--config", str(config_path), *cli_args],
         )
 
     assert result.exit_code == 0
     assert run.call_args.args[0].model_workers == expected_model_workers
 
 
-def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
+def test_run_generation_command_rejects_conflicting_config_and_cli_modes(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """An execution flag cannot combine with the opposite config mode."""
@@ -334,7 +332,7 @@ def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--config",
                 str(config_path),
                 "--retry-errors",
@@ -346,7 +344,7 @@ def test_run_decodability_command_rejects_conflicting_config_and_cli_modes(
     download_models.assert_not_called()
 
 
-def test_run_decodability_command_uses_cli_args(
+def test_run_generation_command_uses_cli_args(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """The decodability command accepts direct command-line options."""
@@ -371,7 +369,7 @@ def test_run_decodability_command_uses_cli_args(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--run-id",
                 "experiment-a",
                 "--language",
@@ -379,7 +377,7 @@ def test_run_decodability_command_uses_cli_args(
                 "--models",
                 "model-a,model-b",
                 "--prompt-name",
-                "decodability_evaluation_grapheme_breakdown",
+                "custom-prompt-variant",
                 "--output-dir",
                 str(output_dir),
                 "--items-path",
@@ -406,8 +404,8 @@ def test_run_decodability_command_uses_cli_args(
     assert run_config.language == "sw"
     assert run_config.output_dir == output_dir.resolve()
     assert run_config.models == ["model-a", "model-b"]
-    assert run_config.task == "decodability"
-    assert run_config.prompt_name == "decodability_evaluation_grapheme_breakdown"
+    assert run_config.task == "decodable-text-generation"
+    assert run_config.prompt_name == "custom-prompt-variant"
     assert run_config.items_path == items_path.resolve()
     assert run_config.env_path == env_path.resolve()
     assert run_config.custom_models_path == custom_models_path.resolve()
@@ -418,7 +416,7 @@ def test_run_decodability_command_uses_cli_args(
     assert "Run ID: experiment-a" in result.stdout
 
 
-def test_run_decodability_command_requires_cli_args_without_config(
+def test_run_generation_command_requires_cli_args_without_config(
     runner: CliRunner,
 ) -> None:
     """Direct runs use the shared config validation for required fields."""
@@ -426,14 +424,14 @@ def test_run_decodability_command_requires_cli_args_without_config(
     with patch(
         "phonics_benchmark.cmd.download_default_custom_models"
     ) as download_models:
-        result = runner.invoke(app, ["run-decodability"])
+        result = runner.invoke(app, ["run-generation"])
 
     assert result.exit_code == 1
     download_models.assert_not_called()
     assert "Missing required run fields: language, models, items_path" in result.stderr
 
 
-def test_run_decodability_command_preserves_missing_items_path_for_validation(
+def test_run_generation_command_preserves_missing_items_path_for_validation(
     runner: CliRunner,
 ) -> None:
     """A missing CLI path remains None instead of becoming a path named 'None'."""
@@ -444,7 +442,7 @@ def test_run_decodability_command_preserves_missing_items_path_for_validation(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -465,7 +463,7 @@ def test_run_decodability_command_preserves_missing_items_path_for_validation(
         ('["model-a", 1]', "string name"),
     ],
 )
-def test_run_decodability_command_uses_config_model_validation(
+def test_run_generation_command_uses_config_model_validation(
     runner: CliRunner,
     tmp_path: Path,
     models: str,
@@ -480,7 +478,7 @@ def test_run_decodability_command_uses_config_model_validation(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -495,7 +493,7 @@ def test_run_decodability_command_uses_config_model_validation(
     assert error in result.stderr
 
 
-def test_run_decodability_command_defaults_run_id(
+def test_run_generation_command_defaults_run_id(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """Direct CLI runs can omit --run-id."""
@@ -510,7 +508,7 @@ def test_run_decodability_command_defaults_run_id(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -528,7 +526,7 @@ def test_run_decodability_command_defaults_run_id(
     assert run_config.model_workers == 4
 
 
-def test_run_decodability_command_timestamped_output_generates_run_id(
+def test_run_generation_command_timestamped_output_generates_run_id(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """--timestamped-output fills run_id when one is not supplied."""
@@ -544,7 +542,7 @@ def test_run_decodability_command_timestamped_output_generates_run_id(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -586,7 +584,7 @@ def test_timestamp_run_id_is_precise_and_randomized() -> None:
 
 
 @pytest.mark.parametrize("max_tokens", ["0", "-1"])
-def test_run_decodability_command_rejects_non_positive_max_tokens(
+def test_run_generation_command_rejects_non_positive_max_tokens(
     runner: CliRunner,
     tmp_path: Path,
     max_tokens: str,
@@ -600,7 +598,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -617,7 +615,7 @@ def test_run_decodability_command_rejects_non_positive_max_tokens(
     download_models.assert_not_called()
 
 
-def test_run_decodability_command_accepts_models_json_list(
+def test_run_generation_command_accepts_models_json_list(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """The --models option also accepts a JSON list string."""
@@ -632,7 +630,7 @@ def test_run_decodability_command_accepts_models_json_list(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--run-id",
                 "experiment-a",
                 "--language",
@@ -649,7 +647,7 @@ def test_run_decodability_command_accepts_models_json_list(
     assert run_config.models == ["model-a", "model-b"]
 
 
-def test_run_decodability_command_preflights_registered_models(
+def test_run_generation_command_preflights_registered_models(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """Model registration errors are reported before benchmark execution."""
@@ -667,7 +665,7 @@ def test_run_decodability_command_preflights_registered_models(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -683,7 +681,7 @@ def test_run_decodability_command_preflights_registered_models(
     assert "not registered" in result.stderr
 
 
-def test_run_decodability_command_can_skip_models_download(
+def test_run_generation_command_can_skip_models_download(
     runner: CliRunner, tmp_path: Path
 ) -> None:
     """The operational CLI flag suppresses only the shared model-file refresh."""
@@ -700,7 +698,7 @@ def test_run_decodability_command_can_skip_models_download(
         result = runner.invoke(
             app,
             [
-                "run-decodability",
+                "run-generation",
                 "--language",
                 "sw",
                 "--models",
@@ -716,13 +714,13 @@ def test_run_decodability_command_can_skip_models_download(
     run.assert_called_once()
 
 
-def test_run_decodability_help_does_not_download_models(runner: CliRunner) -> None:
+def test_run_generation_help_does_not_download_models(runner: CliRunner) -> None:
     """Rendering command help does not refresh the shared model registry."""
 
     with patch(
         "phonics_benchmark.cmd.download_default_custom_models"
     ) as download_models:
-        result = runner.invoke(app, ["run-decodability", "--help"])
+        result = runner.invoke(app, ["run-generation", "--help"])
 
     assert result.exit_code == 0
     download_models.assert_not_called()

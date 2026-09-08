@@ -43,15 +43,26 @@ The temporary config plans one Gemini call. This first command also exercises th
 default anonymous refresh of the repository-root `custom_models.yaml`:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --config "$PHONICS_MANUAL_OUTPUT_DIR/config.json"
 ```
 
-It should report `Executed: 1`, `Skipped: 0`, and `Errors: 0`. Repeat without refreshing
-the model registry to verify cache reuse:
+It should report `Executed: 1`, `Skipped: 0`, and `Errors: 0`. Check that the model
+honoured the output contract — the response should wrap its text in `<text>` tags, which
+is what the report script extracts:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+jq -r '.output' \
+  "$PHONICS_MANUAL_OUTPUT_DIR"/config-smoke/responses/*.jsonl
+```
+
+A response without those tags is scored zero as a format failure, so seeing them here
+confirms the prompt's output contract is landing before you spend on a full run.
+
+Repeat without refreshing the model registry to verify cache reuse:
+
+```bash
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --config "$PHONICS_MANUAL_OUTPUT_DIR/config.json" \
   --skip-models-download
 ```
@@ -60,7 +71,7 @@ It should now report `Executed: 0`, `Skipped: 1`, and `Errors: 0`. With a comple
 cache, retry mode executes only error rows:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --config "$PHONICS_MANUAL_OUTPUT_DIR/config.json" \
   --skip-models-download \
   --retry-errors
@@ -71,7 +82,7 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
 The first command makes one Gemini call:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id direct-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -90,7 +101,7 @@ provider error row and exit with status 1:
 
 ```bash
 GEMINI_API_KEY=definitely-invalid \
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id retry-error-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -104,7 +115,7 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
 Retry that exact error using the real key from `.env` or the environment:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id retry-error-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -122,7 +133,7 @@ It should report one executed call and no remaining errors.
 Start with one Gemini call:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id add-model-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -136,7 +147,7 @@ Adding Claude directly in retry mode should fail before making calls because Cla
 no cached row:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id add-model-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -152,7 +163,7 @@ uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
 Run normally with both models:
 
 ```bash
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --run-id add-model-smoke \
   --language sw \
   --model gemini-3.1-pro-preview \
@@ -180,6 +191,23 @@ uv run --frozen --package phonics-benchmark python \
 The script prints the number of result files and rows plus a per-model status summary.
 Change the final path to inspect any other run directory.
 
+## Score a run
+
+`scripts/report_on_benchmark_run.py` extracts each generated text, runs it through the
+decodability checker, and writes the per-model summary and breakdowns:
+
+```bash
+uv run --frozen --package phonics-benchmark python \
+  benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+  --run-id add-model-smoke \
+  --output-root "$PHONICS_MANUAL_OUTPUT_DIR" \
+  --inspect-sample-size 1
+```
+
+The summary prints to stdout and everything is written to `<run-dir>/report/`. Read
+`sampled_items_for_inspection.csv` to check by eye that the words flagged non-decodable
+really are — the fastest way to catch a mis-wired student profile.
+
 ## GCS-synced local smoke test
 
 With Application Default Credentials configured and a writable scratch bucket, add a run
@@ -192,7 +220,7 @@ jq --arg dest "$PHONICS_SCRATCH_DEST" \
   "$PHONICS_MANUAL_OUTPUT_DIR/config.json" \
   > "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json"
 
-uv run --frozen --package phonics-benchmark phonics-benchmark run-decodability \
+uv run --frozen --package phonics-benchmark phonics-benchmark run-generation \
   --config "$PHONICS_MANUAL_OUTPUT_DIR/config-synced.json" \
   --skip-models-download
 ```

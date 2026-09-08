@@ -1,23 +1,41 @@
-# Prompt templates for the decodability benchmark.
-# Templates use str.format() named placeholders like {my_variable}
-
-# Prompts below use YAML folded scalars (>-): a single line break becomes a
+# Template(s) below use str.format() named placeholders like {my_variable}
+# and use YAML folded scalars (>-): a single line break becomes a
 # space; blank lines are preserved as newlines (N blank lines -> N newlines).
 # So to get a blank line in the output, leave two blank lines in the source.
 
-decodability_evaluation: >-
+decodable_text_generation: >-
   CONTEXT
 
-  You are helping a teacher to determine which words in a text a particular student
-  cannot yet read aloud on their own.
+  You are helping a teacher to write a text that a particular student can read
+  aloud entirely on their own.
 
 
-  A word is "non-decodable" for a student when the student cannot read it based on what
-  they currently know, neither by recognising it as a whole word they already know, nor
-  by sounding it out from letter-sounds (graphemes) that they already know.
+  A word is "decodable" for a student when the student can read it based on what
+  they currently know. A word is "non-decodable" when they cannot.
 
 
-  The text is in the language of {language}.
+  DECODING RULES
+
+  A word is decodable for this student if EITHER of the following is true:
+
+
+  1. The student already knows the word as a whole word, or
+
+  2. ALL of the following hold:
+
+  - every letter-sound (grapheme) in the word is one the student knows, AND
+
+  - every consonant cluster in the word is one the student knows, either
+  directly or through a cluster pattern they know.
+
+
+  If neither condition holds, the word is non-decodable and you must not use it.
+
+  Note that a word is non-decodable if even one of its graphemes or clusters is
+  unknown to the student.
+
+
+  The text must be written in the language of {language}.
 
 
   STUDENT KNOWLEDGE
@@ -25,126 +43,32 @@ decodability_evaluation: >-
   {student_knowledge}
 
 
-  TEXT
-
-  {text}
-
-
   TASK
 
-  Identify every unique word in the TEXT that is non-decodable for this
-  student.
+  {scenario}
+
+
+  Every single word you write must be decodable for this student, according to
+  the DECODING RULES above and the STUDENT KNOWLEDGE above. This constraint
+  matters more than length, style or subject matter: if you must choose between
+  writing a natural-sounding text and writing a fully decodable one, always
+  choose the fully decodable one.
+
+
+  Work within the student's knowledge rather than around it. Repeating words the
+  student knows is acceptable and normal for an early reader.
 
 
   OUTPUT
 
-  Respond with only a list of the non-decodable words, formatted exactly
-  like this:
+  Respond with only the text itself, wrapped in text tags, exactly like this:
 
-  ["word1", "word2", "word3"]
+  <text>
 
+  Your text goes here.
 
-  If all words are decodable, respond with exactly:
-
-  []
+  </text>
 
 
-  Do not include any explanation, reasoning, or any text before or after the list.
-
-decodability_evaluation_grapheme_breakdown: >-
-  CONTEXT
-
-  You are helping a teacher to determine which words in a text a particular student
-  cannot yet read aloud on their own.
-
-
-  A word is "non-decodable" for a student when the student cannot read it based on what
-  they currently know, neither by recognising it as a whole word they already know, nor
-  by sounding it out from letter-sounds (graphemes) that they already know.
-
-
-  The text is in the language of {language} and slashes (/) have been added to show the
-  grapheme breakdown of each word.
-
-
-  STUDENT KNOWLEDGE
-
-  {student_knowledge}
-
-
-  TEXT
-
-  {grapheme_breakdown}
-
-
-  TASK
-
-  Identify every unique word in the TEXT that is non-decodable for this
-  student.
-
-
-  OUTPUT
-
-  Respond with only a list of the non-decodable words, formatted exactly
-  like this:
-
-  ["word1", "word2", "word3"]
-
-
-  If all words are decodable, respond with exactly:
-
-  []
-
-
-  Do not include any explanation, reasoning, or any text before or after the list.
-
-decodability_evaluation_valid_graphemes: >-
-  CONTEXT
-
-  You are helping a teacher to determine which words in a text a particular student
-  cannot yet read aloud on their own.
-
-
-  A word is "non-decodable" for a student when the student cannot read it based on what
-  they currently know, neither by recognising it as a whole word they already know, nor
-  by sounding it out from letter-sounds (graphemes) that they already know.
-
-
-  The text is in the language of {language}.
-
-
-  VALID KNOWLEDGE
-
-  {valid_knowledge}
-
-
-  STUDENT KNOWLEDGE
-
-  {student_knowledge}
-
-
-  TEXT
-
-  {text}
-
-
-  TASK
-
-  Identify every unique word in the TEXT that is non-decodable for this
-  student.
-
-
-  OUTPUT
-
-  Respond with only a list of the non-decodable words, formatted exactly
-  like this:
-
-  ["word1", "word2", "word3"]
-
-
-  If all words are decodable, respond with exactly:
-
-  []
-
-
-  Do not include any explanation, reasoning, or any text before or after the list.
+  Do not include any explanation, reasoning, commentary, translation, word list
+  or notes before, after or inside the tags. Do not explain your word choices.

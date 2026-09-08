@@ -2,8 +2,7 @@
 
 ## Creating a benchmark run dataset
 
-These are the steps to creating a benchmark run dataset. Note that this may be further
-curated after running the benchmark, e.g. using Item Response Theory.
+These are the steps to creating a benchmark run dataset.
 
 ### Prerequisites
 
@@ -23,38 +22,33 @@ curated after running the benchmark, e.g. using Item Response Theory.
         --workbook ./benchmarks/phonics_benchmark/data/kiswahili/raw/benchmark_data_tusome_ke.xlsx
    ```
 
-1. Pair student profiles with decodable texts and analyse the pairs to decide on
-   filtering.
+1. Cross the distinct student profiles with the generation scenarios to build the item
+   sets.
 
    ```shell
     uv run --package phonics-benchmark python \
-        benchmarks/phonics_benchmark/scripts/build_benchmark_item_candidates.py \
-        --language kiswahili
-   ```
-
-   Inspect the following contents in `data/<language>/` to determine how you want to
-   filter the candidates:
-
-   - `benchmark_item_candidates.jsonl`: `benchmark_item_id` and decodability analysis
-   - `nondecodable_ratio_histogram_for_benchmark_candidates.png`: a histogram of the
-     non-decodable ratio distribution
-   - `nondecodable_summary_for_benchmark_candidates.json`: a summary of nondecodable
-     word counts and ratios across the full cross-product
-
-1. Cut the benchmark item candidates down to the set the benchmark runs.
-
-   Run from the repository root with your _own filtering parameters_:
-
-   ```shell
-    uv run --package phonics-benchmark python \
-        benchmarks/phonics_benchmark/scripts/filter_benchmark_items.py \
+        benchmarks/phonics_benchmark/scripts/build_generation_benchmark_items.py \
         --language kiswahili \
-        --max-zero-nondecodable 6 \
-        --max-one-nondecodable 10 \
-        --max-nondecodable-ratio 0.2 \
-        --sample-size-other 16 \
-        --random-state 42
+        --profiles-file student_knowledge_profiles.jsonl
    ```
+
+   `--profiles-file` names any JSONL in the language data folder whose records carry
+   `student_knowledge` — either the ingested profiles file above, or a legacy
+   labelled-items file, whose text and gold-label columns are ignored.
+
+   This writes to `data/<language>/`:
+
+   - `benchmark_items_generation.jsonl`: the full set (every distinct profile x every
+     scenario)
+   - `benchmark_items_generation_dev.jsonl`: a smaller stratified sample of profiles,
+     for fast iteration
+   - `generation_items_summary.json`: item counts and composition per difficulty bucket
+   - `generation_items_by_difficulty.png`: the same composition as a bar chart
+
+   Profiles are deduplicated on the *content* of `student_knowledge` rather than on
+   `student_knowledge_id`, and each is assigned a difficulty bucket from the number of
+   graphemes it teaches. Profiles with no cluster knowledge get a documented placeholder
+   — see the caveat in [`../README.md`](../README.md).
 
 ## Running the benchmark
 
@@ -76,8 +70,11 @@ Providing a number for the `--inspect-sample-size` flag will generate a sample o
 benchmark items and each model's responses for you to inspect manually, with only
 relevant columns.
 
-The following responses are excluded from scoring:
+Only responses whose provider call failed (`call_status` is not `success`) are excluded
+from scoring; these can be re-attempted with `run-generation --retry-errors` (see
+[`../README.md`](../README.md)).
 
-- API error (`call_status` is not `success`): These can be re-attempted with
-  `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
-- Parsing error (`parse_ok` is `False`)
+Responses that came back but omitted the `<text>` tags are **not** excluded — they are
+scored zero as format failures and reported separately as `format_failure_rate`, so a
+model cannot dodge a hard item by replying in the wrong shape. See the Scoring section
+of [`../README.md`](../README.md).

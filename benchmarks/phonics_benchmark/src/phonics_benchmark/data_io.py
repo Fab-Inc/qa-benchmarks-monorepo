@@ -12,18 +12,15 @@ from decodability import DECODABILITY_REGISTRY
 from pydantic import BaseModel, ValidationError
 
 from phonics_benchmark.models import (
-    DecodableText,
-    LabelledBenchmarkItem,
+    GenerationBenchmarkItem,
     StudentKnowledge,
 )
 
-TEXTS_FILENAME = "decodable_texts.jsonl"
 STUDENT_PROFILES_FILENAME = "student_knowledge_profiles.jsonl"
-BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME = "benchmark_item_candidates.jsonl"
-BENCHMARK_ITEMS_FILENAME = "benchmark_items.jsonl"
+BENCHMARK_ITEMS_FILENAME = "benchmark_items_generation.jsonl"
+BENCHMARK_ITEMS_DEV_FILENAME = "benchmark_items_generation_dev.jsonl"
 
 STUDENT_PROFILES_ID_NAME = "student_knowledge_id"
-TEXT_ID_NAME = "text_id"
 BENCHMARK_ITEM_ID_NAME = "benchmark_item_id"
 
 
@@ -78,13 +75,6 @@ def _read_records[ModelT: BaseModel](
     return records
 
 
-def read_decodable_texts(language: str, data_root: Path) -> list[DecodableText]:
-    """Parse decodable_texts.jsonl for the given language."""
-    return _read_records(
-        language, data_root, TEXTS_FILENAME, DecodableText, TEXT_ID_NAME
-    )
-
-
 def read_student_knowledge_profiles(
     language: str, data_root: Path
 ) -> list[StudentKnowledge]:
@@ -103,30 +93,19 @@ def read_student_knowledge_profiles(
     )
 
 
-def read_benchmark_item_candidates(
-    language: str, data_root: Path
-) -> list[LabelledBenchmarkItem]:
-    """Parse benchmark_item_candidates.jsonl — every pairing, with analysis columns."""
-    return _read_records(
-        language,
-        data_root,
-        BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME,
-        LabelledBenchmarkItem,
-        BENCHMARK_ITEM_ID_NAME,
-    )
+def read_benchmark_items(
+    language: str, data_root: Path, *, dev: bool = False
+) -> list[GenerationBenchmarkItem]:
+    """Parse the generation item set the benchmark runs.
 
-
-def read_benchmark_items(language: str, data_root: Path) -> list[LabelledBenchmarkItem]:
-    """Parse benchmark_items.jsonl — the filtered set the benchmark actually runs.
-
-    Same schema as the candidates file: filtering selects rows, it doesn't reshape
-    them.
+    ``dev=True`` reads the smaller stratified dev set instead of the full one.
+    Both files share a schema: the dev set selects rows, it doesn't reshape them.
     """
     return _read_records(
         language,
         data_root,
-        BENCHMARK_ITEMS_FILENAME,
-        LabelledBenchmarkItem,
+        BENCHMARK_ITEMS_DEV_FILENAME if dev else BENCHMARK_ITEMS_FILENAME,
+        GenerationBenchmarkItem,
         BENCHMARK_ITEM_ID_NAME,
     )
 
@@ -150,10 +129,9 @@ def write_dataset(
     language: str,
     data_root: Path,
     *,
-    texts: Iterable[DecodableText] | None = None,
     profiles: Iterable[StudentKnowledge] | None = None,
-    benchmark_candidates: Iterable[LabelledBenchmarkItem] | None = None,
-    benchmark_items: Iterable[LabelledBenchmarkItem] | None = None,
+    benchmark_items: Iterable[GenerationBenchmarkItem] | None = None,
+    benchmark_items_dev: Iterable[GenerationBenchmarkItem] | None = None,
 ) -> Path:
     """Write the given records into data_root/<language>/, creating it if needed.
 
@@ -165,10 +143,9 @@ def write_dataset(
     data_dir.mkdir(parents=True, exist_ok=True)
 
     for records, filename in (
-        (texts, TEXTS_FILENAME),
         (profiles, STUDENT_PROFILES_FILENAME),
-        (benchmark_candidates, BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME),
         (benchmark_items, BENCHMARK_ITEMS_FILENAME),
+        (benchmark_items_dev, BENCHMARK_ITEMS_DEV_FILENAME),
     ):
         if records is not None:
             write_jsonl(records, data_dir / filename)
@@ -231,57 +208,19 @@ def validate_student_knowledge(
             ) from exc
 
 
-def resolve_language_iso_code(
-    profiles: list[StudentKnowledge],
-    texts: list[DecodableText],
-) -> str:
-    """Return the single ISO code shared by every profile and text.
+def resolve_language_iso_code(profiles: list[StudentKnowledge]) -> str:
+    """Return the single ISO code shared by every student profile.
 
     Raises ValueError if the records are empty, or if more than one language code
     appears across them — the pipeline only handles one language per data folder.
     """
     codes = {profile.language_iso_code for profile in profiles}
-    codes |= {text.language_iso_code for text in texts}
 
     if not codes:
-        raise ValueError(
-            "Cannot resolve a language_iso_code: no student profiles and no texts"
-        )
+        raise ValueError("Cannot resolve a language_iso_code: no student profiles")
     if len(codes) > 1:
         raise ValueError(
             "Expected one language_iso_code across the dataset, found: "
             f"{', '.join(sorted(codes))}"
         )
     return codes.pop()
-
-
-def build_benchmark_item_candidates_dataframe(
-    profiles: list[StudentKnowledge],
-    texts: list[DecodableText],
-) -> pd.DataFrame:
-    """Cross-join profiles × texts into a DataFrame of benchmark item candidates.
-
-    Adds a ``benchmark_item_id`` of the form ``<student_knowledge_id>_<text_id>``.
-    Raises ValueError unless every profile and text shares one language_iso_code.
-    """
-    if not profiles or not texts:
-        raise ValueError(
-            f"No benchmark items: got {len(profiles)} student profile(s) and "
-            f"{len(texts)} text(s), need at least one of each"
-        )
-
-    resolve_language_iso_code(profiles, texts)
-
-    profiles_df = convert_records_to_dataframe(profiles)
-    texts_df = convert_records_to_dataframe(texts)
-
-    texts_df = texts_df.drop("language_iso_code", axis=1)  # profiles_df also has it
-    benchmark_items = profiles_df.join(texts_df, how="cross")
-
-    # TODO: align on benchmark item ID format.
-    benchmark_items["benchmark_item_id"] = (
-        benchmark_items[STUDENT_PROFILES_ID_NAME].astype(str)
-        + "_"
-        + benchmark_items[TEXT_ID_NAME].astype(str)
-    )
-    return benchmark_items

@@ -13,51 +13,41 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from phonics_benchmark.data_io import (
-    BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME,
+    BENCHMARK_ITEMS_DEV_FILENAME,
     BENCHMARK_ITEMS_FILENAME,
     STUDENT_PROFILES_FILENAME,
-    TEXTS_FILENAME,
     convert_dataframe_to_records,
     convert_records_to_dataframe,
     get_data_dir,
-    read_benchmark_item_candidates,
     read_benchmark_items,
-    read_decodable_texts,
     read_student_knowledge_profiles,
+    resolve_language_iso_code,
     validate_student_knowledge,
     write_dataset,
 )
 from phonics_benchmark.models import (
-    DecodableText,
-    LabelledBenchmarkItem,
+    GenerationBenchmarkItem,
     StudentKnowledge,
 )
 
 LANGUAGE = "testlang"
 
-TEXT_RECORD = {"text_id": "t-001", "language_iso_code": "sw", "content": "Tatu."}
 PROFILE_RECORD = {
     "student_knowledge_id": "stu-001",
     "language_iso_code": "sw",
     "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
 }
-# The bare pairing, as written to benchmark_items_full_crossproduct.jsonl.
+# One (scenario x profile) pairing — the shape of both generation item files.
 ITEM_RECORD = {
-    "benchmark_item_id": "bi-001",
-    "text_id": "t-001",
+    "benchmark_item_id": "story_stu-001",
+    "scenario_id": "story",
+    "scenario": "Write a short story of about 50 words.",
     "student_knowledge_id": "stu-001",
-}
-# The same pairing with text, knowledge and analysis inlined — the shape of both
-# benchmark_item_candidates.jsonl and benchmark_items.jsonl.
-CANDIDATE_RECORD = {
-    **ITEM_RECORD,
     "language_iso_code": "sw",
-    "content": "Tatu.",
     "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
-    "nondecodable_words": ["tatu"],
-    "num_nondecodable_words": 1,
-    "num_total_words": 4,
-    "nondecodable_ratio": 0.25,
+    "difficulty_bucket": "very-early",
+    "n_graphemes_known": 1,
+    "cluster_knowledge_source": "placeholder_all_patterns",
 }
 
 
@@ -80,30 +70,10 @@ def at_line(filename: str, line_no: int) -> str:
     return rf"{re.escape(filename)}:{line_no}:"
 
 
-@pytest.fixture
-def valid_dataset(tmp_path) -> Path:
-    """A data root whose cross-product references texts and profiles that exist."""
-    write_data_file(tmp_path, TEXTS_FILENAME, json.dumps(TEXT_RECORD))
-    write_data_file(tmp_path, STUDENT_PROFILES_FILENAME, json.dumps(PROFILE_RECORD))
-    write_data_file(
-        tmp_path, BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME, json.dumps(ITEM_RECORD)
-    )
-    return tmp_path
-
-
 # The readers are structurally identical, so one spec drives one set of tests across
 # all of them. Adding a reader means adding a row here, not copying tests.
 READER_ARGS = "reader, filename, record, model, id_field, wrong_typed_field"
 READER_CASES = [
-    pytest.param(
-        read_decodable_texts,
-        TEXTS_FILENAME,
-        TEXT_RECORD,
-        DecodableText,
-        "text_id",
-        {"content": ["not", "a", "string"]},
-        id="texts",
-    ),
     pytest.param(
         read_student_knowledge_profiles,
         STUDENT_PROFILES_FILENAME,
@@ -114,21 +84,12 @@ READER_CASES = [
         id="profiles",
     ),
     pytest.param(
-        read_benchmark_item_candidates,
-        BENCHMARK_CANDIDATES_TO_INSPECT_FILENAME,
-        CANDIDATE_RECORD,
-        LabelledBenchmarkItem,
-        "benchmark_item_id",
-        {"num_total_words": "not-an-int"},
-        id="candidates",
-    ),
-    pytest.param(
         read_benchmark_items,
         BENCHMARK_ITEMS_FILENAME,
-        CANDIDATE_RECORD,
-        LabelledBenchmarkItem,
+        ITEM_RECORD,
+        GenerationBenchmarkItem,
         "benchmark_item_id",
-        {"nondecodable_words": "not-a-list"},
+        {"n_graphemes_known": "not-an-int"},
         id="items",
     ),
 ]
@@ -236,43 +197,64 @@ class TestWriteDataset:
         This pins the writers and the readers to each other: whatever a pipeline
         stage writes must always load again in the next one.
         """
-        texts = [DecodableText(**TEXT_RECORD)]
         profiles = [StudentKnowledge(**PROFILE_RECORD)]
-        candidates = [LabelledBenchmarkItem(**CANDIDATE_RECORD)]
+        items = [GenerationBenchmarkItem(**ITEM_RECORD)]
 
         write_dataset(
             LANGUAGE,
             tmp_path,
-            texts=texts,
             profiles=profiles,
-            benchmark_candidates=candidates,
-            benchmark_items=candidates,
+            benchmark_items=items,
+            benchmark_items_dev=items,
         )
 
-        assert read_decodable_texts(LANGUAGE, tmp_path) == texts
         assert read_student_knowledge_profiles(LANGUAGE, tmp_path) == profiles
-        assert read_benchmark_item_candidates(LANGUAGE, tmp_path) == candidates
-        assert read_benchmark_items(LANGUAGE, tmp_path) == candidates
+        assert read_benchmark_items(LANGUAGE, tmp_path) == items
+        assert read_benchmark_items(LANGUAGE, tmp_path, dev=True) == items
+
+    def test_dev_and_full_sets_are_separate_files(self, tmp_path) -> None:
+        """The dev set never overwrites the full set."""
+        full = [GenerationBenchmarkItem(**ITEM_RECORD)]
+        dev = [
+            GenerationBenchmarkItem(
+                **{**ITEM_RECORD, "benchmark_item_id": "story_stu-dev"}
+            )
+        ]
+
+        write_dataset(LANGUAGE, tmp_path, benchmark_items=full, benchmark_items_dev=dev)
+
+        data_dir = get_data_dir(LANGUAGE, tmp_path)
+        assert (data_dir / BENCHMARK_ITEMS_FILENAME).is_file()
+        assert (data_dir / BENCHMARK_ITEMS_DEV_FILENAME).is_file()
+        assert read_benchmark_items(LANGUAGE, tmp_path) == full
+        assert read_benchmark_items(LANGUAGE, tmp_path, dev=True) == dev
 
     def test_writes_multiple_records_as_separate_lines(self, tmp_path) -> None:
         """Consecutive records stay separate — no missing newline gluing them."""
-        texts = [
-            DecodableText(**TEXT_RECORD),
-            DecodableText(**{**TEXT_RECORD, "text_id": "t-002"}),
+        profiles = [
+            StudentKnowledge(**PROFILE_RECORD),
+            StudentKnowledge(**{**PROFILE_RECORD, "student_knowledge_id": "stu-002"}),
         ]
-        write_dataset(LANGUAGE, tmp_path, texts=texts)
-        assert read_decodable_texts(LANGUAGE, tmp_path) == texts
+        write_dataset(LANGUAGE, tmp_path, profiles=profiles)
+        assert read_student_knowledge_profiles(LANGUAGE, tmp_path) == profiles
 
     def test_creates_missing_data_dir(self, tmp_path) -> None:
         """Creates the language directory when it doesn't exist yet."""
         data_root = tmp_path / "brand" / "new" / "root"
 
         data_dir = write_dataset(
-            LANGUAGE, data_root, texts=[DecodableText(**TEXT_RECORD)]
+            LANGUAGE, data_root, profiles=[StudentKnowledge(**PROFILE_RECORD)]
         )
 
         assert data_dir == get_data_dir(LANGUAGE, data_root)
-        assert (data_dir / TEXTS_FILENAME).is_file()
+        assert (data_dir / STUDENT_PROFILES_FILENAME).is_file()
+
+    def test_only_writes_what_it_is_given(self, tmp_path) -> None:
+        """Omitted collections leave no file behind."""
+        data_dir = write_dataset(
+            LANGUAGE, tmp_path, profiles=[StudentKnowledge(**PROFILE_RECORD)]
+        )
+        assert not (data_dir / BENCHMARK_ITEMS_FILENAME).exists()
 
 
 class TestDataFrameBoundary:
@@ -280,34 +262,66 @@ class TestDataFrameBoundary:
 
     def test_round_trips_records_through_a_dataframe(self) -> None:
         """models -> DataFrame -> models returns the originals unchanged."""
-        candidates = [LabelledBenchmarkItem(**CANDIDATE_RECORD)]
-        frame = convert_records_to_dataframe(candidates)
-        assert convert_dataframe_to_records(frame, LabelledBenchmarkItem) == candidates
+        items = [GenerationBenchmarkItem(**ITEM_RECORD)]
+        frame = convert_records_to_dataframe(items)
+        assert convert_dataframe_to_records(frame, GenerationBenchmarkItem) == items
 
     def test_rejects_a_bad_row_naming_its_position_and_id(self) -> None:
         """A row failing validation names both its index and its item id."""
         frame = pd.DataFrame(
             [
-                CANDIDATE_RECORD,
+                ITEM_RECORD,
                 {
-                    **CANDIDATE_RECORD,
+                    **ITEM_RECORD,
                     "benchmark_item_id": "bi-bad",
-                    "nondecodable_ratio": 42.0,
+                    "difficulty_bucket": "not-a-bucket",
                 },
             ]
         )
         with pytest.raises(ValueError, match=r"row 1 \(bi-bad\)"):
-            convert_dataframe_to_records(frame, LabelledBenchmarkItem)
+            convert_dataframe_to_records(frame, GenerationBenchmarkItem)
 
     def test_rejects_a_stray_intermediate_column(self) -> None:
         """extra="forbid" catches an in-memory-only column being persisted.
 
-        `vocab_set` holds Python sets and is derivable from `content`; it must not
-        reach a data file. This is the check that stops it.
+        The item builder carries working columns that must not reach a data
+        file. This is the check that stops them.
         """
-        frame = pd.DataFrame([{**CANDIDATE_RECORD, "vocab_set": {"tatu"}}])
+        frame = pd.DataFrame([{**ITEM_RECORD, "vocab_set": {"tatu"}}])
         with pytest.raises(ValueError, match="vocab_set"):
-            convert_dataframe_to_records(frame, LabelledBenchmarkItem)
+            convert_dataframe_to_records(frame, GenerationBenchmarkItem)
+
+
+class TestResolveLanguageIsoCode:
+    """Tests for resolve_language_iso_code()."""
+
+    def test_returns_the_shared_code(self) -> None:
+        """One language per data folder is the pipeline's rule."""
+        profiles = [
+            StudentKnowledge(**PROFILE_RECORD),
+            StudentKnowledge(**{**PROFILE_RECORD, "student_knowledge_id": "stu-002"}),
+        ]
+        assert resolve_language_iso_code(profiles) == "sw"
+
+    def test_no_profiles_raises(self) -> None:
+        """There is no code to resolve from nothing."""
+        with pytest.raises(ValueError, match="no student profiles"):
+            resolve_language_iso_code([])
+
+    def test_mixed_codes_raise(self) -> None:
+        """A folder mixing languages is a data error, named explicitly."""
+        profiles = [
+            StudentKnowledge(**PROFILE_RECORD),
+            StudentKnowledge(
+                **{
+                    **PROFILE_RECORD,
+                    "student_knowledge_id": "stu-en",
+                    "language_iso_code": "en",
+                }
+            ),
+        ]
+        with pytest.raises(ValueError, match="found: en, sw"):
+            resolve_language_iso_code(profiles)
 
 
 class TestValidateStudentKnowledge:

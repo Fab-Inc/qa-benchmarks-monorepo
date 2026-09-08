@@ -1,6 +1,6 @@
 """Score one benchmark run and report per-model metrics.
 
-Reads a run directory written by ``phonics-benchmark run-decodability`` and writes
+Reads a run directory written by ``phonics-benchmark run-generation`` and writes
 its scoring outputs back into the same directory.
 
 The language and the benchmark item file are read from the run's own
@@ -8,21 +8,24 @@ The language and the benchmark item file are read from the run's own
 the exact item set it was executed on. If that file has changed since the run,
 the recorded ``items_sha256`` no longer matches and the script says so.
 
-Scoring is only on responses with successful provider calls and output parsing.
-If any responses are excluded, the script prints how many, per model.
+Rows whose provider call failed are excluded and counted. Rows whose response
+had no ``<text>`` tags are *not* excluded: they are scored zero as format
+failures, because dropping them would let a model dodge hard items by
+malformatting. See ``scoring.add_per_item_decodability``.
 
 Run from the repository root, e.g.:
 
     uv run --package phonics-benchmark python \\
         benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \\
-        --run-id sw-tusome-260810 \\
+        --run-id sw-generation-dev \\
         --inspect-sample-size 20
 
 Writes, into `{run directory}/report`:
 
-- ``results_with_scoring.csv`` — every model/item row with its confusion counts
+- ``results_with_scoring.csv`` — every model/item row with its decodability counts
 - ``summary_by_model.csv`` — one row per model
-- ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
+- ``summary_by_difficulty.csv`` / ``summary_by_scenario.csv`` — breakdowns
+- ``score_by_difficulty.png`` / ``score_by_scenario.png``
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -34,13 +37,17 @@ from pathlib import Path
 
 import pandas as pd
 import typer
-from phonics_benchmark.parsing import parse_word_list
-from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
+from phonics_benchmark.parsing import extract_generated_text
+from phonics_benchmark.plots import (
+    save_score_by_difficulty_plot,
+    save_score_by_scenario_plot,
+)
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.scoring import (
-    accuracy_by_nondecodable_count,
-    add_per_item_confusion_matrix,
+    add_per_item_decodability,
+    summarize_by_difficulty,
     summarize_by_model,
+    summarize_by_scenario,
 )
 from phonics_benchmark.utils import require_columns
 
@@ -50,16 +57,16 @@ DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "outputs"
 # seed means re-running the script shows you the same items.
 INSPECTION_RANDOM_STATE = 42
 
-# Item metadata joined onto each response row. `nondecodable_words` is the gold
-# answer; the rest are the difficulty columns the breakdowns group by.
+# Item metadata joined onto each response row. There is no gold answer to join —
+# the decodability checker is the ground truth — so these are the student
+# knowledge the text is scored against plus the columns the breakdowns group by.
 ITEM_METADATA_COLUMNS = [
     "benchmark_item_id",
     "student_knowledge",
-    "content",
-    "nondecodable_words",
-    "nondecodable_ratio",
-    "num_nondecodable_words",
-    "num_total_words",
+    "scenario_id",
+    "student_knowledge_id",
+    "difficulty_bucket",
+    "n_graphemes_known",
 ]
 
 # Enough to judge a response by eye without the noise of the full row.
@@ -67,18 +74,19 @@ INSPECTION_COLUMNS = [
     "run_id",
     "benchmark_item_id",
     "model",
-    "prompt",
+    "scenario_id",
+    "difficulty_bucket",
     "latency_seconds",
     "tokens_used_completion",
-    "content",
     "student_knowledge",
-    "nondecodable_words",
-    "response_parsed",
-    "tp_count",
-    "fp_count",
-    "fn_count",
-    "tn",
-    "perfect_match",
+    "generated_text",
+    "n_words",
+    "nondecodable_types",
+    "n_nondecodable_tokens",
+    "word_decodable_rate",
+    "graded_score",
+    "strict_pass",
+    "format_failure",
 ]
 
 
@@ -108,7 +116,7 @@ def read_run_snapshot(run_dir: Path) -> dict:
 
 
 def load_run_responses(run_dir: Path) -> pd.DataFrame:
-    """Concatenate every model's responses JSONL and parse each raw response."""
+    """Concatenate every model's responses JSONL and extract each generated text."""
     response_file_paths = sorted((run_dir / "responses").glob("*.jsonl"))
     if not response_file_paths:
         raise typer.BadParameter(f"No responses/*.jsonl found in {run_dir}")
@@ -120,32 +128,30 @@ def load_run_responses(run_dir: Path) -> pd.DataFrame:
 
     results = pd.concat(frames, ignore_index=True)
 
-    parsed = results["output"].apply(parse_word_list)
-    results["response_parsed"] = [result.words for result in parsed]
-    results["parse_ok"] = [result.parse_ok for result in parsed]
+    extracted = results["output"].apply(extract_generated_text)
+    results["generated_text"] = [result.text for result in extracted]
+    results["delimiter_found"] = [result.delimiter_found for result in extracted]
 
     return results
 
 
-@require_columns(["call_status", "parse_ok"])
+@require_columns(["call_status"])
 def split_scorable_responses(
     responses: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split loaded responses into included vs. excluded rows for scoring.
 
-    Two types of rows are excluded:
+    Only rows whose ``call_status`` is not ``success`` are excluded: there is no
+    model output to grade. A response that came back but ignored the output
+    format is still scored (as a zero), so a model cannot escape a hard item by
+    replying in the wrong shape.
 
-    * ``call_status`` is not ``success``
-    * ``parse_ok`` is False
-
-    Returns ``(scorable, excluded)`` with ``excluded`` having an ``exclusion_reason``
-    column.
+    Returns ``(scorable, excluded)`` with ``excluded`` having an
+    ``exclusion_reason`` column.
     """
     call_failed = responses["call_status"].ne(CALL_STATUS_SUCCESS)
-    parse_failed = ~responses["parse_ok"] & ~call_failed
 
     reason = pd.Series(index=responses.index, dtype="object")
-    reason[parse_failed] = "parse_failed"
     reason[call_failed] = "call_failed"
 
     excluded = responses[reason.notna()].copy()
@@ -171,6 +177,26 @@ def warn_about_exclusions(excluded: pd.DataFrame) -> None:
     typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
 
 
+def warn_about_format_failures(results: pd.DataFrame) -> None:
+    """Print a per-model count of responses that omitted the <text> tags.
+
+    These are scored zero rather than dropped, so a high rate here means a
+    formatting problem rather than poor phonics — worth separating before
+    reading the headline score.
+    """
+    failures = results[results["format_failure"]]
+    if failures.empty:
+        return
+    breakdown = failures.groupby("model").size()
+    typer.secho(
+        f"WARNING: {len(failures)} response row(s) had no <text> tags and were "
+        "scored 0 as format failures.\n",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+    typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
+
+
 def load_run_items(resolved_config: dict) -> pd.DataFrame:
     """Load the exact item set the run was executed against.
 
@@ -183,7 +209,7 @@ def load_run_items(resolved_config: dict) -> pd.DataFrame:
         raise typer.BadParameter(f"The run's items file no longer exists: {items_path}")
 
     recorded_sha256 = resolved_config.get("items_sha256")
-    # actual sha256 from items.py:24
+    # actual sha256 from items.py
     actual_sha256 = sha256(items_path.read_bytes()).hexdigest()
     if recorded_sha256 and recorded_sha256 != actual_sha256:
         typer.secho(
@@ -247,16 +273,14 @@ def report_on_run(
         warn_about_exclusions(excluded)
     if responses.empty:
         raise typer.BadParameter(
-            f"Nothing to score. Every response row in {run_dir} failed or could"
-            "not be parsed."
+            f"Nothing to score. Every response row in {run_dir} failed."
         )
 
     items = load_run_items(resolved_config)
 
-    results = responses.merge(
-        items[ITEM_METADATA_COLUMNS], on="benchmark_item_id", how="left"
-    )
-    missing_metadata = int(results["nondecodable_words"].isna().sum())
+    available = [c for c in ITEM_METADATA_COLUMNS if c in items.columns]
+    results = responses.merge(items[available], on="benchmark_item_id", how="left")
+    missing_metadata = int(results["student_knowledge"].isna().sum())
     if missing_metadata:
         typer.secho(
             f"WARNING: {missing_metadata} response row(s) matched no benchmark "
@@ -264,24 +288,38 @@ def report_on_run(
             fg=typer.colors.YELLOW,
             err=True,
         )
+        results = results[results["student_knowledge"].notna()]
 
-    results = add_per_item_confusion_matrix(results, language)
+    results = add_per_item_decodability(results, language)
+    warn_about_format_failures(results)
+
     scored_path = report_dir / "results_with_scoring.csv"
     results.to_csv(scored_path, index=False)
     written.append(scored_path.name)
 
-    # Per-model accuracy + pooled word-level confusion (precision/recall/f1).
     summary = summarize_by_model(results)
     typer.echo(f"\nPer-model summary for {resolved_config['run_id']}:")
     typer.echo(summary.to_string(index=False))
     summary.to_csv(report_dir / "summary_by_model.csv", index=False)
     written.append("summary_by_model.csv")
 
-    # Does accuracy degrade as items get harder (more non-decodable words)?
-    accuracy_by_count = accuracy_by_nondecodable_count(results)
-    plot_path = report_dir / "accuracy_by_nondecodable_count.png"
-    save_accuracy_by_nondecodable_count_plot(accuracy_by_count, plot_path)
-    written.append(plot_path.name)
+    # Does the score fall away as the student knows fewer graphemes?
+    if "difficulty_bucket" in results.columns:
+        by_difficulty = summarize_by_difficulty(results)
+        by_difficulty.to_csv(report_dir / "summary_by_difficulty.csv", index=False)
+        written.append("summary_by_difficulty.csv")
+        plot_path = report_dir / "score_by_difficulty.png"
+        save_score_by_difficulty_plot(by_difficulty, plot_path)
+        written.append(plot_path.name)
+
+    # Which text types are hardest to keep decodable?
+    if "scenario_id" in results.columns:
+        by_scenario = summarize_by_scenario(results)
+        by_scenario.to_csv(report_dir / "summary_by_scenario.csv", index=False)
+        written.append("summary_by_scenario.csv")
+        plot_path = report_dir / "score_by_scenario.png"
+        save_score_by_scenario_plot(by_scenario, plot_path)
+        written.append(plot_path.name)
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:

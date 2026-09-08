@@ -8,15 +8,15 @@ from unittest.mock import Mock
 import pytest
 from phonics_benchmark import llm
 from phonics_benchmark.config import DEFAULT_PROMPT_NAME
-from phonics_benchmark.prompts import build_decodability_prompt
+from phonics_benchmark.prompts import build_generation_prompt
 
 
 def _prompt_for(item: dict[str, Any]) -> str:
-    return build_decodability_prompt(
+    return build_generation_prompt(
         DEFAULT_PROMPT_NAME,
         {
             "benchmark_item_id": item["benchmark_item_id"],
-            "content": item["content"],
+            "scenario": item["scenario"],
             "student_knowledge": item["student_knowledge"],
         },
         "sw",
@@ -27,9 +27,7 @@ def test_call_llm_returns_metadata_and_logs_response(
     tusome_stage_11_item, tmp_path, monkeypatch
 ):
     prompt = _prompt_for(tusome_stage_11_item)
-    response_text = json.dumps(
-        tusome_stage_11_item["nondecodable_words"], ensure_ascii=False
-    )
+    response_text = "<text>\nMama anaona paka.\n</text>"
     caller = Mock()
     caller.call.return_value = SimpleNamespace(
         Message=response_text,

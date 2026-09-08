@@ -42,7 +42,7 @@ from phonics_benchmark.config import (
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
-from phonics_benchmark.prompts import build_decodability_prompt
+from phonics_benchmark.prompts import build_generation_prompt
 from phonics_benchmark.results import (
     CALL_STATUS_ERROR,
     CALL_STATUS_SUCCESS,
@@ -233,7 +233,7 @@ def _prepare_items(
     return [
         {
             "item": item,
-            "prompt": build_decodability_prompt(prompt_name, item, language),
+            "prompt": build_generation_prompt(prompt_name, item, language),
         }
         for item in items
     ]

@@ -1,178 +1,245 @@
-"""Score model results against the benchmark items' gold non-decodable words."""
+"""Score model-generated texts on how decodable they are for the target student.
+
+There is no gold answer here: the deterministic `decodability` checker *is* the
+ground truth. Each item is scored on the share of its words the student could
+actually read.
+"""
 
 import math
-from typing import Any
 
 import pandas as pd
 
-from phonics_benchmark.labeling import get_vocabulary_set
+from phonics_benchmark.labeling import (
+    get_decodability_config,
+    score_text_decodability,
+)
 from phonics_benchmark.utils import require_columns
 
+# The per-item score is (1 - nondecodable_rate) ** REFERENCE_LENGTH, which reads
+# as "the probability that a randomly drawn REFERENCE_LENGTH-word passage from
+# this text is fully decodable" — a strict pass rate normalised to a reference
+# sentence length.
+#
+# Normalising is what makes the metric measure the model rather than the text
+# length. Scoring raw error counts instead (e.g. -0.25 per bad word, or a strict
+# all-or-nothing pass) makes an identical model score 0.92 on a 15-word text and
+# 0.19 on a 200-word one, and rewards writing short.
+#
+# 20 is chosen as a typical sentence length. Raising it makes the metric harsher
+# and lowering it more forgiving; the ranking of models is unaffected.
+REFERENCE_LENGTH = 20
 
-@require_columns(["response_parsed", "nondecodable_words"])
-def add_per_item_confusion_matrix(results: pd.DataFrame, language: str) -> pd.DataFrame:
-    """Add per-item true/false positive/negative word counts.
+# Prefix for the per-scorer failure-attribution columns. The scorer names are
+# language-specific (for Kiswahili they separate an untaught grapheme from an
+# untaught consonant cluster), so these columns are discovered by prefix rather
+# than hard-coded.
+FAILURE_PREFIX = "n_fail_"
 
-    A "positive" is a word the model listed as non-decodable.
 
-    Expects ``response_parsed`` — the model's raw ``output`` text already parsed
-    into a word list by ``parsing.parse_word_list``. Scoring the raw text instead
-    would build a set of its characters.
+def graded_score(n_words: int, n_nondecodable_tokens: int) -> float:
+    """Return the length-normalised decodability score for one text.
 
-    Words are compared lowercased: `labeling.label_nondecodable_words` lowercases
-    the gold ``nondecodable_words``, so a model answering "Soko" for gold "soko"
-    would otherwise be charged both a false positive and a false negative.
+    Returns 0.0 for an empty text: a model that writes nothing has not written
+    a decodable text.
+    """
+    if n_words <= 0:
+        return 0.0
+    nondecodable_rate = n_nondecodable_tokens / n_words
+    return (1.0 - nondecodable_rate) ** REFERENCE_LENGTH
+
+
+@require_columns(["generated_text", "delimiter_found", "student_knowledge"])
+def add_per_item_decodability(results: pd.DataFrame, language: str) -> pd.DataFrame:
+    """Add per-item decodability counts, rates and the graded score.
+
+    Expects ``generated_text`` — the model's raw ``output`` already stripped of
+    commentary by ``parsing.extract_generated_text`` — and the item's
+    ``student_knowledge``.
+
+    A row whose ``delimiter_found`` is False is a *format failure*: it is scored
+    0.0 rather than dropped, and its decodability columns are left NaN. Grading
+    the raw response instead would charge the model for its preamble, while
+    dropping the row would let a model dodge hard items by malformatting.
     """
     results = results.copy()
 
-    if "vocab_set" not in results.columns:
-        results["vocab_set"] = get_vocabulary_set(results, language)
+    config, score_column = get_decodability_config(language)
+    failure_columns = [f"{FAILURE_PREFIX}{name}" for name in config["scoring_methods"]]
 
-    def get_confusion_matrix(row: pd.Series) -> pd.Series:
-        predicted = {word.lower() for word in row["response_parsed"]}
-        actual = {word.lower() for word in row["nondecodable_words"]}
-        perfect_match = predicted == actual
-        tp = predicted & actual
-        fp = predicted - actual
-        fn = actual - predicted
-        tn = row["vocab_set"] - predicted - actual
+    def score_row(row: pd.Series) -> pd.Series:
+        blank = dict.fromkeys(failure_columns, math.nan)
 
-        n_tp, n_fp, n_fn = len(tp), len(fp), len(fn)
+        if not row["delimiter_found"]:
+            return pd.Series(
+                {
+                    "n_words": math.nan,
+                    "n_unique_words": math.nan,
+                    "unique_word_ratio": math.nan,
+                    "n_nondecodable_tokens": math.nan,
+                    "n_nondecodable_types": math.nan,
+                    "nondecodable_types": [],
+                    "word_decodable_rate": math.nan,
+                    "type_decodable_rate": math.nan,
+                    "graded_score": 0.0,
+                    "strict_pass": False,
+                    "format_failure": True,
+                    "under_reference_length": False,
+                    **blank,
+                }
+            )
 
-        precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) > 0 else math.nan
-        recall = n_tp / (n_tp + n_fn) if (n_tp + n_fn) > 0 else math.nan
+        result = score_text_decodability(
+            row["generated_text"],
+            row["student_knowledge"],
+            config,
+            language,
+            score_column=score_column,
+        )
 
-        f1_denominator = 2 * n_tp + n_fp + n_fn
-        f1 = 2 * n_tp / f1_denominator if f1_denominator > 0 else math.nan
+        if result.n_words == 0:
+            # An empty text scores zero, but its rates are undefined rather
+            # than perfect — averaging in a 1.0 rate would flatter the model.
+            return pd.Series(
+                {
+                    "n_words": 0,
+                    "n_unique_words": 0,
+                    "unique_word_ratio": math.nan,
+                    "n_nondecodable_tokens": 0,
+                    "n_nondecodable_types": 0,
+                    "nondecodable_types": [],
+                    "word_decodable_rate": math.nan,
+                    "type_decodable_rate": math.nan,
+                    "graded_score": 0.0,
+                    "strict_pass": False,
+                    "format_failure": False,
+                    "under_reference_length": True,
+                    **blank,
+                }
+            )
 
         return pd.Series(
             {
-                "perfect_match": perfect_match,
-                "tp": tp,
-                "fp": fp,
-                "fn": fn,
-                "tn": tn,
-                "tp_count": n_tp,
-                "fp_count": n_fp,
-                "fn_count": n_fn,
-                "tn_count": len(tn),
-                "has_actual_nondecodable": len(actual) > 0,
-                "has_predicted_nondecodable": len(predicted) > 0,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
+                "n_words": result.n_words,
+                "n_unique_words": result.n_unique_words,
+                "unique_word_ratio": result.n_unique_words / result.n_words,
+                "n_nondecodable_tokens": result.n_nondecodable_tokens,
+                "n_nondecodable_types": result.n_nondecodable_types,
+                "nondecodable_types": result.nondecodable_types,
+                "word_decodable_rate": 1.0
+                - result.n_nondecodable_tokens / result.n_words,
+                "type_decodable_rate": 1.0
+                - result.n_nondecodable_types / result.n_unique_words,
+                "graded_score": graded_score(
+                    result.n_words, result.n_nondecodable_tokens
+                ),
+                "strict_pass": result.n_nondecodable_tokens == 0,
+                "format_failure": False,
+                "under_reference_length": result.n_words < REFERENCE_LENGTH,
+                **{
+                    f"{FAILURE_PREFIX}{name}": result.failure_causes.get(name, math.nan)
+                    for name in config["scoring_methods"]
+                },
             }
         )
 
-    return pd.concat([results, results.apply(get_confusion_matrix, axis=1)], axis=1)
+    return pd.concat([results, results.apply(score_row, axis=1)], axis=1)
 
 
 @require_columns(
     [
         "model",
         "benchmark_item_id",
-        "perfect_match",
-        "tp_count",
-        "fp_count",
-        "fn_count",
-        "has_actual_nondecodable",
-        "has_predicted_nondecodable",
-        "precision",
-        "recall",
-        "f1",
+        "graded_score",
+        "strict_pass",
+        "format_failure",
+        "n_words",
+        "n_nondecodable_tokens",
+        "n_unique_words",
+        "n_nondecodable_types",
+        "unique_word_ratio",
+        "under_reference_length",
     ]
 )
 def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
-    """Per-model macro (item-averaged) and pooled (word-level) metrics.
+    """Per-model headline metrics plus diagnostics.
 
-    A *fully decodable* item is one whose actual ``nondecodable_words`` list is
-    empty — every word in it is decodable, so the correct prediction is an empty
-    list.
+    ``graded_score`` and ``strict_pass_rate`` are computed over *all* items,
+    counting a format failure as a zero. The pooled word/type rates and the
+    length diagnostics are computed over scorable items only, so a formatting
+    problem stays visible as itself rather than masquerading as poor phonics.
 
-    Each metric is computed over only the items where it is defined:
-
-    * Items with >=1 actual non-decodable word: ``macro_recall``, ``macro_f1``,
-      ``accuracy_for_not_fully_decodable``
-    * Items with >=1 predicted non-decodable word: ``macro_precision``
-    * Fully decodable items: ``false_alarm_rate_fully_decodable``,
-      ``mean_fp_per_fully_decodable_item``
-    * All items: ``accuracy``, ``pooled_*``
-
-    Expects the output of ``add_per_item_confusion_matrix``.
+    Metrics whose denominator is zero are NaN, never 0 or 1.
     """
     grouped = results.groupby("model")
     models = grouped.size().index
 
-    not_fully_decodable_items = results[results["has_actual_nondecodable"]].groupby(
-        "model"
-    )
-    fully_decodable_items = results[~results["has_actual_nondecodable"]].groupby(
-        "model"
-    )
-    items_with_predicted_nondecodable = results[
-        results["has_predicted_nondecodable"]
-    ].groupby("model")
+    scorable = results[~results["format_failure"]]
+    scorable_grouped = scorable.groupby("model")
 
-    def count(subset: Any) -> pd.Series:
-        """Item count per model, 0 (not NaN) for models absent from the subset."""
-        counts = subset["benchmark_item_id"].count()
-        return counts.reindex(models, fill_value=0).astype(int)
+    def pooled_rate(numerator: str, denominator: str) -> pd.Series:
+        total_bad = scorable_grouped[numerator].sum().reindex(models)
+        total = scorable_grouped[denominator].sum().reindex(models)
+        return (1.0 - total_bad / total).where(total > 0)
 
     summary = pd.DataFrame(
         {
-            "n_items": count(grouped),
-            "n_items_not_fully_decodable": count(not_fully_decodable_items),
-            "n_items_fully_decodable": count(fully_decodable_items),
-            "accuracy": grouped["perfect_match"].mean(),
-            "accuracy_for_not_fully_decodable": not_fully_decodable_items[
-                "perfect_match"
-            ].mean(),
-            "macro_precision": items_with_predicted_nondecodable["precision"].mean(),
-            "macro_recall": not_fully_decodable_items["recall"].mean(),
-            "macro_f1": not_fully_decodable_items["f1"].mean(),
-            "false_alarm_rate_fully_decodable": fully_decodable_items[
-                "has_predicted_nondecodable"
-            ].mean(),
-            "mean_fp_per_fully_decodable_item": fully_decodable_items[
-                "fp_count"
-            ].mean(),
-            "pooled_tp": grouped["tp_count"].sum(),
-            "pooled_fp": grouped["fp_count"].sum(),
-            "pooled_fn": grouped["fn_count"].sum(),
+            "n_items": grouped["benchmark_item_id"].count(),
+            "graded_score": grouped["graded_score"].mean(),
+            "strict_pass_rate": grouped["strict_pass"].mean(),
+            "word_decodable_rate": pooled_rate("n_nondecodable_tokens", "n_words"),
+            "type_decodable_rate": pooled_rate(
+                "n_nondecodable_types", "n_unique_words"
+            ),
+            "format_failure_rate": grouped["format_failure"].mean(),
+            "mean_n_words": scorable_grouped["n_words"].mean().reindex(models),
+            "mean_unique_word_ratio": scorable_grouped["unique_word_ratio"]
+            .mean()
+            .reindex(models),
+            "under_reference_length_rate": scorable_grouped["under_reference_length"]
+            .mean()
+            .reindex(models),
         }
     )
 
-    predicted_words = summary["pooled_tp"] + summary["pooled_fp"]
-    actual_words = summary["pooled_tp"] + summary["pooled_fn"]
-    f1_denominator = (
-        2 * summary["pooled_tp"] + summary["pooled_fp"] + summary["pooled_fn"]
-    )
+    total_words = scorable_grouped["n_words"].sum().reindex(models)
+    total_nondecodable = scorable_grouped["n_nondecodable_tokens"].sum().reindex(models)
+    summary["nondecodable_per_100_words"] = (
+        100.0 * total_nondecodable / total_words
+    ).where(total_words > 0)
 
-    summary["pooled_precision"] = (summary["pooled_tp"] / predicted_words).where(
-        predicted_words > 0
-    )
-    summary["pooled_recall"] = (summary["pooled_tp"] / actual_words).where(
-        actual_words > 0
-    )
-    summary["pooled_f1"] = (2 * summary["pooled_tp"] / f1_denominator).where(
-        f1_denominator > 0
-    )
+    # Pooled failure attribution, e.g. untaught grapheme vs untaught cluster.
+    for column in results.columns:
+        if column.startswith(FAILURE_PREFIX):
+            summary[f"pooled_{column}"] = scorable_grouped[column].sum().reindex(models)
 
     return summary.rename_axis("model_name").reset_index()
 
 
-@require_columns(["model", "num_nondecodable_words", "perfect_match"])
-def accuracy_by_nondecodable_count(results: pd.DataFrame) -> pd.DataFrame:
-    """Per-model, per-num_nondecodable_words accuracy (mean perfect_match).
-
-    Reveals whether accuracy degrades as the number of non-decodable
-    words increases.
-
-    Expects a ``num_nondecodable_words`` column (see
-    ``phonics_benchmark.curation.add_labels_and_analysis``).
-    """
+def _summarize_by(results: pd.DataFrame, dimension: str) -> pd.DataFrame:
     return (
-        results.groupby(["model", "num_nondecodable_words"])["perfect_match"]
-        .agg(accuracy="mean", n_items="count")
+        results.groupby(["model", dimension])
+        .agg(
+            graded_score=("graded_score", "mean"),
+            strict_pass_rate=("strict_pass", "mean"),
+            format_failure_rate=("format_failure", "mean"),
+            n_items=("benchmark_item_id", "count"),
+        )
         .reset_index()
     )
+
+
+@require_columns(["model", "difficulty_bucket", "graded_score", "strict_pass"])
+def summarize_by_difficulty(results: pd.DataFrame) -> pd.DataFrame:
+    """Per-model score by student difficulty bucket.
+
+    The most informative breakdown in the benchmark: a profile that teaches four
+    graphemes leaves almost no writable vocabulary, while a full inventory
+    leaves most of the language available.
+    """
+    return _summarize_by(results, "difficulty_bucket")
+
+
+@require_columns(["model", "scenario_id", "graded_score", "strict_pass"])
+def summarize_by_scenario(results: pd.DataFrame) -> pd.DataFrame:
+    """Per-model score by generation scenario (story, dialogue, ...)."""
+    return _summarize_by(results, "scenario_id")

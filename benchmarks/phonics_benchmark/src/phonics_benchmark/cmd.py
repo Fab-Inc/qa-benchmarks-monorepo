@@ -22,10 +22,10 @@ from google.api_core.exceptions import GoogleAPIError
 from google.auth.exceptions import GoogleAuthError
 
 from phonics_benchmark.config import (
-    DECODABILITY_TASK,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_MODEL_WORKERS,
     DEFAULT_PROMPT_NAME,
+    GENERATION_TASK,
     BenchmarkRunConfig,
     ConfigError,
     _parse_run_id,
@@ -67,8 +67,8 @@ def setup(ctx: typer.Context) -> None:
         raise typer.Exit()
 
 
-@app.command("run-decodability")
-def run_decodability_cmd(
+@app.command("run-generation")
+def run_generation_cmd(
     config: Path | None = typer.Option(
         None,
         "--config",
@@ -192,7 +192,7 @@ def run_decodability_cmd(
         help="GCS run prefix to mirror, for example gs://bucket/phonics/runs/id/.",
     ),
 ) -> None:
-    """Run the decodability benchmark from a config file or CLI options."""
+    """Run the decodable-text-generation benchmark from a config or CLI options."""
 
     try:
         if config is not None:
@@ -215,7 +215,7 @@ def run_decodability_cmd(
                 output_dir=output_dir,
                 models=model_names,
                 base_dir=Path.cwd(),
-                task=DECODABILITY_TASK,
+                task=GENERATION_TASK,
                 items_path=items_path,
                 prompt_name=prompt_name or DEFAULT_PROMPT_NAME,
                 env_path=env_path,
@@ -443,11 +443,11 @@ def _load_local_run_config(config_path: Path) -> BenchmarkRunConfig:
     raw_config = _read_config_object(source_config_path, description="config file")
     items_source_uri = _items_source_uri(raw_config, use_metadata_fallback=False)
     if items_source_uri is None:
-        return load_run_config(source_config_path, task=DECODABILITY_TASK)
+        return load_run_config(source_config_path, task=GENERATION_TASK)
 
     preliminary_config = load_run_config(
         source_config_path,
-        task=DECODABILITY_TASK,
+        task=GENERATION_TASK,
     )
     inputs_root = (
         preliminary_config.inputs_dir
@@ -555,7 +555,7 @@ def _materialize_run_config(
         json.dumps(processed_config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    config = load_run_config(processed_config_path, task=DECODABILITY_TASK)
+    config = load_run_config(processed_config_path, task=GENERATION_TASK)
     return replace(
         config,
         raw_config=snapshot_config,

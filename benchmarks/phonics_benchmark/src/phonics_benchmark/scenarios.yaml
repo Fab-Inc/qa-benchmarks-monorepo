@@ -1,0 +1,40 @@
+# Generation scenarios for the decodable-text-generation benchmark.
+#
+# Each entry is keyed by its scenario_id and holds the TASK instruction injected
+# into the {scenario} placeholder of the decodable_text_generation prompt.
+#
+# Every scenario states its own length target so the task is well defined and
+# comparable across models. Length is deliberately NOT scored (see scoring.py);
+# it is recorded as a diagnostic only.
+#
+# Scenarios use YAML folded scalars (>-): a single line break becomes a space;
+# blank lines are preserved as newlines (N blank lines -> N newlines).
+
+story: >-
+  Write a short story of about 50 words for this student to read.
+
+
+  The story should have a clear beginning, middle and end, and should be
+  interesting and age-appropriate for a child who is learning to read.
+
+informational: >-
+  Write a short informational text of about 50 words for this student to read.
+
+
+  The text should teach the reader one simple, true fact about an everyday
+  topic such as animals, food, weather, family life or work.
+
+dialogue: >-
+  Write a short dialogue of about 50 words for this student to read.
+
+
+  The dialogue should be between two speakers who take turns to speak, and
+  should read naturally as a real conversation.
+
+sentences: >-
+  Write about 50 words of independent practice sentences for this student to
+  read.
+
+
+  Write five or six separate sentences. Each sentence should stand on its own
+  and does not need to connect to the others.

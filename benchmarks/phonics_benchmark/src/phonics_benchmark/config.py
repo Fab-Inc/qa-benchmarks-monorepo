@@ -15,8 +15,8 @@ DEFAULT_RUN_ID = "default"
 DEFAULT_MAX_TOKENS = 10_000
 DEFAULT_CHUNK_SIZE = 20
 DEFAULT_MODEL_WORKERS = 4
-DECODABILITY_TASK = "decodability"
-DEFAULT_PROMPT_NAME = "decodability_evaluation"
+GENERATION_TASK = "decodable-text-generation"
+DEFAULT_PROMPT_NAME = "decodable_text_generation"
 RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
 
 
@@ -158,7 +158,7 @@ def apply_execution_overrides(
 def load_run_config(
     config_path: str | Path,
     *,
-    task: str = DECODABILITY_TASK,
+    task: str = GENERATION_TASK,
 ) -> BenchmarkRunConfig:
     """Load and validate a phonics benchmark run config from JSON."""
 
