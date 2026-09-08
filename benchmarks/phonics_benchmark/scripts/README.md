@@ -6,49 +6,49 @@ These are the steps to creating a benchmark run dataset.
 
 ### Prerequisites
 
-- Set up your data according to [`data/README.md`](../data/README.md). The data files
-  are not in git, so you need the expert workbook in `data/<language>/raw/` before you
-  start — ask the team for it. Every step below writes to `data/<language>/`, which is
-  gitignored.
+- `data/<language>/student_knowledge_profiles.jsonl` must be present. This is the
+  canonical profile list maintained by the data team and is the single source of truth
+  for the benchmark — ask them for it. It is gitignored, like everything else under
+  `data/` except this README and the blank workbooks in `templates/`. See
+  [`data/README.md`](../data/README.md).
 
 ### Steps
 
-1. Ingest a language benchmark data-entry workbook into JSONL data files.
+Cross the canonical student profiles with the generation scenarios to build the item
+sets:
 
-   ```shell
-    uv run --package phonics-benchmark python \
-        benchmarks/phonics_benchmark/scripts/ingest_benchmark_data.py \
-        --language kiswahili \
-        --workbook ./benchmarks/phonics_benchmark/data/kiswahili/raw/benchmark_data_tusome_ke.xlsx
-   ```
+```shell
+ uv run --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/build_benchmark_items.py \
+     --language kiswahili
+```
 
-1. Cross the distinct student profiles with the generation scenarios to build the item
-   sets.
+This writes to `data/<language>/`:
 
-   ```shell
-    uv run --package phonics-benchmark python \
-        benchmarks/phonics_benchmark/scripts/build_generation_benchmark_items.py \
-        --language kiswahili \
-        --profiles-file student_knowledge_profiles.jsonl
-   ```
+- `benchmark_items.jsonl`: the full set — every profile x every scenario in
+  `src/phonics_benchmark/scenarios.yaml` (156 x 4 = 624 items for Kiswahili)
+- `benchmark_items_dev.jsonl`: a stratified sample of 30 profiles x 4 scenarios = 120
+  items, for fast iteration
+- `benchmark_items_summary.json`: item counts and composition per difficulty bucket
+- `benchmark_items_by_difficulty.png`: the same composition as a bar chart
 
-   `--profiles-file` names any JSONL in the language data folder whose records carry
-   `student_knowledge` — either the ingested profiles file above, or a legacy
-   labelled-items file, whose text and gold-label columns are ignored.
+Every profile's `student_knowledge` is validated against the language's model in
+`decodability` before any items are written, so a bad grapheme or a cluster that
+overlaps a known cluster pattern fails here rather than mid-run. Each item is stamped
+with its `difficulty_bucket`, `n_graphemes_known`, `n_clusters_known` and
+`n_cluster_patterns_known` so the report can break scores down by them.
 
-   This writes to `data/<language>/`:
+### Re-deriving profiles from a workbook (rarely needed)
 
-   - `benchmark_items_generation.jsonl`: the full set (every distinct profile x every
-     scenario)
-   - `benchmark_items_generation_dev.jsonl`: a smaller stratified sample of profiles,
-     for fast iteration
-   - `generation_items_summary.json`: item counts and composition per difficulty bucket
-   - `generation_items_by_difficulty.png`: the same composition as a bar chart
+Only if you are regenerating the canonical file rather than receiving it. Ingest a
+language's data-entry workbook into `student_knowledge_profiles.jsonl`:
 
-   Profiles are deduplicated on the *content* of `student_knowledge` rather than on
-   `student_knowledge_id`, and each is assigned a difficulty bucket from the number of
-   graphemes it teaches. Profiles with no cluster knowledge get a documented placeholder
-   — see the caveat in [`../README.md`](../README.md).
+```shell
+ uv run --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/ingest_benchmark_data.py \
+     --language kiswahili \
+     --workbook ./benchmarks/phonics_benchmark/data/kiswahili/raw/benchmark_data_tusome_ke.xlsx
+```
 
 ## Running the benchmark
 

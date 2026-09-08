@@ -67,6 +67,8 @@ ITEM_METADATA_COLUMNS = [
     "student_knowledge_id",
     "difficulty_bucket",
     "n_graphemes_known",
+    "n_clusters_known",
+    "n_cluster_patterns_known",
 ]
 
 # Enough to judge a response by eye without the noise of the full row.

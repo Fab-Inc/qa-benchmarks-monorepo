@@ -1,7 +1,7 @@
 {
   "run_id": "sw-generation-dev",
   "language": "sw",
-  "items_path": "../data/kiswahili/benchmark_items_generation_dev.jsonl",
+  "items_path": "../data/kiswahili/benchmark_items_dev.jsonl",
   "prompt_name": "decodable_text_generation",
   "output_dir": "../outputs",
   "models": [
@@ -14,12 +14,16 @@
   "chunk_size": 20,
   "model_workers": 4,
   "metadata": {
-    "dataset": "Tusome Kenya (Kiswahili) student knowledge profiles",
+    "dataset": "Tusome Kenya (Kiswahili) canonical student knowledge profiles",
     "task": "generate a text in which every word is decodable for the student",
     "item_set": "dev (stratified sample of student profiles)",
-    "scenarios": ["story", "informational", "dialogue", "sentences"],
-    "cluster_knowledge_source": "placeholder_all_patterns",
-    "cluster_knowledge_caveat": "Profiles carry no real cluster knowledge; all native cluster patterns are marked known as a placeholder. See curation.apply_placeholder_cluster_knowledge.",
-    "provenance": "scripts/ingest_benchmark_data.py -> scripts/build_generation_benchmark_items.py"
+    "scenarios": [
+      "story",
+      "informational",
+      "dialogue",
+      "sentences"
+    ],
+    "provenance": "data team -> student_knowledge_profiles.jsonl -> scripts/build_benchmark_items.py",
+    "profiles": "156 canonical profiles from data/kiswahili/student_knowledge_profiles.jsonl"
   }
 }

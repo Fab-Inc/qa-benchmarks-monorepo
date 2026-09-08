@@ -173,8 +173,7 @@ def ingest_benchmark_data(
 
     typer.echo(f"Wrote {len(profiles)} student knowledge profiles to {data_dir}")
     typer.echo(
-        "Next: build_generation_benchmark_items.py to cross them with the "
-        "generation scenarios."
+        "Next: build_benchmark_items.py to cross them with the generation scenarios."
     )
 
 

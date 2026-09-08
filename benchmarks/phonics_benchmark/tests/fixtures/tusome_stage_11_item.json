@@ -37,9 +37,12 @@
       "anaona",
       "na",
       "paka"
-    ]
+    ],
+    "clusters": [],
+    "cluster_patterns": []
   },
   "difficulty_bucket": "mid",
   "n_graphemes_known": 22,
-  "cluster_knowledge_source": "dataset"
+  "n_clusters_known": 0,
+  "n_cluster_patterns_known": 0
 }

@@ -66,28 +66,45 @@ all recorded so under-length or degenerately repetitive responses can be audited
 
 All of these are also broken out by student difficulty bucket and by scenario.
 
-## Known caveat: placeholder cluster knowledge
+## Consonant clusters and the difficulty gradient
 
-No profile in the Kiswahili dataset carries `clusters` or `cluster_patterns`. Under the
-Kenya-Tusome aggregator that makes *any* word containing a consonant cluster
-non-decodable for *every* student: for the most advanced profile (31 graphemes, the
-whole inventory) only 4 corpus word types fail on graphemes while 299 fail purely on
-clusters, putting everyday words like `mwalimu`, `ng'ombe` and `ndege` out of reach for
-a student who has been taught everything.
+Kiswahili is full of consonant clusters (`mb`, `nd`, `mw`, `ny`), and under the
+Kenya-Tusome aggregator a word is only decodable if every cluster in it is one the
+student knows — either directly, or via a known cluster pattern. Clusters are taught in
+grade 2, so **only 21 of the 156 profiles have been taught any**, and they are almost
+all the `tusome-ke-g2-*` ones.
 
-`curation.apply_placeholder_cluster_knowledge` therefore marks all 11 native cluster
-patterns as known and leaves `clusters` empty, so loan clusters (`bl`, `st`, `br`) stay
-untaught. Beginners are not inflated by this — the grapheme scorer still gates them:
+That is the dominant source of difficulty at the top of the range, and it is real
+curriculum rather than a data gap. Two profiles that both know all 31 graphemes can
+differ by more than 20 points of readable vocabulary:
 
-| profile              | graphemes | corpus decodable, as-is | with placeholder |
-| -------------------- | --------- | ----------------------- | ---------------- |
-| `tusome-ke-stage-02` | 4         | 1.6%                    | 1.8%             |
-| `tusome-ke-j93`      | 18        | 31.9%                   | 40.1%            |
-| `tusome-ke-g2-wk13`  | 31        | 74.1%                   | 96.8%            |
+| profile                               | graphemes | clusters taught | corpus decodable |
+| ------------------------------------- | --------- | --------------- | ---------------- |
+| `tusome-ke-stage-16` (end of grade 1) | 31        | no              | 74.1%            |
+| `tusome-ke-g2-wk03`                   | 31        | yes             | 89.7%            |
+| `tusome-ke-g2-wk13`                   | 31        | yes             | 97.7%            |
+| `tusome-ke-g2-j10`                    | 31        | yes             | 98.6%            |
 
-This is a stand-in for real per-stage cluster data, tracked as a follow-up with the data
-team. Every item and run config records `cluster_knowledge_source` so results stay
-traceable to it.
+Because the grapheme count alone hides this, every item records `n_clusters_known` and
+`n_cluster_patterns_known` alongside `n_graphemes_known`, and `results_with_scoring.csv`
+carries all three so you can split any metric by cluster knowledge.
+
+Measured against a 1,171-word reference vocabulary, the difficulty buckets come out
+monotone and wide:
+
+| Bucket       | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
+| ------------ | --------- | -------- | --------------- | ------------------------------------- |
+| `very-early` | ≤10       | 17       | 0               | 0.3% / 5.2% / 12.0%                   |
+| `early`      | 11–17     | 37       | 2               | 7.7% / 24.5% / 35.4%                  |
+| `mid`        | 18–24     | 41       | 1               | 31.9% / 47.2% / 63.1%                 |
+| `late`       | 25+       | 61       | 18              | 41.1% / 68.3% / 98.6%                 |
+
+The `very-early` end is genuinely severe: `tusome-ke-stage-01` teaches two graphemes
+(`a`, `m`) and five sight words, leaving four usable words in the reference vocabulary.
+A 50-word text there is necessarily very repetitive — which the scenarios explicitly
+allow, since repetition is normal for an early reader. It is still achievable: a text
+built only from that profile's own vocabulary scores a perfect 1.0. Read the per-bucket
+breakdown rather than the pooled score.
 
 ## Run the benchmark
 
@@ -96,8 +113,8 @@ phonics-benchmark run-generation --config path/to/run.json
 ```
 
 Two configs are checked in: `configs/sw-generation-dev.json` (120 items — 30 stratified
-profiles x 4 scenarios) for fast iteration, and `configs/sw-generation-full.json` (528
-items — all 132 distinct profiles x 4 scenarios) for headline numbers.
+profiles x 4 scenarios) for fast iteration, and `configs/sw-generation-full.json` (624
+items — all 156 canonical profiles x 4 scenarios) for headline numbers.
 
 The same command can also be driven directly from CLI options:
 
@@ -202,24 +219,25 @@ The runner accepts completed JSONL artifacts selected through `items_path` in co
 Each line must be an object containing a non-empty `benchmark_item_id`, a non-empty
 `scenario_id`, a non-whitespace `scenario`, and object-valued `student_knowledge`.
 Additional dataset-owned fields (`difficulty_bucket`, `student_knowledge_id`,
-`n_graphemes_known`, `cluster_knowledge_source`) are accepted and ignored by the runner;
-the report script re-joins them from the same file, which the recorded `items_sha256`
-proves is unchanged. The selected language registry validates `student_knowledge`,
-provides the display name, and controls its string representation in the shared prompt.
+`n_graphemes_known`, `n_clusters_known`, `n_cluster_patterns_known`) are accepted and
+ignored by the runner; the report script re-joins them from the same file, which the
+recorded `items_sha256` proves is unchanged. The selected language registry validates
+`student_knowledge`, provides the display name, and controls its string representation
+in the shared prompt.
 
 Build the item sets with:
 
 ```bash
-uv run --package phonics-benchmark python \
-  benchmarks/phonics_benchmark/scripts/build_generation_benchmark_items.py \
-  --language kiswahili \
-  --profiles-file phonics_datasets_kiswahili-with-clusters_benchmark_items.jsonl
+uv run --package phonics-benchmark python \\
+  benchmarks/phonics_benchmark/scripts/build_benchmark_items.py \\
+  --language kiswahili
 ```
 
-Profiles are deduplicated on the *content* of `student_knowledge`, not on
-`student_knowledge_id`: the dataset reuses one knowledge blob across several ids, and
-running the same prompt under each label would buy no information while skewing the
-difficulty mix.
+Profiles come from `data/kiswahili/student_knowledge_profiles.jsonl`, the canonical file
+maintained by the data team — 156 profiles, each with a distinct id. Every profile's
+`student_knowledge` is validated against `KiswahiliStudentKnowledge` before any items
+are built, so a malformed grapheme or a cluster that overlaps a known cluster pattern
+fails at build time rather than mid-run.
 
 ## Run outputs
 

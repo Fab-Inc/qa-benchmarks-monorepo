@@ -17,8 +17,8 @@ from phonics_benchmark.models import (
 )
 
 STUDENT_PROFILES_FILENAME = "student_knowledge_profiles.jsonl"
-BENCHMARK_ITEMS_FILENAME = "benchmark_items_generation.jsonl"
-BENCHMARK_ITEMS_DEV_FILENAME = "benchmark_items_generation_dev.jsonl"
+BENCHMARK_ITEMS_FILENAME = "benchmark_items.jsonl"
+BENCHMARK_ITEMS_DEV_FILENAME = "benchmark_items_dev.jsonl"
 
 STUDENT_PROFILES_ID_NAME = "student_knowledge_id"
 BENCHMARK_ITEM_ID_NAME = "benchmark_item_id"

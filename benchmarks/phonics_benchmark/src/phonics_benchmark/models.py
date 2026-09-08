@@ -36,7 +36,5 @@ class GenerationBenchmarkItem(BaseModel):
     student_knowledge: dict[str, Any]
     difficulty_bucket: DifficultyBucket
     n_graphemes_known: int = Field(ge=0)
-
-    # Provenance for the placeholder cluster knowledge applied at build time;
-    # see curation.apply_placeholder_cluster_knowledge.
-    cluster_knowledge_source: NonEmptyStr
+    n_clusters_known: int = Field(ge=0)
+    n_cluster_patterns_known: int = Field(ge=0)

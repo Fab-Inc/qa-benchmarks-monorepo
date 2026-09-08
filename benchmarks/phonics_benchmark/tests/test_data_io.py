@@ -35,7 +35,12 @@ LANGUAGE = "testlang"
 PROFILE_RECORD = {
     "student_knowledge_id": "stu-001",
     "language_iso_code": "sw",
-    "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
+    "student_knowledge": {
+        "graphemes": ["a"],
+        "clusters": [],
+        "cluster_patterns": [],
+        "whole_words": ["mama", "paka"],
+    },
 }
 # One (scenario x profile) pairing — the shape of both generation item files.
 ITEM_RECORD = {
@@ -44,10 +49,16 @@ ITEM_RECORD = {
     "scenario": "Write a short story of about 50 words.",
     "student_knowledge_id": "stu-001",
     "language_iso_code": "sw",
-    "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
+    "student_knowledge": {
+        "graphemes": ["a"],
+        "clusters": [],
+        "cluster_patterns": [],
+        "whole_words": ["mama", "paka"],
+    },
     "difficulty_bucket": "very-early",
     "n_graphemes_known": 1,
-    "cluster_knowledge_source": "placeholder_all_patterns",
+    "n_clusters_known": 0,
+    "n_cluster_patterns_known": 0,
 }
 
 

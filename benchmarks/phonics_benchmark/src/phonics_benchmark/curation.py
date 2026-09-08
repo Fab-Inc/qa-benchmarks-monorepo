@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import pandas as pd
 
-from phonics_benchmark.models import DifficultyBucket
+from phonics_benchmark.models import DifficultyBucket, StudentKnowledge
 
 # Difficulty buckets by number of graphemes the student has been taught, each
 # with its inclusive upper bound. The last bucket is open-ended (None): a
@@ -32,10 +31,6 @@ DEV_SET_BUCKET_SIZES: Mapping[str, int] = {
 
 DEV_SET_RANDOM_STATE = 42
 
-# Marker recorded on every item built with placeholder cluster knowledge.
-PLACEHOLDER_CLUSTER_SOURCE = "placeholder_all_patterns"
-ORIGINAL_CLUSTER_SOURCE = "dataset"
-
 
 def get_difficulty_bucket(n_graphemes: int) -> DifficultyBucket:
     """Return the difficulty bucket for a profile that knows n_graphemes.
@@ -50,75 +45,47 @@ def get_difficulty_bucket(n_graphemes: int) -> DifficultyBucket:
     return open_ended  # type: ignore[return-value]
 
 
-def apply_placeholder_cluster_knowledge(
-    student_knowledge: Mapping[str, Any], language: str
-) -> tuple[dict[str, Any], str]:
-    """Fill in placeholder consonant-cluster knowledge where the profile has none.
+def profiles_to_dataframe(profiles: Iterable[StudentKnowledge]) -> pd.DataFrame:
+    """Turn validated student profiles into the frame the item builder consumes.
 
-    TODO(data-team): replace with real per-stage cluster knowledge. Tracked as a
-    follow-up; the profiles currently carry no cluster information at all.
+    Adds the derived columns the benchmark groups and reports by:
+    ``n_graphemes_known``, ``n_clusters_known``, ``n_cluster_patterns_known``
+    and ``difficulty_bucket``.
 
-    Every profile in the Kiswahili dataset omits ``clusters`` and
-    ``cluster_patterns``, which under the Kenya-Tusome aggregator makes *any*
-    word containing a consonant cluster non-decodable for *every* student. For
-    the most advanced profile only 4 word types in the corpus fail on graphemes
-    while 299 fail purely on clusters, putting everyday words like "mwalimu",
-    "ng'ombe" and "ndege" out of reach for a student who knows the entire
-    grapheme inventory. That is a data gap, not a curriculum rule, and it would
-    dominate the benchmark.
-
-    The placeholder marks every native cluster *pattern* as known and leaves
-    ``clusters`` empty, so loan clusters ("bl", "st", "br") stay undecodable.
-    Beginners are not inflated by this: the grapheme scorer still gates them, so
-    a four-grapheme profile moves from 1.6% to 1.8% of the corpus while a
-    full-inventory profile moves from 74.1% to 96.8%.
-
-    Returns the (possibly unchanged) knowledge dict and a provenance string.
-    A profile that already carries cluster knowledge is returned untouched.
+    Cluster counts are recorded because they carry real signal that the grapheme
+    count alone hides: only the grade-2 profiles have been taught consonant
+    clusters, so two profiles that both know all 31 graphemes can differ by more
+    than 20 percentage points of readable vocabulary depending on whether
+    clusters are among them.
     """
-    knowledge = dict(student_knowledge)
-    if knowledge.get("clusters") or knowledge.get("cluster_patterns"):
-        return knowledge, ORIGINAL_CLUSTER_SOURCE
-
-    if language != "sw":
-        # Only Kiswahili models cluster knowledge; nothing to fill in elsewhere.
-        return knowledge, ORIGINAL_CLUSTER_SOURCE
-
-    from decodability.kiswahili.definitions import ClusterPattern
-
-    knowledge["cluster_patterns"] = [pattern.value for pattern in ClusterPattern]
-    return knowledge, PLACEHOLDER_CLUSTER_SOURCE
-
-
-def extract_unique_profiles(records: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
-    """Collapse a record stream down to its distinct student knowledge profiles.
-
-    Profiles are deduplicated on the *content* of ``student_knowledge``, not on
-    ``student_knowledge_id``: the dataset reuses one knowledge blob across
-    several ids (15 of the grade-2 ids share a single profile), and running the
-    same prompt many times under different labels would buy no information while
-    skewing the difficulty mix.
-
-    The first id seen for each distinct profile is kept as its representative.
-    """
-    profiles: dict[str, dict[str, Any]] = {}
-    for record in records:
-        knowledge = record["student_knowledge"]
-        key = json.dumps(knowledge, sort_keys=True)
-        if key not in profiles:
-            profiles[key] = {
-                "student_knowledge_id": record["student_knowledge_id"],
-                "language_iso_code": record["language_iso_code"],
-                "student_knowledge": knowledge,
+    frame = pd.DataFrame(
+        [
+            {
+                "student_knowledge_id": profile.student_knowledge_id,
+                "language_iso_code": profile.language_iso_code,
+                "student_knowledge": profile.student_knowledge,
             }
-
-    frame = pd.DataFrame(list(profiles.values()))
+            for profile in profiles
+        ]
+    )
     if frame.empty:
         raise ValueError("No student knowledge profiles found in the input records")
 
-    frame["n_graphemes_known"] = frame["student_knowledge"].apply(
-        lambda knowledge: len(knowledge.get("graphemes", []))
-    )
+    duplicated = frame["student_knowledge_id"].duplicated()
+    if duplicated.any():
+        raise ValueError(
+            "Duplicate student_knowledge_id in profiles: "
+            f"{sorted(frame.loc[duplicated, 'student_knowledge_id'])}"
+        )
+
+    def count(field: str) -> pd.Series:
+        return frame["student_knowledge"].apply(
+            lambda knowledge: len(knowledge.get(field) or [])
+        )
+
+    frame["n_graphemes_known"] = count("graphemes")
+    frame["n_clusters_known"] = count("clusters")
+    frame["n_cluster_patterns_known"] = count("cluster_patterns")
     frame["difficulty_bucket"] = frame["n_graphemes_known"].apply(get_difficulty_bucket)
     return frame.sort_values("student_knowledge_id").reset_index(drop=True)
 
@@ -126,7 +93,6 @@ def extract_unique_profiles(records: Sequence[Mapping[str, Any]]) -> pd.DataFram
 def build_generation_items(
     profiles: pd.DataFrame,
     scenarios: Mapping[str, str],
-    language: str,
 ) -> pd.DataFrame:
     """Cross-join profiles x scenarios into the benchmark's item set.
 
@@ -144,12 +110,6 @@ def build_generation_items(
         ]
     )
     items = profiles.join(scenarios_df, how="cross")
-
-    cluster_knowledge = items["student_knowledge"].apply(
-        lambda knowledge: apply_placeholder_cluster_knowledge(knowledge, language)
-    )
-    items["student_knowledge"] = [knowledge for knowledge, _ in cluster_knowledge]
-    items["cluster_knowledge_source"] = [source for _, source in cluster_knowledge]
 
     items["benchmark_item_id"] = (
         items["scenario_id"].astype(str)
@@ -188,6 +148,10 @@ def sample_dev_profiles(
 
 def summarize_items(items: pd.DataFrame) -> dict[str, Any]:
     """Return a provenance/inspection summary of a built item set."""
+    profiles = items.drop_duplicates("student_knowledge_id")
+    taught_clusters = (
+        profiles["n_clusters_known"] + profiles["n_cluster_patterns_known"]
+    )
     return {
         "Total items": len(items),
         "Unique profiles": int(items["student_knowledge_id"].nunique()),
@@ -196,13 +160,9 @@ def summarize_items(items: pd.DataFrame) -> dict[str, Any]:
         .value_counts()
         .sort_index()
         .to_dict(),
-        "Profiles per difficulty bucket": items.drop_duplicates("student_knowledge_id")[
-            "difficulty_bucket"
-        ]
+        "Profiles per difficulty bucket": profiles["difficulty_bucket"]
         .value_counts()
         .sort_index()
         .to_dict(),
-        "Cluster knowledge source": items["cluster_knowledge_source"]
-        .value_counts()
-        .to_dict(),
+        "Profiles taught any consonant cluster": int((taught_clusters > 0).sum()),
     }
