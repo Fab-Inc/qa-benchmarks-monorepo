@@ -26,6 +26,8 @@ from phonics_benchmark.curation import (
     build_generation_items,
     profiles_to_dataframe,
     sample_dev_profiles,
+    select_smoke_profiles,
+    smoke_scenarios,
     summarize_items,
 )
 from phonics_benchmark.data_io import (
@@ -73,22 +75,29 @@ def main(
     )
 
     profiles_frame = profiles_to_dataframe(profiles)
-    items = build_generation_items(profiles_frame, scenarios)
-    dev_items = build_generation_items(sample_dev_profiles(profiles_frame), scenarios)
+    built = {
+        "full": build_generation_items(profiles_frame, scenarios),
+        "dev": build_generation_items(sample_dev_profiles(profiles_frame), scenarios),
+        # One profile per curriculum phase x the story scenario only: a 4-item
+        # set for cheap end-to-end checks before spending on a real run.
+        "smoke": build_generation_items(
+            select_smoke_profiles(profiles_frame), smoke_scenarios(scenarios)
+        ),
+    }
 
     write_dataset(
         language,
         data_root,
-        benchmark_items=convert_dataframe_to_records(items, GenerationBenchmarkItem),
-        benchmark_items_dev=convert_dataframe_to_records(
-            dev_items, GenerationBenchmarkItem
-        ),
+        item_sets={
+            name: convert_dataframe_to_records(frame, GenerationBenchmarkItem)
+            for name, frame in built.items()
+        },
     )
 
     data_dir = get_data_dir(language, data_root)
-    summary = {"full": summarize_items(items), "dev": summarize_items(dev_items)}
+    summary = {name: summarize_items(frame) for name, frame in built.items()}
     write_json(summary, data_dir / "benchmark_items_summary.json")
-    save_item_phase_histogram(items, data_dir / "benchmark_items_by_phase.png")
+    save_item_phase_histogram(built["full"], data_dir / "benchmark_items_by_phase.png")
 
     typer.echo(json.dumps(summary, indent=2))
     typer.echo(f"Wrote item sets to {data_dir}")

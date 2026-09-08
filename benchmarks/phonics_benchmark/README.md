@@ -116,9 +116,14 @@ breakdown rather than the pooled score.
 phonics-benchmark run-generation --config path/to/run.json
 ```
 
-Two configs are checked in: `configs/sw-generation-dev.json` (120 items — 30 stratified
-profiles x 4 scenarios) for fast iteration, and `configs/sw-generation-full.json` (624
-items — all 156 canonical profiles x 4 scenarios) for headline numbers.
+Three configs are checked in:
+
+- `configs/sw-generation-smoke.json` — 4 items (one profile per curriculum phase x the
+  `story` scenario), for a cheap end-to-end check before spending on a real run
+- `configs/sw-generation-dev.json` — 120 items (30 stratified profiles x 4 scenarios),
+  for fast iteration
+- `configs/sw-generation-full.json` — 624 items (all 156 canonical profiles x 4
+  scenarios), for headline numbers
 
 The same command can also be driven directly from CLI options:
 

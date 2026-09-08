@@ -29,6 +29,11 @@ This writes to `data/<language>/`:
   `src/phonics_benchmark/scenarios.yaml` (156 x 4 = 624 items for Kiswahili)
 - `benchmark_items_dev.jsonl`: a stratified sample of 30 profiles x 4 scenarios = 120
   items, for fast iteration
+- `benchmark_items_smoke.jsonl`: one profile per curriculum phase x the `story` scenario
+  = 4 items, for a cheap end-to-end check before spending on a real run. The
+  representative for each phase is the profile whose grapheme count is closest to that
+  phase's median, ties broken by id — no RNG, so the smoke set only changes when the
+  profile data does.
 - `benchmark_items_summary.json`: item counts and composition per curriculum phase
 - `benchmark_items_by_phase.png`: the same composition as a bar chart
 

@@ -13,8 +13,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from phonics_benchmark.data_io import (
-    BENCHMARK_ITEMS_DEV_FILENAME,
-    BENCHMARK_ITEMS_FILENAME,
+    ITEM_SET_FILENAMES,
     STUDENT_PROFILES_FILENAME,
     convert_dataframe_to_records,
     convert_records_to_dataframe,
@@ -96,7 +95,7 @@ READER_CASES = [
     ),
     pytest.param(
         read_benchmark_items,
-        BENCHMARK_ITEMS_FILENAME,
+        ITEM_SET_FILENAMES["full"],
         ITEM_RECORD,
         GenerationBenchmarkItem,
         "benchmark_item_id",
@@ -215,30 +214,32 @@ class TestWriteDataset:
             LANGUAGE,
             tmp_path,
             profiles=profiles,
-            benchmark_items=items,
-            benchmark_items_dev=items,
+            item_sets={"full": items, "dev": items, "smoke": items},
         )
 
         assert read_student_knowledge_profiles(LANGUAGE, tmp_path) == profiles
-        assert read_benchmark_items(LANGUAGE, tmp_path) == items
-        assert read_benchmark_items(LANGUAGE, tmp_path, dev=True) == items
+        for name in ITEM_SET_FILENAMES:
+            assert read_benchmark_items(LANGUAGE, tmp_path, item_set=name) == items
 
-    def test_dev_and_full_sets_are_separate_files(self, tmp_path) -> None:
-        """The dev set never overwrites the full set."""
-        full = [GenerationBenchmarkItem(**ITEM_RECORD)]
-        dev = [
-            GenerationBenchmarkItem(
-                **{**ITEM_RECORD, "benchmark_item_id": "story_stu-dev"}
-            )
-        ]
+    def test_each_item_set_is_a_separate_file(self, tmp_path) -> None:
+        """The sets never overwrite each other."""
+        by_set = {
+            name: [
+                GenerationBenchmarkItem(
+                    **{**ITEM_RECORD, "benchmark_item_id": f"story_{name}"}
+                )
+            ]
+            for name in ITEM_SET_FILENAMES
+        }
 
-        write_dataset(LANGUAGE, tmp_path, benchmark_items=full, benchmark_items_dev=dev)
+        write_dataset(LANGUAGE, tmp_path, item_sets=by_set)
 
         data_dir = get_data_dir(LANGUAGE, tmp_path)
-        assert (data_dir / BENCHMARK_ITEMS_FILENAME).is_file()
-        assert (data_dir / BENCHMARK_ITEMS_DEV_FILENAME).is_file()
-        assert read_benchmark_items(LANGUAGE, tmp_path) == full
-        assert read_benchmark_items(LANGUAGE, tmp_path, dev=True) == dev
+        for name, filename in ITEM_SET_FILENAMES.items():
+            assert (data_dir / filename).is_file()
+            assert (
+                read_benchmark_items(LANGUAGE, tmp_path, item_set=name) == by_set[name]
+            )
 
     def test_writes_multiple_records_as_separate_lines(self, tmp_path) -> None:
         """Consecutive records stay separate — no missing newline gluing them."""
@@ -265,7 +266,23 @@ class TestWriteDataset:
         data_dir = write_dataset(
             LANGUAGE, tmp_path, profiles=[StudentKnowledge(**PROFILE_RECORD)]
         )
-        assert not (data_dir / BENCHMARK_ITEMS_FILENAME).exists()
+        for filename in ITEM_SET_FILENAMES.values():
+            assert not (data_dir / filename).exists()
+
+    def test_unknown_item_set_name_raises(self, tmp_path) -> None:
+        """A typo'd set name fails rather than writing an unexpected file."""
+        items = [GenerationBenchmarkItem(**ITEM_RECORD)]
+        with pytest.raises(ValueError, match="Unknown item_set 'nope'"):
+            write_dataset(LANGUAGE, tmp_path, item_sets={"nope": items})
+
+
+class TestReadBenchmarkItems:
+    """Selecting between the item sets by name."""
+
+    def test_unknown_item_set_name_raises(self, tmp_path) -> None:
+        """Reading a set that does not exist names the valid ones."""
+        with pytest.raises(ValueError, match="Unknown item_set 'nope'"):
+            read_benchmark_items(LANGUAGE, tmp_path, item_set="nope")
 
 
 class TestDataFrameBoundary:

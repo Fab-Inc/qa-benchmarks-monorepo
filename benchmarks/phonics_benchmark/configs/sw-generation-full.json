@@ -28,7 +28,7 @@
       "dialogue",
       "sentences"
     ],
-    "provenance": "data team -> student_knowledge_profiles.jsonl -> scripts/build_benchmark_items.py",
+    "provenance": "data store -> student_knowledge_profiles.jsonl -> scripts/build_benchmark_items.py",
     "profiles": "156 canonical profiles from data/kiswahili/student_knowledge_profiles.jsonl"
   }
 }

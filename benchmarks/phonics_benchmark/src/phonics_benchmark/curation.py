@@ -31,6 +31,10 @@ DEV_SET_PHASE_SIZES: Mapping[str, int] = {
 
 DEV_SET_RANDOM_STATE = 42
 
+# The smoke set is one profile per curriculum phase, crossed with this one
+# scenario, giving a 4-item set for cheap end-to-end checks.
+SMOKE_SET_SCENARIO_ID = "story"
+
 
 def get_curriculum_phase(n_graphemes: int) -> CurriculumPhase:
     """Return the curriculum phase for a profile that knows n_graphemes.
@@ -144,6 +148,46 @@ def sample_dev_profiles(
         raise ValueError("Dev sample is empty: no profiles matched any phase")
 
     return pd.concat(sampled).sort_values("student_knowledge_id").reset_index(drop=True)
+
+
+def select_smoke_profiles(profiles: pd.DataFrame) -> pd.DataFrame:
+    """Pick one representative profile per curriculum phase, for the smoke set.
+
+    Deterministic without a seed: within each phase the profile whose
+    ``n_graphemes_known`` is closest to that phase's median is chosen, ties
+    broken by ``student_knowledge_id``. A median member is more representative
+    of its phase than a random draw, and using no RNG means the smoke set only
+    changes when the profile data does.
+    """
+    if profiles.empty:
+        raise ValueError("Cannot select smoke profiles: no student knowledge profiles")
+
+    selected = []
+    for phase, _ in CURRICULUM_PHASES:
+        available = profiles[profiles["curriculum_phase"] == phase]
+        if available.empty:
+            continue
+        median = available["n_graphemes_known"].median()
+        ranked = available.assign(
+            _distance=(available["n_graphemes_known"] - median).abs()
+        ).sort_values(["_distance", "student_knowledge_id"])
+        selected.append(ranked.drop(columns="_distance").iloc[[0]])
+
+    if not selected:
+        raise ValueError("Smoke set is empty: no profiles matched any phase")
+
+    return pd.concat(selected).reset_index(drop=True)
+
+
+def smoke_scenarios(scenarios: Mapping[str, str]) -> dict[str, str]:
+    """Return just the one scenario the smoke set uses."""
+    try:
+        return {SMOKE_SET_SCENARIO_ID: scenarios[SMOKE_SET_SCENARIO_ID]}
+    except KeyError:
+        raise ValueError(
+            f"Smoke set needs a '{SMOKE_SET_SCENARIO_ID}' scenario; available: "
+            f"{sorted(scenarios)}"
+        ) from None
 
 
 def summarize_items(items: pd.DataFrame) -> dict[str, Any]:

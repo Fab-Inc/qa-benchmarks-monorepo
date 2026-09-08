@@ -3,10 +3,13 @@
 import pandas as pd
 import pytest
 from phonics_benchmark.curation import (
+    SMOKE_SET_SCENARIO_ID,
     build_generation_items,
     get_curriculum_phase,
     profiles_to_dataframe,
     sample_dev_profiles,
+    select_smoke_profiles,
+    smoke_scenarios,
     summarize_items,
 )
 from phonics_benchmark.models import StudentKnowledge
@@ -249,3 +252,92 @@ class TestSummarizeItems:
             "very-early": 1,
         }
         assert summary["Profiles taught any consonant cluster"] == 1
+
+
+class TestSelectSmokeProfiles:
+    """The 4-item smoke set: one profile per curriculum phase."""
+
+    @pytest.fixture
+    def profiles(self) -> pd.DataFrame:
+        records = []
+        # Spread across all four phases, several profiles per phase.
+        for phase_size, count in ((4, 3), (14, 3), (21, 3), (28, 3)):
+            for i in range(count):
+                records.append(
+                    make_profile(f"p{phase_size}-{i}", ["a"] * (phase_size + i))
+                )
+        return profiles_to_dataframe(records)
+
+    def test_picks_exactly_one_profile_per_phase(self, profiles: pd.DataFrame) -> None:
+        """Four phases in, four profiles out — one representative of each."""
+        smoke = select_smoke_profiles(profiles)
+        assert len(smoke) == 4
+        assert sorted(smoke["curriculum_phase"]) == [
+            "early",
+            "late",
+            "mid",
+            "very-early",
+        ]
+
+    def test_picks_the_phase_median(self, profiles: pd.DataFrame) -> None:
+        """The representative is the median-grapheme profile for its phase.
+
+        A median member is more typical of its phase than a random draw.
+        """
+        smoke = select_smoke_profiles(profiles).set_index("curriculum_phase")
+        # very-early holds 4, 5 and 6 graphemes -> median 5
+        assert smoke.loc["very-early", "n_graphemes_known"] == 5
+
+    def test_is_deterministic_without_a_seed(self, profiles: pd.DataFrame) -> None:
+        """No RNG at all, so the set only changes when the profile data does."""
+        first = select_smoke_profiles(profiles)
+        second = select_smoke_profiles(profiles)
+        assert list(first["student_knowledge_id"]) == list(
+            second["student_knowledge_id"]
+        )
+
+    def test_ties_are_broken_by_id(self) -> None:
+        """An even-sized phase has two equidistant candidates; id decides."""
+        records = [
+            make_profile("z-second", ["a"] * 4),
+            make_profile("a-first", ["a"] * 6),
+        ]
+        smoke = select_smoke_profiles(profiles_to_dataframe(records))
+        assert list(smoke["student_knowledge_id"]) == ["a-first"]
+
+    def test_phases_with_no_profiles_are_skipped(self) -> None:
+        """A phase nobody occupies simply contributes nothing."""
+        smoke = select_smoke_profiles(
+            profiles_to_dataframe([make_profile("only", ["a"] * 30)])
+        )
+        assert list(smoke["curriculum_phase"]) == ["late"]
+
+    def test_empty_input_raises(self) -> None:
+        """No profiles means no smoke set."""
+        with pytest.raises(ValueError, match="no student knowledge profiles"):
+            select_smoke_profiles(pd.DataFrame())
+
+
+class TestSmokeScenarios:
+    """The smoke set deliberately uses one scenario only."""
+
+    def test_returns_only_the_smoke_scenario(self) -> None:
+        """Keeps the smoke set at one item per phase rather than four."""
+        assert smoke_scenarios(SCENARIOS) == {
+            SMOKE_SET_SCENARIO_ID: SCENARIOS[SMOKE_SET_SCENARIO_ID]
+        }
+
+    def test_missing_smoke_scenario_raises(self) -> None:
+        """Renaming the story scenario must not silently empty the smoke set."""
+        with pytest.raises(ValueError, match=f"needs a '{SMOKE_SET_SCENARIO_ID}'"):
+            smoke_scenarios({"dialogue": "Write a dialogue."})
+
+    def test_smoke_set_is_one_item_per_phase(self) -> None:
+        """End to end: 4 phases x 1 scenario = 4 items."""
+        records = [make_profile(f"p{n}", ["a"] * n) for n in (4, 14, 21, 28)]
+        frame = profiles_to_dataframe(records)
+        items = build_generation_items(
+            select_smoke_profiles(frame), smoke_scenarios(SCENARIOS)
+        )
+        assert len(items) == 4
+        assert set(items["scenario_id"]) == {SMOKE_SET_SCENARIO_ID}

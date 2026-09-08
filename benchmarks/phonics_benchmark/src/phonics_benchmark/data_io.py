@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 from decodability import DECODABILITY_REGISTRY
@@ -17,8 +18,17 @@ from phonics_benchmark.models import (
 )
 
 STUDENT_PROFILES_FILENAME = "student_knowledge_profiles.jsonl"
-BENCHMARK_ITEMS_FILENAME = "benchmark_items.jsonl"
-BENCHMARK_ITEMS_DEV_FILENAME = "benchmark_items_dev.jsonl"
+
+# The benchmark ships three item sets, all with the same schema; they differ only
+# in which profiles and scenarios they cover. Keyed by name so adding a set is a
+# one-line change here rather than a new boolean flag on every function.
+type ItemSet = Literal["full", "dev", "smoke"]
+
+ITEM_SET_FILENAMES: Mapping[ItemSet, str] = {
+    "full": "benchmark_items.jsonl",
+    "dev": "benchmark_items_dev.jsonl",
+    "smoke": "benchmark_items_smoke.jsonl",
+}
 
 STUDENT_PROFILES_ID_NAME = "student_knowledge_id"
 BENCHMARK_ITEM_ID_NAME = "benchmark_item_id"
@@ -94,17 +104,23 @@ def read_student_knowledge_profiles(
 
 
 def read_benchmark_items(
-    language: str, data_root: Path, *, dev: bool = False
+    language: str, data_root: Path, *, item_set: ItemSet = "full"
 ) -> list[GenerationBenchmarkItem]:
-    """Parse the generation item set the benchmark runs.
+    """Parse one of the generation item sets the benchmark runs.
 
-    ``dev=True`` reads the smaller stratified dev set instead of the full one.
-    Both files share a schema: the dev set selects rows, it doesn't reshape them.
+    All three sets share a schema: ``dev`` and ``smoke`` select rows, they do
+    not reshape them.
     """
+    try:
+        filename = ITEM_SET_FILENAMES[item_set]
+    except KeyError:
+        raise ValueError(
+            f"Unknown item_set '{item_set}'; available: {sorted(ITEM_SET_FILENAMES)}"
+        ) from None
     return _read_records(
         language,
         data_root,
-        BENCHMARK_ITEMS_DEV_FILENAME if dev else BENCHMARK_ITEMS_FILENAME,
+        filename,
         GenerationBenchmarkItem,
         BENCHMARK_ITEM_ID_NAME,
     )
@@ -130,25 +146,29 @@ def write_dataset(
     data_root: Path,
     *,
     profiles: Iterable[StudentKnowledge] | None = None,
-    benchmark_items: Iterable[GenerationBenchmarkItem] | None = None,
-    benchmark_items_dev: Iterable[GenerationBenchmarkItem] | None = None,
+    item_sets: Mapping[ItemSet, Iterable[GenerationBenchmarkItem]] | None = None,
 ) -> Path:
     """Write the given records into data_root/<language>/, creating it if needed.
 
-    Only the collections passed are written.
+    Only the collections passed are written. ``item_sets`` is keyed by item-set
+    name (see ``ITEM_SET_FILENAMES``).
 
     Returns the data directory that was written to.
     """
     data_dir = get_data_dir(language, data_root)
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    for records, filename in (
-        (profiles, STUDENT_PROFILES_FILENAME),
-        (benchmark_items, BENCHMARK_ITEMS_FILENAME),
-        (benchmark_items_dev, BENCHMARK_ITEMS_DEV_FILENAME),
-    ):
-        if records is not None:
-            write_jsonl(records, data_dir / filename)
+    if profiles is not None:
+        write_jsonl(profiles, data_dir / STUDENT_PROFILES_FILENAME)
+
+    for name, records in (item_sets or {}).items():
+        try:
+            filename = ITEM_SET_FILENAMES[name]
+        except KeyError:
+            raise ValueError(
+                f"Unknown item_set '{name}'; available: {sorted(ITEM_SET_FILENAMES)}"
+            ) from None
+        write_jsonl(records, data_dir / filename)
 
     return data_dir
 
