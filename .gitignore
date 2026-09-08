@@ -19,17 +19,16 @@ benchmarks/linguistic_knowledge_benchmark/results/web
 benchmarks/linguistic_knowledge_benchmark/results/validation
 benchmarks/linguistic_knowledge_benchmark/results/consistency
 benchmarks/linguistic_knowledge_benchmark/results/paper_figures
-# scripts/workflow/check_supported_models.py --report output (model smoke-test).
+# scripts/workflow/check_supported_models.py.
 benchmarks/linguistic_knowledge_benchmark/check_full.csv
-# Per-question detail CSV -- Ignored as too large to commit
+## Gitignored to avoid leaking any dataset content besides the subsets on HuggingFace.
 benchmarks/linguistic_knowledge_benchmark/results/summary_linguistic-knowledge_*_detailed.csv
-# The N-times-repeated dataset build_consistency_dataset.py builds for the
-# "consistency" check -- large, regenerable with that one script.
 benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_*_[0-9]*x.json
-# Full private item sets -- kept local-only ahead of open-sourcing the repo; only
-# the curated 20-item public subset (data/hf_subset_*.json) stays tracked.
 benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_english.json
 benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_kiswahili.json
+# Contains selected_dataset*.json -- literal copies of real question items from the
+# IRT item-selection pipeline, same leakage concern as the full eval datasets above.
+benchmarks/linguistic_knowledge_benchmark/results/irt/
 
 .vscode/
 
