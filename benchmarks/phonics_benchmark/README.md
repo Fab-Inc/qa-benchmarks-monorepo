@@ -20,10 +20,14 @@ the [Cloud Run deployment guide](../../deploy/README.md).
 Each item is scored on the share of its words the student could actually read:
 
 ```text
-tokens        = extract_words(generated_text)   # every occurrence, not unique words
-r             = non_decodable_tokens / total_tokens
+words         = extract_words(generated_text)   # every occurrence, not unique words
+r             = n_nondecodable_words / n_words
 graded_score  = (1 - r) ** 20                   # REFERENCE_LENGTH = 20
 ```
+
+Throughout this benchmark "word" means an actual word of the generated text, counted per
+occurrence — never an LLM token. (Result rows also carry `tokens_used_completion`, which
+*is* an LLM token count.) Metrics named `unique_*` are the distinct-word equivalents.
 
 `graded_score` reads as *"the probability that a randomly drawn 20-word passage from
 this text is fully decodable"* — a strict pass rate normalised to a reference sentence
@@ -54,15 +58,15 @@ all recorded so under-length or degenerately repetitive responses can be audited
 
 `scripts/report_on_benchmark_run.py` emits per model:
 
-| Metric                                                                  | Meaning                                                                        |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `graded_score`                                                          | The headline score above, averaged over items                                  |
-| `strict_pass_rate`                                                      | Share of texts with *zero* non-decodable words                                 |
-| `word_decodable_rate`                                                   | Pooled token-level rate; `type_decodable_rate` is its unique-word variant      |
-| `nondecodable_per_100_words`                                            | Error density, in the style of a word error rate                               |
-| `format_failure_rate`                                                   | Share of responses that omitted the `<text>` tags                              |
-| `pooled_n_fail_<scorer>`                                                | Which scorer rejected each failure, e.g. untaught grapheme vs untaught cluster |
-| `mean_n_words`, `mean_unique_word_ratio`, `under_reference_length_rate` | Length/diversity diagnostics, never scored                                     |
+| Metric                                                                  | Meaning                                                                                    |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `graded_score`                                                          | The headline score above, averaged over items                                              |
+| `strict_pass_rate`                                                      | Share of texts with *zero* non-decodable words                                             |
+| `word_decodable_rate`                                                   | Pooled rate per word occurrence; `unique_word_decodable_rate` is the distinct-word variant |
+| `nondecodable_per_100_words`                                            | Error density, in the style of a word error rate                                           |
+| `format_failure_rate`                                                   | Share of responses that omitted the `<text>` tags                                          |
+| `pooled_n_fail_<scorer>`                                                | Which scorer rejected each failure, e.g. untaught grapheme vs untaught cluster             |
+| `mean_n_words`, `mean_unique_word_ratio`, `under_reference_length_rate` | Length/diversity diagnostics, never scored                                                 |
 
 All of these are also broken out by student curriculum phase and by scenario.
 

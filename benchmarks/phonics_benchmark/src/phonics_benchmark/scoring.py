@@ -36,7 +36,7 @@ REFERENCE_LENGTH = 20
 FAILURE_PREFIX = "n_fail_"
 
 
-def graded_score(n_words: int, n_nondecodable_tokens: int) -> float:
+def graded_score(n_words: int, n_nondecodable_words: int) -> float:
     """Return the length-normalised decodability score for one text.
 
     Returns 0.0 for an empty text: a model that writes nothing has not written
@@ -44,7 +44,7 @@ def graded_score(n_words: int, n_nondecodable_tokens: int) -> float:
     """
     if n_words <= 0:
         return 0.0
-    nondecodable_rate = n_nondecodable_tokens / n_words
+    nondecodable_rate = n_nondecodable_words / n_words
     return (1.0 - nondecodable_rate) ** REFERENCE_LENGTH
 
 
@@ -75,11 +75,11 @@ def add_per_item_decodability(results: pd.DataFrame, language: str) -> pd.DataFr
                     "n_words": math.nan,
                     "n_unique_words": math.nan,
                     "unique_word_ratio": math.nan,
-                    "n_nondecodable_tokens": math.nan,
-                    "n_nondecodable_types": math.nan,
-                    "nondecodable_types": [],
+                    "n_nondecodable_words": math.nan,
+                    "n_unique_nondecodable_words": math.nan,
+                    "unique_nondecodable_words": [],
                     "word_decodable_rate": math.nan,
-                    "type_decodable_rate": math.nan,
+                    "unique_word_decodable_rate": math.nan,
                     "graded_score": 0.0,
                     "strict_pass": False,
                     "format_failure": True,
@@ -104,11 +104,11 @@ def add_per_item_decodability(results: pd.DataFrame, language: str) -> pd.DataFr
                     "n_words": 0,
                     "n_unique_words": 0,
                     "unique_word_ratio": math.nan,
-                    "n_nondecodable_tokens": 0,
-                    "n_nondecodable_types": 0,
-                    "nondecodable_types": [],
+                    "n_nondecodable_words": 0,
+                    "n_unique_nondecodable_words": 0,
+                    "unique_nondecodable_words": [],
                     "word_decodable_rate": math.nan,
-                    "type_decodable_rate": math.nan,
+                    "unique_word_decodable_rate": math.nan,
                     "graded_score": 0.0,
                     "strict_pass": False,
                     "format_failure": False,
@@ -122,17 +122,17 @@ def add_per_item_decodability(results: pd.DataFrame, language: str) -> pd.DataFr
                 "n_words": result.n_words,
                 "n_unique_words": result.n_unique_words,
                 "unique_word_ratio": result.n_unique_words / result.n_words,
-                "n_nondecodable_tokens": result.n_nondecodable_tokens,
-                "n_nondecodable_types": result.n_nondecodable_types,
-                "nondecodable_types": result.nondecodable_types,
+                "n_nondecodable_words": result.n_nondecodable_words,
+                "n_unique_nondecodable_words": result.n_unique_nondecodable_words,
+                "unique_nondecodable_words": result.unique_nondecodable_words,
                 "word_decodable_rate": 1.0
-                - result.n_nondecodable_tokens / result.n_words,
-                "type_decodable_rate": 1.0
-                - result.n_nondecodable_types / result.n_unique_words,
+                - result.n_nondecodable_words / result.n_words,
+                "unique_word_decodable_rate": 1.0
+                - result.n_unique_nondecodable_words / result.n_unique_words,
                 "graded_score": graded_score(
-                    result.n_words, result.n_nondecodable_tokens
+                    result.n_words, result.n_nondecodable_words
                 ),
-                "strict_pass": result.n_nondecodable_tokens == 0,
+                "strict_pass": result.n_nondecodable_words == 0,
                 "format_failure": False,
                 "under_reference_length": result.n_words < REFERENCE_LENGTH,
                 **{
@@ -153,9 +153,9 @@ def add_per_item_decodability(results: pd.DataFrame, language: str) -> pd.DataFr
         "strict_pass",
         "format_failure",
         "n_words",
-        "n_nondecodable_tokens",
+        "n_nondecodable_words",
         "n_unique_words",
-        "n_nondecodable_types",
+        "n_unique_nondecodable_words",
         "unique_word_ratio",
         "under_reference_length",
     ]
@@ -164,7 +164,7 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     """Per-model headline metrics plus diagnostics.
 
     ``graded_score`` and ``strict_pass_rate`` are computed over *all* items,
-    counting a format failure as a zero. The pooled word/type rates and the
+    counting a format failure as a zero. The pooled word rates and the
     length diagnostics are computed over scorable items only, so a formatting
     problem stays visible as itself rather than masquerading as poor phonics.
 
@@ -186,9 +186,9 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
             "n_items": grouped["benchmark_item_id"].count(),
             "graded_score": grouped["graded_score"].mean(),
             "strict_pass_rate": grouped["strict_pass"].mean(),
-            "word_decodable_rate": pooled_rate("n_nondecodable_tokens", "n_words"),
-            "type_decodable_rate": pooled_rate(
-                "n_nondecodable_types", "n_unique_words"
+            "word_decodable_rate": pooled_rate("n_nondecodable_words", "n_words"),
+            "unique_word_decodable_rate": pooled_rate(
+                "n_unique_nondecodable_words", "n_unique_words"
             ),
             "format_failure_rate": grouped["format_failure"].mean(),
             "mean_n_words": scorable_grouped["n_words"].mean().reindex(models),
@@ -202,7 +202,7 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     )
 
     total_words = scorable_grouped["n_words"].sum().reindex(models)
-    total_nondecodable = scorable_grouped["n_nondecodable_tokens"].sum().reindex(models)
+    total_nondecodable = scorable_grouped["n_nondecodable_words"].sum().reindex(models)
     summary["nondecodable_per_100_words"] = (
         100.0 * total_nondecodable / total_words
     ).where(total_words > 0)

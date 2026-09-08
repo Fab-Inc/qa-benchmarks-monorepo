@@ -74,17 +74,23 @@ def resolve_decodability_config(
 class TextDecodabilityResult(NamedTuple):
     """Per-text decodability counts produced by ``score_text_decodability``.
 
-    Counts are over *tokens* (every occurrence), except ``*_types`` which are
-    over unique lowercased words. ``failure_causes`` maps each scorer's column
-    name to the number of non-decodable tokens that scorer rejected, which is
-    what separates e.g. an untaught grapheme from an untaught consonant cluster.
+    Counts are **per occurrence**: a word repeated three times counts three
+    times. The ``*_unique_*`` fields are the distinct-word equivalents, counted
+    over lowercased words, so ``n_unique_nondecodable_words`` always equals
+    ``len(unique_nondecodable_words)``.
+
+    Note that "word" here means an actual word of the text, never an LLM token.
+
+    ``failure_causes`` maps each scorer's column name to the number of
+    non-decodable word occurrences that scorer rejected, which is what separates
+    e.g. an untaught grapheme from an untaught consonant cluster.
     """
 
     n_words: int
     n_unique_words: int
-    n_nondecodable_tokens: int
-    n_nondecodable_types: int
-    nondecodable_types: list[str]
+    n_nondecodable_words: int
+    n_unique_nondecodable_words: int
+    unique_nondecodable_words: list[str]
     failure_causes: dict[str, int]
 
 
@@ -96,22 +102,22 @@ def score_text_decodability(
     *,
     score_column: str,
 ) -> TextDecodabilityResult:
-    """Tokenize ``text`` and score every token for decodability.
+    """Split ``text`` into words and score each one for decodability.
 
     A word is treated as non-decodable when its aggregated score is exactly
     0.0, matching the convention of the `decodability` package's curriculum
     aggregators (which are binary).
 
-    Each unique word is scored once and the verdict mapped back onto every
-    token occurrence: the row-wise aggregations are documented as slow, and a
+    Each distinct word is scored once and the verdict mapped back onto every
+    occurrence of it: the row-wise aggregations are documented as slow, and a
     text for an early reader repeats words heavily.
 
     An empty text (or one with no extractable words) returns an all-zero
     result; the caller decides what score that earns.
     """
     objs = DECODABILITY_REGISTRY[language]
-    tokens = objs["extract_words"](text)
-    if not tokens:
+    words = objs["extract_words"](text)
+    if not words:
         return TextDecodabilityResult(0, 0, 0, 0, [], {})
 
     scoring_methods, aggregations = resolve_decodability_config(config, language)
@@ -127,26 +133,27 @@ def score_text_decodability(
 
     # TODO: push out any normalization such as lowercasing or deduplication
     # to the decodability package in the future
-    lowered = [token.lower() for token in tokens]
-    types = sorted(set(lowered))
+    lowered = [word.lower() for word in words]
+    unique_words = sorted(set(lowered))
 
     scores = annotate_words(
-        types,
+        unique_words,
         scoring_methods=scoring_methods,
         student_knowledge=student_knowledge_model,
         aggregations=aggregations,
     )
 
     nondecodable_mask = scores[score_column] == 0.0
-    nondecodable_types = sorted(scores["word"][nondecodable_mask].tolist())
-    nondecodable_type_set = set(nondecodable_types)
+    unique_nondecodable_words = sorted(scores["word"][nondecodable_mask].tolist())
+    nondecodable_word_set = set(unique_nondecodable_words)
 
-    token_counts = Counter(lowered)
-    n_nondecodable_tokens = sum(token_counts[word] for word in nondecodable_type_set)
+    word_counts = Counter(lowered)
+    n_nondecodable_words = sum(word_counts[word] for word in nondecodable_word_set)
 
-    # Attribute each non-decodable token to every scorer that rejected it. A
+    # Attribute each non-decodable word occurrence to every scorer that
+    # rejected it. A
     # word can fail more than one scorer, so these counts need not sum to
-    # n_nondecodable_tokens.
+    # n_nondecodable_words.
     scorer_columns = [
         column
         for column in scores.columns
@@ -154,17 +161,17 @@ def score_text_decodability(
     ]
     failure_causes = {
         column: sum(
-            token_counts[word]
+            word_counts[word]
             for word in scores["word"][nondecodable_mask & (scores[column] == 0.0)]
         )
         for column in scorer_columns
     }
 
     return TextDecodabilityResult(
-        n_words=len(tokens),
-        n_unique_words=len(types),
-        n_nondecodable_tokens=n_nondecodable_tokens,
-        n_nondecodable_types=len(nondecodable_types),
-        nondecodable_types=nondecodable_types,
+        n_words=len(words),
+        n_unique_words=len(unique_words),
+        n_nondecodable_words=n_nondecodable_words,
+        n_unique_nondecodable_words=len(unique_nondecodable_words),
+        unique_nondecodable_words=unique_nondecodable_words,
         failure_causes=failure_causes,
     )

@@ -102,30 +102,30 @@ class TestResolveDecodabilityConfig:
 
 
 class TestScoreTextDecodability:
-    """Scoring a whole generated text token by token."""
+    """Scoring a whole generated text word by word."""
 
-    def test_counts_tokens_not_types(self) -> None:
+    def test_counts_words_not_unique_words(self) -> None:
         """Every occurrence counts, so repetition of a bad word is repeated harm."""
         result = score("Mama mwalimu mama mwalimu.")
         assert result.n_words == 4
         assert result.n_unique_words == 2
-        assert result.n_nondecodable_tokens == 2
-        assert result.n_nondecodable_types == 1
+        assert result.n_nondecodable_words == 2
+        assert result.n_unique_nondecodable_words == 1
 
     def test_names_the_nondecodable_words_lowercased_and_sorted(self) -> None:
-        """The offending types are reported for inspection, in a stable order."""
+        """The offending words are reported for inspection, in a stable order."""
         result = score("Mwalimu anaona mbuzi.")
-        assert result.nondecodable_types == ["mbuzi", "mwalimu"]
+        assert result.unique_nondecodable_words == ["mbuzi", "mwalimu"]
 
     def test_case_is_ignored_when_scoring(self) -> None:
         """A capitalised word is the same word: no double-counting."""
-        assert score("Mama mama MAMA.").n_nondecodable_tokens == 0
+        assert score("Mama mama MAMA.").n_nondecodable_words == 0
 
     def test_fully_decodable_text_has_no_failures(self) -> None:
-        """A text within the student's knowledge yields zero non-decodable tokens."""
+        """A text within the student's knowledge yields zero non-decodable words."""
         result = score("Mama anaona paka.")
-        assert result.n_nondecodable_tokens == 0
-        assert result.nondecodable_types == []
+        assert result.n_nondecodable_words == 0
+        assert result.unique_nondecodable_words == []
 
     def test_attributes_failures_per_scorer(self) -> None:
         """Failure causes are keyed by scorer so grapheme vs cluster is separable."""
@@ -141,23 +141,24 @@ class TestScoreTextDecodability:
     def test_cluster_patterns_make_cluster_words_decodable(self) -> None:
         """Marking the native cluster patterns known unblocks words like mwalimu.
 
-        This is the mechanism the dataset's placeholder cluster knowledge uses.
+        This is how the grade-2 profiles in the canonical dataset express the
+        cluster knowledge that lets a student read cluster words at all.
         """
         with_patterns = dict(KNOWLEDGE)
         with_patterns["cluster_patterns"] = ["labialised_glide"]
-        assert score("mwalimu", with_patterns).n_nondecodable_tokens == 0
-        assert score("mwalimu").n_nondecodable_tokens == 1
+        assert score("mwalimu", with_patterns).n_nondecodable_words == 0
+        assert score("mwalimu").n_nondecodable_words == 1
 
     def test_empty_text_returns_an_all_zero_result(self) -> None:
         """Nothing to score is not an error; the caller decides the score."""
         result = score("")
         assert result.n_words == 0
         assert result.n_unique_words == 0
-        assert result.nondecodable_types == []
+        assert result.unique_nondecodable_words == []
         assert result.failure_causes == {}
 
     def test_text_of_only_punctuation_yields_no_words(self) -> None:
-        """The tokenizer drops punctuation and digits, leaving nothing to score."""
+        """The word extractor drops punctuation and digits, leaving nothing to score."""
         assert score("123 --- !!!").n_words == 0
 
     def test_rejects_a_score_column_the_config_does_not_produce(self) -> None:

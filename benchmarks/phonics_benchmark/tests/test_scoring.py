@@ -108,30 +108,30 @@ class TestPerItemDecodability:
         assert row["graded_score"] == 1.0
         assert row["strict_pass"]
         assert row["word_decodable_rate"] == 1.0
-        assert row["nondecodable_types"] == []
+        assert row["unique_nondecodable_words"] == []
 
     def test_flags_nondecodable_words(self) -> None:
         """Words needing an untaught cluster are counted and named."""
         row = score_one("Mama anaona mwalimu.")
         assert row["n_words"] == 3
-        assert row["n_nondecodable_tokens"] == 1
-        assert row["nondecodable_types"] == ["mwalimu"]
+        assert row["n_nondecodable_words"] == 1
+        assert row["unique_nondecodable_words"] == ["mwalimu"]
         assert not row["strict_pass"]
         assert row["graded_score"] == pytest.approx((2 / 3) ** REFERENCE_LENGTH)
 
     def test_counts_every_occurrence_of_a_repeated_bad_word(self) -> None:
-        """The rate is per token: a repeated bad word is a repeated failure."""
+        """The rate is per occurrence: a repeated bad word is a repeated failure."""
         row = score_one("Mama mwalimu mama mwalimu.")
         assert row["n_words"] == 4
-        assert row["n_nondecodable_tokens"] == 2
-        assert row["n_nondecodable_types"] == 1
+        assert row["n_nondecodable_words"] == 2
+        assert row["n_unique_nondecodable_words"] == 1
         assert row["word_decodable_rate"] == pytest.approx(0.5)
 
-    def test_token_and_type_rates_diverge_under_repetition(self) -> None:
-        """Padding with a safe word dilutes the token rate but not the type rate."""
+    def test_word_and_unique_rates_diverge_under_repetition(self) -> None:
+        """Padding with a safe word dilutes the per-word rate, not the unique rate."""
         row = score_one("mwalimu " + "mama " * 9)
         assert row["word_decodable_rate"] == pytest.approx(0.9)
-        assert row["type_decodable_rate"] == pytest.approx(0.5)
+        assert row["unique_word_decodable_rate"] == pytest.approx(0.5)
 
     def test_empty_text_scores_zero_with_undefined_rates(self) -> None:
         """An empty text earns zero, but its rates are NaN not a flattering 1.0."""
@@ -164,8 +164,8 @@ class TestPerItemDecodability:
         """The cause split separates an untaught cluster from an untaught grapheme.
 
         With the whole inventory minus clusters taught, "mwalimu" fails only on
-        its cluster — the diagnostic that matters given the placeholder cluster
-        knowledge in the dataset.
+        its cluster — the diagnostic that matters because only the grade-2
+        profiles in the dataset are taught clusters.
         """
         row = score_one("Mama anaona mwalimu.")
         assert row["n_fail_score_known_clusters_and_patterns_kiswahili"] == 1
@@ -217,7 +217,7 @@ class TestSummarizeByModel:
     def test_pooled_rates_exclude_format_failures(self, scored: pd.DataFrame) -> None:
         """Word rates describe phonics, so an unparsed response is left out."""
         summary = summarize_by_model(scored).iloc[0]
-        # 6 tokens across the two scorable texts, 1 of them non-decodable.
+        # 6 words across the two scorable texts, 1 of them non-decodable.
         assert summary["word_decodable_rate"] == pytest.approx(5 / 6)
         assert summary["nondecodable_per_100_words"] == pytest.approx(100 / 6)
 
