@@ -11,10 +11,11 @@ data/
     ├── templates/
     │   └── benchmark_data_template_kiswahili.xlsx
     ├── student_knowledge_profiles.jsonl            (not in git)
-    ├── benchmark_items.jsonl            (not in git)
-    ├── benchmark_items_dev.jsonl        (not in git)
-    ├── benchmark_items_summary.json               (not in git)
-    └── benchmark_items_by_phase.png          (not in git)
+    ├── benchmark_items.jsonl                       (not in git)
+    ├── benchmark_items_dev.jsonl                   (not in git)
+    ├── benchmark_items_smoke.jsonl                 (not in git)
+    ├── benchmark_items_summary.json                (not in git)
+    └── benchmark_items_by_phase.png                (not in git)
 ```
 
 > [!IMPORTANT]\
@@ -119,17 +120,23 @@ A profile may express cluster knowledge either as explicit `clusters` or as a
 `cluster_patterns` entry (a generative rule such as `prenasalised`), but not both for
 the same cluster — the language model rejects the overlap.
 
-## `benchmark_items.jsonl` and `benchmark_items_dev.jsonl`
+## `benchmark_items.jsonl`, `benchmark_items_dev.jsonl` and `benchmark_items_smoke.jsonl`
 
 One JSON object per line. Each record pairs a **generation scenario** with a **student
 knowledge profile** — the model is asked to write a text of that kind in which every
 word is decodable for that student. There is no reference answer: the deterministic
 checker in `packages/decodability` grades whatever the model writes.
 
-- `benchmark_items.jsonl`: the full cross-product of every distinct student profile with
-  every scenario in `src/phonics_benchmark/scenarios.yaml`
+- `benchmark_items.jsonl`: the full cross-product of every canonical student profile
+  with every scenario in `src/phonics_benchmark/scenarios.yaml`
 - `benchmark_items_dev.jsonl`: the same, over a smaller stratified sample of profiles,
   for fast iteration and CI
+- `benchmark_items_smoke.jsonl`: one profile per curriculum phase crossed with the
+  `story` scenario only — 4 items, for a cheap end-to-end check before spending on a
+  real run
+
+All three are written by `scripts/build_benchmark_items.py` in a single run and share
+the schema below.
 
 | Field                      | Type   | Description                                                               |
 | -------------------------- | ------ | ------------------------------------------------------------------------- |
