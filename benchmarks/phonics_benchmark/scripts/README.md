@@ -55,6 +55,25 @@ language's data-entry workbook into `student_knowledge_profiles.jsonl`:
      --workbook ./benchmarks/phonics_benchmark/data/kiswahili/raw/benchmark_data_tusome_ke.xlsx
 ```
 
+## Corpus coverage stats for the docs
+
+The coverage tables in [`../README.md`](../README.md) and
+[`../data/README.md`](../data/README.md) — how much of a reference corpus each
+curriculum phase can decode — are generated, not hand-written:
+
+```shell
+ uv run --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/corpus_phase_coverage.py \
+     --language kiswahili
+```
+
+It prints markdown ready to paste back into those files. Re-run it whenever
+`student_knowledge_profiles.jsonl` or the reference corpus changes, so the documented
+percentages cannot drift away from the data.
+
+The corpus (`data/<language>/decodable_texts.jsonl`) is a reference only — the benchmark
+asks the model to write its own text and no run reads that file.
+
 ## Running the benchmark
 
 See [`../README.md`](../README.md) to learn how to set up the run configuration and run

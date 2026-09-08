@@ -11,6 +11,7 @@ data/
     ├── templates/
     │   └── benchmark_data_template_kiswahili.xlsx
     ├── student_knowledge_profiles.jsonl            (not in git)
+    ├── decodable_texts.jsonl                       (not in git)
     ├── benchmark_items.jsonl                       (not in git)
     ├── benchmark_items_dev.jsonl                   (not in git)
     ├── benchmark_items_smoke.jsonl                 (not in git)
@@ -33,6 +34,9 @@ data/
 >   in `raw/` yourself. Only needed if you are re-deriving profiles from scratch.
 > - **The item files**: generate them locally by running
 >   `scripts/build_benchmark_items.py` (see `scripts/README.md`).
+> - **`decodable_texts.jsonl`**: an optional reference corpus, borrowed from another
+>   project. Nothing in the benchmark reads it — it only backs the coverage figures in
+>   the docs. Ask the team if you want to regenerate those.
 > - **Shared, validated item sets**: these live in GCS, not in git. A run config's
 >   `items_path` can point straight at a `gs://...jsonl` URI.
 
@@ -120,6 +124,27 @@ A profile may express cluster knowledge either as explicit `clusters` or as a
 `cluster_patterns` entry (a generative rule such as `prenasalised`), but not both for
 the same cluster — the language model rejects the overlap.
 
+## `decodable_texts.jsonl` (reference corpus, optional)
+
+One JSON object per line, with `text_id`, `language_iso_code` and `content`. For
+Kiswahili this is 59 graded reading passages carrying 1,171 unique words.
+
+This is **not an input to the benchmark** — the model writes its own text, so no run
+reads this file. It exists to answer "how much of real Kiswahili can a student at this
+phase actually read?", which is what the coverage tables in
+[`../README.md`](../README.md) and the Curriculum phases section below are measuring. It
+comes from a separate project and is kept here only so those figures stay re-derivable:
+
+```shell
+ uv run --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/corpus_phase_coverage.py \
+     --language kiswahili
+```
+
+That prints the table below as markdown, ready to paste back after a profile or corpus
+change. Swapping in a different corpus changes the percentages but not the phase
+boundaries, which come from grapheme counts alone.
+
 ## `benchmark_items.jsonl`, `benchmark_items_dev.jsonl` and `benchmark_items_smoke.jsonl`
 
 One JSON object per line. Each record pairs a **generation scenario** with a **student
@@ -180,8 +205,9 @@ items in the full set.
 
 Phases are assigned from the number of graphemes taught, with inclusive upper bounds
 (`curation.CURRICULUM_PHASES`). They matter because the writable vocabulary varies by
-more than two orders of magnitude across them — measured against a 1,171-word reference
-vocabulary:
+more than two orders of magnitude across them — measured against the 1,171-word
+vocabulary of `decodable_texts.jsonl` (see above), and regenerated with
+`scripts/corpus_phase_coverage.py`:
 
 | Phase        | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
 | ------------ | --------- | -------- | --------------- | ------------------------------------- |

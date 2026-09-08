@@ -93,8 +93,9 @@ Because the grapheme count alone hides this, every item records `n_clusters_know
 `n_cluster_patterns_known` alongside `n_graphemes_known`, and `results_with_scoring.csv`
 carries all three so you can split any metric by cluster knowledge.
 
-Measured against a 1,171-word reference vocabulary, the curriculum phases come out
-monotone and wide:
+Measured against the 1,171-word vocabulary of the `decodable_texts.jsonl` reference
+corpus (59 graded passages, kept in `data/<language>/` purely so these figures stay
+re-derivable — no run reads it), the curriculum phases come out monotone and wide:
 
 | Phase        | Graphemes | Profiles | Taught clusters | Corpus decodable (min / median / max) |
 | ------------ | --------- | -------- | --------------- | ------------------------------------- |
@@ -103,12 +104,14 @@ monotone and wide:
 | `mid`        | 18–24     | 41       | 1               | 31.9% / 47.2% / 63.1%                 |
 | `late`       | 25+       | 61       | 18              | 41.1% / 68.3% / 98.6%                 |
 
+Regenerate both tables with `scripts/corpus_phase_coverage.py`.
+
 The `very-early` end is genuinely severe: `tusome-ke-stage-01` teaches two graphemes
-(`a`, `m`) and five sight words, leaving four usable words in the reference vocabulary.
-A 50-word text there is necessarily very repetitive — which the scenarios explicitly
-allow, since repetition is normal for an early reader. It is still achievable: a text
-built only from that profile's own vocabulary scores a perfect 1.0. Read the per-phase
-breakdown rather than the pooled score.
+(`a`, `m`) and five sight words, leaving four usable words in the reference vocabulary
+(`anaona`, `mama`, `na`, `paka`). A 50-word text there is necessarily very repetitive —
+which the scenarios explicitly allow, since repetition is normal for an early reader. It
+is still achievable: a text built only from that profile's own vocabulary scores a
+perfect 1.0. Read the per-phase breakdown rather than the pooled score.
 
 ## Run the benchmark
 
