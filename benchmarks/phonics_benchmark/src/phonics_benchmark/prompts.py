@@ -8,7 +8,11 @@ from decodability import DECODABILITY_REGISTRY
 from pydantic import ValidationError
 
 from phonics_benchmark.config import ConfigError
-from phonics_benchmark.labeling import get_grapheme_breakdown, get_valid_knowledge_str
+from phonics_benchmark.labeling import (
+    get_grapheme_breakdown,
+    get_missing_knowledge_str,
+    get_valid_knowledge_str,
+)
 
 
 @cache
@@ -51,6 +55,15 @@ def _valid_graphemes_fields(item: Mapping[str, Any], language: str) -> dict[str,
     }
 
 
+def _missing_knowledge_fields(item: Mapping[str, Any], language: str) -> dict[str, Any]:
+    return {
+        "text": item["content"],
+        "missing_knowledge": get_missing_knowledge_str(
+            language, item["student_knowledge"]
+        ),
+    }
+
+
 PromptFieldBuilder = Callable[[Mapping[str, Any], str], dict[str, Any]]
 
 PROMPT_FIELD_BUILDERS: dict[str, PromptFieldBuilder] = {
@@ -58,6 +71,7 @@ PROMPT_FIELD_BUILDERS: dict[str, PromptFieldBuilder] = {
     "decodability_evaluation_grapheme_breakdown": _grapheme_breakdown_fields,
     "decodability_evaluation_valid_graphemes": _valid_graphemes_fields,
     "decodability_evaluation_clusters": _baseline_fields,
+    "decodability_evaluation_clusters_missing_knowledge": _missing_knowledge_fields,
 }
 
 
