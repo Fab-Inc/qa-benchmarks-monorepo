@@ -124,8 +124,8 @@ def test_contract_fixture_exposes_completed_execution_envelope() -> None:
     items, _items_sha256 = load_benchmark_items(CONTRACT_FIXTURE)
 
     assert [item["benchmark_item_id"] for item in items] == [
-        "bi-SW-KE-S2-tusome-ke-stage-01",
-        "bi-SW-KE-S4-tusome-ke-stage-02",
+        "tusome-ke-stage-01_SW-KE-S2",
+        "tusome-ke-stage-02_SW-KE-S2",
     ]
     assert all(
         set(item) == {"benchmark_item_id", "content", "student_knowledge"}
