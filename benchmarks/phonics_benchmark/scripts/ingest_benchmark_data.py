@@ -70,7 +70,7 @@ def parse_cluster_patterns(value: str) -> list[str]:
 
 
 # Positional markers sit at the edge of a grapheme and are written with either a
-# hyphen (-ing, pre-) or an underscore (_ce, _ge); both are stripped. A *medial*
+# hyphen (-ing, pre-) or an underscore (_ce, _ge); both are stripped. A medial
 # underscore instead marks a split digraph (a_e, o_e) and becomes the hyphen the
 # inventory uses (a-e, o-e). Order matters: strip the edges before rewriting, or
 # a leading marker survives as a hyphen the inventory has no entry for.
@@ -104,9 +104,7 @@ def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
 # Registry: maps language_iso_code to the fields that belong in student_knowledge
 # and how to parse each one from a workbook cell string.
 # Add a new entry here when adding support for a new language.
-STUDENT_KNOWLEDGE_FIELDS: dict[
-    str, dict[str, Callable[[str], list[str] | list[tuple[str, str]] | int]]
-] = {
+STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
     "sw": {
         "graphemes": split_list,
         "clusters": split_list,
