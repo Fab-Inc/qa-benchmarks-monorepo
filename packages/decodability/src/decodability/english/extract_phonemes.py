@@ -155,9 +155,3 @@ def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
             )
         )
     return tuple(pronunciations)
-
-
-if __name__ == "__main__":
-    tests = ["was", "off", "dog"]
-    for test in tests:
-        print(f"{test}: {get_word_phonemes(test)}")
