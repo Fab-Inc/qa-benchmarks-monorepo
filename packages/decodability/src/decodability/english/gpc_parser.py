@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from functools import cache
 
 from decodability.english.definitions import VOWEL_LETTERS
-from decodability.english.extract_phonemes import Phoneme
+from decodability.english.extract_phonemes import Pronunciation
 
 
 @dataclass(frozen=True)
@@ -71,12 +71,17 @@ def _positions_are_free(start: int, end: int, reserved: int) -> bool:
 
 def parse_gpcs(
     word: str,
-    phonemes: tuple[Phoneme, ...],
+    pronunciation: Pronunciation,
     inventory: tuple[GPC, ...],
     *,
     max_split_gap: int = 2,
 ) -> tuple[Parse, ...]:
     """Return every valid parse of ``word`` under the given inventory.
+
+    Takes one ``Pronunciation`` — a phoneme sequence together with the
+    word-shape facts derived from its ARPABET source, such as
+    ``is_monosyllabic``. Callers hold several per word and should try each,
+    accepting a match on any one.
 
     A parse is a tuple of ``GPCMatch`` objects that together cover every
     letter of the spelling and every phoneme in the sequence. Multiple
@@ -92,7 +97,9 @@ def parse_gpcs(
     - Free pass on unstressed vowels: a bare vowel letter paired with
       an unstressed phoneme parses via a synthesized ``REDUCED_*`` GPC —
       vowel reduction is a universal spoken-English process, not a taught
-      correspondence.
+      correspondence. Withheld when the pronunciation is monosyllabic: a
+      one-syllable word has no unstressed syllable to reduce into, so its
+      vowel is a correspondence the student has to have been taught.
     - Silent apostrophe: ``'`` positions are skipped without consuming
       a phoneme (``he's`` decodes as ``h + e + s``) — the curriculum
       treats possessive/contracted ``'s`` as an assumed correspondence.
@@ -102,6 +109,7 @@ def parse_gpcs(
         raise ValueError("max_split_gap must be at least one letter")
 
     spelling = word.casefold()
+    phonemes = pronunciation.phonemes
     phoneme_strings = tuple(p.ipa for p in phonemes)
     contiguous = tuple(gpc for gpc in inventory if not gpc.is_split)
     split = tuple(gpc for gpc in inventory if gpc.is_split)
@@ -146,7 +154,7 @@ def parse_gpcs(
                     for remainder in walk(letter_end, phoneme_end, reserved)
                 )
 
-        if phoneme_index < len(phonemes):
+        if phoneme_index < len(phonemes) and not pronunciation.is_monosyllabic:
             reduced_ipa = phonemes[phoneme_index].ipa
             is_unstressed = phonemes[phoneme_index].is_unstressed
             letter = spelling[letter_index]

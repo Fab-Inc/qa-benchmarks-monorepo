@@ -39,6 +39,8 @@ TEXT_RECORD = {"text_id": "t-001", "language_iso_code": "sw", "content": "Tatu."
 PROFILE_RECORD = {
     "student_knowledge_id": "stu-001",
     "language_iso_code": "sw",
+    # Profile metadata, set by ingest from the workbook's profile_type column.
+    "jagged": False,
     "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
 }
 # The bare pairing, as written to benchmark_items_full_crossproduct.jsonl.
@@ -323,6 +325,7 @@ class TestValidateStudentKnowledge:
         return StudentKnowledge(
             student_knowledge_id="stu-xx",
             language_iso_code="xx",
+            jagged=True,
             student_knowledge={"graphemes": ["not-a-real-grapheme"], "whole_words": []},
         )
 
@@ -331,6 +334,7 @@ class TestValidateStudentKnowledge:
         profile = StudentKnowledge(
             student_knowledge_id="stu-sw-001",
             language_iso_code="sw",
+            jagged=False,
             student_knowledge={"graphemes": ["a", "m"], "whole_words": ["mama"]},
         )
         validate_student_knowledge([profile])
@@ -340,6 +344,7 @@ class TestValidateStudentKnowledge:
         profile = StudentKnowledge(
             student_knowledge_id="stu-bad",
             language_iso_code="sw",
+            jagged=False,
             student_knowledge={"graphemes": ["a", "xyz"], "whole_words": []},
         )
         with pytest.raises(ValueError, match="stu-bad"):

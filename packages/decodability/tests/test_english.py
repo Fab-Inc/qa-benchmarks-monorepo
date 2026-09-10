@@ -4,8 +4,11 @@ from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
 from decodability.english.extract_phonemes import (
     Phoneme,
+    Pronunciation,
+    _add_cot_caught_variants,
     _normalize_phonemes,
     convert_arpabet_to_phoneme,
+    count_syllables,
     get_word_phonemes,
 )
 from decodability.english.extract_words import extract_words_english
@@ -204,6 +207,11 @@ def _tag(*phonemes: str) -> tuple[Phoneme, ...]:
     return tuple(Phoneme(p, False) for p in phonemes)
 
 
+def _say(*phonemes: str, is_monosyllabic: bool = True) -> Pronunciation:
+    """Wrap plain IPA symbols as a Pronunciation for parser tests."""
+    return Pronunciation(phonemes=_tag(*phonemes), is_monosyllabic=is_monosyllabic)
+
+
 class TestNormalizePhonemes:
     @pytest.mark.parametrize(
         "phonemes, expected",
@@ -248,13 +256,13 @@ class TestPhonemeOverrides:
         variants = get_word_phonemes("either")
         # Only the override variant survives — CMU's /aɪ/ alternate is dropped.
         assert len(variants) == 1
-        assert variants[0][0].ipa == "i"
+        assert variants[0].phonemes[0].ipa == "i"
 
     def test_override_supplies_oov_pronunciation(self, monkeypatch):
         """An override rescues a word that CMUdict doesn't know."""
         monkeypatch.setitem(CMUDICT_OVERRIDES, "zzznotaword", [["Z", "IY1"]])
         variants = get_word_phonemes("zzznotaword")
-        assert variants == ((Phoneme("z", False), Phoneme("i", False)),)
+        assert variants[0].phonemes == (Phoneme("z", False), Phoneme("i", False))
 
     def test_fine_has_only_one_pronunciation_variant(self):
         variants = get_word_phonemes("fine")
@@ -294,7 +302,7 @@ class TestGPCValidation:
 class TestParseGpcsValidation:
     def test_max_split_gap_must_be_positive(self):
         with pytest.raises(ValueError, match="max_split_gap must be at least one"):
-            parse_gpcs("cat", _tag("k", "æ", "t"), (), max_split_gap=0)
+            parse_gpcs("cat", _say("k", "æ", "t"), (), max_split_gap=0)
 
 
 class TestReducedVowelFreePass:
@@ -324,7 +332,11 @@ class TestReducedVowelFreePass:
             Phoneme("ə", True),  # unstressed schwa — needs the free pass
             Phoneme("t", False),
         )
-        parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
+        parses = parse_gpcs(
+            "planet",
+            Pronunciation(phonemes=phonemes, is_monosyllabic=False),
+            self._minimal_planet_inventory(),
+        )
 
         assert len(parses) == 1
         (parse,) = parses
@@ -343,8 +355,84 @@ class TestReducedVowelFreePass:
             Phoneme("ə", False),  # NOT flagged reduced — no free pass
             Phoneme("t", False),
         )
-        parses = parse_gpcs("planet", phonemes, self._minimal_planet_inventory())
+        parses = parse_gpcs(
+            "planet",
+            Pronunciation(phonemes=phonemes, is_monosyllabic=False),
+            self._minimal_planet_inventory(),
+        )
         assert parses == ()
+
+
+class TestMonosyllabicBlocksReducedVowelFreePass:
+    """A one-syllable pronunciation has no unstressed syllable to reduce into,
+    so its vowel is a correspondence the student must have been taught. The
+    free pass is withheld even when CMU marks the vowel stress-0 — which it
+    does for reduced function words like ``was``, ``a`` and ``the``.
+    """
+
+    def _minimal_was_inventory(self) -> tuple[GPC, ...]:
+        # Deliberately omits any ``a → …`` GPC, so the only route to a parse
+        # is the reduced-vowel free pass on the ``a``.
+        return (
+            GPC("W", "w", ("w",)),
+            GPC("S", "s", ("z",)),
+        )
+
+    def _was_phonemes(self) -> tuple[Phoneme, ...]:
+        return (
+            Phoneme("w", False),
+            Phoneme("ə", True),  # CMU gives "was" as W AH0 Z
+            Phoneme("z", False),
+        )
+
+    def test_monosyllabic_variant_gets_no_free_pass(self):
+        """``was`` /wəz/ is one syllable, so the unstressed /ə/ earns nothing."""
+        parses = parse_gpcs(
+            "was",
+            Pronunciation(phonemes=self._was_phonemes(), is_monosyllabic=True),
+            self._minimal_was_inventory(),
+        )
+        assert parses == ()
+
+    def test_same_phonemes_parse_when_not_monosyllabic(self):
+        """Only the flag differs — this isolates the gate from every other rule."""
+        parses = parse_gpcs(
+            "was",
+            Pronunciation(phonemes=self._was_phonemes(), is_monosyllabic=False),
+            self._minimal_was_inventory(),
+        )
+        assert len(parses) == 1
+        (parse,) = parses
+        assert parse[1].gpc.id == "REDUCED_A"
+
+    @pytest.mark.parametrize("word", ["was", "a", "the"])
+    def test_reduced_function_words_lose_the_free_pass_end_to_end(self, word: str):
+        """Through the real pipeline: every monosyllabic variant whose vowel is
+        unstressed now fails to parse on the free pass alone.
+        """
+        reduced_variants = [
+            variant
+            for variant in get_word_phonemes(word)
+            if variant.is_monosyllabic
+            and any(phoneme.is_unstressed for phoneme in variant.phonemes)
+        ]
+        assert reduced_variants, f"expected a reduced variant for {word!r}"
+        for variant in reduced_variants:
+            assert not any(
+                match.gpc.is_reduced_vowel
+                for parse in parse_gpcs(word, variant, GPC_INVENTORY)
+                for match in parse
+            ), f"{word}: monosyllabic variant should not parse via a free pass"
+
+    def test_multisyllabic_free_pass_still_fires(self):
+        """Regression guard: the gate must not touch multisyllabic reduction."""
+        variants = get_word_phonemes("planet")
+        assert any(
+            match.gpc.is_reduced_vowel
+            for variant in variants
+            for parse in parse_gpcs("planet", variant, GPC_INVENTORY)
+            for match in parse
+        )
 
 
 class TestScoreReducedVowelCreditsAnyGraphemeGpc:
@@ -399,7 +487,11 @@ class TestApostropheIsSilent:
     def test_parser_skips_apostrophe_in_hes(self):
         """``he's`` parses via h + e + s (apostrophe silently skipped)."""
         phonemes = (Phoneme("h", False), Phoneme("i", False), Phoneme("z", False))
-        parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
+        parses = parse_gpcs(
+            "he's",
+            Pronunciation(phonemes=phonemes, is_monosyllabic=True),
+            self._minimal_hes_inventory(),
+        )
 
         assert len(parses) == 1
         (parse,) = parses
@@ -419,7 +511,11 @@ class TestApostropheIsSilent:
         # phonemes claim final /s/ (voiceless) but the inventory only teaches
         # s → /z/, so nothing covers the trailing phoneme.
         phonemes = (Phoneme("h", False), Phoneme("i", False), Phoneme("s", False))
-        parses = parse_gpcs("he's", phonemes, self._minimal_hes_inventory())
+        parses = parse_gpcs(
+            "he's",
+            Pronunciation(phonemes=phonemes, is_monosyllabic=True),
+            self._minimal_hes_inventory(),
+        )
         assert parses == ()
 
 
@@ -534,6 +630,120 @@ class TestRegressionSilentApostropheOnCorpusWords:
             )
 
 
+class TestSyllableCounting:
+    """``count_syllables`` counts stress-bearing tokens. ARPABET marks every
+    vowel — and only vowels — with a stress digit, so that count is the number
+    of syllable nuclei. All stress levels count, not just primary.
+    """
+
+    @pytest.mark.parametrize(
+        "arpabet, expected",
+        [
+            (["K", "AE1", "T"], 1),
+            (["HH", "EH0", "L", "OW1"], 2),
+            # Only AE1 carries primary stress, but all three vowels are nuclei.
+            (["B", "AH0", "N", "AE1", "N", "AH0"], 3),
+            # "strengths": eight tokens, one vowel, so one syllable.
+            (["S", "T", "R", "EH1", "NG", "K", "TH", "S"], 1),
+            ([], 0),
+        ],
+    )
+    def test_count_syllables(self, arpabet: list[str], expected: int):
+        assert count_syllables(arpabet) == expected
+
+    @pytest.mark.parametrize(
+        "word, expected",
+        [
+            ("cat", True),
+            ("banana", False),
+            ("planet", False),
+        ],
+    )
+    def test_is_monosyllabic_on_unambiguous_words(self, word: str, expected: bool):
+        """Words whose variants agree — every variant carries the same flag."""
+        variants = get_word_phonemes(word)
+        assert variants
+        assert all(v.is_monosyllabic is expected for v in variants)
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "fire",  # faɪər / faɪr
+            "fires",  # the alternation survives inflection
+            "flour",  # flaʊər / flaʊr
+            "dial",  # daɪəl / daɪl
+            "cruel",  # kruəl / krul
+            "aisle",  # aɪl / aɪəl
+        ],
+    )
+    def test_flag_is_per_variant_not_per_word(self, word: str):
+        """CMU records both a one- and a two-syllable reading for these, which
+        is why the flag lives on ``Pronunciation`` rather than on the word.
+
+        The provided sample matches against upstream CMUdict
+        data, so a future release could in principle change alter these pronunciations.
+        """
+        flags = {v.is_monosyllabic for v in get_word_phonemes(word)}
+        assert flags == {True, False}, f"{word} should have variants of both shapes"
+
+
+class TestCotCaughtVariantExpansion:
+    """Every CMU variant transcribed with AO (``caught``, /ɔ/) gains an AA
+    (``cot``, /ɑ/) counterpart, so a student taught only the merged reading
+    still matches the word. Runs on ARPABET before conversion.
+    """
+
+    def test_ao_variant_gains_an_aa_counterpart(self):
+        assert _add_cot_caught_variants([["K", "AO1", "T"]]) == [
+            ["K", "AO1", "T"],
+            ["K", "AA1", "T"],
+        ]
+
+    def test_variant_without_ao_is_untouched(self):
+        assert _add_cot_caught_variants([["K", "AA1", "T"]]) == [["K", "AA1", "T"]]
+
+    def test_stress_digit_is_preserved(self):
+        """``AO1`` -> ``AA1``, not a bare ``AA`` — downstream reads stress-0."""
+        assert _add_cot_caught_variants([["AO2", "G", "AH0"]]) == [
+            ["AO2", "G", "AH0"],
+            ["AA2", "G", "AH0"],
+        ]
+
+    def test_every_ao_in_a_variant_is_swapped(self):
+        assert _add_cot_caught_variants([["AO1", "T", "AO0"]]) == [
+            ["AO1", "T", "AO0"],
+            ["AA1", "T", "AA0"],
+        ]
+
+    def test_existing_aa_counterpart_is_not_duplicated(self):
+        """CMU already lists both readings for some words; don't emit a repeat."""
+        assert _add_cot_caught_variants([["D", "AO1", "G"], ["D", "AA1", "G"]]) == [
+            ["D", "AO1", "G"],
+            ["D", "AA1", "G"],
+        ]
+
+    def test_original_variant_is_kept_first(self):
+        """The unmerged reading stays primary; the merged one is the alternate."""
+        first, second = _add_cot_caught_variants([["AO1"]])
+        assert first == ["AO1"]
+        assert second == ["AA1"]
+
+    @pytest.mark.parametrize("word", ["dog", "off", "long", "caught"])
+    def test_word_yields_both_readings_end_to_end(self, word: str):
+        """Through ``get_word_phonemes``: both /ɔ/ and /ɑ/ reach the caller."""
+        vowels = {
+            phoneme.ipa
+            for variant in get_word_phonemes(word)
+            for phoneme in variant.phonemes
+        }
+        assert {"ɔ", "ɑ"} <= vowels, f"{word} should offer both merger readings"
+
+    def test_added_variant_keeps_the_syllable_count(self):
+        """Swapping the vowel must not change how many syllables the word has."""
+        for variant in get_word_phonemes("dog"):
+            assert variant.is_monosyllabic
+
+
 class TestRegressionCotCaughtMergerOnCorpusWords:
     """Words from the corpora that only parse under UFLI once cot-caught merger GPCs
     were added. Each parametrization pins the expected new-GPC id — if the entry is
@@ -588,7 +798,7 @@ class TestRegressionNormalizePhonemesOnCorpusWords:
         variants, parses = _parse_corpus_word(word)
         # Fixup: no variant should still carry the raw /ɚ/ that CMU emits.
         for variant in variants:
-            assert all(p.ipa != "ɚ" for p in variant), (
+            assert all(p.ipa != "ɚ" for p in variant.phonemes), (
                 f"{word}: /ɚ/ should have been split into /ə/+/r/"
             )
         assert parses, f"{word} should parse under the full UFLI inventory"
@@ -612,7 +822,7 @@ class TestRegressionNormalizePhonemesOnCorpusWords:
         variants, parses = _parse_corpus_word(word)
         # Fixup: coda /ɪ r/ should have been rewritten to /i r/.
         for variant in variants:
-            ipas = tuple(p.ipa for p in variant)
+            ipas = tuple(p.ipa for p in variant.phonemes)
             assert "ɪ" not in ipas, (
                 f"{word}: coda /ɪ/+/r/ should have been re-tensed to /i/+/r/"
             )
@@ -631,8 +841,10 @@ class TestRegressionNormalizePhonemesOnCorpusWords:
         # Every variant should still carry the internal /ɪ/+/r/ pair.
         assert all(
             any(
-                v[i].ipa == "ɪ" and i + 1 < len(v) and v[i + 1].ipa == "r"
-                for i in range(len(v) - 1)
+                v.phonemes[i].ipa == "ɪ"
+                and i + 1 < len(v.phonemes)
+                and v.phonemes[i + 1].ipa == "r"
+                for i in range(len(v.phonemes) - 1)
             )
             for v in variants
         )
