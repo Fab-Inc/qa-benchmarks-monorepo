@@ -9,12 +9,11 @@
     "claude-opus-5",
     "claude-sonnet-4-6",
     "gemini-3.5-flash",
-    "kimi-k3",
     "deepseek-v4-flash",
     "gemma-4-26b-a4b-it"
   ],
   "max_tokens": 30000,
-  "chunk_size": 16,
+  "chunk_size": 4,
   "model_workers": 5,
   "metadata": {
     "dataset": "UFLI English",

@@ -11,6 +11,7 @@ class StudentKnowledge(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
+    jagged: bool
     student_knowledge: dict[str, Any]
 
 

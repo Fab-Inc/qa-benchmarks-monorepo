@@ -29,6 +29,11 @@ DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 STUDENT_PROFILES_SHEET = "Student Profiles"
 TEXTS_SHEET = "Texts"
 
+# The profile_type cell classifies the profile, not the student's knowledge, so
+# it lands on StudentKnowledge itself rather than inside student_knowledge.
+PROFILE_TYPE_COLUMN = "profile_type"
+CURRICULUM_ALIGNED_PROFILE = "curriculum-aligned"
+
 NONE_SENTINELS = {"none", "n/a", "na", "-"}
 WORKBOOK_CLUSTER_PATTERNS: dict[str, ClusterPattern] = {
     "m/n + c": ClusterPattern.PRENASALISED,
@@ -172,6 +177,17 @@ def preprocess_sheet_data(
     return filtered_data
 
 
+def is_jagged_profile(value: str) -> bool:
+    """Classify a workbook 'Profile type' cell as a jagged knowledge profile.
+
+    Curriculum-aligned profiles follow the taught sequence, so everything else
+    ("jagged", "heart-word jagged", "severely behind", "non-sequence", ...) is
+    treated as jagged. Written as an exclusion rather than a list of jagged
+    types so that a new profile-type label does not silently read as aligned.
+    """
+    return CURRICULUM_ALIGNED_PROFILE not in value.casefold()
+
+
 def extract_student_profiles(
     df: pd.DataFrame,
     fields: dict[str, Callable[[str], Any]],
@@ -180,6 +196,7 @@ def extract_student_profiles(
         StudentKnowledge(
             student_knowledge_id=str(row.student_knowledge_id),
             language_iso_code=str(row.language_iso_code),
+            jagged=is_jagged_profile(str(getattr(row, PROFILE_TYPE_COLUMN))),
             student_knowledge={
                 field: parser(str(getattr(row, field)))
                 for field, parser in fields.items()
@@ -237,7 +254,8 @@ def ingest_benchmark_data(
 
     student_df = preprocess_sheet_data(
         student_df,
-        {"student_knowledge_id", "language_iso_code"} | set(student_fields.keys()),
+        {"student_knowledge_id", "language_iso_code", PROFILE_TYPE_COLUMN}
+        | set(student_fields.keys()),
         "student_knowledge_id",
         f"'{STUDENT_PROFILES_SHEET}' sheet",
     )
