@@ -268,7 +268,7 @@ class TestPhonemeOverrides:
         variants = get_word_phonemes("fine")
 
         assert len(variants) == 1
-        assert variants[0] == (
+        assert variants[0].phonemes == (
             Phoneme("f", False),
             Phoneme("aɪ", False),
             Phoneme("n", False),
