@@ -21,6 +21,8 @@ custom_models.yaml
 benchmarks/*/data/*/**
 !benchmarks/*/data/*/templates/
 !benchmarks/*/data/*/templates/**
+!benchmarks/*/data/README.md
+!benchmarks/*/data/*/benchmark_items_smoke.jsonl
 
 # ============================================================================
 # Python .gitignore template from
