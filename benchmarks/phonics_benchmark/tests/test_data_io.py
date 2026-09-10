@@ -56,6 +56,7 @@ CANDIDATE_RECORD = {
     "language_iso_code": "sw",
     "content": "Tatu.",
     "student_knowledge": {"graphemes": ["a"], "whole_words": ["mama", "paka"]},
+    "jagged": False,
     "nondecodable_words": ["tatu"],
     "num_nondecodable_words": 1,
     "num_total_words": 4,
