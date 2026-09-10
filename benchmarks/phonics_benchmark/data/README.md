@@ -18,9 +18,9 @@ data/
 ```
 
 > [!IMPORTANT]\
-> **None of the data files are committed** — only this README the blank workbooks in
-> `templates/` and `benchmark_items_smoke.jsonl` are. The smoke data can be used for
-> quick testing.
+> **None of the data files are committed** — only this README, the workbooks in
+> `templates/`, and `benchmark_items_smoke.jsonl` are. The smoke data is the same in the
+> workbook and can be used for testing.
 >
 > To get the data:
 >

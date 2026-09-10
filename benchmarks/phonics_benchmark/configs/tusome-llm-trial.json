@@ -1,7 +1,7 @@
 {
   "run_id": "tusome-llm-trial",
   "language": "sw",
-  "items_path": "../data/kiswahili/tusome_kenya_llm_trial_cases.jsonl",
+  "items_path": "../data/kiswahili/benchmark_items_smoke.jsonl",
   "output_dir": "../outputs",
   "models": [
     "gemini-3.1-pro-preview",
