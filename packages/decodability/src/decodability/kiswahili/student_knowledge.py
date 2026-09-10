@@ -1,17 +1,20 @@
+from functools import cached_property, reduce
 from itertools import chain
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from decodability.kiswahili.definitions import (
     VALID_CLUSTERS,
     VALID_GRAPHEMES,
     ClusterPattern,
-    get_graphemes,
 )
+from decodability.kiswahili.segment import get_grapheme_symbols
 
 
 class KiswahiliStudentKnowledge(BaseModel):
     """Model for Kiswahili student knowledge representation."""
+
+    model_config = ConfigDict(frozen=True)
 
     graphemes: set[str] = set()
     clusters: set[str] = set()
@@ -64,7 +67,9 @@ class KiswahiliStudentKnowledge(BaseModel):
     def check_graphemes_in_clusters_known(self) -> "KiswahiliStudentKnowledge":
         """Ensure that all graphemes in known clusters are also in known graphemes."""
         graphemes_in_clusters = set(
-            chain.from_iterable(get_graphemes(cluster) for cluster in self.clusters)
+            chain.from_iterable(
+                get_grapheme_symbols(cluster) for cluster in self.clusters
+            )
         )
         missing_graphemes = graphemes_in_clusters - self.graphemes
 
@@ -96,6 +101,20 @@ class KiswahiliStudentKnowledge(BaseModel):
             )
 
         return self
+
+    @cached_property
+    def all_known_clusters(self) -> set[str]:
+        """Every cluster the student can read, expanding known cluster patterns.
+
+        Cached because expanding the patterns is independent of the word being
+        analysed, so it should happen once per student rather than once per word.
+        """
+        clusters_from_patterns: set[str] = reduce(
+            set.union,
+            (VALID_CLUSTERS[pattern] for pattern in self.cluster_patterns),
+            set(),
+        )
+        return self.clusters | clusters_from_patterns
 
     def __str__(self) -> str:
         """Return a string representation of the KiswahiliStudentKnowledge instance."""

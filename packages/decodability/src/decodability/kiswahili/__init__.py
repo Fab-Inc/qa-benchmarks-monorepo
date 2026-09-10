@@ -1,14 +1,17 @@
 from decodability import mean_score, rowwise, weighted_average
-from decodability.kiswahili.aggregators import (
-    aggregate_scores_kenya_tusome,
+from decodability.kiswahili.aggregators import aggregate_scores_kenya_tusome
+from decodability.kiswahili.analyse import (
+    KiswahiliWordAnalysis,
+    analyse_word_kiswahili,
+    assess_decodability_kenya_tusome,
 )
 from decodability.kiswahili.extract_words import extract_words_kiswahili
-from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_clusters_and_patterns_kiswahili,
     score_known_graphemes_kiswahili,
     score_whole_words_kiswahili,
 )
+from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 cluster_scorer = score_known_clusters_and_patterns_kiswahili
 SCORING_METHODS = {
@@ -29,7 +32,10 @@ AGGREGATIONS = {
 __all__ = [
     "SCORING_METHODS",
     "AGGREGATIONS",
+    "KiswahiliWordAnalysis",
     "aggregate_scores_kenya_tusome",
+    "analyse_word_kiswahili",
+    "assess_decodability_kenya_tusome",
     "KiswahiliStudentKnowledge",
     "score_known_graphemes_kiswahili",
     "score_known_clusters_and_patterns_kiswahili",

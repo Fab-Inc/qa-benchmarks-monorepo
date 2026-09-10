@@ -5,7 +5,7 @@ from decodability.kiswahili.definitions import (
     get_clusters,
     get_graphemes,
 )
-from decodability.kiswahili.models import KiswahiliStudentKnowledge
+from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 
 def score_known_graphemes_kiswahili(
