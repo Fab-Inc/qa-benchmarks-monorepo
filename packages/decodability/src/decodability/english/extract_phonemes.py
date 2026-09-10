@@ -68,7 +68,7 @@ def _add_cot_caught_variants(
     """Add an /ɑ/ reading for every variant CMU transcribes with /ɔ/.
 
     CMUdict keeps AO (``caught``, /ɔ/) distinct from AA (``cot``, /ɑ/), but
-    most North American speakers merge the two. The UFLI inventory teaches
+    most North American speakers merge the two. The inventory provides
     both readings of the same grapheme — ``au``/``augh``/``ough`` and ``o``
     each appear with /ɔ/ and with /ɑ/ — so emitting the AA counterpart as an
     extra pronunciation variant lets a student taught only the merged reading
