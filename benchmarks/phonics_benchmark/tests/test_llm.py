@@ -24,11 +24,11 @@ def _prompt_for(item: dict[str, Any]) -> str:
 
 
 def test_call_llm_returns_metadata_and_logs_response(
-    tusome_stage_11_item, tmp_path, monkeypatch
+    tusome_benchmark_item, tmp_path, monkeypatch
 ):
-    prompt = _prompt_for(tusome_stage_11_item)
+    prompt = _prompt_for(tusome_benchmark_item)
     response_text = json.dumps(
-        tusome_stage_11_item["nondecodable_words"], ensure_ascii=False
+        tusome_benchmark_item["nondecodable_words"], ensure_ascii=False
     )
     caller = Mock()
     caller.call.return_value = SimpleNamespace(
@@ -45,7 +45,7 @@ def test_call_llm_returns_metadata_and_logs_response(
         system_prompt="Return only a JSON array.",
         max_tokens=321,
         log_base_dir=tmp_path,
-        tag=tusome_stage_11_item["benchmark_item_id"],
+        tag=tusome_benchmark_item["benchmark_item_id"],
     )
 
     messages = caller.call.call_args.args[0]
@@ -65,7 +65,7 @@ def test_call_llm_returns_metadata_and_logs_response(
 
     log_files = list((tmp_path / "llm_log").glob("*.json"))
     assert len(log_files) == 1
-    assert tusome_stage_11_item["benchmark_item_id"] in log_files[0].name
+    assert tusome_benchmark_item["benchmark_item_id"] in log_files[0].name
     assert json.loads(log_files[0].read_text()) == record
 
 
@@ -90,7 +90,7 @@ def test_call_llm_bypass_does_not_create_a_caller(monkeypatch):
 def test_call_llm_returns_empty_responses(
     response,
     expected_tokens,
-    tusome_stage_11_item,
+    tusome_benchmark_item,
     monkeypatch,
 ):
     caller = Mock()
@@ -98,9 +98,9 @@ def test_call_llm_returns_empty_responses(
     monkeypatch.setattr(llm, "get_caller", lambda model: caller)
 
     record = llm.call_llm(
-        _prompt_for(tusome_stage_11_item),
+        _prompt_for(tusome_benchmark_item),
         model="test-model",
-        tag=tusome_stage_11_item["benchmark_item_id"],
+        tag=tusome_benchmark_item["benchmark_item_id"],
     )
 
     assert record["response_text"] == ""

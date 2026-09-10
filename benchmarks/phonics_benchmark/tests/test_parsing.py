@@ -135,13 +135,13 @@ def test_parse_word_list_parse_ok_flag():
     assert not result.parse_ok
 
 
-def test_parse_word_list_preserves_apostrophe_from_tusome_data(
-    tusome_stage_11_item,
-):
-    expected_words = tusome_stage_11_item["nondecodable_words"]
+def test_parse_word_list_preserves_apostrophe():
+    """The ng' grapheme must survive parsing: Kiswahili words such as ng'ombe
+    carry an apostrophe, and stripping it changes the word.
+    """
+    expected_words = ["ng'ombe", "shambani"]
 
     result = parse_word_list(json.dumps(expected_words, ensure_ascii=False))
 
     assert result.words == expected_words
-    assert "ng'ombe" in result.words
     assert result.parse_ok
