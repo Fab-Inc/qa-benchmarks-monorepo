@@ -5,6 +5,7 @@ from decodability.english.aggregators import aggregate_scores_ufli_curriculum
 from decodability.english.extract_phonemes import (
     Phoneme,
     _normalize_phonemes,
+    _suffixed_s_variants,
     convert_arpabet_to_phoneme,
     get_word_phonemes,
 )
@@ -265,6 +266,91 @@ class TestPhonemeOverrides:
             Phoneme("aɪ", False),
             Phoneme("n", False),
         )
+
+
+class TestSuffixedSFallback:
+    """OOV words ending in ``s``/``'s`` inherit the base word's CMUdict
+    pronunciation with /s/ and /z/ appended (``haps`` → ``hap`` + /s/ or /z/)."""
+
+    @pytest.mark.parametrize("word", ["haps", "hap's"])
+    def test_oov_plural_and_possessive_inherit_base_plus_s(self, word: str):
+        """``hap`` is in CMUdict; ``haps``/``hap's`` are not."""
+        variants = get_word_phonemes(word)
+        assert variants == (
+            (
+                Phoneme("h", False),
+                Phoneme("æ", False),
+                Phoneme("p", False),
+                Phoneme("s", False),
+            ),
+            (
+                Phoneme("h", False),
+                Phoneme("æ", False),
+                Phoneme("p", False),
+                Phoneme("z", False),
+            ),
+        )
+
+    def test_fallback_does_not_fire_for_cmudict_entries(self):
+        """``hiss`` is in CMUdict as /h ɪ s/ — the fallback must not rewrite it
+        as ``his`` + /s/ (which would be /h ɪ z s/)."""
+        variants = get_word_phonemes("hiss")
+        assert variants == (
+            (Phoneme("h", False), Phoneme("ɪ", False), Phoneme("s", False)),
+        )
+
+    def test_fallback_uses_override_for_base(self, monkeypatch):
+        """An override for the base also serves its ``s``-suffixed form."""
+        monkeypatch.setitem(CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"]])
+        variants = get_word_phonemes("zzzbases")
+        assert variants == (
+            (Phoneme("z", False), Phoneme("i", False), Phoneme("s", False)),
+            (Phoneme("z", False), Phoneme("i", False), Phoneme("z", False)),
+        )
+
+    @pytest.mark.parametrize("word", ["zzznotaword", "zzznotawords"])
+    def test_still_raises_when_no_base_available(self, word: str):
+        """No suffix or unknown base → KeyError as before."""
+        with pytest.raises(KeyError):
+            get_word_phonemes(word)
+
+    @pytest.mark.parametrize("word", ["s", "'s"])
+    def test_empty_base_returns_none(self, word: str):
+        """A bare ``s``/``'s`` has no base to inherit from — no fallback.
+        (Both happen to be real CMUdict entries anyway, so the guard is only
+        reachable via direct calls or non-CMU keys.)"""
+        assert _suffixed_s_variants(word) is None
+
+    def test_fallback_preserves_all_base_variants(self, monkeypatch):
+        """Every variant of the base gets /s/ and /z/ appended, not just the
+        first."""
+        monkeypatch.setitem(
+            CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"], ["Z", "EH1"]]
+        )
+        variants = get_word_phonemes("zzzbase's")
+        assert variants == (
+            (Phoneme("z", False), Phoneme("i", False), Phoneme("s", False)),
+            (Phoneme("z", False), Phoneme("i", False), Phoneme("z", False)),
+            (Phoneme("z", False), Phoneme("ɛ", False), Phoneme("s", False)),
+            (Phoneme("z", False), Phoneme("ɛ", False), Phoneme("z", False)),
+        )
+
+    def test_haps_scores_end_to_end(self):
+        """A student who knows h/æ/p/s decodes ``haps`` via the fallback."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("h", "h"), ("a", "æ"), ("p", "p"), ("s", "s")]
+        )
+        assert score_known_gpcs_english("haps", student) == 1.0
+        assert score_known_gpcs_english("hap's", student) == 1.0
+
+    def test_voiced_variant_scores_end_to_end(self):
+        """The /z/ variant lets a student with ``s → z`` (but not ``s → s``)
+        decode ``haps``."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("h", "h"), ("a", "æ"), ("p", "p"), ("s", "z")]
+        )
+        assert score_known_gpcs_english("haps", student) == 1.0
+        assert score_known_gpcs_english("hap's", student) == 1.0
 
 
 class TestGPCValidation:
