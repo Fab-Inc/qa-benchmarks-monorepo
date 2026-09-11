@@ -88,11 +88,7 @@ def _suffixed_s_variants(key: str) -> list[list[str]] | None:
     base_variants = CMUDICT_OVERRIDES.get(base) or _cmudict().get(base)
     if not base_variants:
         return None
-    return [
-        variant + [suffix]
-        for variant in base_variants
-        for suffix in ("S", "Z")
-    ]
+    return [variant + [suffix] for variant in base_variants for suffix in ("S", "Z")]
 
 
 def get_word_phonemes(word: str) -> tuple[tuple[Phoneme, ...], ...]:
@@ -113,9 +109,7 @@ def get_word_phonemes(word: str) -> tuple[tuple[Phoneme, ...], ...]:
     """
     key = word.lower()
     word_variants = (
-        CMUDICT_OVERRIDES.get(key)
-        or _cmudict().get(key)
-        or _suffixed_s_variants(key)
+        CMUDICT_OVERRIDES.get(key) or _cmudict().get(key) or _suffixed_s_variants(key)
     )
     if not word_variants:
         raise KeyError(f"{word!r} not in CMUdict")

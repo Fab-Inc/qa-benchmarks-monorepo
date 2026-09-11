@@ -324,9 +324,7 @@ class TestSuffixedSFallback:
     def test_fallback_preserves_all_base_variants(self, monkeypatch):
         """Every variant of the base gets /s/ and /z/ appended, not just the
         first."""
-        monkeypatch.setitem(
-            CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"], ["Z", "EH1"]]
-        )
+        monkeypatch.setitem(CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"], ["Z", "EH1"]])
         variants = get_word_phonemes("zzzbase's")
         assert variants == (
             (Phoneme("z", False), Phoneme("i", False), Phoneme("s", False)),
