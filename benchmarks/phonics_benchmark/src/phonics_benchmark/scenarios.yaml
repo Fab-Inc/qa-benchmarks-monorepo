@@ -10,31 +10,17 @@
 # Scenarios use YAML folded scalars (>-): a single line break becomes a space;
 # blank lines are preserved as newlines (N blank lines -> N newlines).
 
-story: >-
-  Write a short story of about 50 words for this student to read.
+words: >-
+  Generate a list of 20 words for this student to practice reading.
 
-
-  The story should have a clear beginning, middle and end, and should be
-  interesting and age-appropriate for a child who is learning to read.
-
-informational: >-
-  Write a short informational text of about 50 words for this student to read.
-
-
-  The text should teach the reader one simple, true fact about an everyday
-  topic such as animals, food, weather, family life or work.
-
-dialogue: >-
-  Write a short dialogue of about 50 words for this student to read.
-
-
-  The dialogue should be between two speakers who take turns to speak, and
-  should read naturally as a real conversation.
+  If there are not enough words in the language for this particular student to read, you may stop early.
 
 sentences: >-
-  Write about 50 words of independent practice sentences for this student to
-  read.
+  Write 10 independent practice sentences for this student to read.
 
+  Each sentence should stand on its own and does not need to connect to the others.
 
-  Write five or six separate sentences. Each sentence should stand on its own
-  and does not need to connect to the others.
+story: >-
+  Write a short story of about 100 words for this student to read.
+
+  The story should be interesting and age-appropriate for a child who is learning to read.

@@ -1,4 +1,4 @@
-# Phonics Benchmark
+# Decodable Text Generation Benchmark
 
 Config-driven benchmark harness for phonics experiments.
 

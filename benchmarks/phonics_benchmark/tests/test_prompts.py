@@ -24,17 +24,15 @@ class TestScenarios:
     """The packaged scenarios.yaml."""
 
     def test_every_expected_scenario_is_present(self) -> None:
-        """The four scenarios the item builder crosses profiles with."""
-        assert set(get_scenarios()) == {
-            "story",
-            "informational",
-            "dialogue",
-            "sentences",
-        }
+        """The three scenarios the item builder crosses profiles with."""
+        assert set(get_scenarios()) == {"words", "sentences", "story"}
 
     def test_every_scenario_states_a_length_target(self) -> None:
         """Each scenario defines its own length so the task is comparable."""
-        assert all("50 words" in text for text in get_scenarios().values())
+        scenarios = get_scenarios()
+        assert "20 words" in scenarios["words"]
+        assert "10 independent practice sentences" in scenarios["sentences"]
+        assert "100 words" in scenarios["story"]
 
     def test_scenarios_are_non_empty_prose(self) -> None:
         """A blank scenario would render an empty TASK block."""
