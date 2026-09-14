@@ -10,6 +10,7 @@ data/
     │   └── benchmark_data_tusome_ke.xlsx
     ├── templates/
     │   └── benchmark_data_template_kiswahili.xlsx
+    ├── benchmark_items_smoke.jsonl
     ├── decodable_texts.jsonl                      (not in git)
     ├── student_knowledge_profiles.jsonl           (not in git)
     ├── benchmark_item_candidates.jsonl            (not in git)
@@ -17,18 +18,16 @@ data/
 ```
 
 > [!IMPORTANT]\
-> **None of the data files are committed** — only this README and the blank workbooks in
-> `templates/` are. Two reasons: this repo is to be open sourced, and part of the
-> benchmark item set has to stay private. The whole folder is gitignored apart from
-> those two exceptions.
+> **None of the data files are committed** — only this README, the workbooks in
+> `templates/`, and `benchmark_items_smoke.jsonl` are. The smoke data is the same in the
+> workbook and can be used for testing.
 >
 > To get the data:
 >
 > - **Expert workbooks (`raw/`)**: ask the team for the filled-in workbook and drop it
 >   in `raw/` yourself.
 > - **Everything else**: generate it locally by running the three scripts in
->   `../scripts/` (see `scripts/README.md`). Everything below `raw/` is reproducible
->   from the workbook.
+>   `../scripts/` (see `scripts/README.md`).
 > - **Shared, validated item sets**: these live in GCS, not in git. A run config's
 >   `items_path` can point straight at a `gs://...jsonl` URI.
 
@@ -95,7 +94,9 @@ decodable for that student.
   "student_knowledge_id": "tusome-ke-stage-01",
   "language_iso_code": "sw",
   "student_knowledge": {
-    "graphemes": ["a", "e", "i", "o", "u", "ba", "be", "bi"],
+    "graphemes": ["m", "b", "y"],
+    "clusters": ["mb"],
+    "cluster_patterns": ["prenasalised_m", "labialized_glide"]
     "whole_words": ["mama", "paka", "ana"]
   }
 }

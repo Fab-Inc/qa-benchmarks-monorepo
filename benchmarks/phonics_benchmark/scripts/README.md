@@ -66,7 +66,7 @@ the benchmark.
 Generate a report on benchmark run by running
 
 ```shell
-uv run --package phonics-benchmark python \
+uv run --frozen --package phonics-benchmark python \
    benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
    --run-id $YOUR_RUN_ID \
    --inspect-sample-size 10

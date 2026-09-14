@@ -36,6 +36,13 @@ CURRICULUM_ALIGNED_PROFILE = "curriculum-aligned"
 
 NONE_SENTINELS = {"none", "n/a", "na", "-"}
 WORKBOOK_CLUSTER_PATTERNS: dict[str, ClusterPattern] = {
+    "m_consonant": ClusterPattern.PRENASALISED_M,
+    "n_consonant": ClusterPattern.PRENASALISED_N,
+    "consonant_w": ClusterPattern.LABIALISED_GLIDE,
+    "consonant_y": ClusterPattern.PALATALISED_GLIDE,
+    "m_consonant_w": ClusterPattern.M_LABIALISED_GLIDE,
+    "n_consonant_w": ClusterPattern.N_LABIALISED_GLIDE,
+    "m_consonant_y": ClusterPattern.M_PALATALISED_GLIDE,
     "m/n + c": ClusterPattern.PRENASALISED,
     "n + c": ClusterPattern.PRENASALISED,
     "c + w": ClusterPattern.LABIALISED_GLIDE,
