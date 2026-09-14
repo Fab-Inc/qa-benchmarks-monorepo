@@ -127,6 +127,29 @@ def _normalize_phonemes(
     return result
 
 
+def _suffixed_s_variants(key: str) -> list[list[str]] | None:
+    """Pronunciations for an out-of-vocabulary word ending in ``s``/``'s``.
+
+    Strips the suffix, looks up the base in ``CMUDICT_OVERRIDES``/CMUdict, and
+    appends the English plural/possessive allomorphs to each of its variants —
+    both ARPABET ``S`` and ``Z`` — so ``haps`` and ``hap's`` inherit ``hap``'s
+    pronunciation plus /s/ or /z/. Returns ``None`` when the word has no such
+    suffix or the base is also unknown.
+    """
+    if key.endswith("'s"):
+        base = key[:-2]
+    elif key.endswith("s"):
+        base = key[:-1]
+    else:
+        return None
+    if not base:
+        return None
+    base_variants = CMUDICT_OVERRIDES.get(base) or _cmudict().get(base)
+    if not base_variants:
+        return None
+    return [variant + [suffix] for variant in base_variants for suffix in ("S", "Z")]
+
+
 def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
     """Return every pronunciation variant for a word.
 
@@ -136,12 +159,18 @@ def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
     variant independently. Raises ``KeyError`` if the word appears in neither
     source.
 
+    Words missing from both sources get one fallback: a trailing ``s`` or
+    ``'s`` is stripped and the base's variants are returned with /s/ and /z/
+    appended (``haps`` → ``hap`` + /s/ or /z/).
+
     CMUdict lists multiple variants for homographs (``read`` → present- vs
     past-tense) and stress alternations (``either`` → /iː/ vs /aɪ/). Callers
     should try every variant and accept a match on any one.
     """
     key = word.lower()
-    word_variants = CMUDICT_OVERRIDES.get(key) or _cmudict().get(key)
+    word_variants = (
+        CMUDICT_OVERRIDES.get(key) or _cmudict().get(key) or _suffixed_s_variants(key)
+    )
     if not word_variants:
         raise KeyError(f"{word!r} not in CMUdict")
 
