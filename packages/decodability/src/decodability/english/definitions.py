@@ -228,6 +228,8 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G170", "augh", ("ɑ",)),
     ("G171", "ough", ("ɑ",)),  # resolve cot-caught merger
     ("G172", "ssion", ("ʃ", "ə", "n")),
+    ("G173", "o-e", ("ʌ",)),
+    ("G174", "rr", ("r",)),
 ]
 
 # Student-facing form: the phoneme side is a single joined IPA string, so a

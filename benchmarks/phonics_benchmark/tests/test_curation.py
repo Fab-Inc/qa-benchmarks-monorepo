@@ -14,11 +14,13 @@ PROFILES = [
     StudentKnowledge(
         student_knowledge_id="p1",
         language_iso_code="sw",
+        jagged=False,
         student_knowledge={"graphemes": ["a"], "whole_words": ["mama"]},
     ),
     StudentKnowledge(
         student_knowledge_id="p2",
         language_iso_code="sw",
+        jagged=True,
         student_knowledge={"graphemes": ["a", "m"], "whole_words": ["na"]},
     ),
 ]
