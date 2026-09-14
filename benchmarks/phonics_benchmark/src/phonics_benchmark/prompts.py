@@ -55,6 +55,7 @@ PromptFieldBuilder = Callable[[Mapping[str, Any], str], dict[str, Any]]
 
 PROMPT_FIELD_BUILDERS: dict[str, PromptFieldBuilder] = {
     "decodability_evaluation": _baseline_fields,
+    "decodability_evaluation_schwa_rule": _baseline_fields,
     "decodability_evaluation_grapheme_breakdown": _grapheme_breakdown_fields,
     "decodability_evaluation_valid_graphemes": _valid_graphemes_fields,
     "decodability_evaluation_clusters": _baseline_fields,

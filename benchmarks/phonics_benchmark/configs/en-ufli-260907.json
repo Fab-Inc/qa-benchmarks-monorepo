@@ -1,0 +1,31 @@
+{
+  "run_id": "en-ufli-260907",
+  "language": "en",
+  "items_path": "../data/english/benchmark_items.jsonl",
+  "prompt_name": "decodability_evaluation",
+  "output_dir": "../outputs",
+  "models": [
+    "gpt-5.6-terra",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "gemini-3.5-flash",
+    "deepseek-v4-flash",
+    "gemma-4-26b-a4b-it"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 4,
+  "model_workers": 5,
+  "metadata": {
+    "dataset": "UFLI English",
+    "unique_texts": 45,
+    "unique_student_profiles": 131,
+    "total_items": 20,
+    "filter_params": {
+      "max_zero_nondecodable":5,
+      "max_one_nondecodable": 10,
+      "max_nondecodable_ratio": 0.2,
+      "sample_size_other": 5,
+      "random_state": 42
+    }
+  }
+}

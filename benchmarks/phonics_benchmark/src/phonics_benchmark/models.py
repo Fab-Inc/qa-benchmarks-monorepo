@@ -11,6 +11,7 @@ class StudentKnowledge(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_knowledge_id: NonEmptyStr
     language_iso_code: NonEmptyStr
+    jagged: bool
     student_knowledge: dict[str, Any]
 
 
@@ -42,6 +43,7 @@ class LabelledBenchmarkItem(BaseModel):
 
     content: NonEmptyStr
     student_knowledge: dict[str, Any]
+    jagged: bool
 
     nondecodable_words: list[str]
     num_nondecodable_words: int = Field(ge=0)
