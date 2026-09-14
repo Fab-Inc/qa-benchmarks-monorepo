@@ -285,35 +285,23 @@ class TestSuffixedSFallback:
         """``hap`` is in CMUdict; ``haps``/``hap's`` are not."""
         variants = get_word_phonemes(word)
         assert variants == (
-            (
-                Phoneme("h", False),
-                Phoneme("æ", False),
-                Phoneme("p", False),
-                Phoneme("s", False),
-            ),
-            (
-                Phoneme("h", False),
-                Phoneme("æ", False),
-                Phoneme("p", False),
-                Phoneme("z", False),
-            ),
+            _say("h", "æ", "p", "s"),
+            _say("h", "æ", "p", "z"),
         )
 
     def test_fallback_does_not_fire_for_cmudict_entries(self):
         """``hiss`` is in CMUdict as /h ɪ s/ — the fallback must not rewrite it
         as ``his`` + /s/ (which would be /h ɪ z s/)."""
         variants = get_word_phonemes("hiss")
-        assert variants == (
-            (Phoneme("h", False), Phoneme("ɪ", False), Phoneme("s", False)),
-        )
+        assert variants == (_say("h", "ɪ", "s"),)
 
     def test_fallback_uses_override_for_base(self, monkeypatch):
         """An override for the base also serves its ``s``-suffixed form."""
         monkeypatch.setitem(CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"]])
         variants = get_word_phonemes("zzzbases")
         assert variants == (
-            (Phoneme("z", False), Phoneme("i", False), Phoneme("s", False)),
-            (Phoneme("z", False), Phoneme("i", False), Phoneme("z", False)),
+            _say("z", "i", "s"),
+            _say("z", "i", "z"),
         )
 
     @pytest.mark.parametrize("word", ["zzznotaword", "zzznotawords"])
@@ -335,10 +323,10 @@ class TestSuffixedSFallback:
         monkeypatch.setitem(CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"], ["Z", "EH1"]])
         variants = get_word_phonemes("zzzbase's")
         assert variants == (
-            (Phoneme("z", False), Phoneme("i", False), Phoneme("s", False)),
-            (Phoneme("z", False), Phoneme("i", False), Phoneme("z", False)),
-            (Phoneme("z", False), Phoneme("ɛ", False), Phoneme("s", False)),
-            (Phoneme("z", False), Phoneme("ɛ", False), Phoneme("z", False)),
+            _say("z", "i", "s"),
+            _say("z", "i", "z"),
+            _say("z", "ɛ", "s"),
+            _say("z", "ɛ", "z"),
         )
 
     def test_haps_scores_end_to_end(self):
