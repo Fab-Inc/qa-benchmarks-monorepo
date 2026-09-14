@@ -126,7 +126,7 @@ def _normalize_phonemes(
         i += 1
     return result
 
-  
+
 def _suffixed_s_variants(key: str) -> list[list[str]] | None:
     """Pronunciations for an out-of-vocabulary word ending in ``s``/``'s``.
 
@@ -149,7 +149,7 @@ def _suffixed_s_variants(key: str) -> list[list[str]] | None:
         return None
     return [variant + [suffix] for variant in base_variants for suffix in ("S", "Z")]
 
-  
+
 def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
     """Return every pronunciation variant for a word.
 
