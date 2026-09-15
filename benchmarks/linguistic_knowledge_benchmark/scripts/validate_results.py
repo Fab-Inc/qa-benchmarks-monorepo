@@ -21,7 +21,10 @@ results/validation/, filenames tagged with --label, default "<language>_<experim
   judge-agreement        Raw pairwise judge agreement (re-reads judge-bench's own
                           judge_agreement CSV) plus Cohen's kappa per judge pair (chance-
                           corrected -- raw agreement is inflated when most answers are
-                          correct) and a full-consensus / split / tie-unscored breakdown.
+                          correct) and a full-consensus / split breakdown, as counts and
+                          as percentages of the rows the judges actually scored (rows
+                          where the answering model returned no output are reported
+                          separately, not folded into the consensus rates).
                           -> judge_agreement_kappa_<label>.csv
 
   self-preference-bias   For each judge, the rate at which its verdict is more lenient
@@ -105,6 +108,7 @@ import ast
 import json
 import os
 import sys
+from itertools import combinations
 
 import matplotlib
 
@@ -166,6 +170,28 @@ def _kv(label: str, value) -> None:
     print(f"  {label:<28}: {value}")
 
 
+def _print_pair_range(matrix: pd.DataFrame, what: str) -> None:
+    """Print the min/max of a judge x judge matrix over its OFF-DIAGONAL entries.
+
+    The diagonal is 1.0 by construction (a judge always agrees with itself), so a
+    range including it would always max out at 1.000 and say nothing. The off-diagonal
+    is one value per judge PAIR -- the range actually quoted for a judge panel. NaN
+    pairs (two judges that never scored a common row) are skipped.
+    """
+    pairs = {
+        (a, b): matrix.loc[a, b]
+        for a, b in combinations(matrix.index, 2)
+        if pd.notna(matrix.loc[a, b])
+    }
+    if not pairs:
+        print(f"\n  (no judge pair shares a scored row -- no {what} range)")
+        return
+    lo = min(pairs, key=pairs.get)
+    hi = max(pairs, key=pairs.get)
+    print(f"\n  min {what}  {pairs[lo]:.4f}   {lo[0]} vs {lo[1]}")
+    print(f"  max {what}  {pairs[hi]:.4f}   {hi[0]} vs {hi[1]}")
+
+
 # --------------------------------------------------------------------------- #
 # Path resolution
 # --------------------------------------------------------------------------- #
@@ -225,19 +251,28 @@ def load_full_judged(
     return pd.read_csv(path)
 
 
-def judge_models_from_summary(summary_df: pd.DataFrame) -> list[str]:
-    """The short_form judge ensemble used for this experiment, from the summary CSV's
-    'short_form_llm_judges' column (a stringified python list); falls back to
-    DEFAULT_JUDGE_MODELS if that column is missing/unparseable."""
-    if "short_form_llm_judges" in summary_df.columns:
-        for val in summary_df["short_form_llm_judges"].dropna():
+def judge_models_from_summary(
+    summary_df: pd.DataFrame,
+    column: str = "short_form_llm_judges",
+    default: list[str] | None = None,
+) -> list[str]:
+    """The judge ensemble recorded in a summary CSV column (a stringified python list).
+
+    `column` selects which pass: 'short_form_llm_judges' is the short-form ensemble
+    (the default), 'mcq_llm_judges_fallback' the MCQ --judge-fallback pass, which is
+    usually a single judge rather than the full ensemble. Returns `default`
+    (DEFAULT_JUDGE_MODELS when not given) if the column is missing/unparseable -- pass
+    an explicit [] where guessing would be worse than reporting 'unknown'.
+    """
+    if column in summary_df.columns:
+        for val in summary_df[column].dropna():
             try:
                 parsed = ast.literal_eval(val) if isinstance(val, str) else val
             except (ValueError, SyntaxError):
                 continue
             if isinstance(parsed, list) and parsed:
                 return parsed
-    return list(DEFAULT_JUDGE_MODELS)
+    return list(DEFAULT_JUDGE_MODELS if default is None else default)
 
 
 def load_all_judged(
@@ -303,6 +338,7 @@ def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
         precomputed = pd.read_csv(paths["judge_agreement"], index_col=0)
         _section("RAW PAIRWISE AGREEMENT (from judge-bench's own output)")
         print(precomputed.round(4).to_string())
+        _print_pair_range(precomputed, "pairwise agreement")
     else:
         print(
             f"\n(no {paths['judge_agreement']} found -- recomputing raw agreement below)"
@@ -331,19 +367,48 @@ def run_judge_agreement(args: argparse.Namespace, root: str) -> None:
 
     _section("RAW AGREEMENT (recomputed across all models' judged rows)")
     print(raw_agreement.round(4).to_string())
+    _print_pair_range(raw_agreement, "pairwise agreement")
     _section("COHEN'S KAPPA (chance-corrected)")
     print(kappa.round(4).to_string())
+    _print_pair_range(kappa, "kappa")
 
+    # judge_agreement is NaN when the ANSWERING model returned no output (call error or
+    # empty completion), so the judges were never called on that row -- those rows are
+    # not a judge-agreement outcome and are excluded from the consensus percentages, the
+    # same denominator compute_judge_agreement/compute_kappa already use (they correlate
+    # over rows both judges scored). Both counts are printed so the two reconcile.
     sf = all_judged[all_judged["answer_type"] == "short_form"]
-    _section("CONSENSUS DISTRIBUTION (short_form rows, judge_agreement value counts)")
-    dist = sf["judge_agreement"].value_counts(dropna=False).sort_index()
+    unscored = sf["judge_agreement"].isna()
+    n_expected = len(sf)
+    n_unscored = int(unscored.sum())
+    n_judged = n_expected - n_unscored
+
+    def pct(count: int, total: int) -> str:
+        return f"{100.0 * count / total:6.2f}%" if total else "   n/a"
+
+    _section("CONSENSUS DISTRIBUTION (short_form rows)")
+    print(f"  {'expected to judge':<30} {n_expected:6d}")
+    print(
+        f"  {'unscored (no model output)':<30} {n_unscored:6d}  "
+        f"{pct(n_unscored, n_expected)} of expected"
+    )
+    print(
+        f"  {'judged (effective denominator)':<30} {n_judged:6d}  "
+        f"{pct(n_judged, n_expected)} of expected"
+    )
+    print(f"\n  of those {n_judged} judged rows:")
+    dist = (
+        sf.loc[~unscored, "judge_agreement"]
+        .value_counts()
+        .sort_index(ascending=False)  # full consensus (1.0) first
+    )
     for val, count in dist.items():
         label = (
-            "no judge responded"
-            if pd.isna(val)
-            else ("full consensus" if val == 1.0 else f"agreement={val:.3f}")
+            "full consensus (responding judges)"
+            if val == 1.0
+            else f"split, resolved by majority vote (agreement={val:.3f})"
         )
-        print(f"  {label:<24} {count}")
+        print(f"    {label:<52} {count:6d}  {pct(count, n_judged)}")
 
     os.makedirs(args.outdir, exist_ok=True)
     out_path = os.path.join(args.outdir, f"judge_agreement_kappa_{args.label}.csv")
@@ -509,49 +574,123 @@ def run_fallback_rate(args: argparse.Namespace, root: str) -> None:
     summary = load_summary(paths["summary"])
     accuracy_by_model = dict(zip(summary["model"], summary["accuracy"]))
 
+    # Who re-judged the unparseable MCQ rows. Recorded per experiment in the summary's
+    # own 'mcq_llm_judges_fallback' column; [] rather than DEFAULT_JUDGE_MODELS as the
+    # default, since a wrong judge name in a provenance line is worse than "unknown".
+    # It is usually ONE judge (not the short-form ensemble), which is why the fallback
+    # verdicts below have no majority vote behind them.
+    fallback_judges = judge_models_from_summary(
+        summary, column="mcq_llm_judges_fallback", default=[]
+    )
+
     models = discover_models_in_experiment(cache_experiment_dir)
     rows = []
+    judges_in_files: set[str] = set()
     for model in models:
         df = load_full_judged(cache_experiment_dir, model, is_fallback=True)
         if df is None:
             continue
+        judges_in_files.update(
+            c[len("is_correct_fallback_") :]
+            for c in df.columns
+            if c.startswith("is_correct_fallback_")
+        )
         mcq = df[df["answer_type"] == "multiple_choice"]
         mcq_total = len(mcq)
         if mcq_total == 0:
             continue
         mcq_fallback_sent = int((mcq["score_method"] == "llm_fallback").sum())
         mcq_still_unscored = int((mcq["score_method"] == "unscored").sum())
+
+        # Accuracy before vs after the fallback pass, over ALL answer types (that is
+        # what the headline accuracy is). "Before" = the rows the primary pass scored
+        # (is_correct non-null: regex-parsed MCQ + judged short-form); "after" adds the
+        # rows the fallback judge rescued, using is_correct_fallback where present --
+        # the same best-available-verdict rule compute_summary() applies. The two have
+        # DIFFERENT denominators by design: that is exactly the effect of the fallback
+        # pass, which converts unscored rows into scored ones.
+        primary = df["is_correct"].map(CORRECT_MAP)
+        effective = (
+            df["is_correct_fallback"].map(CORRECT_MAP).fillna(primary)
+            if "is_correct_fallback" in df.columns
+            else primary
+        )
+        n_before, n_after = int(primary.notna().sum()), int(effective.notna().sum())
+        correct_before, correct_after = int(primary.sum()), int(effective.sum())
+        fb_rows = effective[mcq.index].where(mcq["score_method"] == "llm_fallback")
+
         rows.append(
             {
                 "model": model,
                 "mcq_total": mcq_total,
                 "mcq_fallback_sent": mcq_fallback_sent,
                 "mcq_fallback_rate": round(mcq_fallback_sent / mcq_total, 4),
+                "mcq_fallback_correct": int(fb_rows.sum()),
                 "mcq_still_unscored": mcq_still_unscored,
+                "n_scored_before": n_before,
+                "correct_before": correct_before,
+                "accuracy_before": round(100.0 * correct_before / n_before, 2)
+                if n_before
+                else None,
+                "n_scored_after": n_after,
+                "correct_after": correct_after,
+                "accuracy_after": round(100.0 * correct_after / n_after, 2)
+                if n_after
+                else None,
                 "accuracy": accuracy_by_model.get(model),
             }
         )
 
     report = pd.DataFrame(rows).sort_values("mcq_fallback_rate", ascending=False)
+    used = report[report["mcq_fallback_sent"] > 0]
+    n_models, n_used = len(report), len(used)
 
-    _section("FALLBACK RATE PER MODEL (sorted, highest first)")
-    for _, r in report.iterrows():
-        acc = "n/a" if pd.isna(r["accuracy"]) else f"{r['accuracy']:.1f}%"
-        flag = (
-            "  <-- check: format-compliance issue, not knowledge gap?"
-            if r["mcq_fallback_rate"] > 0.15
-            and (pd.notna(r["accuracy"]) and r["accuracy"] < 70)
-            else ""
-        )
+    def share(count: int, total: int) -> str:
+        return f"{100.0 * count / total:5.1f}%" if total else "  n/a"
+
+    _section("FALLBACK USE")
+    named = ", ".join(fallback_judges) if fallback_judges else "unknown"
+    print(f"  {'fallback judge(s)':<34} {named}")
+    # The summary says who was configured; the judged CSVs' is_correct_fallback_<judge>
+    # columns say who actually voted. Disagreement means the summary and the cache come
+    # from different fallback passes -- the verdicts counted below are the files'.
+    if judges_in_files and judges_in_files != set(fallback_judges):
         print(
-            f"  {r['model']:<32} fallback {r['mcq_fallback_rate']:6.1%} "
-            f"({r['mcq_fallback_sent']}/{r['mcq_total']})   "
-            f"still-unscored {r['mcq_still_unscored']:3d}   accuracy {acc}{flag}"
+            f"  {'':<34} WARNING: judged files carry verdicts from "
+            f"{', '.join(sorted(judges_in_files))}"
+        )
+    print(f"  {'models judged':<34} {n_models:4d}")
+    print(
+        f"  {'with >=1 fallback-judged row':<34} {n_used:4d}   "
+        f"{share(n_used, n_models)} of models judged"
+    )
+    print(
+        f"  {'with no fallback at all':<34} {n_models - n_used:4d}   "
+        f"{share(n_models - n_used, n_models)} of models judged"
+    )
+
+    _section("PER-MODEL RECOVERY (only models with >=1 fallback-judged row)")
+    print(
+        f"  {'model':<32}{'fallback judged':>19}{'of which correct':>20}"
+        f"{'accuracy before':>22}{'accuracy after':>22}"
+    )
+    for _, r in used.iterrows():
+        sent, correct = int(r["mcq_fallback_sent"]), int(r["mcq_fallback_correct"])
+        print(
+            f"  {r['model']:<32}"
+            f"{f'{sent}/{int(r.mcq_total)} MCQ':>11}{f' ({r.mcq_fallback_rate:.1%})':>8}"
+            f"{correct:>11}{f'({share(correct, sent).strip()})':>9}"
+            f"{f'{r.accuracy_before:.1f}%':>9}{f'({int(r.correct_before)}/{int(r.n_scored_before)})':>13}"
+            f"{f'{r.accuracy_after:.1f}%':>9}{f'({int(r.correct_after)}/{int(r.n_scored_after)})':>13}"
         )
 
     os.makedirs(args.outdir, exist_ok=True)
     out_path = os.path.join(args.outdir, f"fallback_rate_{args.label}.csv")
     report.to_csv(out_path, index=False)
+    print(
+        f"\n  (the CSV below keeps all {n_models} models, including the "
+        f"{n_models - n_used} with no fallback)"
+    )
     print(f"\nWrote: {out_path}")
 
 

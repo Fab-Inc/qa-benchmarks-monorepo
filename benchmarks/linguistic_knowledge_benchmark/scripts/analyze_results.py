@@ -43,18 +43,28 @@ Outputs (under --outdir, tagged with --label):
     judge_pairwise_agreement_<label>.csv       (c) pairwise judge agreement, all models combined
     judge_accuracy_<label>.png                 (c) grouped bars: ensemble vs each judge, per model
     accuracy_by_model_size_<label>.png         only with --model-size: one accuracy barplot,
-                                                with bars colored by estimated RAM tier
-                                                (<4GB, 4-12GB, 12-35GB, >35GB) from
-                                                models.csv's `size`; Cloud bars are grey
-    accuracy_by_hardware_<label>.png           only with --hardware: four accuracy barplots,
-                                                grouped by estimated RAM tier (<4GB, 4-12GB,
-                                                12-35GB, >35GB) from models.csv's `size`
-    accuracy_boxplot_<label>.png               only with --boxplot: four hardware-tier
-                                                groups, each pairing English and Kiswahili
-                                                model-accuracy distributions
-    accuracy_swarplot_<label>.png              only with --swarplot: the paired boxplot
+                                                with bars colored by estimated hardware tier
+                                                (<12GB, 12-35GB, >35GB RAM) from models.csv's
+                                                `size`/`open`; Cloud bars are grey
+    accuracy_by_hardware_<label>.png           only with --hardware: one accuracy barplot per
+                                                estimated hardware tier (<12GB, 12-35GB,
+                                                >35GB RAM), see HARDWARE_TIERS
+    accuracy_boxplot_<experiment-ids>.png      only with --boxplot: per hardware tier and
+                                                language, the mean accuracy with a 95%
+                                                bootstrap CI over models, above the
+                                                individual model points
+    accuracy_boxplot_<experiment-ids>_median.png  the same figure with the median as the
+                                                statistic (bootstrapped too), robust to a
+                                                tier's few extreme models
+    accuracy_swarplot_<experiment-ids>.png     only with --swarplot: the paired boxplot
                                                 with individual model accuracies jittered
                                                 underneath
+Each of the three figures above also writes a .csv of the same name holding the numbers
+it plots -- per (language, tier) for the CI figures, per model for the swarplot.
+
+The last two read BOTH languages whatever --language says, so they are named after the
+experiment ids alone rather than <label> -- one run writes one file, and running the
+script again for the other language overwrites it instead of duplicating it.
 
 Run (--language and --experiment-id are mandatory; --experiment-id selects the judge-bench run's
 CSVs, or pass --summary/--detailed to point at exact files instead):
@@ -81,14 +91,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 # Fallback bar color for models with no provider / no provider color.
 DEFAULT_BAR_COLOR = "#4e79a7"
 
-# Model-size buckets for --model-size and hardware tiers for --hardware, by total
-# parameter count (models.csv's `size` column). Buckets use total params, not MoE
-# active params.
+# Raw model-size buckets, by total parameter count (models.csv's `size` column) -- these
+# describe size only, not deployability, so they use total params and ignore MoE active
+# params. For "what hardware can run this", see HARDWARE_TIERS below instead.
 SIZE_BUCKET_UNKNOWN = "12B+ / unknown"
 SIZE_BUCKETS = [
     (0, 4e9, "<4B"),
@@ -100,15 +111,59 @@ SIZE_BUCKET_COLORS = {
     SIZE_BUCKET_UNKNOWN: "#bab0ac",
 }
 
+# A model's hardware tier is the smallest hardware it can realistically run inference on,
+# so the tier plots read as deployability rather than as raw size. Assumptions, applied
+# uniformly to every tier:
+#   * INT8, i.e. 1 byte per parameter, everywhere. A single quantization keeps tiers
+#     comparable and reflects what parameter count alone can tell us: accurate for
+#     Workstation/Tablet, conservative for Mobile (real deployments there use INT4),
+#     generous for Cloud (real deployments use FP16 + batching).
+#   * RAM inflated 25% for KV cache + activations + framework, assuming short-to-medium
+#     context; long context (>8K tokens) can push a model up a tier.
+#   * MoE models get NO discount: total parameters drive RAM exactly as for dense models,
+#     and models.csv's `size_active` is deliberately not read here. An earlier version of
+#     this did charge MoE models for their active params only, assuming inactive experts
+#     could be offloaded; that is wrong to plan around, because the router can pick any
+#     expert for any token, so the whole model has to be resident. Paging experts from
+#     disk/CPU works but collapses throughput. gpt-oss-120b (117B total, 5.1B active) is
+#     the case that settled it: on active params it would fit a 12GB tablet, while OpenAI
+#     quote "within 80GB of memory" for it and real local runs need ~64GB of unified
+#     memory -- both tracking total parameters, not active ones.
+# RAM caps are inference-available memory after the OS, not total device RAM: 4GB is an
+# entry-level phone, 12GB a premium phone/tablet, 35GB the ceiling of a single high-end
+# consumer GPU (an RTX 5090 has 32GB VRAM); above that needs datacenter or multi-GPU.
+BYTES_PER_PARAM = 1.0  # INT8
+RAM_OVERHEAD = 1.25
+
+# (ram_cap_gb, storage_cap_gb, label), smallest tier first: a model takes the first tier
+# where BOTH caps fit. Storage caps are the free space realistically available for model
+# files on that class of device. With RAM and storage both driven by total parameters the
+# RAM test is now always the tighter one (Mobile admits <=3.2B params, i.e. 3.2GB on disk,
+# far inside its 32GB cap), so storage never binds; it is kept because it documents a real
+# limit and would bind again under a lower-precision assumption than INT8.
 HARDWARE_TIERS = [
-    (0, 4e9, "Mobile (<4GB RAM)"),
-    (4e9, 12e9, "Tablet (4-12GB RAM)"),
-    (12e9, 35e9, "Workstation (12-35GB RAM)"),
-    (35e9, float("inf"), "Cloud (>35GB RAM)"),
+    (4, 32, "Mobile (<4GB RAM)"),
+    (12, 256, "Tablet (4-12GB RAM)"),
+    (35, 2048, "Workstation (12-35GB RAM)"),
+    (float("inf"), float("inf"), "Cloud (>35GB RAM)"),
 ]
-HARDWARE_TIER_COLORS = {
+# Mobile and Tablet hold only 5 and 6 of the ~120 scored models -- too few to read as
+# separate distributions -- so they are reported as one group. Empty this dict to un-merge
+# them; nothing else has to change.
+HARDWARE_TIER_MERGES = {
+    "Mobile (<4GB RAM)": "Mobile + Tablet (<12GB RAM)",
+    "Tablet (4-12GB RAM)": "Mobile + Tablet (<12GB RAM)",
+}
+# Tier labels as plotted: tier order, de-duplicated by the merges above.
+PLOTTED_HARDWARE_TIERS = list(
+    dict.fromkeys(
+        HARDWARE_TIER_MERGES.get(label, label) for *_, label in HARDWARE_TIERS
+    )
+)
+HARDWARE_TIER_COLORS = {  # keyed by raw and merged labels alike, so merges stay optional
     "Mobile (<4GB RAM)": "#59a14f",
     "Tablet (4-12GB RAM)": "#4e79a7",
+    "Mobile + Tablet (<12GB RAM)": "#59a14f",
     "Workstation (12-35GB RAM)": "#f28e2b",
     "Cloud (>35GB RAM)": "#bab0ac",
 }
@@ -163,6 +218,18 @@ def default_paths_for(language: str, results_dir: str, experiment_id: str) -> di
         ),
         "label": f"{language}_{experiment_id}",
     }
+
+
+def paired_experiment_label(experiment_ids: dict) -> str:
+    """Filename label for the both-language figures (--boxplot/--swarplot).
+
+    Those figures always read every language in LANGUAGES, so --language changes nothing
+    about them and must not appear in their name: labelling them per-language made one
+    run per language write the same bytes twice under two names. Keyed on the experiment
+    ids instead, so one CLI call writes one file and a second call for the other language
+    overwrites it in place. Collapses to a single id when both languages share one.
+    """
+    return "_".join(dict.fromkeys(experiment_ids[lang] for lang in LANGUAGES))
 
 
 # --------------------------------------------------------------------------- #
@@ -401,21 +468,34 @@ def _provider_legend_handles(
     ]
 
 
-def load_model_sizes(models_csv: str) -> dict:
-    """model_id -> total parameter count (float), from models.csv's `size` column.
+def load_model_hardware(models_csv: str) -> dict:
+    """model_id -> {"size", "open"} from models.csv, for hardware_tier().
 
-    Empty dict if the file or column is missing. A model present in the file with a
-    blank `size` (e.g. a closed-source model whose parameter count isn't published)
-    maps to None -- distinct from being absent, both bucket as SIZE_BUCKET_UNKNOWN.
+    `size` stays a raw total parameter count (the CSV stores 4e9, not 4); a blank cell is
+    None. models.csv also carries `size_active` for MoE models, deliberately not loaded:
+    tiers charge every model for its total parameters (see HARDWARE_TIERS), and reading it
+    here is what would let it drift back into the tier maths. Empty dict if the file or
+    the `size` column is missing, so the tier plots degrade the same way they did when
+    models.csv was absent.
     """
     if not os.path.exists(models_csv):
         return {}
     m = pd.read_csv(models_csv)
     if "size" not in m.columns:
         return {}
+
+    def _number(row: dict, column: str) -> float | None:
+        value = row.get(column)
+        return None if value is None or pd.isna(value) else float(value)
+
+    # Indexed by name rather than attribute: `row.size` on an itertuples row resolves to
+    # the column only by luck, since `size` is also a pandas attribute name.
     return {
-        row.model_id: (None if pd.isna(row.size) else float(row.size))
-        for row in m.itertuples()
+        row["model_id"]: {
+            "size": _number(row, "size"),
+            "open": bool(row.get("open")),
+        }
+        for row in m.to_dict("records")
     }
 
 
@@ -430,14 +510,118 @@ def size_bucket(size: float | None) -> str:
     return SIZE_BUCKET_UNKNOWN
 
 
-def hardware_tier(size: float | None) -> str:
-    """Return the estimated RAM tier for a total parameter count."""
+def hardware_tier(spec: dict | None) -> str | None:
+    """Smallest hardware tier this model can run inference on (see HARDWARE_TIERS), from
+    a load_model_hardware() spec.
+
+    None when the model cannot be placed: an open-weights model whose parameter count is
+    unpublished, or a model absent from models.csv. Callers drop those rather than
+    guessing a tier -- size unknown is not the same as size small. A closed-weights model
+    with no published size is Cloud: it is only ever served through a vendor API on
+    datacenter hardware, so Cloud is its deployable tier whatever the parameter count.
+    """
+    cloud = HARDWARE_TIERS[-1][2]
+    cloud = HARDWARE_TIER_MERGES.get(cloud, cloud)
+    if spec is None:
+        return None
+    size = spec.get("size")
     if size is None or pd.isna(size):
-        return HARDWARE_TIERS[-1][2]
-    for lo, hi, label in HARDWARE_TIERS:
-        if lo <= size < hi:
-            return label
-    return HARDWARE_TIERS[-1][2]
+        return None if spec.get("open") else cloud
+    # Total parameters drive both, MoE included -- see HARDWARE_TIERS on why sparse
+    # models get no active-parameter discount here.
+    ram_gb = size / 1e9 * BYTES_PER_PARAM * RAM_OVERHEAD
+    storage_gb = size / 1e9 * BYTES_PER_PARAM
+    for ram_cap, storage_cap, label in HARDWARE_TIERS:
+        if ram_gb <= ram_cap and storage_gb <= storage_cap:
+            return HARDWARE_TIER_MERGES.get(label, label)
+    return cloud
+
+
+# main() calls the reporter from every tier-plot branch, but --model-size --hardware
+# --boxplot --swarplot in one invocation would then print the same breakdown up to six
+# times; remember what has already been reported so each (note, model set) prints once.
+_REPORTED_TIER_NOTES: set = set()
+
+
+def report_hardware_tiers(models: list[str], specs: dict, note: str = "") -> None:
+    """Print how `models` split across the hardware tiers, naming any model that could
+    not be placed (see hardware_tier) so none is dropped from the tier plots silently."""
+    key = (note, tuple(sorted(models)))
+    if key in _REPORTED_TIER_NOTES:
+        return
+    _REPORTED_TIER_NOTES.add(key)
+
+    tiers = {model: hardware_tier(specs.get(model)) for model in models}
+    label = f" ({note})" if note else ""
+    print(f"\nhardware tiers{label}:")
+    for tier_label in PLOTTED_HARDWARE_TIERS:
+        count = sum(1 for tier in tiers.values() if tier == tier_label)
+        print(f"  {tier_label:<30} {count:3d}")
+    unplaceable = sorted(model for model, tier in tiers.items() if tier is None)
+    if unplaceable:
+        print(
+            f"  excluded from the tier plots ({len(unplaceable)}): no published "
+            "parameter count in models.csv, and open-weights so not assumable as Cloud:"
+        )
+        for model in unplaceable:
+            print(f"    {model}")
+
+
+# One entry per tier table already written this run, so --model-size --hardware in the
+# same invocation writes (and reports) each file once instead of repeating itself.
+_WRITTEN_TIER_TABLES: set = set()
+
+
+def write_hardware_tier_table(
+    summary: pd.DataFrame, specs: dict, out_path: str, note: str = ""
+) -> pd.DataFrame:
+    """Write model / hardware_tier / accuracy to `out_path` and print each tier's n,
+    mean and median accuracy.
+
+    This is the per-model audit trail behind the tier plots: the plots show
+    distributions, so any tier statistic quoted in prose (a median, a tier gap) can only
+    be checked against the underlying assignment. Rows are ordered by tier (plot order,
+    not alphabetical) then by accuracy, and models that could not be placed (see
+    hardware_tier) are kept with an empty tier rather than dropped, so the file always
+    accounts for every scored model.
+    """
+    table = pd.DataFrame(
+        {
+            "model": summary["model"],
+            "hardware_tier": summary["model"].map(
+                lambda model: hardware_tier(specs.get(model))
+            ),
+            "accuracy": summary["accuracy"],
+        }
+    )
+    table["hardware_tier"] = pd.Categorical(
+        table["hardware_tier"], categories=PLOTTED_HARDWARE_TIERS, ordered=True
+    )
+    table = table.sort_values(
+        ["hardware_tier", "accuracy"], ascending=[True, False]
+    ).reset_index(drop=True)
+
+    if out_path in _WRITTEN_TIER_TABLES:
+        return table
+    _WRITTEN_TIER_TABLES.add(out_path)
+
+    table.to_csv(out_path, index=False)
+    label = f" ({note})" if note else ""
+    print(f"\nhardware tier accuracy{label}:")
+    print(f"  {'tier':<30}{'n':>5}{'mean':>10}{'median':>10}")
+    for tier_label in PLOTTED_HARDWARE_TIERS:
+        tier_rows = table[table["hardware_tier"] == tier_label]
+        if tier_rows.empty:
+            continue
+        print(
+            f"  {tier_label:<30}{len(tier_rows):5d}"
+            f"{tier_rows['accuracy'].mean():9.1f}%{tier_rows['accuracy'].median():9.1f}%"
+        )
+    n_unplaced = int(table["hardware_tier"].isna().sum())
+    if n_unplaced:
+        print(f"  {'(no tier -- excluded from plots)':<30}{n_unplaced:5d}")
+    print(f"  wrote {out_path}")
+    return table
 
 
 def _bar_colors_by_size(models: list[str], sizes: dict) -> list[str]:
@@ -582,23 +766,28 @@ def plot_accuracy_by_size(
     out: str,
     title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
     display_names: dict | None = None,
-    sizes: dict | None = None,
+    specs: dict | None = None,
     model_provider: dict | None = None,
     provider_color: dict | None = None,
 ) -> None:
-    """Plot one accuracy barplot with bars colored by hardware/RAM tier."""
-    sizes = sizes or {}
+    """Plot one accuracy barplot with bars colored by hardware/RAM tier.
+
+    Models hardware_tier() cannot place are dropped -- there is no honest color for
+    them, and inventing one would read as a tier claim we cannot make."""
+    specs = specs or {}
     ordered = summary.sort_values("accuracy", ascending=False)
-    models = ordered["model"].tolist()
-    colors = [HARDWARE_TIER_COLORS[hardware_tier(sizes.get(model))] for model in models]
-    present = {hardware_tier(sizes.get(model)) for model in models}
+    tiers = ordered["model"].map(lambda model: hardware_tier(specs.get(model)))
+    ordered = ordered[tiers.notna()]
+    tiers = tiers[tiers.notna()]
+    colors = [HARDWARE_TIER_COLORS[tier] for tier in tiers]
+    present = set(tiers)
     handles = [
         Patch(facecolor=HARDWARE_TIER_COLORS[label], label=label)
-        for _, _, label in HARDWARE_TIERS
+        for label in PLOTTED_HARDWARE_TIERS
         if label in present
     ]
     _plot_accuracy_bars(
-        summary,
+        ordered,
         out,
         title,
         display_names,
@@ -613,27 +802,36 @@ def plot_accuracy_by_hardware(
     out: str,
     title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
     display_names: dict | None = None,
-    sizes: dict | None = None,
+    specs: dict | None = None,
     model_provider: dict | None = None,
     provider_color: dict | None = None,
     cloud_grey: bool = False,
 ) -> None:
     """Plot one accuracy barplot per estimated hardware/RAM tier."""
-    sizes = sizes or {}
+    specs = specs or {}
     model_provider = model_provider or {}
     provider_color = provider_color or {}
+    cloud = HARDWARE_TIERS[-1][2]
+    cloud = HARDWARE_TIER_MERGES.get(cloud, cloud)
     ordered = summary.sort_values("accuracy", ascending=False)
-    fig, axes = plt.subplots(1, len(HARDWARE_TIERS), figsize=(18, 5), sharey=True)
+    # Width scales with the panel count so each panel keeps the same slot however many
+    # tiers HARDWARE_TIER_MERGES leaves.
+    fig, axes = plt.subplots(
+        1,
+        len(PLOTTED_HARDWARE_TIERS),
+        figsize=(4.5 * len(PLOTTED_HARDWARE_TIERS), 5),
+        sharey=True,
+    )
 
-    for ax, (_, _, tier_label) in zip(axes, HARDWARE_TIERS):
+    for ax, tier_label in zip(axes, PLOTTED_HARDWARE_TIERS):
         tier_summary = ordered[
-            ordered["model"].map(lambda model: hardware_tier(sizes.get(model)))
+            ordered["model"].map(lambda model: hardware_tier(specs.get(model)))
             == tier_label
         ]
         models = tier_summary["model"].tolist()
         x = np.arange(len(models))
         colors = _bar_colors(models, model_provider, provider_color)
-        if cloud_grey and tier_label == HARDWARE_TIERS[-1][2]:
+        if cloud_grey and tier_label == cloud:
             colors = [SIZE_BUCKET_COLORS[SIZE_BUCKET_UNKNOWN]] * len(models)
         ax.bar(x, tier_summary["accuracy"], color=colors)
         ax.set_title(tier_label, fontsize=10, fontweight="bold")
@@ -668,91 +866,212 @@ def plot_accuracy_by_hardware(
     plt.close(fig)
 
 
+def _csv_beside(png_path: str) -> str:
+    """The .csv sitting next to a figure, so a plot's numbers ship with the plot."""
+    return os.path.splitext(png_path)[0] + ".csv"
+
+
 def plot_accuracy_boxplot(
     summaries: dict[str, pd.DataFrame],
     out: str,
     title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
-    sizes: dict | None = None,
+    specs: dict | None = None,
+    statistic: str = "mean",
 ) -> None:
-    """Plot boxplots whose whiskers are bootstrap 95% CIs for the mean."""
-    sizes = sizes or {}
-    tier_labels = [label for _, _, label in HARDWARE_TIERS]
+    """Plot each tier's `statistic` accuracy with a bootstrap 95% CI, over the points.
+
+    `statistic` is "mean" or "median", and is bootstrapped as well as plotted -- the
+    interval is always around the statistic actually drawn, never around a different one.
+
+    Deliberately not a boxplot. An earlier version drew a quartile box with the CI as
+    its whiskers, but a CI for the mean is narrower than the IQR, so the whiskers sat
+    inside the box (in 3 of 6 groups, entirely inside) and read as an impossibly tight
+    distribution. Statistic, interval and individual models are now distinct marks.
+
+    The CI resamples MODELS, not items, so it answers "had we scored a different sample
+    of models in this tier, where would their average land" -- a statement about model
+    selection, not about benchmark measurement error.
+    """
+    if statistic not in ("mean", "median"):
+        raise ValueError(f"statistic must be 'mean' or 'median', got {statistic!r}")
+    estimator = np.mean if statistic == "mean" else np.median
+    specs = specs or {}
+    tier_labels = PLOTTED_HARDWARE_TIERS
     languages = ["english", "kiswahili"]
     language_labels = {"english": "English", "kiswahili": "Kiswahili"}
     language_colors = {"english": "#4e79a7", "kiswahili": "#f28e2b"}
-    positions = np.arange(len(tier_labels)) * 3.0
+    # Group spacing: each language pair spans about 1.2 units (offset +-0.4 plus the
+    # jitter), so 1.8 leaves one clear gap between tiers instead of the two-thirds-empty
+    # canvas a wider spacing produced.
+    positions = np.arange(len(tier_labels)) * 1.8
     width = 0.8
     rng = np.random.default_rng(42)
+    n_boot = 1000
 
     def bootstrap_stats(values: list[float]) -> dict:
         values_array = np.asarray(values, dtype=float)
         if len(values_array) == 1:
+            # One model: nothing to resample, so the CI collapses onto the value. Drawn
+            # as a bare point below, since a zero-width interval is not a measurement.
             ci_low = ci_high = float(values_array[0])
         else:
             samples = rng.choice(
-                values_array, size=(1000, len(values_array)), replace=True
+                values_array, size=(n_boot, len(values_array)), replace=True
             )
-            means = samples.mean(axis=1)
-            ci_low, ci_high = np.percentile(means, [2.5, 97.5])
+            replicates = estimator(samples, axis=1)
+            ci_low, ci_high = np.percentile(replicates, [2.5, 97.5])
+        # mean and median are both reported whichever one is plotted, so the saved table
+        # can settle claims written against either statistic without re-running.
         return {
-            "label": "",
-            "q1": float(np.percentile(values_array, 25)),
-            "med": float(np.percentile(values_array, 50)),
-            "q3": float(np.percentile(values_array, 75)),
-            "whislo": float(ci_low),
-            "whishi": float(ci_high),
-            "fliers": [],
+            "point": float(estimator(values_array)),
+            "ci_low": float(ci_low),
+            "ci_high": float(ci_high),
+            "n": int(len(values_array)),
+            "mean": float(values_array.mean()),
+            "median": float(np.median(values_array)),
+            "min": float(values_array.min()),
+            "max": float(values_array.max()),
         }
 
-    stats_by_language = {}
-    for language in languages:
-        summary = summaries[language]
-        stats_by_language[language] = []
-        for tier_label in tier_labels:
-            values = summary.loc[
-                summary["model"].map(lambda model: hardware_tier(sizes.get(model)))
+    values_by_language = {
+        language: [
+            summaries[language]
+            .loc[
+                summaries[language]["model"].map(
+                    lambda model: hardware_tier(specs.get(model))
+                )
                 == tier_label,
                 "accuracy",
-            ].tolist()
-            stats_by_language[language].append(bootstrap_stats(values))
+            ]
+            .tolist()
+            for tier_label in tier_labels
+        ]
+        for language in languages
+    }
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    saved_rows = []
     for offset, language in enumerate(languages):
-        position = positions + (offset - 0.5) * width
+        positions_for_language = positions + (offset - 0.5) * width
         color = language_colors[language]
-        boxplot = ax.bxp(
-            stats_by_language[language],
-            positions=position,
-            widths=width,
-            patch_artist=True,
-            showfliers=False,
-            capprops={"color": color, "linewidth": 1.2},
-            whiskerprops={"color": color, "linewidth": 1.2},
-            boxprops={"facecolor": color, "alpha": 0.35},
-            medianprops={"color": "#222222", "linewidth": 1.5},
-        )
-        for patch in boxplot["boxes"]:
-            patch.set_label(language_labels[language])
+        for position, tier_label, values in zip(
+            positions_for_language, tier_labels, values_by_language[language]
+        ):
+            if not values:
+                continue
+            # Individual models first, faint and behind: they give the spread the CI
+            # deliberately does not show.
+            jitter = rng.uniform(-width * 0.26, width * 0.26, len(values))
+            ax.scatter(
+                position + jitter,
+                values,
+                s=20,
+                color=color,
+                alpha=0.35,
+                edgecolors="white",
+                linewidths=0.4,
+                zorder=2,
+            )
+            stats = bootstrap_stats(values)
+            saved_rows.append(
+                {
+                    "language": language,
+                    "tier": tier_label,
+                    "n": stats["n"],
+                    "statistic": statistic,
+                    "point_estimate": round(stats["point"], 2),
+                    "ci_low": round(stats["ci_low"], 2),
+                    "ci_high": round(stats["ci_high"], 2),
+                    "n_boot": n_boot,
+                    "mean": round(stats["mean"], 2),
+                    "median": round(stats["median"], 2),
+                    "min": round(stats["min"], 2),
+                    "max": round(stats["max"], 2),
+                }
+            )
+            # errorbar wants distances from the point estimate, not absolute bounds.
+            yerr = [
+                [stats["point"] - stats["ci_low"]],
+                [stats["ci_high"] - stats["point"]],
+            ]
+            ax.errorbar(
+                position,
+                stats["point"],
+                yerr=yerr,
+                fmt="o",
+                color=color,
+                markersize=7,
+                markeredgecolor="white",
+                markeredgewidth=1.0,
+                elinewidth=2.0,
+                capsize=6,
+                capthick=2.0,
+                zorder=4,
+            )
+            # Pinned to the axis floor rather than above the CI: in the Cloud tier the
+            # interval sits inside a dense point cloud, where the label is unreadable.
+            ax.annotate(
+                f"n={stats['n']}",
+                (position, 0),
+                textcoords="offset points",
+                xytext=(0, 6),
+                ha="center",
+                fontsize=10,
+                color="#666666",
+            )
 
     ax.set_xticks(positions)
-    ax.set_xticklabels(tier_labels)
-    ax.set_ylabel("Accuracy (%)")
+    ax.set_xticklabels(tier_labels, fontsize=11)
+    # Half a group-gap of padding, so the outer tiers are not flush against the spines.
+    ax.set_xlim(positions[0] - 1.0, positions[-1] + 1.0)
+    ax.set_ylabel("Accuracy (%)", fontsize=13)
+    ax.tick_params(axis="y", labelsize=12)
     ax.set_ylim(0, 106)
-    ax.set_title(
-        f"{title} (whiskers = 95% bootstrap CI for mean)",
-        fontweight="bold",
-        pad=16,
-        fontsize=15,
-    )
+    # Single line: the legend already names the statistic and the interval, so the method
+    # detail (n_boot, resampled over models) belongs in the caption, not the figure.
+    # Kept just under the canvas width: too large and bbox_inches="tight" silently
+    # expands the saved figure past the requested figsize to fit the title.
+    ax.set_title(title, fontweight="bold", pad=14, fontsize=14)
+    # Marker-and-bar handles, not patches: the figure no longer draws filled boxes. The
+    # two language rows double as the statistic/CI key (dot on a bar), plus a row for the
+    # faint points, so every glyph on the figure is named here rather than in the title.
+    # No legend title: the rows are no longer all languages.
     handles = [
-        Patch(
-            facecolor=language_colors[language],
-            label=language_labels[language],
-            alpha=0.35,
+        Line2D(
+            [0],
+            [0],
+            color=language_colors[language],
+            marker="o",
+            markersize=7,
+            markeredgecolor="white",
+            linewidth=2.0,
+            label=f"{language_labels[language]} — {statistic} & 95% CI",
         )
         for language in languages
     ]
-    ax.legend(handles=handles, frameon=False, title="Language")
+    handles += [
+        Line2D(
+            [0],
+            [0],
+            color="#9a9a9a",
+            marker="o",
+            linestyle="none",
+            markersize=6,
+            alpha=0.5,
+            markeredgecolor="white",
+            markeredgewidth=0.4,
+            label="Individual models",
+        ),
+    ]
+    # Bottom right: the Cloud tier's points sit high, so this corner is the empty one.
+    # Lifted clear of the axis floor, where the n= labels sit.
+    ax.legend(
+        handles=handles,
+        frameon=False,
+        loc="lower right",
+        bbox_to_anchor=(1.0, 0.10),
+        fontsize=9,
+    )
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="y", color="#eeeeee")
     ax.set_axisbelow(True)
@@ -760,16 +1079,21 @@ def plot_accuracy_boxplot(
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
+    # The plotted numbers, next to the figure: the CI bounds come from a seeded RNG
+    # consumed in draw order, so they cannot be reproduced exactly from a standalone
+    # script -- if they are quoted anywhere, this file is the only record.
+    pd.DataFrame(saved_rows).to_csv(_csv_beside(out), index=False)
+
 
 def plot_accuracy_swarplot(
     summaries: dict[str, pd.DataFrame],
     out: str,
     title: str = "Linguistic Knowledge Benchmark Performance — by hardware tier",
-    sizes: dict | None = None,
+    specs: dict | None = None,
 ) -> None:
     """Plot jittered model accuracies with transparent English/Kiswahili boxplots."""
-    sizes = sizes or {}
-    tier_labels = [label for _, _, label in HARDWARE_TIERS]
+    specs = specs or {}
+    tier_labels = PLOTTED_HARDWARE_TIERS
     languages = ["english", "kiswahili"]
     language_labels = {"english": "English", "kiswahili": "Kiswahili"}
     language_colors = {"english": "#4e79a7", "kiswahili": "#f28e2b"}
@@ -778,16 +1102,30 @@ def plot_accuracy_swarplot(
     rng = np.random.default_rng(42)
 
     fig, ax = plt.subplots(figsize=(12, 6))
+    saved_rows = []
     for offset, language in enumerate(languages):
         summary = summaries[language]
         values_by_tier = []
         for tier_label in tier_labels:
-            values = summary.loc[
-                summary["model"].map(lambda model: hardware_tier(sizes.get(model)))
-                == tier_label,
-                "accuracy",
-            ].tolist()
+            in_tier = (
+                summary["model"].map(lambda model: hardware_tier(specs.get(model)))
+                == tier_label
+            )
+            values = summary.loc[in_tier, "accuracy"].tolist()
             values_by_tier.append(values)
+            # One row per plotted point: this figure's content IS the model list, so the
+            # saved table is per model rather than per group.
+            saved_rows += [
+                {
+                    "language": language,
+                    "tier": tier_label,
+                    "model": model,
+                    "accuracy": accuracy,
+                }
+                for model, accuracy in zip(
+                    summary.loc[in_tier, "model"], summary.loc[in_tier, "accuracy"]
+                )
+            ]
 
         positions_for_language = positions + (offset - 0.5) * width
         color = language_colors[language]
@@ -833,13 +1171,16 @@ def plot_accuracy_swarplot(
         )
         for language in languages
     ]
-    ax.legend(handles=handles, frameon=False, title="Language")
+    # Bottom right: the Cloud tier's points sit high, so this corner is the empty one.
+    ax.legend(handles=handles, frameon=False, title="Language", loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(axis="y", color="#eeeeee")
     ax.set_axisbelow(True)
     fig.tight_layout()
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+    pd.DataFrame(saved_rows).to_csv(_csv_beside(out), index=False)
 
 
 def plot_mcq_vs_short(
@@ -1273,21 +1614,23 @@ def main() -> None:
         "--model-size",
         action="store_true",
         help="also write accuracy_by_model_size_<label>.png: the same accuracy bars, "
-        "colored by parameter-count bucket (<4B, 4-12B; everything else grey) from "
-        "models.csv's `size` column instead of by provider",
+        "colored by estimated hardware tier (<12GB, 12-35GB, >35GB RAM) instead of by "
+        "provider; see HARDWARE_TIERS for how the tier is derived",
     )
     ap.add_argument(
         "--hardware",
         action="store_true",
-        help="also write accuracy_by_hardware_<label>.png: four accuracy barplots "
-        "grouped by estimated RAM tier (<4GB, 4-12GB, 12-35GB, >35GB) from "
-        "models.csv's `size` column",
+        help="also write accuracy_by_hardware_<label>.png: one accuracy barplot per "
+        "estimated hardware tier (<12GB, 12-35GB, >35GB RAM), derived from "
+        "models.csv's `size` (total params) and `open` columns -- see HARDWARE_TIERS",
     )
     ap.add_argument(
         "--boxplot",
         action="store_true",
-        help="also write accuracy_boxplot_<label>.png: paired English/Kiswahili "
-        "model-accuracy distributions grouped by hardware tier",
+        help="also write accuracy_boxplot_<experiment-ids>.png: per hardware tier and "
+        "language, the mean accuracy with a 95%% bootstrap CI over models, drawn over "
+        "the individual model points -- plus a _median.png variant of the same figure "
+        "using (and bootstrapping) the median instead",
     )
     ap.add_argument(
         "--swarplot",
@@ -1385,74 +1728,97 @@ def main() -> None:
         display_names=display_names,
     )
     if args.model_size:
-        sizes = load_model_sizes(args.models_csv)
+        specs = load_model_hardware(args.models_csv)
+        report_hardware_tiers(summary["model"].tolist(), specs, note=args.language)
+        write_hardware_tier_table(
+            summary, specs, out(f"hardware_tiers_{args.label}.csv"), note=args.language
+        )
         plot_accuracy_by_size(
             summary,
             out(f"accuracy_by_model_size_{args.label}.png"),
             title=f"{language_name} Linguistic Knowledge Benchmark Performance — by hardware tier",
             display_names=display_names,
-            sizes=sizes,
+            specs=specs,
             model_provider=model_provider,
             provider_color=provider_color,
         )
     if args.hardware:
-        sizes = load_model_sizes(args.models_csv)
+        specs = load_model_hardware(args.models_csv)
+        report_hardware_tiers(summary["model"].tolist(), specs, note=args.language)
+        write_hardware_tier_table(
+            summary, specs, out(f"hardware_tiers_{args.label}.csv"), note=args.language
+        )
         plot_accuracy_by_hardware(
             summary,
             out(f"accuracy_by_hardware_{args.label}.png"),
             title=f"{language_name} Linguistic Knowledge Benchmark Performance — by hardware tier",
             display_names=display_names,
-            sizes=sizes,
+            specs=specs,
             model_provider=model_provider,
             provider_color=provider_color,
         )
-    if args.boxplot:
+    # --boxplot/--swarplot are both-language figures, so they share one load of both
+    # summaries and one language-free label (see paired_label).
+    paired_label = None
+    if args.boxplot or args.swarplot:
         experiment_ids = {
             "english": args.english_experiment_id or args.experiment_id,
             "kiswahili": args.kiswahili_experiment_id or args.experiment_id,
         }
-        boxplot_summaries = {}
+        paired_label = paired_experiment_label(experiment_ids)
+        paired_summaries = {}
         for language in LANGUAGES:
             summary_path = default_paths_for(
                 language, os.path.join(root, "results"), experiment_ids[language]
             )["summary"]
             if not os.path.exists(summary_path):
                 raise SystemExit(
-                    f"Cannot create --boxplot: missing {language} summary at "
-                    f"{summary_path}; pass --{language}-experiment-id to select it"
+                    f"Cannot create --boxplot/--swarplot: missing {language} summary "
+                    f"at {summary_path}; pass --{language}-experiment-id to select it"
                 )
-            boxplot_summaries[language] = load_summary(summary_path)
-        sizes = load_model_sizes(args.models_csv)
-        plot_accuracy_boxplot(
-            boxplot_summaries,
-            out(f"accuracy_boxplot_{args.label}.png"),
-            title="English and Kiswahili Linguistic Knowledge Benchmark Performance — by hardware tier",
-            sizes=sizes,
+            paired_summaries[language] = load_summary(summary_path)
+        specs = load_model_hardware(args.models_csv)
+        for language, language_summary in paired_summaries.items():
+            report_hardware_tiers(
+                language_summary["model"].tolist(), specs, note=language
+            )
+            # Named per language/experiment, not after paired_label: the boxplot pools
+            # both languages but each row of this table belongs to exactly one of them.
+            write_hardware_tier_table(
+                language_summary,
+                specs,
+                out(f"hardware_tiers_{language}_{experiment_ids[language]}.csv"),
+                note=language,
+            )
+        paired_title = (
+            "English and Kiswahili Linguistic Knowledge Benchmark Performance "
+            "— by hardware tier"
         )
-    if args.swarplot:
-        if "boxplot_summaries" not in locals():
-            experiment_ids = {
-                "english": args.english_experiment_id or args.experiment_id,
-                "kiswahili": args.kiswahili_experiment_id or args.experiment_id,
-            }
-            boxplot_summaries = {}
-            for language in LANGUAGES:
-                summary_path = default_paths_for(
-                    language, os.path.join(root, "results"), experiment_ids[language]
-                )["summary"]
-                if not os.path.exists(summary_path):
-                    raise SystemExit(
-                        f"Cannot create --swarplot: missing {language} summary at "
-                        f"{summary_path}; pass --{language}-experiment-id to select it"
-                    )
-                boxplot_summaries[language] = load_summary(summary_path)
-        sizes = load_model_sizes(args.models_csv)
-        plot_accuracy_swarplot(
-            boxplot_summaries,
-            out(f"accuracy_swarplot_{args.label}.png"),
-            title="English and Kiswahili Linguistic Knowledge Benchmark Performance — by hardware tier",
-            sizes=sizes,
-        )
+        if args.boxplot:
+            # Two variants of the same figure: the mean is the headline statistic, the
+            # median variant is robust to a tier's few extreme models. Each bootstraps
+            # the statistic it plots, so the CIs are not interchangeable.
+            plot_accuracy_boxplot(
+                paired_summaries,
+                out(f"accuracy_boxplot_{paired_label}.png"),
+                title=paired_title,
+                specs=specs,
+                statistic="mean",
+            )
+            plot_accuracy_boxplot(
+                paired_summaries,
+                out(f"accuracy_boxplot_{paired_label}_median.png"),
+                title=paired_title,
+                specs=specs,
+                statistic="median",
+            )
+        if args.swarplot:
+            plot_accuracy_swarplot(
+                paired_summaries,
+                out(f"accuracy_swarplot_{paired_label}.png"),
+                title=paired_title,
+                specs=specs,
+            )
     cell = plot_domain_grade(
         long_sel, out(f"accuracy_by_domain_grade_{args.label}{tag}.png"), note
     )
@@ -1513,9 +1879,13 @@ def main() -> None:
     if args.hardware:
         written.append(out(f"accuracy_by_hardware_{args.label}.png"))
     if args.boxplot:
-        written.append(out(f"accuracy_boxplot_{args.label}.png"))
+        written.append(out(f"accuracy_boxplot_{paired_label}.png"))
+        written.append(out(f"accuracy_boxplot_{paired_label}.csv"))
+        written.append(out(f"accuracy_boxplot_{paired_label}_median.png"))
+        written.append(out(f"accuracy_boxplot_{paired_label}_median.csv"))
     if args.swarplot:
-        written.append(out(f"accuracy_swarplot_{args.label}.png"))
+        written.append(out(f"accuracy_swarplot_{paired_label}.png"))
+        written.append(out(f"accuracy_swarplot_{paired_label}.csv"))
     for p in written:
         print("  ", p)
 
