@@ -10,23 +10,21 @@ from phonics_benchmark.labeling import get_vocabulary_set
 from phonics_benchmark.utils import require_columns
 
 
-def pooled_fbeta(tp: pd.Series, fp: pd.Series, fn: pd.Series, beta: float) -> Any:
-    """Micro-averaged F-beta from pooled word counts, NaN where undefined.
+def pooled_fbeta(
+    tp: pd.Series | np.ndarray,
+    fp: pd.Series | np.ndarray,
+    fn: pd.Series | np.ndarray,
+    beta: float,
+) -> pd.Series | np.ndarray:
+    """F-beta from pooled word counts, NaN where undefined.
 
-    ``beta`` weights recall against precision: 1 gives ``2tp/(2tp+fp+fn)``, and 2
-    gives ``5tp/(5tp+4fn+fp)``, which weights a missed non-decodable word four
-    times a false alarm.
-
-    The arithmetic is elementwise, so callers pass scalars, Series or numpy
-    arrays. ``bootstrap.bootstrap_metric_cis`` passes whole replicate-by-model
-    arrays.
+    Takes vectors, not single counts.
     """
-    denominator: pd.Series = (1 + beta**2) * tp + beta**2 * fn + fp
-    numerator: pd.Series = (1 + beta**2) * tp
+    denominator = (1 + beta**2) * tp + beta**2 * fn + fp
+    numerator = (1 + beta**2) * tp
+
     if isinstance(denominator, pd.Series):
         return (numerator / denominator).where(denominator > 0)
-    if np.isscalar(denominator):
-        return numerator / denominator if denominator > 0 else math.nan
     with np.errstate(divide="ignore", invalid="ignore"):
         return np.where(denominator > 0, numerator / denominator, np.nan)
 
