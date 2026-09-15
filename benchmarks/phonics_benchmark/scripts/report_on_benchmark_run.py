@@ -22,8 +22,16 @@ Writes, into `{run directory}/report`:
 
 - ``results_with_scoring.csv`` — every model/item row with its confusion counts
 - ``summary_by_model.csv`` — one row per model
+- ``bootstrap_ci.csv`` — per-model accuracy, pooled F1 and pooled F2 with
+  confidence intervals, skipped by ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
+
+The bootstrap resamples benchmark items with replacement, so its interval covers
+item-sampling error and nothing else: not run-to-run variation in a model's own
+output, and not whether the item set represents Kiswahili texts in general. Each
+item counts as one independent draw, which understates the interval on runs where
+one text backs many items.
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ from pathlib import Path
 
 import pandas as pd
 import typer
+from phonics_benchmark.bootstrap import bootstrap_metric_cis
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
@@ -233,6 +242,24 @@ def report_on_run(
             "for manual inspection. Omit to skip the sample."
         ),
     ),
+    n_bootstrap: int = typer.Option(
+        1000,
+        "--n-bootstrap",
+        min=0,
+        help="Bootstrap replicates for the confidence intervals. 0 skips them.",
+    ),
+    ci_level: float = typer.Option(
+        0.95,
+        "--ci-level",
+        min=0.0,
+        max=1.0,
+        help="Confidence level for the bootstrap intervals.",
+    ),
+    seed: int = typer.Option(
+        0,
+        "--seed",
+        help="Bootstrap seed. Fixed by default so reruns give the same interval.",
+    ),
 ) -> None:
     """Report on a benchmark run and write its per-model summary and plots."""
     run_dir = resolve_run_dir(run_id, output_root)
@@ -276,6 +303,23 @@ def report_on_run(
     typer.echo(summary.to_string(index=False))
     summary.to_csv(report_dir / "summary_by_model.csv", index=False)
     written.append("summary_by_model.csv")
+
+    # How much of the gap between two models is item-sampling noise? See
+    # bootstrap.py for what the interval does and does not cover.
+    if n_bootstrap:
+        ci_report = bootstrap_metric_cis(
+            results,
+            n_bootstrap=n_bootstrap,
+            ci_level=ci_level,
+            seed=seed,
+        )
+        typer.echo(
+            f"\nBootstrap {ci_level:.0%} CIs from {n_bootstrap} replicates, "
+            f"resampling {ci_report['n_items_resampled'].iloc[0]} items:"
+        )
+        typer.echo(ci_report.to_string(index=False))
+        ci_report.to_csv(report_dir / "bootstrap_ci.csv", index=False)
+        written.append("bootstrap_ci.csv")
 
     # Does accuracy degrade as items get harder (more non-decodable words)?
     accuracy_by_count = accuracy_by_nondecodable_count(results)
