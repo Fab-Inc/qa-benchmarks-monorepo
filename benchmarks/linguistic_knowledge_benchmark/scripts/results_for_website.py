@@ -23,13 +23,13 @@ SOURCES - the cluster holds 3 benchmark types (LK / DA / DTG) x N languages, e.g
   * disabled_models = models with a result somewhere in the cluster but none for
     this pair, so the site can grey them out rather than imply they scored 0.
   * cost/size frontier LINES are still computed (raw Pareto, matching the renderer's
-    drawn-frontier behaviour) from data/models.csv price/size.
+    drawn-frontier behaviour) from models.csv price/size.
 
 This script only WRITES local JSON files under --outdir - it does not upload anywhere.
 
 Inputs:
-  data/models.csv       model metadata (price, size, provider, open, release_date, ...)
-  data/providers.csv    provider colors + SVG logos
+  models.csv       model metadata (price, size, provider, open, release_date, ...)
+  providers.csv    provider colors + SVG logos
   BENCHMARK_TYPES / LANGUAGES / SOURCES below - the benchmark x language matrix. Each
                             SOURCES row hardcodes its own judge-bench summary CSV, so
                             pairs do not have to share an experiment-id and may point at
@@ -88,11 +88,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 from website.frontier_analysis import compute_frontier, create_default_models_list
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-DATA_DIR = ROOT / "data"
 RESULTS_DIR = ROOT / "results"
 
 # Cluster this benchmark belongs to on the website; the middle segment of every output
@@ -117,7 +117,7 @@ DEFAULT_MODELS_FILTER_BY_FAMILY = True
 DEFAULT_MODELS_RECORD_NAME = "benchmark_default_models.json"
 
 # Models always pre-selected, whatever the frontier/family logic decides. Each must be a
-# model_id in data/models.csv AND have a result for at least one pair, or it is warned
+# model_id in models.csv AND have a result for at least one pair, or it is warned
 # about and dropped. Keep this short (2-3 models).
 MANUAL_DEFAULT_MODELS: list[str] = [
     # "claude-fable-5",
@@ -150,7 +150,7 @@ LANGUAGES: dict[str, dict[str, str]] = {
 # row is skipped with a note instead of failing the run.
 #
 # The file only has to carry these columns (anything else in it is ignored):
-#   model                            model id, must match a model_id in data/models.csv
+#   model                            model id, must match a model_id in models.csv
 #                                    (rows that match nothing are dropped with a warning)
 #   <accuracy_column>                the score, 0-100 - "accuracy" unless overridden below
 #   scored_count, unscored_count     optional; feed the sample size n and the bad_format
@@ -646,8 +646,8 @@ def main() -> None:
         help="parent directory for run folders; each run writes "
         "<outdir>/<timestamp>/ holding the 5 JSON files plus the default-models record",
     )
-    parser.add_argument("--models-csv", default=str(DATA_DIR / "models.csv"))
-    parser.add_argument("--providers-csv", default=str(DATA_DIR / "providers.csv"))
+    parser.add_argument("--models-csv", default=str(MODELS_CSV))
+    parser.add_argument("--providers-csv", default=str(PROVIDERS_CSV))
     parser.add_argument(
         "--all-models",
         action="store_true",

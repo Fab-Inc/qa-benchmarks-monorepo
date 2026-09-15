@@ -62,6 +62,7 @@ from analyze_results import (
     load_provider_colors,
     load_summary,
 )
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 
@@ -263,7 +264,7 @@ def build_cost_size_table(
 ) -> pd.DataFrame:
     """One row per scored model: accuracy, blended price, parameter count, provider.
 
-    Cost and size come from data/models.csv, so a model is plottable on an axis only
+    Cost and size come from models.csv, so a model is plottable on an axis only
     where that column is populated: closed-weight models rarely publish a parameter
     count, which is why the size figure carries far fewer points than the cost one.
     Rather than silently dropping them here, both columns are kept as NaN and each
@@ -913,14 +914,14 @@ def build_parser(root: str) -> argparse.ArgumentParser:
     common.add_argument(
         "--models-csv",
         dest="models_csv",
-        default=os.path.join(root, "data", "models.csv"),
+        default=str(MODELS_CSV),
         help="source of model display names, and of price/parameter-count for the "
         "accuracy-vs-cost / accuracy-vs-size figures",
     )
     common.add_argument(
         "--providers-csv",
         dest="providers_csv",
-        default=os.path.join(root, "data", "providers.csv"),
+        default=str(PROVIDERS_CSV),
         help="maps provider -> marker colour",
     )
     common.add_argument(

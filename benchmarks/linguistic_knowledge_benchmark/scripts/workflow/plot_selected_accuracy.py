@@ -37,10 +37,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyze_results import LANGUAGES, load_detailed, plot_accuracy, plot_mcq_vs_short
 from estimate_irt import default_results_detailed_for
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV
 
 
 def load_display_names(models_csv: str) -> dict:
-    """model_id -> display_name, from data/models.csv."""
+    """model_id -> display_name, from models.csv."""
     df = pd.read_csv(models_csv)
     return dict(zip(df["model_id"], df["display_name"]))
 
@@ -99,7 +100,7 @@ def main() -> None:
     ap.add_argument(
         "--models-csv",
         dest="models_csv",
-        default=os.path.join(root, "data", "models.csv"),
+        default=str(MODELS_CSV),
         help="maps model_id -> display_name for the plot labels",
     )
     args = ap.parse_args()

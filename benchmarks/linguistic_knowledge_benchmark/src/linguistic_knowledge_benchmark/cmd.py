@@ -3,6 +3,7 @@
 import json
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pandas as pd
 import typer
@@ -23,8 +24,11 @@ from linguistic_knowledge_benchmark.judge_bench import (
 from linguistic_knowledge_benchmark.run_bench import run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
+    CUSTOM_MODELS_YAML,
     DATA_DIR,
     EVAL_MODELS,
+    MODELS_CSV,
+    PROVIDERS_CSV,
     REPO_ROOT,
     experiment_dir,
 )
@@ -82,22 +86,35 @@ app = typer.Typer(
 )
 
 
+SHARED_CONFIG_BUCKET = "fab-open-configs"
+SHARED_CONFIGS: tuple[Path, ...] = (CUSTOM_MODELS_YAML, MODELS_CSV, PROVIDERS_CSV)
+
+
+def _download_shared_configs() -> None:
+    """Sync every gitignored config file from fab-open-configs into the repo root.
+
+    All three are gitignored (synced from the bucket, not committed), so they must be
+    fetched on every invocation -- without this a fresh checkout (e.g. CI) has no
+    custom_models.yaml for register_models() to read, and no models.csv/providers.csv
+    for the analysis scripts. Each is named in the bucket exactly as it is on disk.
+    """
+    for destination in SHARED_CONFIGS:
+        download_file(
+            bucket_name=SHARED_CONFIG_BUCKET,
+            file_name=destination.name,
+            write_path=destination,
+            require_auth=False,
+        )
+
+
 @app.callback()
 def setup() -> None:
     """Linguistic Knowledge Benchmark"""
     # Load provider API keys from the repo-root .env into os.environ so fdllm
     # can find them. Existing environment variables take precedence (override=False).
     load_dotenv(REPO_ROOT / ".env")
-    # custom_models.yaml is gitignored (it's synced from fab-open-configs, not
-    # committed), so it must be fetched here on every invocation -- without this, a
-    # fresh checkout (e.g. CI) has no file for register_models() to read and crashes.
-    download_file(
-        bucket_name="fab-open-configs",
-        file_name="custom_models.yaml",
-        write_path=REPO_ROOT / "custom_models.yaml",
-        require_auth=False,
-    )
-    register_models(str(REPO_ROOT / "custom_models.yaml"))
+    _download_shared_configs()
+    register_models(str(CUSTOM_MODELS_YAML))
 
 
 @app.command("run-bench")

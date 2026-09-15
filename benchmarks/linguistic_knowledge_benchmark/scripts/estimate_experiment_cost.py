@@ -10,7 +10,7 @@ Two cost components, tracked with different precision:
     carries total_tokens/completion_tokens from the real API call (fdllm's
     TokensUsed/TokensUsedCompletion); input_tokens = total_tokens - completion_tokens.
     Cost = input_tokens/1e6 * input_cost + completion_tokens/1e6 * output_cost, priced
-    from data/models.csv (USD per 1M tokens) for the model under test.
+    from models.csv (USD per 1M tokens) for the model under test.
     completion_tokens include the reasoning tokens.
 
   * judge-bench (the main LLM-judge pass): ESTIMATED. judge_bench.py never persists
@@ -48,7 +48,7 @@ Output: printed to the terminal only, nothing written to disk. A compact per-mod
     min/mean/max total cost across this run's priced models -- directly answers "how
     much does a single model run cost", since every model here already IS one run-bench
     + judge-bench pass over one language's full item set. A model missing pricing in
-    data/models.csv (open-weight/self-hosted models often are) shows "-" and is excluded
+    models.csv (open-weight/self-hosted models often are) shows "-" and is excluded
     from the min/mean/max, not silently treated as free.
 
 Run:
@@ -69,6 +69,7 @@ from linguistic_knowledge_benchmark.judge_bench import (
     strip_think_block,
 )
 from linguistic_knowledge_benchmark.run_bench import load_dataset
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV
 
 LANGUAGES = ["english", "kiswahili"]
 LANGUAGE_DISPLAY_NAMES = {"english": "English", "kiswahili": "Kiswahili"}
@@ -91,7 +92,7 @@ def est_tokens(text) -> int:
 
 
 def load_model_prices(models_csv: str) -> dict[str, tuple[float | None, float | None]]:
-    """model_id -> (input_cost, output_cost), USD per 1M tokens, from data/models.csv.
+    """model_id -> (input_cost, output_cost), USD per 1M tokens, from models.csv.
     Either value is None where models.csv leaves that model's pricing blank."""
     df = pd.read_csv(models_csv)
     prices: dict[str, tuple[float | None, float | None]] = {}
@@ -246,7 +247,7 @@ def main() -> None:
 
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
-    models_csv = args.models_csv or os.path.join(root, "data", "models.csv")
+    models_csv = args.models_csv or str(MODELS_CSV)
 
     dataset_filename = args.dataset or f"linguistic_knowledge_eval_{args.language}.json"
     questions = load_dataset(os.path.join(root, "data", dataset_filename))

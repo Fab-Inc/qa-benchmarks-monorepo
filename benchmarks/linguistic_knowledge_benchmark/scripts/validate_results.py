@@ -52,7 +52,7 @@ results/validation/, filenames tagged with --label, default "<language>_<experim
                           data/model_families.csv), each family's models sorted by
                           accuracy (highest first). The CSV also records each model's
                           generation/size order_index (release_date, falling back to
-                          parameter size, both from data/models.csv), for a from-scratch
+                          parameter size, both from models.csv), for a from-scratch
                           old->new / small->big consistency check even though the plot
                           itself is sorted by accuracy.
                           -> family_grid_<label>.png, family_grid_<label>.csv
@@ -127,14 +127,15 @@ from analyze_results import (
     load_provider_colors,
     load_summary,
 )
-
-# scripts/ isn't part of the installed package, but the package itself is -- this import
-# is safe (unlike importing linguistic_knowledge_benchmark.cmd) because it never touches
-# cmd.py's app.callback(), the only place that pulls in typer/dotenv/network side effects.
 from linguistic_knowledge_benchmark.judge_bench import (
     DEFAULT_JUDGE_MODELS,
     compute_judge_agreement,
 )
+
+# scripts/ isn't part of the installed package, but the package itself is -- this import
+# is safe (unlike importing linguistic_knowledge_benchmark.cmd) because it never touches
+# cmd.py's app.callback(), the only place that pulls in typer/dotenv/network side effects.
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 
 CHECKS = [
     "judge-agreement",
@@ -929,7 +930,7 @@ def parse_release_date(value) -> float:
 
 
 def load_family_order_keys(models_csv: str) -> tuple[dict, dict]:
-    """(model_id -> release_date sort key, model_id -> size) from data/models.csv."""
+    """(model_id -> release_date sort key, model_id -> size) from models.csv."""
     m = pd.read_csv(models_csv)
     release = {
         row.model_id: parse_release_date(row.release_date) for row in m.itertuples()
@@ -995,7 +996,7 @@ def plot_family_grid(
     wide (bar width has no meaning here, so that variation was misleading). Every bar
     here is the same width; families stay visually separated by an extra gap, a light
     divider line, and a centered label above each cluster. Bars colored by provider
-    (data/providers.csv, via analyze_results.py's own _bar_colors -- same palette as
+    (providers.csv, via analyze_results.py's own _bar_colors -- same palette as
     plot_accuracy()'s per-model bars); `language`, if given, is prefixed onto the
     title."""
     model_provider = model_provider or {}
@@ -1374,12 +1375,12 @@ def build_parser(root: str) -> argparse.ArgumentParser:
     common.add_argument(
         "--models-csv",
         dest="models_csv",
-        default=os.path.join(root, "data", "models.csv"),
+        default=str(MODELS_CSV),
     )
     common.add_argument(
         "--providers-csv",
         dest="providers_csv",
-        default=os.path.join(root, "data", "providers.csv"),
+        default=str(PROVIDERS_CSV),
     )
 
     sub = ap.add_subparsers(dest="check", required=True)

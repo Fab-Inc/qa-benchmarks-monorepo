@@ -91,6 +91,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -403,9 +404,12 @@ def rebuild_summary_and_detailed(
 
 
 def load_display_names(models_csv: str) -> dict:
-    """model_id -> display_name, from data/models.csv (empty dict if the file is absent)."""
-    if not os.path.exists(models_csv):
-        return {}
+    """model_id -> display_name, from models.csv.
+
+    Aborts if the file is missing (see require_synced_config) rather than returning an
+    empty mapping, which would silently relabel every axis with raw model ids.
+    """
+    require_synced_config(models_csv)
     df = pd.read_csv(models_csv)
     return dict(zip(df["model_id"], df["display_name"]))
 
@@ -416,21 +420,43 @@ def _labels(models: list[str], display_names: dict | None) -> list[str]:
     return [display_names.get(m, m) for m in models]
 
 
+def require_synced_config(path: str) -> None:
+    """Abort with a clear message when a synced config file is missing.
+
+    models.csv/providers.csv are no longer committed -- they are pulled from the
+    fab-open-configs bucket into the repo root by the CLI's app callback (see cmd.py's
+    _download_shared_configs). A missing file used to degrade quietly to an empty
+    mapping, which renders a complete but WRONG figure: every bar the default colour, an
+    empty provider legend, every model untiered. Failing here keeps that from reaching a
+    report unnoticed.
+    """
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"Required config file not found: {path}\n"
+            "It is synced from the fab-open-configs bucket rather than committed -- run "
+            "any SUBCOMMAND to fetch it, e.g.\n"
+            "    uv run linguistic-knowledge-benchmark run-bench --help\n"
+            "(a bare '--help' will not: typer skips the app callback that syncs it)."
+        )
+
+
 def load_provider_colors(models_csv: str, providers_csv: str) -> tuple[dict, dict]:
     """Return (model_id -> provider, provider -> color) from models.csv & providers.csv.
 
-    Either map is empty if its file is missing; callers fall back to DEFAULT_BAR_COLOR.
+    Aborts if either file is missing (see require_synced_config). A map is empty only
+    when its file is present but lacks the expected columns, in which case callers fall
+    back to DEFAULT_BAR_COLOR.
     """
+    require_synced_config(models_csv)
+    require_synced_config(providers_csv)
     model_provider: dict = {}
-    if os.path.exists(models_csv):
-        m = pd.read_csv(models_csv)
-        if "provider" in m.columns:
-            model_provider = dict(zip(m["model_id"], m["provider"]))
+    m = pd.read_csv(models_csv)
+    if "provider" in m.columns:
+        model_provider = dict(zip(m["model_id"], m["provider"]))
     provider_color: dict = {}
-    if os.path.exists(providers_csv):
-        p = pd.read_csv(providers_csv)
-        if {"provider", "color"}.issubset(p.columns):
-            provider_color = dict(zip(p["provider"], p["color"]))
+    p = pd.read_csv(providers_csv)
+    if {"provider", "color"}.issubset(p.columns):
+        provider_color = dict(zip(p["provider"], p["color"]))
     return model_provider, provider_color
 
 
@@ -474,12 +500,11 @@ def load_model_hardware(models_csv: str) -> dict:
     `size` stays a raw total parameter count (the CSV stores 4e9, not 4); a blank cell is
     None. models.csv also carries `size_active` for MoE models, deliberately not loaded:
     tiers charge every model for its total parameters (see HARDWARE_TIERS), and reading it
-    here is what would let it drift back into the tier maths. Empty dict if the file or
-    the `size` column is missing, so the tier plots degrade the same way they did when
-    models.csv was absent.
+    here is what would let it drift back into the tier maths. Aborts if models.csv is
+    missing (see require_synced_config) -- an empty dict here would silently untier every
+    model rather than fail. Empty dict only if the `size` column itself is absent.
     """
-    if not os.path.exists(models_csv):
-        return {}
+    require_synced_config(models_csv)
     m = pd.read_csv(models_csv)
     if "size" not in m.columns:
         return {}
@@ -1588,13 +1613,13 @@ def main() -> None:
     ap.add_argument(
         "--models-csv",
         dest="models_csv",
-        default=os.path.join(root, "data", "models.csv"),
+        default=str(MODELS_CSV),
         help="maps model_id -> display_name (x-axis labels) and model_id -> provider (bar colours)",
     )
     ap.add_argument(
         "--providers-csv",
         dest="providers_csv",
-        default=os.path.join(root, "data", "providers.csv"),
+        default=str(PROVIDERS_CSV),
         help="maps provider -> color for the per-model bar colours and legend",
     )
     ap.add_argument(

@@ -101,6 +101,7 @@ from analyze_results import (
     load_provider_colors,
     load_summary,
 )
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 from matplotlib.patches import Patch
 from validate_results import (
     CORRECT_MAP,
@@ -848,8 +849,8 @@ def main() -> None:
         args.outdir or os.path.join(root, "results", "consistency"), args.language
     )
     label = args.label or f"{args.language}_{args.experiment_id}"
-    models_csv = args.models_csv or os.path.join(root, "data", "models.csv")
-    providers_csv = args.providers_csv or os.path.join(root, "data", "providers.csv")
+    models_csv = args.models_csv or str(MODELS_CSV)
+    providers_csv = args.providers_csv or str(PROVIDERS_CSV)
 
     results_dir = os.path.join(root, "results")
     base = f"summary_linguistic-knowledge_{args.language}_{args.experiment_id}"

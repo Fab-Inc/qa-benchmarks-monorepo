@@ -10,8 +10,11 @@ data/processed/
 
 # LKB's cache of run-bench/judge-bench responses -- local scratch, not committed.
 benchmarks/linguistic_knowledge_benchmark/cache/
-# Synced from fab-open-configs at runtime (see cmd.py's setup()), not committed.
+# Synced from fab-open-configs at runtime (see cmd.py's _download_shared_configs),
+# not committed.
 custom_models.yaml
+models.csv
+providers.csv
 
 # Post-analysis/plotting outputs -- all one-command-regenerable
 benchmarks/linguistic_knowledge_benchmark/results/analysis

@@ -1,8 +1,10 @@
 """Test cases for the command-line interface."""
 
 import json
+import os
 import re
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -671,3 +673,121 @@ def test_main_invokes_app(monkeypatch) -> None:
     monkeypatch.setattr(cmd, "app", mock_app)
     cmd.main()
     mock_app.assert_called_once()
+
+
+# --------------------------------------------------------------------------- #
+# shared config sync (custom_models.yaml + models.csv + providers.csv)
+# --------------------------------------------------------------------------- #
+# conftest's autouse fixture replaces cmd._download_shared_configs with a no-op so the
+# rest of the suite stays offline. Bind the real function at import time -- before any
+# fixture runs -- so the tests below still exercise it.
+_download_shared_configs = cmd._download_shared_configs
+
+VALID_CONTENT = {
+    "custom_models.yaml": "SomeProvider:\n  models: {}\n",
+    "models.csv": "model_id,provider\nm1,Anthropic\n",
+    "providers.csv": "provider,color\nAnthropic,#e9967a\n",
+}
+
+
+def _configs_in(directory: Path) -> tuple[Path, ...]:
+    """cmd.SHARED_CONFIGS relocated under `directory`, so a test never writes the real
+    repo-root files."""
+    return tuple(directory / path.name for path in cmd.SHARED_CONFIGS)
+
+
+def _writes_valid_content(**kwargs) -> None:
+    """download_file stand-in: write the good copy of whichever file was asked for."""
+    Path(kwargs["write_path"]).write_text(
+        VALID_CONTENT[kwargs["file_name"]], encoding="utf-8"
+    )
+
+
+def test_download_shared_configs_fetches_all_three(monkeypatch, tmp_path) -> None:
+    """All three synced files are pulled anonymously from the same bucket."""
+    monkeypatch.setattr(cmd, "SHARED_CONFIGS", _configs_in(tmp_path))
+    with patch(
+        "linguistic_knowledge_benchmark.cmd.download_file",
+        side_effect=_writes_valid_content,
+    ) as download_file:
+        _download_shared_configs()
+
+    requested = []
+    for call in download_file.call_args_list:
+        kwargs = dict(call.kwargs)
+        file_name = kwargs.pop("file_name")
+        requested.append(file_name)
+        assert kwargs == {
+            "bucket_name": "fab-open-configs",
+            "write_path": tmp_path / file_name,
+            "require_auth": False,
+        }
+    assert requested == ["custom_models.yaml", "models.csv", "providers.csv"]
+
+    for name, content in VALID_CONTENT.items():
+        assert (tmp_path / name).read_text(encoding="utf-8") == content
+
+
+def test_download_shared_configs_replaces_previous_copy(monkeypatch, tmp_path) -> None:
+    """A stale file on disk is replaced by the freshly downloaded one."""
+    monkeypatch.setattr(cmd, "SHARED_CONFIGS", _configs_in(tmp_path))
+    (tmp_path / "models.csv").write_text("model_id,provider\nstale,Old\n", "utf-8")
+    with patch(
+        "linguistic_knowledge_benchmark.cmd.download_file",
+        side_effect=_writes_valid_content,
+    ):
+        _download_shared_configs()
+    assert (tmp_path / "models.csv").read_text(encoding="utf-8") == (
+        VALID_CONTENT["models.csv"]
+    )
+
+
+def test_download_shared_configs_propagates_failure(monkeypatch, tmp_path) -> None:
+    """A failed download aborts the CLI rather than continuing with missing config.
+
+    The sync runs in the app callback, so raising here is what stops a command from
+    proceeding against a stale or absent models.csv.
+    """
+    monkeypatch.setattr(cmd, "SHARED_CONFIGS", _configs_in(tmp_path))
+
+    def fail_on_models_csv(**kwargs):
+        if kwargs["file_name"] == "models.csv":
+            raise RuntimeError("network down")
+        _writes_valid_content(**kwargs)
+
+    with pytest.raises(RuntimeError, match="network down"):
+        with patch(
+            "linguistic_knowledge_benchmark.cmd.download_file",
+            side_effect=fail_on_models_csv,
+        ):
+            _download_shared_configs()
+
+
+def test_setup_syncs_shared_configs(monkeypatch, runner: CliRunner) -> None:
+    """The app callback is what keeps the three files fresh on every invocation."""
+    sync = MagicMock()
+    monkeypatch.setattr(cmd, "_download_shared_configs", sync)
+    monkeypatch.setattr(cmd, "register_models", MagicMock())
+    monkeypatch.setattr(cmd, "run_benchmark", MagicMock())
+    result = runner.invoke(cmd.app, ["run-bench", "--language", "kiswahili"])
+    assert result.exit_code == 0
+    sync.assert_called_once()
+
+
+@pytest.mark.integration
+def test_shared_configs_are_readable_from_the_bucket(tmp_path, monkeypatch) -> None:
+    """Opt-in: the real objects exist in the bucket and are anonymously readable.
+
+    Everything above mocks the network, so this is the only check that fab-open-configs
+    still serves all three files with the columns the analysis code expects. Skipped
+    unless LKB_TEST_GCS is set, following the same opt-in convention as the phonics
+    integration tests -- it needs no credentials, but CI should not depend on the
+    bucket being reachable.
+    """
+    if not os.environ.get("LKB_TEST_GCS"):
+        pytest.skip("LKB_TEST_GCS not set -- set it to hit the real bucket")
+    monkeypatch.setattr(cmd, "SHARED_CONFIGS", _configs_in(tmp_path))
+    _download_shared_configs()
+    assert (tmp_path / "custom_models.yaml").stat().st_size > 0
+    assert "model_id" in pd.read_csv(tmp_path / "models.csv").columns
+    assert "provider" in pd.read_csv(tmp_path / "providers.csv").columns

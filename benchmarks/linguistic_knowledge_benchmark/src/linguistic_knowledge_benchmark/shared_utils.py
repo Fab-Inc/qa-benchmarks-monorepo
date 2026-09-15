@@ -9,6 +9,16 @@ REPO_ROOT = BENCH_DIR.parent.parent
 DATA_DIR = BENCH_DIR / "data"
 CACHE_BASE_DIR = BENCH_DIR / "cache"
 
+# Config synced from the fab-open-configs bucket on every CLI run (see cmd.py's
+# _download_shared_configs) and gitignored, so these live at the repo root rather
+# than in DATA_DIR -- none is committed, and the bucket is the single source of truth.
+# Defined here rather than in cmd.py because the analysis scripts need the CSV paths:
+# importing cmd.py would pull in typer/dotenv and its callback's network side effects,
+# which scripts/validate_results.py deliberately avoids.
+CUSTOM_MODELS_YAML = REPO_ROOT / "custom_models.yaml"
+MODELS_CSV = REPO_ROOT / "models.csv"
+PROVIDERS_CSV = REPO_ROOT / "providers.csv"
+
 MODELS_LIST_YAML = BENCH_DIR / "list_models.yaml"
 with open(MODELS_LIST_YAML) as _f:
     EVAL_MODELS: dict[str, str] = yaml.safe_load(_f)

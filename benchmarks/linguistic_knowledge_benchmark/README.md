@@ -114,6 +114,8 @@ There are two `answer_type`s in current datasets, each scored differently (see
 | [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `experiment_dir()` helper, and lists rate-limited models.                                     |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                                                        |
 | `custom_models.yaml` (repo root)                                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses. Gitignored — the CLI downloads it from the `fab-open-configs` bucket on every invocation.                                        |
+| `models.csv` (repo root)                                                | Model metadata used by the analysis scripts: provider, parameter size, input/output price, release date, display name. Gitignored — synced from `fab-open-configs` alongside `custom_models.yaml`.                           |
+| `providers.csv` (repo root)                                             | Provider colours and SVG logos for plots and the website payload. Gitignored — synced from `fab-open-configs` alongside `custom_models.yaml`. Its row order is the canonical provider order.                                 |
 | [`.env`](../../.env) (repo root)                                        | Provider API keys (e.g. `ANTHROPIC_API_KEY`). Loaded automatically by the CLI.                                                                                                                                               |
 | [`scripts/`](scripts/)                                                  | Standalone post-processing and dataset-workflow scripts (analysis, validation checks, IRT, cost estimation, Hugging Face publishing). Not part of the two-stage CLI.                                                         |
 | [`tests/`](tests/)                                                      | Unit tests for the CLI, runner, and judge.                                                                                                                                                                                   |
@@ -121,6 +123,11 @@ There are two `answer_type`s in current datasets, each scored differently (see
 ## Data and output folders
 
 ```text
+<repo root>/                            # synced from fab-open-configs, all gitignored
+  custom_models.yaml                    # fdllm provider/model registry
+  models.csv                            # model metadata (provider, size, price, ...)
+  providers.csv                         # provider colours + SVG logos
+
 benchmarks/linguistic_knowledge_benchmark/
   data/                                 # input datasets
     linguistic_knowledge_eval_kiswahili.json   # full item set (gitignored)
