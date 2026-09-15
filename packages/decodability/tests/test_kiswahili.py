@@ -7,16 +7,103 @@ from decodability.kiswahili.aggregators import (
 from decodability.kiswahili.definitions import (
     VALID_CLUSTERS,
     ClusterPattern,
-    get_clusters,
-    get_graphemes,
 )
 from decodability.kiswahili.extract_words import extract_words_kiswahili
-from decodability.kiswahili.models import KiswahiliStudentKnowledge
 from decodability.kiswahili.scorers import (
     score_known_clusters_and_patterns_kiswahili,
     score_known_graphemes_kiswahili,
     score_whole_words_kiswahili,
 )
+from decodability.kiswahili.segment import (
+    decompose_word,
+    find_cluster_spans,
+    get_clusters,
+    get_grapheme_symbols,
+)
+from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
+
+# (word, [(cluster, start_index), ...]) for each expected consonant cluster.
+cluster_outputs = [
+    ("mbwea'", [("mbw", 0)]),
+    ("kunywea", [("nyw", 2)]),
+    ("ng'ombe", [("mb", 4)]),
+    ("Baba", []),
+    ("mchw", [("mchw", 0)]),
+    ("hospitali", [("sp", 2)]),
+    ("blanketi", [("bl", 0), ("nk", 3)]),
+    ("mwenzangu", [("mw", 0), ("nz", 3)]),
+    ("mchanganyiko", [("mch", 0)]),
+    ("mwembamba", [("mw", 0), ("mb", 3), ("mb", 6)]),
+    ("transista", [("tr", 0), ("ns", 3), ("st", 6)]),
+]
+
+
+class TestKiswahiliDefinition:
+    @pytest.mark.parametrize(
+        "word, expected_graphemes",
+        [
+            ("baba", ["b", "a", "b", "a"]),
+            ("Baba", ["b", "a", "b", "a"]),
+            ("kunywea", ["k", "u", "ny", "w", "e", "a"]),
+            ("ng'ombe", ["ng'", "o", "m", "b", "e"]),
+            ("mng'", ["m", "ng'"]),
+            ("ngw", ["ng", "w"]),
+        ],
+    )
+    def test_get_grapheme_symbols(self, word, expected_graphemes):
+        """Graphemes are segmented by longest match and returned lowercase."""
+        assert get_grapheme_symbols(word) == expected_graphemes
+
+    @pytest.mark.parametrize("word, expected_outputs", cluster_outputs)
+    def test_get_clusters(self, word, expected_outputs):
+        """Clusters are returned lowercase, in the order they appear."""
+        assert get_clusters(word) == [cluster for cluster, _ in expected_outputs]
+
+    @pytest.mark.parametrize("word, expected_outputs", cluster_outputs)
+    def test_find_cluster_spans_locates_each_cluster(self, word, expected_outputs):
+        spans = find_cluster_spans(decompose_word(word))
+
+        assert [(span.normalised, span.start) for span in spans] == expected_outputs
+
+    @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
+    def test_every_span_indexes_back_into_the_word(self, word):
+        """Spans must be usable to slice the original word, casing included."""
+        graphemes = decompose_word(word)
+
+        grapheme_spans = [grapheme.to_span() for grapheme in graphemes]
+        for span in grapheme_spans + find_cluster_spans(graphemes):
+            assert word[span.start : span.end] == span.text
+
+    def test_decompose_word_covers_the_whole_word_without_gaps(self):
+        word = "ng'ombe"
+
+        graphemes = decompose_word(word)
+
+        assert "".join(grapheme.text for grapheme in graphemes) == word
+        assert graphemes[0].start == 0
+        assert graphemes[-1].end == len(word)
+
+    def test_decompose_word_flags_consonants(self):
+        graphemes = decompose_word("kunywea")
+
+        assert [grapheme.is_consonant for grapheme in graphemes] == [
+            True,  # k
+            False,  # u
+            True,  # ny
+            True,  # w
+            False,  # e
+            False,  # a
+        ]
+
+    def test_decompose_word_preserves_casing_but_lowercases_the_symbol(self):
+        grapheme = decompose_word("Baba")[0]
+
+        assert grapheme.text == "B"
+        assert grapheme.symbol == "b"
+
+    @pytest.mark.parametrize("word", ["", "a"])
+    def test_words_too_short_to_hold_a_cluster(self, word):
+        assert find_cluster_spans(decompose_word(word)) == []
 
 
 class TestKiswahiliStudentKnowledgeModel:
@@ -195,34 +282,7 @@ class TestKiswahiliClusters:
             with pytest.raises(ValueError):
                 KiswahiliStudentKnowledge(**kwargs)
 
-    @pytest.mark.parametrize(
-        "word, expected",
-        [
-            ("mng'", ["m", "ng'"]),
-            ("kunywea", ["k", "u", "ny", "w", "e", "a"]),
-            ("ngw", ["ng", "w"]),
-            ("Baba", ["b", "a", "b", "a"]),
-        ],
-    )
-    def test_get_graphemes(self, word: str, expected: list[str]):
-        """Graphemes are segmented by longest match and returned lowercase."""
-        assert get_graphemes(word) == expected
-
-    @pytest.mark.parametrize(
-        "word, expected",
-        [
-            ("mbwea'", ["mbw"]),
-            ("kunywea", ["nyw"]),
-            ("ng'ombe", ["mb"]),
-            ("Baba", []),
-            ("mchw", ["mchw"]),
-            ("hospitali", ["sp"]),
-            ("blanketi", ["bl", "nk"]),
-        ],
-    )
-    def test_get_clusters(self, word: str, expected: list[str]):
-        """Check consonant clusters are captured as expected."""
-        assert get_clusters(word) == set(expected)
+    # Grapheme and cluster segmentation are covered by TestKiswahiliDefinition.
 
     @pytest.mark.parametrize(
         "pattern, expected_grapheme_count",
@@ -252,9 +312,9 @@ class TestKiswahiliClusters:
         assert VALID_CLUSTERS[pattern], f"{pattern} generated no clusters"
 
         offenders = {
-            cluster: get_graphemes(cluster)
+            cluster: get_grapheme_symbols(cluster)
             for cluster in VALID_CLUSTERS[pattern]
-            if len(get_graphemes(cluster)) != expected_grapheme_count
+            if len(get_grapheme_symbols(cluster)) != expected_grapheme_count
         }
         assert not offenders
 
