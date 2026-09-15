@@ -13,7 +13,7 @@ If any responses are excluded, the script prints how many, per model.
 
 Run from the repository root, e.g.:
 
-    uv run --package phonics-benchmark python \\
+    uv run --frozen --package phonics-benchmark python \\
         benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \\
         --run-id sw-tusome-260810 \\
         --inspect-sample-size 20
