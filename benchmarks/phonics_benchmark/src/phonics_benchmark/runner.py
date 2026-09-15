@@ -30,6 +30,7 @@ from botocore.exceptions import (
     HTTPClientError as BedrockHTTPClientError,
 )
 from google.genai.errors import APIError as GoogleAPIError
+from httpx import ReadError
 from mistralai.exceptions import MistralAPIException, MistralConnectionException
 from openai import APIError as OpenAIAPIError
 
@@ -601,8 +602,10 @@ def _evaluate_item(
         "prompt": prompt,
     }
 
-    # FDLLM propagates provider SDK failures unchanged. Save only those known
-    # call failures here so setup and result-processing bugs fail fast.
+    # FDLLM can propagate raw HTTPX read and response-formatting failures as well
+    # as provider SDK errors. ValueError (including JSONDecodeError) and IndexError
+    # are temporary containment until FDLLM exposes typed response errors. Keep
+    # this catch at the evaluator boundary, not around setup or checkpoint writes.
     try:
         payload = evaluator(config, model_name, item, prompt)
     except (
@@ -614,6 +617,9 @@ def _evaluate_item(
         MistralAPIException,
         MistralConnectionException,
         OpenAIAPIError,
+        ReadError,
+        ValueError,
+        IndexError,
     ) as e:
         return {
             **base_row,

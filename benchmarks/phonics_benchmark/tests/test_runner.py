@@ -709,8 +709,22 @@ def test_benchmark_item_id_is_call_identity_and_requires_recomputation(
         ),
         EndpointConnectionError(endpoint_url="https://example.test"),
         MistralConnectionException("connection failed"),
+        httpx.ReadError("[Errno 104] Connection reset by peer"),
+        json.JSONDecodeError("Expecting value", " " * 108 + "\n" * 24, 132),
+        ValueError("Output must be either content or tool call"),
+        IndexError("list index out of range"),
     ],
-    ids=["openai", "anthropic", "google", "bedrock", "mistral"],
+    ids=[
+        "openai",
+        "anthropic",
+        "google",
+        "bedrock",
+        "mistral",
+        "httpx-read",
+        "json",
+        "fdllm-value",
+        "fdllm-index",
+    ],
 )
 def test_run_from_config_file_saves_provider_errors(
     tmp_path: Path,
@@ -735,6 +749,109 @@ def test_run_from_config_file_saves_provider_errors(
     assert rows[0]["call_status"] == "error"
     assert rows[0]["error_type"] == type(provider_error).__name__
     assert rows[0]["error_message"] == str(provider_error)
+
+
+@pytest.mark.parametrize("model_workers", [1, 2])
+@pytest.mark.parametrize(
+    "call_error",
+    [
+        httpx.ReadError("[Errno 104] Connection reset by peer"),
+        json.JSONDecodeError("Expecting value", " " * 108 + "\n" * 24, 132),
+        ValueError("Output must be either content or tool call"),
+        IndexError("list index out of range"),
+    ],
+    ids=["httpx-read", "json", "fdllm-value", "fdllm-index"],
+)
+def test_call_error_keeps_provider_queue_running_and_is_cached(
+    tmp_path: Path,
+    model_workers: int,
+    call_error: Exception,
+) -> None:
+    """A call failure affects one item, not the rest of its provider group."""
+
+    registry_path = tmp_path / "custom_models.yaml"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "shared": {"models": {"model-a": {}, "model-b": {}}},
+                "other": {"models": {"model-c": {}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    config_path = _write_config(
+        tmp_path,
+        models=["model-a", "model-b", "model-c"],
+        custom_models_path=registry_path,
+        model_workers=model_workers,
+        chunk_size=1,
+    )
+
+    def evaluator(_config, model, item, _prompt):
+        if model == "model-a" and item["benchmark_item_id"] == "item-1":
+            raise call_error
+        return {"output": "[]"}
+
+    output = run_from_config_file(config_path, evaluator=evaluator)
+    rows = _read_all_results(output["results_paths"])
+
+    assert output["executed_count"] == 6
+    assert output["error_count"] == 1
+    assert len(rows) == 6
+    assert sum(row["success"] for row in rows) == 5
+    failed_row = next(row for row in rows if not row["success"])
+    assert failed_row["model"] == "model-a"
+    assert failed_row["benchmark_item_id"] == "item-1"
+    assert failed_row["error_type"] == type(call_error).__name__
+    assert failed_row["error_message"] == str(call_error)
+    assert failed_row["call_status"] == "error"
+
+    def fail_if_called(*_args):
+        pytest.fail("A normal resume should reuse every checkpointed call")
+
+    resumed = run_from_config_file(config_path, evaluator=fail_if_called)
+    assert resumed["executed_count"] == 0
+    assert resumed["skipped_count"] == 6
+    assert resumed["error_count"] == 1
+
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["retry_errors"] = True
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    retry_calls = []
+
+    def retry_evaluator(_config, model, item, _prompt):
+        retry_calls.append((model, item["benchmark_item_id"]))
+        return {"output": "[]"}
+
+    retried = run_from_config_file(config_path, evaluator=retry_evaluator)
+    assert retry_calls == [("model-a", "item-1")]
+    assert retried["executed_count"] == 1
+    assert retried["skipped_count"] == 5
+    assert retried["error_count"] == 0
+    retry_rows = _read_all_results(retried["results_paths"])
+    assert len(retry_rows) == 6
+    assert all(row["success"] for row in retry_rows)
+
+
+@pytest.mark.parametrize("error_type", [ValueError, IndexError])
+def test_temporary_call_error_catches_do_not_swallow_checkpoint_failures(
+    tmp_path: Path,
+    error_type: type[Exception],
+) -> None:
+    """The stop-gap must not turn persistence failures into model error rows."""
+
+    config = load_run_config(_write_config(tmp_path, models=["model-a"]))
+
+    def fail_checkpoint(path: Path) -> None:
+        if path.name.startswith("responses_"):
+            raise error_type("checkpoint failure")
+
+    with pytest.raises(error_type, match="checkpoint failure"):
+        execute_run(
+            config,
+            evaluator=lambda *_args: {"output": "[]"},
+            on_artifact_write=fail_checkpoint,
+        )
 
 
 def test_run_from_config_file_saves_empty_responses_as_errors(tmp_path: Path) -> None:
@@ -767,16 +884,16 @@ def test_run_from_config_file_saves_empty_responses_as_errors(tmp_path: Path) ->
     "unexpected_error",
     [
         RuntimeError("programming error"),
-        ValueError("programming error"),
         KeyError("programming error"),
+        TypeError("programming error"),
     ],
-    ids=["runtime", "value", "key"],
+    ids=["runtime", "key", "type"],
 )
 def test_run_from_config_file_propagates_unexpected_evaluator_errors(
     tmp_path: Path,
     unexpected_error: Exception,
 ) -> None:
-    """Non-provider exceptions are not converted into model-call errors."""
+    """Exceptions outside the explicit temporary catch list still propagate."""
 
     config_path = _write_config(
         tmp_path,

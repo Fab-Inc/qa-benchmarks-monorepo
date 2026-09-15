@@ -1,0 +1,35 @@
+{
+  "run_id": "sw-tusome-clusters-20260905-smoke",
+  "language": "sw",
+  "items_path": "gs://phonics-benchmark/phonics/datasets/sw-tusome-clusters-20260905-smoke.jsonl",
+  "results_dest": "gs://phonics-benchmark/phonics/runs/sw-tusome-clusters-20260905-smoke/",
+  "prompt_name": "decodability_evaluation_clusters",
+  "custom_models_uri": "gs://phonics-benchmark/phonics/model-configs/sw-tusome-clusters-20260905.yaml",
+  "custom_models_sha256": "bff83c51c20168e977e195092f1dc0d2dc444670cb0779343d0c8a0c1cc88b2d",
+  "models": [
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+    "gemini-3.1-flash-lite-preview",
+    "gpt-4.1",
+    "gpt-5.4-nano-2026-03-17",
+    "gemma-4-31b-it",
+    "gemma-3-12b-it",
+    "gemini-3.1-pro-preview",
+    "ministral-3-8b-2512",
+    "mistral-small-2603"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 1,
+  "model_workers": 4,
+  "metadata": {
+    "purpose": "One-item cloud smoke test before the full Kiswahili run",
+    "parent_run_id": "sw-tusome-clusters-20260905",
+    "original_items_uri": "gs://phonics-benchmark/phonics/datasets/sw-tusome-clusters-20260905.jsonl",
+    "items_sha256": "124db527aa80bd9c506178fcc4cf93ef68d34e301b6e595dee82b42877d7234d",
+    "selection": "One item with known clusters, cluster patterns, and non-decodable words",
+    "benchmark_item_id": "tusome-ke-g2-j03_SW-KE-R-A03",
+    "unique_texts": 1,
+    "unique_student_profiles": 1,
+    "total_items": 1
+  }
+}

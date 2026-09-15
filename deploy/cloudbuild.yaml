@@ -12,5 +12,70 @@ steps:
       - ${_IMAGE_URI}
       - .
 
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - --entrypoint=python
+      - ${_IMAGE_URI}
+      - -c
+      - |
+        from inspect import getsource
+        from pathlib import Path
+        from types import SimpleNamespace
+        import json
+        from httpx import ReadError
+        from phonics_benchmark.cmd import _prepare_cloud_models
+        from phonics_benchmark.prompts import build_decodability_prompt
+        from phonics_benchmark.runner import _evaluate_item
+        prompt = build_decodability_prompt(
+            "decodability_evaluation_clusters",
+            {"benchmark_item_id": "image-check", "content": "Mama.",
+             "student_knowledge": {"graphemes": ["m", "a"]}},
+            "sw",
+        )
+        assert "graphemes or consonant clusters" in prompt
+        assert "Known cluster patterns:" in prompt
+        english_prompt = build_decodability_prompt(
+            "decodability_evaluation_schwa_rule",
+            {"benchmark_item_id": "english-image-check", "content": "The planet is fine.",
+             "student_knowledge": {
+                 "gpcs": [["o-e", "ʌ"], ["rr", "r"]],
+                 "sight_words": ["the"],
+             }},
+            "en",
+        )
+        assert "The text is in the language of English." in english_prompt
+        assert "schwa" in english_prompt
+        assert "one-syllable words" in english_prompt
+        assert '"o-e" → "ʌ"' in english_prompt
+        assert '- Known sight words: "the"' in english_prompt
+        assert "custom_models_sha256" in getsource(_prepare_cloud_models)
+        assert not Path("/app/.env").exists()
+        config = SimpleNamespace(
+            run_id="image-check", config_path=None, language="sw",
+            task="decodability", prompt_name="decodability_evaluation_clusters",
+        )
+        for error in (
+            ReadError("[Errno 104] Connection reset by peer"),
+            json.JSONDecodeError("Expecting value", "", 0),
+            ValueError("Output must be either content or tool call"),
+            IndexError("list index out of range"),
+        ):
+            def evaluator(*args):
+                raise error
+            row = _evaluate_item(
+                config=config, config_id="image-check", model_name="image-check",
+                config_snapshot_path=Path("/workspace/image-check/config.json"),
+                item={"benchmark_item_id": "image-check"},
+                model_call_id="image-check", prompt=prompt, result_id="image-check",
+                evaluator=evaluator,
+            )
+            assert row["success"] is False
+            assert row["call_status"] == "error"
+            assert row["error_type"] == type(error).__name__
+            assert row["error_message"] == str(error)
+        print("Packaged Kiswahili and English prompts, GPCs, pinned registry, and call-error handling verified")
+
 images:
   - ${_IMAGE_URI}

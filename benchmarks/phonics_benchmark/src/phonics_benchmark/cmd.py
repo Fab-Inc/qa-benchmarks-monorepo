@@ -5,6 +5,7 @@ import os
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -322,8 +323,7 @@ def run_cloud_cmd(
 
     try:
         run_config = _load_cloud_run_config(config, workdir=workdir)
-        if not skip_models_download:
-            download_default_custom_models(run_config.custom_models_path)
+        _prepare_cloud_models(run_config, skip_download=skip_models_download)
         output = _execute_with_optional_sync(run_config)
     except EXPECTED_CLI_ERRORS as e:
         typer.echo(f"ERROR: {e}", err=True)
@@ -332,6 +332,55 @@ def run_cloud_cmd(
     _echo_run_output(output)
     if output["error_count"] > 0:
         raise typer.Exit(1)
+
+
+def _prepare_cloud_models(config: BenchmarkRunConfig, *, skip_download: bool) -> None:
+    """Materialize a checksum-pinned registry or use the usual public refresh."""
+
+    source_uri = config.raw_config.get("custom_models_uri")
+    expected_hash = config.raw_config.get("custom_models_sha256")
+    if source_uri is None:
+        if expected_hash is not None:
+            raise ConfigError("custom_models_sha256 requires custom_models_uri")
+        if not skip_download:
+            download_default_custom_models(config.custom_models_path)
+        return
+
+    if not isinstance(source_uri, str):
+        raise ConfigError("custom_models_uri must be a gs:// URI")
+    try:
+        bucket_name, object_name = parse_gs_uri(source_uri)
+    except ValueError as e:
+        raise ConfigError(f"Invalid custom_models_uri: {e}") from e
+    if (
+        not isinstance(expected_hash, str)
+        or len(expected_hash) != 64
+        or any(char not in "0123456789abcdef" for char in expected_hash)
+    ):
+        raise ConfigError(
+            "custom_models_uri requires a lowercase SHA-256 custom_models_sha256"
+        )
+
+    destination = config.custom_models_path
+    if destination is None:
+        raise ConfigError("Cloud model registry destination is missing")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    typer.echo(f"Reading pinned model registry from {source_uri}")
+    with NamedTemporaryFile(
+        dir=destination.parent, prefix=".custom-models.", suffix=".tmp", delete=False
+    ) as temporary_file:
+        temporary_path = Path(temporary_file.name)
+    try:
+        download_file(
+            bucket_name=bucket_name,
+            file_name=object_name,
+            write_path=temporary_path,
+        )
+        if sha256(temporary_path.read_bytes()).hexdigest() != expected_hash:
+            raise ConfigError("Pinned model registry SHA-256 does not match config")
+        os.replace(temporary_path, destination)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:

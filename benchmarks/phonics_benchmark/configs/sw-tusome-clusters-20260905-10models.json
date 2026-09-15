@@ -1,0 +1,47 @@
+{
+  "run_id": "sw-tusome-clusters-20260905",
+  "language": "sw",
+  "items_path": "gs://phonics-benchmark/phonics/datasets/sw-tusome-clusters-20260905.jsonl",
+  "results_dest": "gs://phonics-benchmark/phonics/runs/sw-tusome-clusters-20260905/",
+  "prompt_name": "decodability_evaluation_clusters",
+  "custom_models_uri": "gs://phonics-benchmark/phonics/model-configs/sw-tusome-clusters-20260905.yaml",
+  "custom_models_sha256": "bff83c51c20168e977e195092f1dc0d2dc444670cb0779343d0c8a0c1cc88b2d",
+  "models": [
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+    "gemini-3.1-flash-lite-preview",
+    "gpt-4.1",
+    "gpt-5.4-nano-2026-03-17",
+    "gemma-4-31b-it",
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "ministral-3-8b-2512",
+    "mistral-small-2603"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 5,
+  "model_workers": 4,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili) with clusters",
+    "original_items_uri": "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items.jsonl",
+    "items_sha256": "379b5b4afa60bb86772b692258d5193eac8062c1ceaf8ea1091c8c7e0bf852b1",
+    "original_models_uri": "gs://fab-open-configs/custom_models.yaml",
+    "model_list_source": "benchmarks/linguistic_knowledge_benchmark/list_models.yaml",
+    "unique_texts": 59,
+    "unique_student_profiles": 152,
+    "total_items": 1665,
+    "filter_params": {
+      "max_zero_nondecodable": 256,
+      "max_one_nondecodable": null,
+      "max_nondecodable_ratio": 0.2,
+      "sample_size_other": null,
+      "random_state": 42
+    },
+    "model_selection_note": "Original ten-model selection, replacing excluded gemma-3-12b-it with gemini-3-flash-preview from the user-provided expanded list.",
+    "replacement_model_list_source": "Downloads/list_models.yaml",
+    "replacement_model_list_sha256": "b9c54a7f1507f5324ff043d5d9a104b77c9488c093ad5d86cb48c35013382687",
+    "excluded_models": {
+      "gemma-3-12b-it": "Repeated empty responses in the cloud smoke test; debugging deferred."
+    }
+  }
+}

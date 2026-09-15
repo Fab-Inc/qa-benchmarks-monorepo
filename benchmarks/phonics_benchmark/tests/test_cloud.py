@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
@@ -646,6 +647,60 @@ def test_run_cloud_downloads_models_to_writable_workdir(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     download.assert_called_once_with(models_path)
+
+
+@pytest.mark.parametrize("skip_download", [False, True])
+@pytest.mark.parametrize("valid_checksum", [False, True])
+def test_run_cloud_uses_pinned_registry_and_stops_on_changed_content(
+    tmp_path: Path, skip_download: bool, valid_checksum: bool
+) -> None:
+    config = _build_config(tmp_path)
+    registry = b"provider:\n  models:\n    model-a: {}\n"
+    models_path = tmp_path / "inputs" / "custom_models.yaml"
+    models_path.parent.mkdir()
+    models_path.write_bytes(b"previous registry")
+    config = replace(
+        config,
+        custom_models_path=models_path,
+        raw_config={
+            **config.raw_config,
+            "custom_models_uri": "gs://results/model-configs/experiment-a.yaml",
+            "custom_models_sha256": sha256(registry).hexdigest(),
+        },
+    )
+
+    def fake_download(*, bucket_name, file_name, write_path):
+        assert (bucket_name, file_name) == (
+            "results",
+            "model-configs/experiment-a.yaml",
+        )
+        Path(write_path).write_bytes(registry if valid_checksum else b"changed")
+
+    with (
+        patch("phonics_benchmark.cmd._load_cloud_run_config", return_value=config),
+        patch("phonics_benchmark.cmd.download_file", side_effect=fake_download),
+        patch("phonics_benchmark.cmd.download_default_custom_models") as refresh,
+        patch(
+            "phonics_benchmark.cmd._execute_with_optional_sync",
+            return_value=_output(config),
+        ) as execute,
+    ):
+        args = ["run-cloud", "--config", "gs://results/configs/experiment-a.json"]
+        if skip_download:
+            args.append("--skip-models-download")
+        result = CliRunner().invoke(app, args)
+
+    refresh.assert_not_called()
+    assert not list(models_path.parent.glob(".custom-models.*"))
+    if valid_checksum:
+        assert result.exit_code == 0, result.output
+        execute.assert_called_once_with(config)
+        assert models_path.read_bytes() == registry
+    else:
+        assert result.exit_code == 1
+        assert "SHA-256 does not match" in result.output
+        execute.assert_not_called()
+        assert models_path.read_bytes() == b"previous registry"
 
 
 def _build_config(tmp_path: Path) -> BenchmarkRunConfig:

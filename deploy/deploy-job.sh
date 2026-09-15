@@ -9,7 +9,9 @@ ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY:-fab-benchmarks}"
 IMAGE_NAME="${IMAGE_NAME:-phonics-benchmark}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 JOB_NAME="${JOB_NAME:-phonics-run}"
-TASK_TIMEOUT="${TASK_TIMEOUT:-24h}"
+CPU="${CPU:-1}"
+MEMORY="${MEMORY:-2Gi}"
+TASK_TIMEOUT="${TASK_TIMEOUT:-48h}"
 MAX_RETRIES="${MAX_RETRIES:-2}"
 IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
@@ -19,9 +21,12 @@ deploy_args=(
   --region="${REGION}"
   --image="${IMAGE_URI}"
   --service-account="${SERVICE_ACCOUNT}"
+  --cpu="${CPU}"
+  --memory="${MEMORY}"
   --task-timeout="${TASK_TIMEOUT}"
   --max-retries="${MAX_RETRIES}"
   --tasks=1
+  --parallelism=1
   --args=run-cloud,--help
 )
 

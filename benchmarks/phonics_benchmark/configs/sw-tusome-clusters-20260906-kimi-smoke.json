@@ -1,0 +1,26 @@
+{
+  "run_id": "sw-tusome-clusters-20260906-kimi-smoke",
+  "language": "sw",
+  "items_path": "gs://phonics-benchmark/phonics/datasets/sw-tusome-clusters-20260905-smoke.jsonl",
+  "results_dest": "gs://phonics-benchmark/phonics/runs/sw-tusome-clusters-20260906-kimi-smoke/",
+  "prompt_name": "decodability_evaluation_clusters",
+  "custom_models_uri": "gs://phonics-benchmark/phonics/model-configs/sw-tusome-clusters-20260906-remaining.yaml",
+  "custom_models_sha256": "648e9f42d086c362180aeeb44095e9d50e3a9afa6bee2be6630341ca0497c203",
+  "models": [
+    "kimi-k2.5"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 1,
+  "model_workers": 1,
+  "metadata": {
+    "purpose": "Verify the existing Kimi K2.5 model via OpenRouter after Moonshot removed it from the account catalog.",
+    "parent_run_id": "sw-tusome-clusters-20260906-remaining",
+    "original_items_uri": "gs://phonics-benchmark/phonics/datasets/sw-tusome-clusters-20260905.jsonl",
+    "items_sha256": "124db527aa80bd9c506178fcc4cf93ef68d34e301b6e595dee82b42877d7234d",
+    "selection": "One item with known clusters, cluster patterns, and non-decodable words",
+    "benchmark_item_id": "tusome-ke-g2-j03_SW-KE-R-A03",
+    "unique_texts": 1,
+    "unique_student_profiles": 1,
+    "total_items": 1
+  }
+}

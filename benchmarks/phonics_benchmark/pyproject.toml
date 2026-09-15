@@ -11,6 +11,7 @@ dependencies = [
   "decodability",
   "fab-benchmark-publisher",
   "fabdata-llm",
+  "httpx>=0.28.1",
   "openpyxl>=3.1.5",
   "girth>=0.8.0",
   "matplotlib>=3.0.0",

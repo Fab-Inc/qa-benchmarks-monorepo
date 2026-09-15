@@ -1,0 +1,32 @@
+# Upload only the files needed to build the benchmark image.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!.dockerignore
+!deploy/
+deploy/*
+!deploy/phonics.Dockerfile
+!deploy/cloudbuild.yaml
+!packages/
+packages/*
+!packages/*/
+packages/*/*
+!packages/*/pyproject.toml
+!packages/*/README.md
+!packages/*/src/
+!packages/*/src/**
+!benchmarks/
+benchmarks/*
+!benchmarks/*/
+benchmarks/*/*
+!benchmarks/*/pyproject.toml
+!benchmarks/*/README.md
+!benchmarks/*/src/
+!benchmarks/*/src/**
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*
+# Local exploratory data, not used by the packaged benchmark.
+packages/decodability/src/decodability/english/data/g2p.json
