@@ -3,7 +3,6 @@
 import math
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from phonics_benchmark.labeling import get_vocabulary_set
@@ -11,24 +10,19 @@ from phonics_benchmark.utils import require_columns
 
 
 def pooled_fbeta(
-    tp: pd.Series | np.ndarray,
-    fp: pd.Series | np.ndarray,
-    fn: pd.Series | np.ndarray,
+    tp: pd.Series,
+    fp: pd.Series,
+    fn: pd.Series,
     beta: float,
-) -> pd.Series | np.ndarray:
-    """F-beta from pooled word counts, NaN where undefined.
+) -> pd.Series:
+    """F-beta from pooled word counts, only defined where the denominator is non-zero.
 
     Takes vectors, not single counts.
-
-    Suppresses division-by-zero warnings by returning NaN where the denominator is zero.
     """
     denominator = (1 + beta**2) * tp + beta**2 * fn + fp
     numerator = (1 + beta**2) * tp
 
-    if isinstance(denominator, pd.Series):
-        return (numerator / denominator).where(denominator > 0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(denominator > 0, numerator / denominator, np.nan)
+    return (numerator / denominator).where(denominator > 0)
 
 
 @require_columns(["response_parsed", "nondecodable_words"])

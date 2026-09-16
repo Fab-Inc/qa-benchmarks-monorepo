@@ -1,8 +1,5 @@
 """Tests for scoring model results against the benchmark items."""
 
-import warnings
-
-import numpy as np
 import pandas as pd
 import pytest
 from phonics_benchmark.scoring import (
@@ -48,21 +45,6 @@ def test_pooled_fbeta_leaves_empty_denominators_undefined() -> None:
     )
 
     assert pd.isna(scores.iloc[0])
-
-
-def test_pooled_fbeta_accepts_numpy_arrays_without_warning() -> None:
-    """The array path returns an array and stays quiet on 0/0."""
-    with warnings.catch_warnings():
-        # Treat warnings as errors within this context so we can catch any
-        # unexpected warnings
-        warnings.simplefilter("error")
-        scores = pooled_fbeta(
-            np.array([2, 0]), np.array([1, 0]), np.array([1, 0]), beta=1
-        )
-
-    assert isinstance(scores, np.ndarray)
-    assert scores[0] == pytest.approx(2 / 3)
-    assert np.isnan(scores[1])
 
 
 def test_add_word_level_confusion_matrix_derives_confusion_counts() -> None:
