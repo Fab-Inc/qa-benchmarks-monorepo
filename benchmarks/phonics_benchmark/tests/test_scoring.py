@@ -1,5 +1,6 @@
 """Tests for scoring model results against the benchmark items."""
 
+import numpy as np
 import pandas as pd
 import pytest
 from phonics_benchmark.scoring import (
@@ -45,6 +46,19 @@ def test_pooled_fbeta_leaves_empty_denominators_undefined() -> None:
     )
 
     assert pd.isna(scores.iloc[0])
+
+
+def test_pooled_fbeta_accepts_numpy_arrays() -> None:
+    """The function should work with numpy arrays as well as pandas Series."""
+    tp = np.array([3, 0])
+    fp = np.array([1, 0])
+    fn = np.array([2, 0])
+    beta = 1
+
+    scores = pooled_fbeta(tp, fp, fn, beta=beta)
+
+    assert scores[0] == pytest.approx(6 / 9)
+    assert np.isnan(scores[1])
 
 
 def test_add_word_level_confusion_matrix_derives_confusion_counts() -> None:
