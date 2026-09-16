@@ -124,22 +124,71 @@ def test_point_estimates_match_summarize_by_model() -> None:
     report = bootstrap_metric_cis(frame, n_bootstrap=50).set_index("model")
 
     for model in ("m1", "m2"):
-        for metric in ("accuracy", "pooled_f1", "pooled_f2"):
+        for metric in (
+            "accuracy",
+            "pooled_precision",
+            "pooled_recall",
+            "pooled_f1",
+            "pooled_f2",
+        ):
             assert report.loc[model, metric] == pytest.approx(
                 summary.loc[model, metric]
             ), f"{model} {metric}"
 
     # Spelled out for m1: 3 of 4 items exact; pooled tp=7, fp=2, fn=1.
     assert report.loc["m1", "accuracy"] == 0.75
+    assert report.loc["m1", "pooled_precision"] == pytest.approx(7 / 9)  # 7/(7+2)
+    assert report.loc["m1", "pooled_recall"] == pytest.approx(7 / 8)  # 7/(7+1)
     assert report.loc["m1", "pooled_f1"] == pytest.approx(14 / 17)  # 2*7/(2*7+2+1)
     assert report.loc["m1", "pooled_f2"] == pytest.approx(35 / 41)  # 5*7/(5*7+4*1+2)
+
+
+def test_precision_and_recall_bracket_the_f_scores() -> None:
+    """A model that over-flags shows low precision beside high recall.
+
+    The reason these two columns are worth reporting: flagging every word gives
+    recall 1 and precision at the base rate, and F2 alone hides that.
+    """
+    rows = [
+        {
+            "model": "flag-all",
+            "benchmark_item_id": f"p0_SW-KE-T{i:02d}",
+            "perfect_match": False,
+            "tp_count": 1,
+            "fp_count": 9,
+            "fn_count": 0,
+        }
+        for i in range(8)
+    ]
+
+    report = bootstrap_metric_cis(scored_frame(rows), n_bootstrap=200).set_index(
+        "model"
+    )
+
+    assert report.loc["flag-all", "pooled_recall"] == 1.0  # nothing missed
+    assert report.loc["flag-all", "pooled_precision"] == pytest.approx(0.1)  # 8/(8+72)
+    # Recall is 1 in every replicate, so its interval is degenerate.
+    assert report.loc["flag-all", "pooled_recall_ci_low"] == 1.0
+    assert report.loc["flag-all", "pooled_recall_ci_high"] == 1.0
+    # F2 sits far above precision because it weights recall four times as heavily.
+    assert (
+        report.loc["flag-all", "pooled_f2"] > report.loc["flag-all", "pooled_f1"]
+    ) and (
+        report.loc["flag-all", "pooled_f1"] > report.loc["flag-all", "pooled_precision"]
+    )
 
 
 def test_interval_brackets_the_point_estimate() -> None:
     """Each metric's point estimate falls inside its own interval."""
     report = bootstrap_metric_cis(scored_frame(TWO_MODEL_ROWS), n_bootstrap=500)
 
-    for metric in ("accuracy", "pooled_f1", "pooled_f2"):
+    for metric in (
+        "accuracy",
+        "pooled_precision",
+        "pooled_recall",
+        "pooled_f1",
+        "pooled_f2",
+    ):
         assert (report[f"{metric}_ci_low"] <= report[metric]).all()
         assert (report[metric] <= report[f"{metric}_ci_high"]).all()
 
@@ -214,7 +263,14 @@ def test_unbalanced_panel_scores_each_model_over_the_items_it_has() -> None:
 
     assert report.loc["m1", "accuracy"] == 0.75  # all four items, unchanged
     assert report.loc["m2", "accuracy"] == pytest.approx(2 / 3)  # its three items
-    assert not report[["accuracy", "pooled_f1", "pooled_f2"]].isna().to_numpy().any()
+    columns = [
+        "accuracy",
+        "pooled_precision",
+        "pooled_recall",
+        "pooled_f1",
+        "pooled_f2",
+    ]
+    assert not report[columns].isna().to_numpy().any()
 
 
 def test_missing_column_is_rejected() -> None:
@@ -265,3 +321,11 @@ def test_single_item_single_model_does_not_raise() -> None:
     assert np.isnan(by_model.loc["m1", "pooled_f2"])
     assert by_model.loc["m2", "pooled_f1"] == 0.0
     assert by_model.loc["m2", "pooled_f2"] == 0.0
+
+    # m1 flagged nothing, so precision has no predictions to judge; m2 flagged one
+    # word and got it wrong, so its precision is 0. Neither item held a word to
+    # find, so recall is undefined for both.
+    assert np.isnan(by_model.loc["m1", "pooled_precision"])
+    assert by_model.loc["m2", "pooled_precision"] == 0.0
+    assert np.isnan(by_model.loc["m1", "pooled_recall"])
+    assert np.isnan(by_model.loc["m2", "pooled_recall"])
