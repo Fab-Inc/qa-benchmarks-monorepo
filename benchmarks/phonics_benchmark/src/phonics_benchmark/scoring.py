@@ -19,6 +19,8 @@ def pooled_fbeta(
     """F-beta from pooled word counts, NaN where undefined.
 
     Takes vectors, not single counts.
+
+    Suppresses division-by-zero warnings by returning NaN where the denominator is zero.
     """
     denominator = (1 + beta**2) * tp + beta**2 * fn + fp
     numerator = (1 + beta**2) * tp

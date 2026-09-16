@@ -1,10 +1,14 @@
 """Tests for scoring model results against the benchmark items."""
 
+import warnings
+
+import numpy as np
 import pandas as pd
 import pytest
 from phonics_benchmark.scoring import (
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
+    pooled_fbeta,
     summarize_by_model,
 )
 
@@ -15,6 +19,62 @@ ITEMS = pd.DataFrame(
         "nondecodable_ratio": [0.25, 0.33],
     }
 )
+
+
+@pytest.mark.parametrize(
+    ("beta", "expected"),
+    [
+        # Given: tp=3, fp=1, fn=2
+        # F-beta = (1 + b**2) * tp / ((1 + b**2) * tp + b**2 * fn + fp)
+        (0, 3 / 4),  # b=0 collapses to precision
+        (1, 6 / 9),  # b=1, so f1
+        (2, 15 / 24),  # b=2, so f2
+    ],
+)
+def test_pooled_fbeta_matches_the_definition(beta: float, expected: float) -> None:
+    """Beta shifts the score between precision (b=0) and recall (b -> inf)."""
+    scores = pooled_fbeta(pd.Series([3]), pd.Series([1]), pd.Series([2]), beta=beta)
+
+    assert scores.iloc[0] == pytest.approx(expected)
+
+
+def test_pooled_fbeta_leaves_empty_denominators_undefined() -> None:
+    """If tp, fp, and fn are all zero, the row should be NaN."""
+    scores = pooled_fbeta(
+        pd.Series(
+            [
+                0,
+            ]
+        ),
+        pd.Series(
+            [
+                0,
+            ]
+        ),
+        pd.Series(
+            [
+                0,
+            ]
+        ),
+        beta=2,
+    )
+
+    assert pd.isna(scores.iloc[0])
+
+
+def test_pooled_fbeta_accepts_numpy_arrays_without_warning() -> None:
+    """The array path returns an array and stays quiet on 0/0."""
+    with warnings.catch_warnings():
+        # Treat warnings as errors within this context so we can catch any
+        # unexpected warnings
+        warnings.simplefilter("error")
+        scores = pooled_fbeta(
+            np.array([2, 0]), np.array([1, 0]), np.array([1, 0]), beta=1
+        )
+
+    assert isinstance(scores, np.ndarray)
+    assert scores[0] == pytest.approx(2 / 3)
+    assert np.isnan(scores[1])
 
 
 def test_add_word_level_confusion_matrix_derives_confusion_counts() -> None:
@@ -107,6 +167,7 @@ def test_summarize_by_model_pools_counts_and_derives_rates() -> None:
     assert summary.loc["m1", "pooled_precision"] == 2 / 3  # tp=2, fp=1
     assert summary.loc["m1", "pooled_recall"] == 2 / 3  # tp=2, fn=1
     assert summary.loc["m1", "pooled_f1"] == 2 / 3  # tp=2, fp=1, fn=1
+    assert summary.loc["m1", "pooled_f2"] == 2 / 3  # tp=2, fp=1, fn=1, same as f1
 
 
 def test_summarize_by_model_restricts_each_macro_metric_to_its_support() -> None:
@@ -178,6 +239,37 @@ def test_summarize_by_model_reports_undefined_rather_than_perfect_precision() ->
     assert pd.isna(summary.loc["null_model", "pooled_precision"])
     assert summary.loc["null_model", "macro_recall"] == 0.0
     assert summary.loc["null_model", "macro_f1"] == 0.0
+
+
+def test_summarize_by_model_leaves_f_scores_undefined_with_no_pooled_words() -> None:
+    """A model that predicts nothing on fully decodable items scores NaN, not 0.0.
+
+    Given
+    - fully decodable items only
+    - model predicted nothing
+    then, tp, fp and fn all pool to 0
+    """
+    results = pd.DataFrame(
+        {
+            "model": ["silent"] * 2,
+            "benchmark_item_id": ["i1", "i2"],
+            "perfect_match": [True, True],
+            "tp_count": [0, 0],
+            "fp_count": [0, 0],
+            "fn_count": [0, 0],
+            "has_actual_nondecodable": [False, False],
+            "has_predicted_nondecodable": [False, False],
+            "precision": [float("nan"), float("nan")],
+            "recall": [float("nan"), float("nan")],
+            "f1": [float("nan"), float("nan")],
+        }
+    )
+
+    summary = summarize_by_model(results).set_index("model_name")
+
+    assert pd.isna(summary.loc["silent", "pooled_f1"])
+    assert pd.isna(summary.loc["silent", "pooled_f2"])
+    assert summary.loc["silent", "accuracy"] == 1.0
 
 
 def test_accuracy_by_nondecodable_count_groups_by_model_and_count() -> None:
