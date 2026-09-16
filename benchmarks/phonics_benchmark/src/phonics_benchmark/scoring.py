@@ -3,6 +3,7 @@
 import math
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from phonics_benchmark.labeling import get_vocabulary_set
@@ -10,11 +11,11 @@ from phonics_benchmark.utils import require_columns
 
 
 def pooled_fbeta(
-    tp: pd.Series,
-    fp: pd.Series,
-    fn: pd.Series,
+    tp: pd.Series | np.ndarray,
+    fp: pd.Series | np.ndarray,
+    fn: pd.Series | np.ndarray,
     beta: float,
-) -> pd.Series:
+) -> pd.Series | np.ndarray:
     """F-beta from pooled word counts, only defined where the denominator is non-zero.
 
     Takes vectors, not single counts.
@@ -22,7 +23,14 @@ def pooled_fbeta(
     denominator = (1 + beta**2) * tp + beta**2 * fn + fp
     numerator = (1 + beta**2) * tp
 
-    return (numerator / denominator).where(denominator > 0)
+    if (
+        isinstance(tp, pd.Series)
+        and isinstance(fp, pd.Series)
+        and isinstance(fn, pd.Series)
+    ):
+        return (numerator / denominator).where(denominator > 0)
+    else:
+        return np.where(denominator > 0, numerator / denominator, np.nan)
 
 
 @require_columns(["response_parsed", "nondecodable_words"])
