@@ -1,5 +1,6 @@
 """Shared constants and utilities for linguistic_knowledge_benchmark."""
 
+import os
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,26 @@ CACHE_BASE_DIR = BENCH_DIR / "cache"
 CUSTOM_MODELS_YAML = REPO_ROOT / "custom_models.yaml"
 MODELS_CSV = REPO_ROOT / "models.csv"
 PROVIDERS_CSV = REPO_ROOT / "providers.csv"
+
+
+def require_synced_config(path: str | Path) -> None:
+    """Abort with a clear message when one of the synced config files is missing.
+
+    Those files are pulled from the fab-open-configs bucket rather than committed, so a
+    fresh checkout has no copy until a CLI command has run. The analysis scripts used to
+    treat a missing models.csv/providers.csv as an empty mapping, which renders a
+    complete but WRONG figure -- default-coloured bars, an empty provider legend, every
+    model untiered. Failing here keeps that from reaching a report unnoticed.
+    """
+    if not os.path.exists(path):
+        raise SystemExit(
+            f"Required config file not found: {path}\n"
+            "It is synced from the fab-open-configs bucket rather than committed -- "
+            "run any SUBCOMMAND to fetch it, e.g.\n"
+            "    uv run linguistic-knowledge-benchmark run-bench --help\n"
+            "(a bare '--help' will not: typer skips the app callback that syncs it)."
+        )
+
 
 MODELS_LIST_YAML = BENCH_DIR / "list_models.yaml"
 with open(MODELS_LIST_YAML) as _f:

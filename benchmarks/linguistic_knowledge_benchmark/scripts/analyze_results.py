@@ -91,7 +91,24 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
+
+# Hardware-tier assignment lives in its own module so the rules (memory model, caps,
+# gates) can be read in one place; see hardware_tiers.py's docstring. The dependency is
+# one-way -- that module never imports this one at import time.
+from hardware_tiers import (
+    CLOUD_TIERS,
+    HARDWARE_TIER_COLORS,
+    PLOTTED_HARDWARE_TIERS,
+    hardware_tier,
+    load_model_hardware,
+    report_hardware_tiers,
+    write_hardware_tier_table,
+)
+from linguistic_knowledge_benchmark.shared_utils import (
+    MODELS_CSV,
+    PROVIDERS_CSV,
+    require_synced_config,
+)
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -112,62 +129,6 @@ SIZE_BUCKET_COLORS = {
     SIZE_BUCKET_UNKNOWN: "#bab0ac",
 }
 
-# A model's hardware tier is the smallest hardware it can realistically run inference on,
-# so the tier plots read as deployability rather than as raw size. Assumptions, applied
-# uniformly to every tier:
-#   * INT8, i.e. 1 byte per parameter, everywhere. A single quantization keeps tiers
-#     comparable and reflects what parameter count alone can tell us: accurate for
-#     Workstation/Tablet, conservative for Mobile (real deployments there use INT4),
-#     generous for Cloud (real deployments use FP16 + batching).
-#   * RAM inflated 25% for KV cache + activations + framework, assuming short-to-medium
-#     context; long context (>8K tokens) can push a model up a tier.
-#   * MoE models get NO discount: total parameters drive RAM exactly as for dense models,
-#     and models.csv's `size_active` is deliberately not read here. An earlier version of
-#     this did charge MoE models for their active params only, assuming inactive experts
-#     could be offloaded; that is wrong to plan around, because the router can pick any
-#     expert for any token, so the whole model has to be resident. Paging experts from
-#     disk/CPU works but collapses throughput. gpt-oss-120b (117B total, 5.1B active) is
-#     the case that settled it: on active params it would fit a 12GB tablet, while OpenAI
-#     quote "within 80GB of memory" for it and real local runs need ~64GB of unified
-#     memory -- both tracking total parameters, not active ones.
-# RAM caps are inference-available memory after the OS, not total device RAM: 4GB is an
-# entry-level phone, 12GB a premium phone/tablet, 35GB the ceiling of a single high-end
-# consumer GPU (an RTX 5090 has 32GB VRAM); above that needs datacenter or multi-GPU.
-BYTES_PER_PARAM = 1.0  # INT8
-RAM_OVERHEAD = 1.25
-
-# (ram_cap_gb, storage_cap_gb, label), smallest tier first: a model takes the first tier
-# where BOTH caps fit. Storage caps are the free space realistically available for model
-# files on that class of device. With RAM and storage both driven by total parameters the
-# RAM test is now always the tighter one (Mobile admits <=3.2B params, i.e. 3.2GB on disk,
-# far inside its 32GB cap), so storage never binds; it is kept because it documents a real
-# limit and would bind again under a lower-precision assumption than INT8.
-HARDWARE_TIERS = [
-    (4, 32, "Mobile (<4GB RAM)"),
-    (12, 256, "Tablet (4-12GB RAM)"),
-    (35, 2048, "Workstation (12-35GB RAM)"),
-    (float("inf"), float("inf"), "Cloud (>35GB RAM)"),
-]
-# Mobile and Tablet hold only 5 and 6 of the ~120 scored models -- too few to read as
-# separate distributions -- so they are reported as one group. Empty this dict to un-merge
-# them; nothing else has to change.
-HARDWARE_TIER_MERGES = {
-    "Mobile (<4GB RAM)": "Mobile + Tablet (<12GB RAM)",
-    "Tablet (4-12GB RAM)": "Mobile + Tablet (<12GB RAM)",
-}
-# Tier labels as plotted: tier order, de-duplicated by the merges above.
-PLOTTED_HARDWARE_TIERS = list(
-    dict.fromkeys(
-        HARDWARE_TIER_MERGES.get(label, label) for *_, label in HARDWARE_TIERS
-    )
-)
-HARDWARE_TIER_COLORS = {  # keyed by raw and merged labels alike, so merges stay optional
-    "Mobile (<4GB RAM)": "#59a14f",
-    "Tablet (4-12GB RAM)": "#4e79a7",
-    "Mobile + Tablet (<12GB RAM)": "#59a14f",
-    "Workstation (12-35GB RAM)": "#f28e2b",
-    "Cloud (>35GB RAM)": "#bab0ac",
-}
 
 # Fixed spine (same order as eda_pipeline.py) so empty domains/grades still show.
 DOMAINS = [f"D{i}" for i in range(1, 10)]
@@ -420,26 +381,6 @@ def _labels(models: list[str], display_names: dict | None) -> list[str]:
     return [display_names.get(m, m) for m in models]
 
 
-def require_synced_config(path: str) -> None:
-    """Abort with a clear message when a synced config file is missing.
-
-    models.csv/providers.csv are no longer committed -- they are pulled from the
-    fab-open-configs bucket into the repo root by the CLI's app callback (see cmd.py's
-    _download_shared_configs). A missing file used to degrade quietly to an empty
-    mapping, which renders a complete but WRONG figure: every bar the default colour, an
-    empty provider legend, every model untiered. Failing here keeps that from reaching a
-    report unnoticed.
-    """
-    if not os.path.exists(path):
-        raise SystemExit(
-            f"Required config file not found: {path}\n"
-            "It is synced from the fab-open-configs bucket rather than committed -- run "
-            "any SUBCOMMAND to fetch it, e.g.\n"
-            "    uv run linguistic-knowledge-benchmark run-bench --help\n"
-            "(a bare '--help' will not: typer skips the app callback that syncs it)."
-        )
-
-
 def load_provider_colors(models_csv: str, providers_csv: str) -> tuple[dict, dict]:
     """Return (model_id -> provider, provider -> color) from models.csv & providers.csv.
 
@@ -494,36 +435,6 @@ def _provider_legend_handles(
     ]
 
 
-def load_model_hardware(models_csv: str) -> dict:
-    """model_id -> {"size", "open"} from models.csv, for hardware_tier().
-
-    `size` stays a raw total parameter count (the CSV stores 4e9, not 4); a blank cell is
-    None. models.csv also carries `size_active` for MoE models, deliberately not loaded:
-    tiers charge every model for its total parameters (see HARDWARE_TIERS), and reading it
-    here is what would let it drift back into the tier maths. Aborts if models.csv is
-    missing (see require_synced_config) -- an empty dict here would silently untier every
-    model rather than fail. Empty dict only if the `size` column itself is absent.
-    """
-    require_synced_config(models_csv)
-    m = pd.read_csv(models_csv)
-    if "size" not in m.columns:
-        return {}
-
-    def _number(row: dict, column: str) -> float | None:
-        value = row.get(column)
-        return None if value is None or pd.isna(value) else float(value)
-
-    # Indexed by name rather than attribute: `row.size` on an itertuples row resolves to
-    # the column only by luck, since `size` is also a pandas attribute name.
-    return {
-        row["model_id"]: {
-            "size": _number(row, "size"),
-            "open": bool(row.get("open")),
-        }
-        for row in m.to_dict("records")
-    }
-
-
 def size_bucket(size: float | None) -> str:
     """Bucket label for a parameter count (see SIZE_BUCKETS), or SIZE_BUCKET_UNKNOWN
     if size is None/NaN."""
@@ -533,120 +444,6 @@ def size_bucket(size: float | None) -> str:
         if lo <= size < hi:
             return label
     return SIZE_BUCKET_UNKNOWN
-
-
-def hardware_tier(spec: dict | None) -> str | None:
-    """Smallest hardware tier this model can run inference on (see HARDWARE_TIERS), from
-    a load_model_hardware() spec.
-
-    None when the model cannot be placed: an open-weights model whose parameter count is
-    unpublished, or a model absent from models.csv. Callers drop those rather than
-    guessing a tier -- size unknown is not the same as size small. A closed-weights model
-    with no published size is Cloud: it is only ever served through a vendor API on
-    datacenter hardware, so Cloud is its deployable tier whatever the parameter count.
-    """
-    cloud = HARDWARE_TIERS[-1][2]
-    cloud = HARDWARE_TIER_MERGES.get(cloud, cloud)
-    if spec is None:
-        return None
-    size = spec.get("size")
-    if size is None or pd.isna(size):
-        return None if spec.get("open") else cloud
-    # Total parameters drive both, MoE included -- see HARDWARE_TIERS on why sparse
-    # models get no active-parameter discount here.
-    ram_gb = size / 1e9 * BYTES_PER_PARAM * RAM_OVERHEAD
-    storage_gb = size / 1e9 * BYTES_PER_PARAM
-    for ram_cap, storage_cap, label in HARDWARE_TIERS:
-        if ram_gb <= ram_cap and storage_gb <= storage_cap:
-            return HARDWARE_TIER_MERGES.get(label, label)
-    return cloud
-
-
-# main() calls the reporter from every tier-plot branch, but --model-size --hardware
-# --boxplot --swarplot in one invocation would then print the same breakdown up to six
-# times; remember what has already been reported so each (note, model set) prints once.
-_REPORTED_TIER_NOTES: set = set()
-
-
-def report_hardware_tiers(models: list[str], specs: dict, note: str = "") -> None:
-    """Print how `models` split across the hardware tiers, naming any model that could
-    not be placed (see hardware_tier) so none is dropped from the tier plots silently."""
-    key = (note, tuple(sorted(models)))
-    if key in _REPORTED_TIER_NOTES:
-        return
-    _REPORTED_TIER_NOTES.add(key)
-
-    tiers = {model: hardware_tier(specs.get(model)) for model in models}
-    label = f" ({note})" if note else ""
-    print(f"\nhardware tiers{label}:")
-    for tier_label in PLOTTED_HARDWARE_TIERS:
-        count = sum(1 for tier in tiers.values() if tier == tier_label)
-        print(f"  {tier_label:<30} {count:3d}")
-    unplaceable = sorted(model for model, tier in tiers.items() if tier is None)
-    if unplaceable:
-        print(
-            f"  excluded from the tier plots ({len(unplaceable)}): no published "
-            "parameter count in models.csv, and open-weights so not assumable as Cloud:"
-        )
-        for model in unplaceable:
-            print(f"    {model}")
-
-
-# One entry per tier table already written this run, so --model-size --hardware in the
-# same invocation writes (and reports) each file once instead of repeating itself.
-_WRITTEN_TIER_TABLES: set = set()
-
-
-def write_hardware_tier_table(
-    summary: pd.DataFrame, specs: dict, out_path: str, note: str = ""
-) -> pd.DataFrame:
-    """Write model / hardware_tier / accuracy to `out_path` and print each tier's n,
-    mean and median accuracy.
-
-    This is the per-model audit trail behind the tier plots: the plots show
-    distributions, so any tier statistic quoted in prose (a median, a tier gap) can only
-    be checked against the underlying assignment. Rows are ordered by tier (plot order,
-    not alphabetical) then by accuracy, and models that could not be placed (see
-    hardware_tier) are kept with an empty tier rather than dropped, so the file always
-    accounts for every scored model.
-    """
-    table = pd.DataFrame(
-        {
-            "model": summary["model"],
-            "hardware_tier": summary["model"].map(
-                lambda model: hardware_tier(specs.get(model))
-            ),
-            "accuracy": summary["accuracy"],
-        }
-    )
-    table["hardware_tier"] = pd.Categorical(
-        table["hardware_tier"], categories=PLOTTED_HARDWARE_TIERS, ordered=True
-    )
-    table = table.sort_values(
-        ["hardware_tier", "accuracy"], ascending=[True, False]
-    ).reset_index(drop=True)
-
-    if out_path in _WRITTEN_TIER_TABLES:
-        return table
-    _WRITTEN_TIER_TABLES.add(out_path)
-
-    table.to_csv(out_path, index=False)
-    label = f" ({note})" if note else ""
-    print(f"\nhardware tier accuracy{label}:")
-    print(f"  {'tier':<30}{'n':>5}{'mean':>10}{'median':>10}")
-    for tier_label in PLOTTED_HARDWARE_TIERS:
-        tier_rows = table[table["hardware_tier"] == tier_label]
-        if tier_rows.empty:
-            continue
-        print(
-            f"  {tier_label:<30}{len(tier_rows):5d}"
-            f"{tier_rows['accuracy'].mean():9.1f}%{tier_rows['accuracy'].median():9.1f}%"
-        )
-    n_unplaced = int(table["hardware_tier"].isna().sum())
-    if n_unplaced:
-        print(f"  {'(no tier -- excluded from plots)':<30}{n_unplaced:5d}")
-    print(f"  wrote {out_path}")
-    return table
 
 
 def _bar_colors_by_size(models: list[str], sizes: dict) -> list[str]:
@@ -836,8 +633,7 @@ def plot_accuracy_by_hardware(
     specs = specs or {}
     model_provider = model_provider or {}
     provider_color = provider_color or {}
-    cloud = HARDWARE_TIERS[-1][2]
-    cloud = HARDWARE_TIER_MERGES.get(cloud, cloud)
+    cloud_tiers = set(CLOUD_TIERS)
     ordered = summary.sort_values("accuracy", ascending=False)
     # Width scales with the panel count so each panel keeps the same slot however many
     # tiers HARDWARE_TIER_MERGES leaves.
@@ -856,7 +652,7 @@ def plot_accuracy_by_hardware(
         models = tier_summary["model"].tolist()
         x = np.arange(len(models))
         colors = _bar_colors(models, model_provider, provider_color)
-        if cloud_grey and tier_label == cloud:
+        if cloud_grey and tier_label in cloud_tiers:
             colors = [SIZE_BUCKET_COLORS[SIZE_BUCKET_UNKNOWN]] * len(models)
         ax.bar(x, tier_summary["accuracy"], color=colors)
         ax.set_title(tier_label, fontsize=10, fontweight="bold")
