@@ -41,21 +41,9 @@ def test_pooled_fbeta_matches_the_definition(beta: float, expected: float) -> No
 def test_pooled_fbeta_leaves_empty_denominators_undefined() -> None:
     """If tp, fp, and fn are all zero, the row should be NaN."""
     scores = pooled_fbeta(
-        pd.Series(
-            [
-                0,
-            ]
-        ),
-        pd.Series(
-            [
-                0,
-            ]
-        ),
-        pd.Series(
-            [
-                0,
-            ]
-        ),
+        pd.Series([0]),
+        pd.Series([0]),
+        pd.Series([0]),
         beta=2,
     )
 
