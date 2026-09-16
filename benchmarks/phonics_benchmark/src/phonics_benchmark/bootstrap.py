@@ -1,29 +1,16 @@
 """Bootstrap confidence intervals for a run's per-model metrics.
 
-Each model answered the same fixed set of benchmark items, so its score is an
-estimate over one sample of items rather than a fixed property of the model.
-Resampling those items with replacement and re-scoring gives the spread that
-estimate would show across other samples of the same size, and the percentiles
-of that spread are the confidence interval.
+To get a sense of the uncertainty in a model's performance, we can use
+bootstrap resampling. We resample from the benchmark items with replacement
+to create new pseudo-datasets.
 
-Covers three of the metrics ``scoring.summarize_by_model`` reports:
+Covers five of the metrics ``scoring.summarize_by_model`` reports:
 
-* ``accuracy`` -- the share of items the model got exactly right
-* ``pooled_f1`` -- word-level micro-averaged F1 over all items
-* ``pooled_f2`` -- the same weighting a missed word four times a false alarm
-
-Two limits to state wherever these numbers are reported:
-
-1. The interval covers item-sampling error alone. It says nothing about
-   run-to-run variation in the model's own output, and nothing about whether the
-   item set represents Kiswahili texts in general.
-2. Each ``benchmark_item_id`` counts as one independent draw. One text backs
-   several items, one per student-knowledge profile scored against it, and in the
-   20260905 run a single text backs 142 of the 1,665 items. Where a model tends
-   to get all of a text's items right or all of them wrong, those items carry
-   less information than their count suggests and the interval comes out too
-   narrow. Drawing whole texts instead would answer that, and is not implemented
-   here.
+* ``accuracy``
+* ``pooled_precision``
+* ``pooled_recall``
+* ``pooled_f1``
+* ``pooled_f2``
 """
 
 from __future__ import annotations
@@ -93,19 +80,23 @@ def _metrics_from_counts(matrices: dict[str, np.ndarray]) -> dict[str, np.ndarra
     totals = {
         column: np.nansum(matrices[column], axis=0) for column in ITEM_TOTAL_COLUMNS
     }
-    n_items = totals["n_items"]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        accuracy = np.where(n_items > 0, totals["n_correct"] / n_items, np.nan)
-    f1 = pooled_fbeta(
-        totals["tp_count"], totals["fp_count"], totals["fn_count"], beta=1
-    )
-    f2 = pooled_fbeta(
-        totals["tp_count"], totals["fp_count"], totals["fn_count"], beta=2
-    )
+    tp, fp, fn = totals["tp_count"], totals["fp_count"], totals["fn_count"]
+
+    def ratio(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+        """Elementwise numerator/denominator, NaN where the denominator is 0."""
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(denominator > 0, numerator / denominator, np.nan)
+
     return {
-        "accuracy": accuracy,
-        "pooled_f1": np.asarray(f1, dtype=float),
-        "pooled_f2": np.asarray(f2, dtype=float),
+        "accuracy": ratio(totals["n_correct"], totals["n_items"]),
+        # Undefined rather than 0 when a model flagged no words at all, matching
+        # summarize_by_model: it predicted nothing, so it was not wrong about
+        # anything either.
+        "pooled_precision": ratio(tp, tp + fp),
+        # Undefined when no item in the draw had a non-decodable word to find.
+        "pooled_recall": ratio(tp, tp + fn),
+        "pooled_f1": np.asarray(pooled_fbeta(tp, fp, fn, beta=1), dtype=float),
+        "pooled_f2": np.asarray(pooled_fbeta(tp, fp, fn, beta=2), dtype=float),
     }
 
 
@@ -117,7 +108,7 @@ def bootstrap_metric_cis(
     ci_level: float = 0.95,
     seed: int = 0,
 ) -> pd.DataFrame:
-    """Per-model accuracy, pooled F1 and pooled F2 with percentile bootstrap CIs.
+    """Per-model accuracy, precision, recall, F1 and F2 with bootstrap CIs.
 
     Expects the output of ``scoring.add_per_item_confusion_matrix``. The point
     estimates reproduce ``scoring.summarize_by_model``.
