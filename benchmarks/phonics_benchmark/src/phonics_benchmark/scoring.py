@@ -9,6 +9,21 @@ import pandas as pd
 from phonics_benchmark.labeling import get_vocabulary_set
 from phonics_benchmark.utils import require_columns
 
+BASELINE_FLAG_ALL = "baseline:flag-all"
+BASELINE_FLAG_NONE = "baseline:flag-none"
+BASELINE_MODEL_NAMES = (BASELINE_FLAG_ALL, BASELINE_FLAG_NONE)
+
+# Item metadata carried onto the baseline rows: what scoring, the per-model
+# summary, and the difficulty breakdown read. Response-level columns (latency,
+# tokens, output) are left off — no call was made, so any value would be a lie.
+BASELINE_ITEM_COLUMNS = [
+    "benchmark_item_id",
+    "content",
+    "nondecodable_words",
+    "num_nondecodable_words",
+    "nondecodable_ratio",
+]
+
 
 def pooled_fbeta(
     tp: pd.Series | np.ndarray,
@@ -33,6 +48,44 @@ def pooled_fbeta(
         return np.where(denominator > 0, numerator / denominator, np.nan)
 
 
+def get_confusion_matrix(row: pd.Series) -> pd.Series:
+    """Compute item-level confusion matrix and derived metrics."""
+    predicted = {word.lower() for word in row["response_parsed"]}
+    actual = {word.lower() for word in row["nondecodable_words"]}
+    perfect_match = predicted == actual
+    tp = predicted & actual
+    fp = predicted - actual
+    fn = actual - predicted
+    tn = row["vocab_set"] - predicted - actual
+
+    n_tp, n_fp, n_fn = len(tp), len(fp), len(fn)
+
+    precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) > 0 else math.nan
+    recall = n_tp / (n_tp + n_fn) if (n_tp + n_fn) > 0 else math.nan
+
+    f1_denominator = 2 * n_tp + n_fp + n_fn
+    f1 = 2 * n_tp / f1_denominator if f1_denominator > 0 else math.nan
+
+    return pd.Series(
+        {
+            "perfect_match": perfect_match,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "tn": tn,
+            "tp_count": n_tp,
+            "fp_count": n_fp,
+            "fn_count": n_fn,
+            "tn_count": len(tn),
+            "has_actual_nondecodable": len(actual) > 0,
+            "has_predicted_nondecodable": len(predicted) > 0,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+        }
+    )
+
+
 @require_columns(["response_parsed", "nondecodable_words"])
 def add_per_item_confusion_matrix(results: pd.DataFrame, language: str) -> pd.DataFrame:
     """Add per-item true/false positive/negative word counts.
@@ -52,43 +105,39 @@ def add_per_item_confusion_matrix(results: pd.DataFrame, language: str) -> pd.Da
     if "vocab_set" not in results.columns:
         results["vocab_set"] = get_vocabulary_set(results, language)
 
-    def get_confusion_matrix(row: pd.Series) -> pd.Series:
-        predicted = {word.lower() for word in row["response_parsed"]}
-        actual = {word.lower() for word in row["nondecodable_words"]}
-        perfect_match = predicted == actual
-        tp = predicted & actual
-        fp = predicted - actual
-        fn = actual - predicted
-        tn = row["vocab_set"] - predicted - actual
-
-        n_tp, n_fp, n_fn = len(tp), len(fp), len(fn)
-
-        precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) > 0 else math.nan
-        recall = n_tp / (n_tp + n_fn) if (n_tp + n_fn) > 0 else math.nan
-
-        f1_denominator = 2 * n_tp + n_fp + n_fn
-        f1 = 2 * n_tp / f1_denominator if f1_denominator > 0 else math.nan
-
-        return pd.Series(
-            {
-                "perfect_match": perfect_match,
-                "tp": tp,
-                "fp": fp,
-                "fn": fn,
-                "tn": tn,
-                "tp_count": n_tp,
-                "fp_count": n_fp,
-                "fn_count": n_fn,
-                "tn_count": len(tn),
-                "has_actual_nondecodable": len(actual) > 0,
-                "has_predicted_nondecodable": len(predicted) > 0,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
-            }
-        )
-
     return pd.concat([results, results.apply(get_confusion_matrix, axis=1)], axis=1)
+
+
+@require_columns(["benchmark_item_id", "content", "nondecodable_words"])
+def build_baseline_results(results: pd.DataFrame, language: str) -> pd.DataFrame:
+    """Score two trivial classifiers on the items the real models were scored on.
+
+    * ``baseline:flag-all`` lists *every* word in the item as non-decodable.
+    * ``baseline:flag-none`` lists none.
+    """
+    columns = [column for column in BASELINE_ITEM_COLUMNS if column in results.columns]
+    items = (
+        results.drop_duplicates(subset="benchmark_item_id")[columns]
+        .reset_index(drop=True)
+        .copy()
+    )
+    items["vocab_set"] = get_vocabulary_set(items, language)
+
+    def baseline_frame(model_name: str, predictions: pd.Series) -> pd.DataFrame:
+        frame = items.copy()
+        frame["model"] = model_name
+        frame["response_parsed"] = predictions
+        return frame
+
+    # sorted() only for a stable, readable word order; scoring compares as sets.
+    flag_all = baseline_frame(BASELINE_FLAG_ALL, items["vocab_set"].apply(sorted))
+    flag_none = baseline_frame(
+        BASELINE_FLAG_NONE,
+        pd.Series([[] for _ in items.index], index=items.index, dtype="object"),
+    )
+
+    baselines = pd.concat([flag_all, flag_none], ignore_index=True)
+    return add_per_item_confusion_matrix(baselines, language)
 
 
 @require_columns(
@@ -106,7 +155,9 @@ def add_per_item_confusion_matrix(results: pd.DataFrame, language: str) -> pd.Da
         "f1",
     ]
 )
-def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
+def summarize_by_model(
+    results: pd.DataFrame, language: str, add_baseline: bool = False
+) -> pd.DataFrame:
     """Per-model macro (item-averaged) and pooled (word-level) metrics.
 
     A *fully decodable* item is one whose actual ``nondecodable_words`` list is
@@ -123,7 +174,13 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     * All items: ``accuracy``, ``pooled_*``
 
     Expects the output of ``add_per_item_confusion_matrix``.
+
+    ``add_baseline`` indicates whether to add baseline rows for comparison.
     """
+    if add_baseline:
+        baseline_results = build_baseline_results(results, language)
+        results = pd.concat([results, baseline_results], ignore_index=True)
+
     grouped = results.groupby("model")
     models = grouped.size().index
 
@@ -183,7 +240,12 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
             beta=beta,
         )
 
-    return summary.rename_axis("model_name").reset_index()
+    summary = summary.rename_axis("model_name").reset_index()
+    if add_baseline:
+        summary.insert(
+            1, "is_baseline", summary["model_name"].isin(BASELINE_MODEL_NAMES)
+        )
+    return summary
 
 
 @require_columns(["model", "num_nondecodable_words", "perfect_match"])

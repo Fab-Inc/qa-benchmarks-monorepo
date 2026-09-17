@@ -68,3 +68,74 @@ def save_accuracy_by_nondecodable_count_plot(
     plt.legend()
     plt.savefig(output_path)
     plt.close()
+
+
+# The metrics `bootstrap.bootstrap_metric_cis` reports, with the axis label each
+# one gets. Order sets the panel order left to right.
+BOOTSTRAP_METRIC_LABELS = {
+    "accuracy": "Accuracy (exact match rate)",
+    "pooled_f1": "Pooled F1 (word level)",
+    "pooled_f2": "Pooled F2 (word level)",
+}
+
+
+@require_columns(["model", "accuracy", "accuracy_ci_low", "accuracy_ci_high"])
+def save_bootstrap_ci_plot(
+    ci_report: pd.DataFrame,
+    output_path: Path,
+    *,
+    title: str = "Per-model metrics with bootstrap confidence intervals",
+) -> None:
+    """Save one horizontal bar panel per metric, whiskered with its CI.
+
+    ``ci_report`` is the frame from ``bootstrap.bootstrap_metric_cis``. Bars are
+    horizontal and share one model axis because a run can carry 24 models whose
+    names are too long to label vertical bars with, and the shared axis lets you
+    read one model across all three metrics.
+
+    Whiskers are asymmetric: a percentile interval is not centred on the point
+    estimate, so the low and high ends are passed separately rather than as one
+    half-width.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Worst accuracy first, so the best model ends up at the top of the axis.
+    ordered = ci_report.sort_values("accuracy", ascending=True)
+    metrics = [m for m in BOOTSTRAP_METRIC_LABELS if m in ordered.columns]
+    positions = range(len(ordered))
+
+    figure, axes = plt.subplots(
+        1,
+        len(metrics),
+        figsize=(5 * len(metrics), max(3.0, 0.32 * len(ordered) + 1.5)),
+        sharey=True,
+    )
+    axes = axes if len(metrics) > 1 else [axes]
+
+    for axis, metric in zip(axes, metrics, strict=True):
+        point = ordered[metric]
+        # clip(0): a point estimate sitting a hair outside its own percentile
+        # bound would otherwise ask matplotlib for a negative whisker.
+        lower = (point - ordered[f"{metric}_ci_low"]).clip(lower=0)
+        upper = (ordered[f"{metric}_ci_high"] - point).clip(lower=0)
+        axis.barh(positions, point, color="#40916C")
+        axis.errorbar(
+            point,
+            positions,
+            xerr=[lower, upper],
+            fmt="none",
+            ecolor="black",
+            elinewidth=1.0,
+            capsize=3,
+        )
+        axis.set_xlabel(BOOTSTRAP_METRIC_LABELS[metric])
+        axis.set_xlim(0, 1)
+        axis.grid(axis="x", linestyle=":", alpha=0.5)
+        axis.set_axisbelow(True)
+
+    axes[0].set_yticks(list(positions))
+    axes[0].set_yticklabels(ordered["model"])
+    figure.suptitle(title)
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=150)
+    plt.close(figure)
