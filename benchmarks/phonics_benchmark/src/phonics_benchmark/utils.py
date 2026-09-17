@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import warnings
+
 import pandas as pd
 
 
@@ -29,20 +32,16 @@ def warn_fully_decodable_items(threshold: float = 0.1):
             n_fully_decodable = (
                 benchmark_items["nondecodable_words"].apply(len).eq(0).sum()
             )
-            percent_fully_decodable = n_fully_decodable / len(benchmark_items)
-            if percent_fully_decodable > threshold:
-                import warnings
-
+            fully_decodable_ratio = n_fully_decodable / len(benchmark_items)
+            if fully_decodable_ratio > threshold:
                 warnings.warn(
-                    f"{percent_fully_decodable:.0%} of the items are fully decodable.",
+                    f"{fully_decodable_ratio:.0%} of the items are fully decodable.",
                     UserWarning,
                     stacklevel=2,
                 )
             else:
-                import logging
-
                 logging.info(
-                    f"{percent_fully_decodable:.0%} of the items are fully decodable."
+                    f"{fully_decodable_ratio:.0%} of the items are fully decodable."
                 )
             return func(benchmark_items, *args, **kwargs)
 
