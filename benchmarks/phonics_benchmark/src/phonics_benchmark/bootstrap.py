@@ -11,6 +11,10 @@ Covers five of the metrics ``scoring.summarize_by_model`` reports:
 * ``pooled_recall``
 * ``pooled_f1``
 * ``pooled_f2``
+
+``add_baseline`` appends the two trivial classifiers from ``scoring`` as extra
+rows, resampled on the same item draws as the real models, so their intervals
+are comparable with the models' own.
 """
 
 from __future__ import annotations
@@ -20,7 +24,11 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from phonics_benchmark.scoring import pooled_fbeta
+from phonics_benchmark.scoring import (
+    BASELINE_MODEL_NAMES,
+    build_baseline_results,
+    pooled_fbeta,
+)
 from phonics_benchmark.utils import require_columns
 
 # The per-item columns a bootstrap replicate needs, all written by
@@ -107,6 +115,8 @@ def bootstrap_metric_cis(
     n_bootstrap: int = 1000,
     ci_level: float = 0.95,
     seed: int = 0,
+    add_baseline: bool = False,
+    language: str | None = None,
 ) -> pd.DataFrame:
     """Per-model accuracy, precision, recall, F1 and F2 with bootstrap CIs.
 
@@ -114,11 +124,21 @@ def bootstrap_metric_cis(
     estimates reproduce ``scoring.summarize_by_model``.
 
     Set ``seed`` to a fixed integer to make the bootstrap draws reproducible.
+
+    ``add_baseline`` indicates whether to add baseline rows for comparison,
+    and requires the `language` argument to be specified.
     """
     if not 0 < ci_level < 1:
         raise ValueError(f"ci_level must be between 0 and 1, got {ci_level}")
     if n_bootstrap < 1:
         raise ValueError(f"n_bootstrap must be at least 1, got {n_bootstrap}")
+
+    if add_baseline:
+        if language is None:
+            raise ValueError("language must be specified when add_baseline is True")
+        scored = pd.concat(
+            [scored, build_baseline_results(scored, language)], ignore_index=True
+        )
 
     items, models, matrices = _item_matrices(scored)
     n_items = len(items)
@@ -155,4 +175,8 @@ def bootstrap_metric_cis(
     report["n_items_resampled"] = n_items
     report["n_bootstrap"] = n_bootstrap
     report["ci_level"] = ci_level
-    return report.sort_values("accuracy", ascending=False).reset_index(drop=True)
+
+    if add_baseline:
+        report.insert(1, "is_baseline", report["model"].isin(BASELINE_MODEL_NAMES))
+
+    return report.reset_index(drop=True)
