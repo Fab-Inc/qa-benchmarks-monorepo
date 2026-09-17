@@ -9,6 +9,22 @@ from phonics_benchmark.labeling import get_vocabulary_set
 from phonics_benchmark.utils import require_columns
 
 
+def pooled_fbeta(
+    tp: pd.Series,
+    fp: pd.Series,
+    fn: pd.Series,
+    beta: float,
+) -> pd.Series:
+    """F-beta from pooled word counts, only defined where the denominator is non-zero.
+
+    Takes vectors, not single counts.
+    """
+    denominator = (1 + beta**2) * tp + beta**2 * fn + fp
+    numerator = (1 + beta**2) * tp
+
+    return (numerator / denominator).where(denominator > 0)
+
+
 @require_columns(["response_parsed", "nondecodable_words"])
 def add_per_item_confusion_matrix(results: pd.DataFrame, language: str) -> pd.DataFrame:
     """Add per-item true/false positive/negative word counts.
@@ -144,9 +160,6 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
 
     predicted_words = summary["pooled_tp"] + summary["pooled_fp"]
     actual_words = summary["pooled_tp"] + summary["pooled_fn"]
-    f1_denominator = (
-        2 * summary["pooled_tp"] + summary["pooled_fp"] + summary["pooled_fn"]
-    )
 
     summary["pooled_precision"] = (summary["pooled_tp"] / predicted_words).where(
         predicted_words > 0
@@ -154,9 +167,13 @@ def summarize_by_model(results: pd.DataFrame) -> pd.DataFrame:
     summary["pooled_recall"] = (summary["pooled_tp"] / actual_words).where(
         actual_words > 0
     )
-    summary["pooled_f1"] = (2 * summary["pooled_tp"] / f1_denominator).where(
-        f1_denominator > 0
-    )
+    for beta in (1, 2):
+        summary[f"pooled_f{beta}"] = pooled_fbeta(
+            summary["pooled_tp"],
+            summary["pooled_fp"],
+            summary["pooled_fn"],
+            beta=beta,
+        )
 
     return summary.rename_axis("model_name").reset_index()
 
