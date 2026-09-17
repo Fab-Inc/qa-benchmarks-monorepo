@@ -20,6 +20,7 @@ Run from the repository root, e.g.:
 """
 
 import json
+import logging
 from pathlib import Path
 
 import typer
@@ -101,8 +102,14 @@ def filter_benchmark_item_candidates(
         "--random-state",
         help="Sampling seed.",
     ),
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Logging level. Defaults to 'INFO'.",
+    ),
 ) -> None:
     """Cut the candidates down to the set the benchmark runs, using thresholds."""
+    logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
     candidates = read_benchmark_item_candidates(language, data_root)
     candidates_df = convert_records_to_dataframe(candidates)
 

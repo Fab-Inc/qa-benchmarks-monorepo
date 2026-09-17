@@ -9,10 +9,11 @@ from typing import Any
 import pandas as pd
 
 from phonics_benchmark.labeling import get_vocabulary_set, label_nondecodable_words
-from phonics_benchmark.utils import require_columns
+from phonics_benchmark.utils import require_columns, warn_fully_decodable_items
 
 
 @require_columns(["content", "student_knowledge"])
+@warn_fully_decodable_items(threshold=0.1)
 def add_labels_and_analysis(
     benchmark_items: pd.DataFrame,
     decodability_config: dict,
@@ -99,6 +100,7 @@ def get_nondecodable_word_analysis(benchmark_items: pd.DataFrame) -> dict[str, A
 
 
 @require_columns(["nondecodable_ratio", "num_nondecodable_words"])
+@warn_fully_decodable_items(threshold=0.1)
 def filter_benchmark_items(
     benchmark_candidates: pd.DataFrame,
     max_zero_nondecodable: int | None = None,

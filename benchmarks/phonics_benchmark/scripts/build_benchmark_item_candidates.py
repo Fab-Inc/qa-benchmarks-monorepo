@@ -28,6 +28,7 @@ What's next
 """
 
 import json
+import logging
 from pathlib import Path
 
 import typer
@@ -92,8 +93,15 @@ def build_candidate_benchmark_items(
         readable=True,
         help="Root data directory. Defaults to the package's data/ folder.",
     ),
+    log_level: str = typer.Option(
+        "INFO",
+        "--log-level",
+        help="Logging level. Defaults to 'INFO'.",
+    ),
 ) -> None:
     """Pair profiles with texts, analyse every pairing, write the candidates."""
+    logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
+
     texts = read_decodable_texts(language, data_root)
     profiles = read_student_knowledge_profiles(language, data_root)
     validate_student_knowledge(profiles, strict=True)
