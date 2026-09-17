@@ -22,9 +22,10 @@ Run from the repository root, e.g.:
 Writes, into `{run directory}/report`:
 
 - ``results_with_scoring.csv`` — every model/item row with its confusion counts
-- ``summary_by_model.csv`` — one row per model
-- ``bootstrap_ci.csv`` — per-model accuracy, pooled F1 and pooled F2 with
-  confidence intervals, skipped by ``--n-bootstrap 0``
+- ``summary_by_model.csv`` — one row per model, plus an ``is_baseline`` row each
+  for a classifier that flags every word non-decodable and one that flags none
+- ``bootstrap_ci.csv`` — per-model accuracy, pooled precision, recall, F1 and F2
+  with confidence intervals, skipped by ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
@@ -42,8 +43,10 @@ from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.scoring import (
+    BASELINE_MODEL_NAMES,
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
+    build_baseline_results,
     summarize_by_model,
 )
 from phonics_benchmark.utils import require_columns
@@ -292,8 +295,10 @@ def report_on_run(
     results.to_csv(scored_path, index=False)
     written.append(scored_path.name)
 
-    # Per-model accuracy + pooled word-level confusion (precision/recall/f1).
-    summary = summarize_by_model(results)
+    # Per-model accuracy + pooled word-level confusion (precision/recall/f1),
+    # with the two trivial classifiers appended as reference rows.
+    summary = summarize_by_model(results, add_baseline=True, language=language)
+
     typer.echo(f"\nPer-model summary for {resolved_config['run_id']}:")
     typer.echo(summary.to_string(index=False))
     summary.to_csv(report_dir / "summary_by_model.csv", index=False)

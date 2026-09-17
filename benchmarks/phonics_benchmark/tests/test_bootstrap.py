@@ -120,7 +120,7 @@ def test_point_estimates_match_summarize_by_model() -> None:
     """
     frame = scored_frame(TWO_MODEL_ROWS)
 
-    summary = summarize_by_model(frame).set_index("model_name")
+    summary = summarize_by_model(frame, "sw").set_index("model_name")
     report = bootstrap_metric_cis(frame, n_bootstrap=50).set_index("model")
 
     for model in ("m1", "m2"):
