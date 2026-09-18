@@ -1,0 +1,35 @@
+{
+  "groups": {
+    "sw_additional": [
+      "sw-tusome-clusters-additional-20260916-a",
+      "sw-tusome-clusters-additional-20260916-b",
+      "sw-additional-or-gemma-20260917",
+      "sw-additional-or-ministral-20260917",
+      "sw-additional-or-qwen9b-20260917",
+      "sw-additional-hf-parallel-20260917"
+    ],
+    "sw_original": [
+      "sw-tusome-clusters-20260905",
+      "sw-tusome-clusters-20260906-remaining",
+      "sw-original-hf-parallel-20260917",
+      "sw-original-or-gemma-20260917",
+      "sw-original-or-ministral-20260917",
+      "sw-original-or-qwen9b-20260917"
+    ],
+    "en": [
+      "en-ufli-schwa-stratified-20260915",
+      "en-ufli-schwa-stratified-20260915-google",
+      "en-stratified-or-gemma-20260917",
+      "en-stratified-or-ministral-20260917",
+      "en-stratified-or-qwen9b-20260917",
+      "en-stratified-hf-parallel-20260917"
+    ]
+  },
+  "run_prefix": "gs://phonics-benchmark/phonics/runs/",
+  "updated_gold": [
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_additional_syllabic_nasals_ungated.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_balanced1000_syllabic_nasals_ungated.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-en-ufli-schwa-stratified-20260917.jsonl"
+  ],
+  "english_gold": "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-en-ufli-schwa-stratified-20260917.jsonl"
+}
