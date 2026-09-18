@@ -11,10 +11,6 @@ Covers five of the metrics ``scoring.summarize_by_model`` reports:
 * ``pooled_recall``
 * ``pooled_f1``
 * ``pooled_f2``
-
-``add_baseline`` appends the two trivial classifiers from ``scoring`` as extra
-rows, resampled on the same item draws as the real models, so their intervals
-are comparable with the models' own.
 """
 
 from __future__ import annotations
@@ -31,12 +27,7 @@ from phonics_benchmark.scoring import (
 )
 from phonics_benchmark.utils import require_columns
 
-# The per-item columns a bootstrap replicate needs, all written by
-# `scoring.add_per_item_confusion_matrix`.
 ITEM_METRIC_COLUMNS = ["perfect_match", "tp_count", "fp_count", "fn_count"]
-
-# What each item contributes, as totals rather than rates, so every metric below
-# is a ratio of two sums and a model missing an item contributes to neither side.
 ITEM_TOTAL_COLUMNS = ["n_correct", "n_items", "tp_count", "fp_count", "fn_count"]
 
 
@@ -45,10 +36,12 @@ def _item_matrices(
 ) -> tuple[pd.Index, list[str], dict[str, np.ndarray]]:
     """Pivot the per-item metrics to one (n_items, n_models) array per total.
 
-    Returns (items, models, matrices) where
-    - Each matrix corresponds to one of the ITEM_TOTAL_COLUMNS.
-    - Every matrix has rows corresponding to ``items`` and columns corresponding
-        to ``models``.
+    Returns ``(items, models, matrices)`` where
+    - ``items``: the unique benchmark item IDs.
+    - ``models``: the unique model names, sorted.
+    - ``matrices``: a dictionary mapping each column in ``ITEM_TOTAL_COLUMNS``
+      to a 2D array of shape (n_items, n_models), with rows corresponding to
+      ``items`` and columns corresponding to ``models``.
 
     A NaN cell means that model has no row for that item, e.g. due to a failed
     provider call or an unparseable response. Callers sum with `nansum`, so a
@@ -74,10 +67,16 @@ def _item_matrices(
     return items, models, matrices
 
 
+def ratio(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+    """Elementwise numerator/denominator, NaN where the denominator is 0."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(denominator > 0, numerator / denominator, np.nan)
+
+
 def _metrics_from_counts(matrices: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     """Reduce the item-by-model matrices to one value per model per metric.
 
-    Returns a dictionary mapping metric names to arrays of per-model metric values.
+    Returns a dictionary of {metric names: arrays of per-model metric values}.
 
     Every metric is a ratio of two sums over the drawn items, so a model with no
     row for a drawn item contributes nothing to either side rather than skewing an
@@ -89,11 +88,6 @@ def _metrics_from_counts(matrices: dict[str, np.ndarray]) -> dict[str, np.ndarra
         column: np.nansum(matrices[column], axis=0) for column in ITEM_TOTAL_COLUMNS
     }
     tp, fp, fn = totals["tp_count"], totals["fp_count"], totals["fn_count"]
-
-    def ratio(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
-        """Elementwise numerator/denominator, NaN where the denominator is 0."""
-        with np.errstate(divide="ignore", invalid="ignore"):
-            return np.where(denominator > 0, numerator / denominator, np.nan)
 
     return {
         "accuracy": ratio(totals["n_correct"], totals["n_items"]),
@@ -123,10 +117,11 @@ def bootstrap_metric_cis(
     Expects the output of ``scoring.add_per_item_confusion_matrix``. The point
     estimates reproduce ``scoring.summarize_by_model``.
 
-    Set ``seed`` to a fixed integer to make the bootstrap draws reproducible.
-
-    ``add_baseline`` indicates whether to add baseline rows for comparison,
-    and requires the `language` argument to be specified.
+    - ``n_bootstrap``: the number of bootstrap replicates to draw.
+    - ``ci_level``: the confidence level for the bootstrap intervals.
+    - ``seed``: a fixed integer to make the bootstrap draws reproducible.
+    - ``add_baseline``: whether to add baseline rows for comparison.
+    - ``language``: the language of the dataset, required if ``add_baseline`` is True.
     """
     if not 0 < ci_level < 1:
         raise ValueError(f"ci_level must be between 0 and 1, got {ci_level}")
@@ -140,27 +135,31 @@ def bootstrap_metric_cis(
             [scored, build_baseline_results(scored, language)], ignore_index=True
         )
 
-    items, models, matrices = _item_matrices(scored)
-    n_items = len(items)
-    point = _metrics_from_counts(matrices)
+    item_ids, model_names, item_model_matrices = _item_matrices(scored)
+    n_items = len(item_ids)
+    point = _metrics_from_counts(item_model_matrices)
     metric_names = list(point)
 
+    rng = np.random.default_rng(seed)
     # One index array per replicate, applied to every model's column. Item
     # difficulty correlates across models (a badly worded item is hard for all of
     # them), so a shared draw preserves that correlation instead of pretending
     # each model saw its own item pool. It leaves any single model's own interval
     # unchanged, and it keeps the replicate rows comparable across models, which
     # is what a later paired test between two models needs.
-    rng = np.random.default_rng(seed)
-    replicates = {name: np.empty((n_bootstrap, len(models))) for name in metric_names}
+    replicates = {
+        name: np.empty((n_bootstrap, len(model_names))) for name in metric_names
+    }
     for replicate in range(n_bootstrap):
         index = rng.integers(0, n_items, size=n_items)  # with replacement, same n
-        resampled = {name: matrix[index] for name, matrix in matrices.items()}
+        resampled = {
+            name: matrix[index] for name, matrix in item_model_matrices.items()
+        }
         for name, values in _metrics_from_counts(resampled).items():
             replicates[name][replicate] = values
 
     alpha = 1.0 - ci_level
-    report = pd.DataFrame({"model": models})
+    report = pd.DataFrame({"model": model_names})
     with warnings.catch_warnings():  # all-NaN columns, see _metrics_from_counts
         warnings.simplefilter("ignore", RuntimeWarning)
         for name in metric_names:
