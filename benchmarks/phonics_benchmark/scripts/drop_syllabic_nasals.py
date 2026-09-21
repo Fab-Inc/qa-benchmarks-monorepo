@@ -26,11 +26,10 @@ from pathlib import Path
 
 import pandas as pd
 import typer
-from decodability.kiswahili import KiswahiliStudentKnowledge, extract_words_kiswahili
+from decodability.kiswahili import KiswahiliStudentKnowledge
 from decodability.kiswahili.analyse import is_decodable_kenya_tusome
 from decodability.kiswahili.definitions import get_clusters, get_graphemes
 from decodability.kiswahili.segment import GraphemeSpan, decompose_word
-from phonics_benchmark.data_io import convert_records_to_dataframe
 from phonics_benchmark.labeling import get_vocabulary_set
 
 # words identified as having syllabic nasals
@@ -222,33 +221,44 @@ def main(load_items_path: str, save_items_path: str, log_level: str = "INFO") ->
         "Words to ungate: \n" + "\n".join(str(word) for word in words_to_ungate)
     )
 
-    items_df = pd.read_json(load_items_path, lines=True)
-    items_df["vocab_set"] = get_vocabulary_set(items_df, "sw")
-    logging.info(f"Loaded {len(items_df)} items from {load_items_path}")
+    items = load_jsonl(Path(load_items_path))
+    # get_vocabulary_set needs a frame and only reads `content`, but the raw dicts
+    # stay the source of truth so untouched items round-trip unchanged
+    vocab_sets = get_vocabulary_set(
+        pd.DataFrame({"content": [item["content"] for item in items]}), "sw"
+    ).tolist()
+    logging.info(f"Loaded {len(items)} items from {load_items_path}")
 
     n_items_with_removal = 0
     n_items_with_addition = 0
     n_removed_words = 0
     n_added_words = 0
 
-    for _, item in items_df.iterrows():
+    for item, vocab_set in zip(items, vocab_sets, strict=True):
         label = item["nondecodable_words"].copy()
         removed = []
         added = []
         profile = KiswahiliStudentKnowledge.model_validate(item["student_knowledge"])
 
-        for word_in_text, word_to_ungate in product(item["vocab_set"], words_to_ungate):
+        for word_in_text, word_to_ungate in product(vocab_set, words_to_ungate):
             if word_in_text == word_to_ungate.word:
                 # these are the words we _might_ need to drop from nondecodable list
                 # this is only valid if the student already knows all graphemes and
                 # any other gated clusters.
-                if (
-                    not is_decodable_kenya_tusome(word_in_text, profile)
-                    and word_in_text not in label
-                ):
+                # One predicate drives both directions. is_decodable_kenya_tusome
+                # is the baseline check and knows nothing about syllabic-nasal
+                # ungating, so alone it flags exactly the words we mean to ungate.
+                # Gating it on ok_to_ungate as well keeps the two branches from
+                # contradicting each other, which would make a second pass undo
+                # the first.
+                nondecodable = not is_decodable_kenya_tusome(
+                    word_in_text, profile
+                ) and not ok_to_ungate(word_to_ungate, profile)
+
+                if nondecodable and word_in_text not in label:
                     label.append(word_in_text)
                     added.append(word_in_text)
-                elif ok_to_ungate(word_to_ungate, profile) and word_in_text in label:
+                elif not nondecodable and word_in_text in label:
                     label.remove(word_in_text)
                     removed.append(word_in_text)
 
@@ -271,10 +281,9 @@ def main(load_items_path: str, save_items_path: str, log_level: str = "INFO") ->
 
             item["nondecodable_words"] = label
             item["num_nondecodable_words"] = len(label)
-            item["nondecodable_ratio"] = len(label) / len(item["vocab_set"])
+            item["nondecodable_ratio"] = len(label) / len(vocab_set)
 
-    items_df.drop(["vocab_set"], axis=1, inplace=True)
-    save_as_jsonl(items_df.to_dict(orient="records"), Path(save_items_path))
+    save_as_jsonl(items, Path(save_items_path))
     logging.info(f"Saved updated items to {save_items_path}")
     logging.info(f"Number of items with removal: {n_items_with_removal}")
     logging.info(f"Number of removed words: {n_removed_words}")
