@@ -175,7 +175,7 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
         report_on_run(
             run_id=language,
             output_root=root,
-            inspect_sample_size=None,
+            inspect_sample_size=128,
             n_bootstrap=n_bootstrap,
             ci_level=0.95,
             seed=seed,
