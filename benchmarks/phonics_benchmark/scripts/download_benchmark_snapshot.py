@@ -38,18 +38,15 @@ def download(source: str, destination: Path) -> dict:
 def download_snapshot(root: Path, manifest_path: Path) -> None:
     manifest = json.loads(manifest_path.read_text())
     root.mkdir(parents=True, exist_ok=False)
+    (root / "source_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     started = datetime.datetime.now(datetime.UTC).isoformat()
     run_tasks = [
         (manifest["run_prefix"] + run, root / "sources/runs" / run)
         for runs in manifest["groups"].values()
         for run in runs
     ]
-    tasks = run_tasks + [
-        (uri, root / "sources/datasets" / uri.rsplit("/", 1)[-1])
-        for uri in manifest["updated_gold"]
-    ]
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda pair: download(*pair), tasks))
+        results = list(pool.map(lambda pair: download(*pair), run_tasks))
 
     dataset_uris = set()
     for _, destination in run_tasks:
@@ -63,6 +60,15 @@ def download_snapshot(root: Path, manifest_path: Path) -> None:
         if not uri or not uri.startswith("gs://"):
             raise ValueError(f"Cannot find source dataset for {destination}: {uri}")
         dataset_uris.add(uri)
+    dataset_uris.update(manifest.get("updated_gold", []))
+    for uris in manifest.get("gold_overlays", {}).values():
+        dataset_uris.update(uris)
+    basenames = {}
+    for uri in dataset_uris:
+        name = uri.rsplit("/", 1)[-1]
+        if name in basenames and basenames[name] != uri:
+            raise ValueError(f"Dataset filename collision: {uri}")
+        basenames[name] = uri
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         results.extend(
             pool.map(
@@ -103,7 +109,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path(__file__).with_name("merged_sources_20260918.json"),
+        default=Path(__file__).with_name("merged_sources_20260921.json"),
     )
     args = parser.parse_args()
     download_snapshot(args.root, args.manifest)
