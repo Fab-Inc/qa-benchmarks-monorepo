@@ -1,0 +1,16 @@
+{
+  "snapshot_date": "2026-09-21",
+  "style_commit": "f53c09cccda01ee8b9946fdfd862920c8db74178",
+  "metadata_reference": "kiswahili-lkb-plots-20260915T103825Z-3fdb146a",
+  "hardware_reference_commit": "acfbac1745fc5e710b59b77d7dec947ac6c1eae6",
+  "hardware_reference_sha256": "184eb4c18ab297c8138688bd2927b5111db56e39b60eda217ed76c6736eb1cac",
+  "source_metadata_sha256": {
+    "models.csv": "f4abd4b46612e41cc707299c228144264ba91b4fec82ac09f25a2ef32a51a20d",
+    "providers.csv": "acb1c2cf7bc413e1111da5c433393f8af808e77a72c104f915f240948567d044",
+    "display_overrides.json": "bea1e4e3682e58dc35d523902566c3727e2839e710d05aa534b8d868939fedbc"
+  },
+  "scope": "Only models named in the September 21 merge coverage tables; provider SVGs, prices, and unrelated model columns omitted.",
+  "qwen3-8b-alibaba": "Recorded API model qwen/qwen3-8b in en-extension-or-qwen8b-20260918/config.json; architecture/display metadata from qwen-3-8b-fp8, without copying routing or precision assumptions.",
+  "gpt-6-astra-medium": "Display override from recorded run config. Hardware specification unavailable in source metadata; remains unplaced and is currently below the coverage threshold in both subsets.",
+  "hardware_convention": "Total parameter counts, including MoE total rather than active parameters; fixed original LKB hardware budgets, not a new hardware survey."
+}

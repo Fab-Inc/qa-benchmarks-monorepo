@@ -1,0 +1,589 @@
+"""LKB hardware-tier comparisons using saved F1, F2 and balanced accuracy.
+
+Adapted from hardware_tiers.py on qfb-194-implement-lkb-workflow at acfbac1.
+Uses exactly the same access gate, total-parameter RAM budgets, precision band,
+tier merges, medians and top-N model means. Only Mobile + Tablet and Cloud
+enter this comparison; the intermediate tier remains in the classification audit.
+Models must have strictly more than 80% scorable items; denominators default to
+the actual dataset sizes, with optional overrides for historical comparisons.
+Neither response scoring nor the per-model bootstrap is rerun.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from hashlib import sha256
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+REFERENCE_COMMIT = "acfbac1745fc5e710b59b77d7dec947ac6c1eae6"
+REFERENCE_SOURCE_SHA256 = (
+    "184eb4c18ab297c8138688bd2927b5111db56e39b60eda217ed76c6736eb1cac"
+)
+REFERENCE_URL = (
+    "https://github.com/Fab-Inc/qa-benchmarks-monorepo/blob/"
+    f"{REFERENCE_COMMIT}/benchmarks/linguistic_knowledge_benchmark/"
+    "scripts/hardware_tiers.py"
+)
+OVERHEAD = 1.25
+HARDWARE_TIERS = [
+    ("Mobile", 4, 0.50, 0.5),
+    ("Tablet", 12, 0.50, 0.5),
+    ("Workstation", 32, 0.85, 1.0),
+]
+TIER_ORDER = ["Mobile + Tablet", "Cloud"]
+TIER_MERGES = {
+    "Mobile": "Mobile + Tablet",
+    "Tablet": "Mobile + Tablet",
+    "Cloud (API-only)": "Cloud",
+    "Cloud (capacity)": "Cloud",
+}
+SURFACE, INK, SECONDARY = "#fcfcfb", "#0b0b0b", "#52514e"
+MUTED, GRID, CONNECTOR = "#898781", "#e1e0d9", "#c3c2b7"
+SERIES = {"english": "#2a78d6", "kiswahili": "#eb6834"}
+METRICS = {
+    "pooled_f1": "Pooled F1",
+    "pooled_f2": "Pooled F2",
+    "balanced_accuracy": "Balanced accuracy",
+}
+
+
+def tier_max_params(ram: float, fraction: float, bytes_per_param: float) -> float:
+    return ram * fraction / (bytes_per_param * OVERHEAD) * 1e9
+
+
+TIER_MAX_PARAMS = [
+    (label, tier_max_params(ram, fraction, precision))
+    for label, ram, fraction, precision in HARDWARE_TIERS
+]
+PRECISION_BAND = (tier_max_params(32, 0.85, 1.0), tier_max_params(32, 0.85, 0.5))
+
+
+def assign_hardware(spec: dict | None) -> dict:
+    """Same gates as the reference; retain raw tiers and the deciding gate."""
+    raw, reason, band = None, "unplaced (not in models.csv)", False
+    if spec is not None:
+        if not spec["open"]:
+            raw, reason = "Cloud (API-only)", "access gate (closed weights)"
+        elif spec["size"] is None or pd.isna(spec["size"]):
+            reason = "unplaced (open, size unpublished)"
+        else:
+            size = spec["size"]
+            raw = next(
+                (tier for tier, ceiling in TIER_MAX_PARAMS if size <= ceiling),
+                "Cloud (capacity)",
+            )
+            reason = "capacity gate (size)"
+            band = PRECISION_BAND[0] < size <= PRECISION_BAND[1]
+    return {
+        "raw_hardware_tier": raw,
+        "hardware_tier": TIER_MERGES.get(raw, raw),
+        "placed_by": reason,
+        "precision_dependent": band,
+    }
+
+
+def passes_coverage(scorable_items: int, denominator: int) -> bool:
+    """Integer comparison avoids rounding at the strictly-greater-than boundary."""
+    return scorable_items * 5 > denominator * 4
+
+
+def read_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path, float_precision="round_trip")
+
+
+def load_metadata(path: Path) -> dict:
+    models = read_csv(path)
+    if models.model_id.isna().any() or not models.model_id.is_unique:
+        raise ValueError("Model metadata must have unique non-null IDs")
+    models["open"] = (
+        models["open"].astype(str).str.lower().map({"true": True, "false": False})
+    )
+    if models["open"].isna().any():
+        raise ValueError("Unrecognized open-weights flag")
+    specs = {}
+    for row in models.itertuples():
+        size = None if pd.isna(row.size) else float(row.size)
+        if size is not None and (not np.isfinite(size) or size <= 0):
+            raise ValueError(f"Invalid total parameter count for {row.model_id}")
+        specs[row.model_id] = {
+            "size": size,
+            "open": bool(row.open),
+            "display_name": row.display_name,
+            "provider": row.provider,
+        }
+    return specs
+
+
+def build_audit(
+    run: Path, specs: dict, denominator: int, metric: str = "pooled_f2"
+) -> pd.DataFrame:
+    summary = read_csv(run / "report/summary_by_model.csv").rename(
+        columns={"model_name": "model"}
+    )
+    coverage = read_csv(run / "coverage_by_model.csv")
+    if metric == "balanced_accuracy":
+        summary = read_csv(run.parent / "balanced_accuracy" / f"{run.name}_summary.csv")
+        summary = summary.rename(columns={"n_scorable": "n_items"})
+        ci = summary
+    else:
+        ci = read_csv(run / "report/bootstrap_ci.csv")
+    table = coverage.merge(
+        summary[["model", metric, "n_items"]],
+        on="model",
+        how="left",
+        validate="one_to_one",
+    )
+    table = table.merge(
+        ci[
+            [
+                "model",
+                metric,
+                f"{metric}_ci_low",
+                f"{metric}_ci_high",
+                "n_bootstrap",
+                "ci_level",
+            ]
+        ],
+        on="model",
+        how="left",
+        validate="one_to_one",
+        suffixes=("", "_bootstrap"),
+    )
+    if not table.n_items.fillna(0).eq(table.scorable_items).all():
+        raise ValueError("Summary scored counts disagree with coverage")
+    np.testing.assert_allclose(
+        table[metric], table[f"{metric}_bootstrap"], rtol=0, atol=1e-14, equal_nan=True
+    )
+    table = table.drop(columns=f"{metric}_bootstrap")
+    rows = []
+    for row in table.to_dict(orient="records"):
+        spec = specs.get(row["model"])
+        row.update(assign_hardware(spec))
+        row.update(
+            {
+                "language": run.name,
+                "metric": metric,
+                "coverage_denominator": denominator,
+                "coverage_for_filter": row["scorable_items"] / denominator,
+                "actual_dataset_coverage": row["scorable_items"]
+                / row["expected_items"],
+                "passes_coverage": passes_coverage(
+                    int(row["scorable_items"]), denominator
+                ),
+                "display_name": spec["display_name"] if spec else row["model"],
+                "open_weights": spec["open"] if spec else None,
+                "total_parameters": spec["size"] if spec else None,
+            }
+        )
+        reasons = []
+        if not row["passes_coverage"]:
+            reasons.append("coverage_not_above_80_percent")
+        if not pd.notna(row[metric]):
+            reasons.append(f"no_defined_{metric}")
+        if row["hardware_tier"] is None:
+            reasons.append("no_hardware_tier")
+        elif row["hardware_tier"] not in TIER_ORDER:
+            reasons.append("tier_excluded_from_comparison")
+        row["included"] = not reasons
+        row["exclusion_reason"] = ";".join(reasons)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def summarize_tiers(
+    audit: pd.DataFrame, top_n: int, metric: str = "pooled_f2"
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if top_n < 1:
+        raise ValueError("top_n must be positive")
+    medians, means, selected = [], [], []
+    eligible = audit[audit.included]
+    for tier in TIER_ORDER:
+        for language in SERIES:
+            group = eligible[
+                eligible.hardware_tier.eq(tier) & eligible.language.eq(language)
+            ]
+            if group.empty:
+                continue
+            group = group.sort_values([metric, "model"], ascending=[False, True])
+            medians.append(
+                {
+                    "hardware_tier": tier,
+                    "language": language,
+                    "n_models": len(group),
+                    f"median_{metric}": group[metric].median(),
+                    "n_placed_by_capacity": int(
+                        group.placed_by.str.startswith("capacity").sum()
+                    ),
+                    "n_precision_dependent": int(group.precision_dependent.sum()),
+                }
+            )
+            top = group.head(top_n).copy()
+            top["rank_within_tier"] = np.arange(1, len(top) + 1)
+            selected.append(top)
+            means.append(
+                {
+                    "hardware_tier": tier,
+                    "language": language,
+                    "n_available": len(group),
+                    "n_used": len(top),
+                    "requested_top_n": top_n,
+                    f"top_n_mean_{metric}": top[metric].mean(),
+                    f"top_n_min_{metric}": top[metric].min(),
+                    f"top_n_max_{metric}": top[metric].max(),
+                    "models_used": json.dumps(top.model.tolist()),
+                }
+            )
+    return (
+        pd.DataFrame(medians),
+        pd.DataFrame(means),
+        pd.concat(selected, ignore_index=True),
+    )
+
+
+def plot_dumbbell(
+    stats: pd.DataFrame,
+    value: str,
+    title: str,
+    subtitle: str,
+    denominators: dict,
+    *,
+    slide: bool = False,
+    metric_label: str = "Pooled F2",
+    gold_note: str = "",
+):
+    metric_label = metric_label[0].lower() + metric_label[1:]
+    tiers = [t for t in TIER_ORDER if t in set(stats.hardware_tier)]
+    fig, ax = plt.subplots(figsize=(11, 1.2 * len(tiers) + 4.0))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    for y, tier in enumerate(tiers):
+        group = stats[stats.hardware_tier.eq(tier)]
+        points = dict(zip(group.language, group[value] * 100, strict=True))
+        close = len(points) == 2 and max(points.values()) - min(points.values()) < 3
+        # Y is categorical: a small vertical offset keeps near-equal X values visible.
+        point_y = {
+            lang: y + ({"english": -0.12, "kiswahili": 0.12}[lang] if close else 0)
+            for lang in points
+        }
+        if len(points) == 2:
+            low, high = min(points.values()), max(points.values())
+            if close:
+                ax.plot(
+                    list(points.values()),
+                    list(point_y.values()),
+                    color=CONNECTOR,
+                    lw=2,
+                    zorder=1,
+                )
+            elif high - low > 1.2:
+                ax.plot(
+                    [low + 0.6, high - 0.6], [y, y], color=CONNECTOR, lw=2, zorder=1
+                )
+        for language, score in points.items():
+            ax.scatter(
+                score,
+                point_y[language],
+                s=170,
+                color=SERIES[language],
+                zorder=3,
+                edgecolors=SURFACE,
+                linewidths=2,
+            )
+            others = [v for lang, v in points.items() if lang != language]
+            left = bool(others) and score <= min(others)
+            ax.annotate(
+                f"{score:.1f}%",
+                (score, point_y[language]),
+                xytext=(-14 if left else 14, 0),
+                textcoords="offset points",
+                ha="right" if left else "left",
+                va="center",
+                fontsize=15,
+                color=INK,
+            )
+        counts = []
+        for language in SERIES:
+            rows = group[group.language.eq(language)]
+            if not rows.empty:
+                row = rows.iloc[0]
+                used = int(row.get("n_used", row.get("n_models")))
+                available = int(row.get("n_available", used))
+                counts.append(
+                    f"{language.title()}: {used}"
+                    + (f" of {available}" if available != used else "")
+                    + (" model" if used == 1 else " models")
+                )
+        ax.annotate(
+            " · ".join(counts),
+            (0.01, y),
+            xycoords=("axes fraction", "data"),
+            xytext=(0, -30),
+            textcoords="offset points",
+            fontsize=9,
+            color=SECONDARY,
+            ha="left",
+            va="top",
+        )
+        labels = {
+            "Cloud": (
+                "Frontier models" if slide else "Cloud",
+                "Cloud" if slide else "Datacenter or API-only",
+            ),
+            "Mobile + Tablet": (
+                "Small models" if slide else "Mobile + tablet",
+                "On-device, offline" if slide else "Up to 12GB RAM, INT4",
+            ),
+        }
+        name, detail = labels[tier]
+        for text, dy, size, color in [(name, 7, 16, INK), (detail, -9, 11, MUTED)]:
+            ax.annotate(
+                text,
+                (-0.025, y),
+                xycoords=("axes fraction", "data"),
+                xytext=(0, dy),
+                textcoords="offset points",
+                ha="right",
+                va="center",
+                fontsize=size,
+                color=color,
+            )
+    ax.set_xlim(0, 112)
+    ax.set_xticks([0, 20, 40, 60, 80, 100])
+    ax.set_ylim(-0.85, len(tiers) - 0.45)
+    ax.set_yticks([])
+    ax.set_xlabel(
+        f"{'Median' if value.startswith('median') else 'Mean'} {metric_label} (%)",
+        fontsize=12,
+        color=MUTED,
+    )
+    ax.tick_params(axis="x", labelsize=12, colors=MUTED, length=0)
+    ax.grid(axis="x", color=GRID, lw=1)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.spines["bottom"].set_color(GRID)
+    fig.subplots_adjust(left=0.25, right=0.96, top=0.62, bottom=0.27)
+    fig.text(
+        0.025,
+        0.96,
+        title,
+        va="top",
+        fontsize=20,
+        fontweight="bold",
+        color=INK,
+        linespacing=1.25,
+    )
+    fig.text(0.025, 0.82, subtitle, va="top", fontsize=11.5, color=SECONDARY)
+    handles = [
+        plt.Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="none",
+            markersize=11,
+            markerfacecolor=SERIES[lang],
+            markeredgecolor=SURFACE,
+            label=lang.title(),
+        )
+        for lang in ("kiswahili", "english")
+    ]
+    fig.legend(
+        handles=handles,
+        loc="upper left",
+        bbox_to_anchor=(0.017, 0.75),
+        ncol=2,
+        frameon=False,
+        fontsize=12,
+        labelcolor=SECONDARY,
+    )
+    thresholds = {lang: total * 4 // 5 + 1 for lang, total in denominators.items()}
+    note = (
+        f"Eligibility: >80% scorable items (English ≥{thresholds['english']}; "
+        f"Kiswahili ≥{thresholds['kiswahili']}).\n"
+        "Device tiers assume quantized weights; benchmark scores do not "
+        "establish quality after quantization."
+    )
+    if gold_note:
+        note += "\n" + gold_note
+    fig.text(
+        0.025,
+        0.025,
+        note,
+        va="bottom",
+        fontsize=8 if gold_note else 8.5,
+        color=SECONDARY,
+        linespacing=1.55,
+    )
+    return fig
+
+
+def main(
+    root: Path,
+    top_n: int,
+    denominators: dict,
+    metric: str = "pooled_f2",
+    *,
+    gold_note: str = "",
+) -> None:
+    out = root / "hardware_tiers" / metric
+    out.mkdir(parents=True, exist_ok=True)
+    metadata = root / "plot_metadata/models.csv"
+    inputs = [metadata]
+    for language in SERIES:
+        inputs.extend(
+            [
+                root / language / "report/summary_by_model.csv",
+                root / language / "report/bootstrap_ci.csv",
+                root / language / "coverage_by_model.csv",
+            ]
+        )
+        if metric == "balanced_accuracy":
+            inputs.append(root / "balanced_accuracy" / f"{language}_summary.csv")
+    hashes = {
+        str(p.relative_to(root)): sha256(p.read_bytes()).hexdigest() for p in inputs
+    }
+    specs = load_metadata(metadata)
+    audits = []
+    for language, denominator in denominators.items():
+        audit = build_audit(root / language, specs, denominator, metric)
+        audit.to_csv(out / f"hardware_tiers_{language}_audit.csv", index=False)
+        audit[audit.included].to_csv(
+            out / f"hardware_tiers_{language}.csv", index=False
+        )
+        audits.append(audit)
+    audit = pd.concat(audits, ignore_index=True)
+    medians, means, selected = summarize_tiers(audit, top_n, metric)
+    medians.to_csv(out / "hardware_tiers_medians.csv", index=False)
+    means.to_csv(out / f"hardware_tiers_top{top_n}_mean.csv", index=False)
+    selected.to_csv(out / f"hardware_tiers_top{top_n}_models.csv", index=False)
+    slide = means[means.hardware_tier.isin(["Cloud", "Mobile + Tablet"])]
+    slide.to_csv(out / f"hardware_tiers_top{top_n}_mean_slide.csv", index=False)
+    gaps = []
+    for language in SERIES:
+        group = means[means.language.eq(language)].set_index("hardware_tier")
+        if {"Cloud", "Mobile + Tablet"} <= set(group.index):
+            cloud, small = group.loc["Cloud"], group.loc["Mobile + Tablet"]
+            gaps.append(
+                {
+                    "language": language,
+                    "metric": metric,
+                    f"frontier_mean_{metric}": cloud[f"top_n_mean_{metric}"],
+                    f"small_mean_{metric}": small[f"top_n_mean_{metric}"],
+                    "frontier_minus_small_percentage_points": (
+                        cloud[f"top_n_mean_{metric}"] - small[f"top_n_mean_{metric}"]
+                    )
+                    * 100,
+                    "frontier_models_used": int(cloud.n_used),
+                    "small_models_used": int(small.n_used),
+                }
+            )
+    pd.DataFrame(gaps).to_csv(out / "frontier_small_gaps.csv", index=False)
+    metric_description = METRICS[metric][0].lower() + METRICS[metric][1:]
+    title = "How well do models identify\nnon-decodable words?"
+    figures = [
+        (
+            medians,
+            f"median_{metric}",
+            "hardware_tiers_medians",
+            f"Median {metric_description} of eligible models in each hardware tier.",
+            False,
+        ),
+        (
+            means,
+            f"top_n_mean_{metric}",
+            f"hardware_tiers_top{top_n}_mean",
+            f"Mean {metric_description} of up to {top_n} highest-scoring "
+            "eligible models per tier.",
+            False,
+        ),
+        (
+            slide,
+            f"top_n_mean_{metric}",
+            f"hardware_tiers_top{top_n}_mean_slide",
+            f"Mean {metric_description} of up to {top_n} highest-scoring "
+            "eligible models per group.",
+            True,
+        ),
+    ]
+    for stats, value, stem, subtitle, slide_view in figures:
+        fig = plot_dumbbell(
+            stats,
+            value,
+            title,
+            subtitle,
+            denominators,
+            slide=slide_view,
+            metric_label=METRICS[metric],
+            gold_note=gold_note,
+        )
+        try:
+            for fmt in ("png", "pdf"):
+                fig.savefig(out / f"{stem}.{fmt}", dpi=250, facecolor=SURFACE)
+        finally:
+            plt.close(fig)
+    for path, digest in hashes.items():
+        if sha256((root / path).read_bytes()).hexdigest() != digest:
+            raise ValueError("Saved report inputs changed during analysis")
+    record = {
+        "metric": metric,
+        "comparison_tiers": TIER_ORDER,
+        "reference_url": REFERENCE_URL,
+        "reference_commit": REFERENCE_COMMIT,
+        "reference_source_sha256": REFERENCE_SOURCE_SHA256,
+        "input_sha256": hashes,
+        "script_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
+        "coverage_denominators": denominators,
+        "coverage_comparison": "scorable_items * 5 > denominator * 4",
+        "minimum_scorable_items": {
+            lang: total * 4 // 5 + 1 for lang, total in denominators.items()
+        },
+        "tier_max_parameters": dict(TIER_MAX_PARAMS),
+        "precision_band": PRECISION_BAND,
+        "top_n": top_n,
+        "included_models": audit[audit.included].groupby("language").size().to_dict(),
+        "scores_recomputed": False,
+        "group_confidence_intervals": (
+            "not calculated; original script compares point estimates; "
+            "saved per-model bootstrap bounds are retained in the audit tables"
+        ),
+    }
+    (out / "manifest.json").write_text(json.dumps(record, indent=2) + "\n")
+    print(medians.to_string(index=False))
+    print(means.drop(columns="models_used").to_string(index=False))
+    print(pd.DataFrame(gaps).to_string(index=False))
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--root", type=Path, default=Path("outputs/phonics-merged-20260918")
+    )
+    parser.add_argument(
+        "--metrics", nargs="+", choices=list(METRICS), default=["pooled_f2"]
+    )
+    parser.add_argument("--top-n", type=int, default=10)
+    parser.add_argument("--english-denominator", type=int)
+    parser.add_argument("--kiswahili-denominator", type=int)
+    args = parser.parse_args()
+    denominators = {}
+    for language, override in (
+        ("english", args.english_denominator),
+        ("kiswahili", args.kiswahili_denominator),
+    ):
+        items = pd.read_json(args.root / language / "benchmark_items.jsonl", lines=True)
+        if not items.benchmark_item_id.is_unique:
+            parser.error(f"Duplicate item IDs in {language}")
+        denominators[language] = len(items) if override is None else override
+    if min(args.top_n, *denominators.values()) < 1:
+        parser.error("top-n and denominators must be positive")
+    for metric in args.metrics:
+        main(
+            args.root,
+            args.top_n,
+            denominators,
+            metric,
+        )
