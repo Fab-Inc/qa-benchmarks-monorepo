@@ -37,10 +37,41 @@ def no_knowledge():
 
 
 class TestFindKiswahili:
-    def test_a_fully_known_word_yields_no_analysis(self, knowledge):
+    def test_a_fully_known_word_with_no_clusters_yields_basic_word_analysis(
+        self, knowledge
+    ):
         analysis = analyse_word_kiswahili("mayowe", knowledge)
 
-        assert analysis == KiswahiliWordAnalysis(word="mayowe")
+        assert analysis == KiswahiliWordAnalysis(
+            word="mayowe",
+            graphemes=[
+                Span(text="m", start=0, end=1),
+                Span(text="a", start=1, end=2),
+                Span(text="y", start=2, end=3),
+                Span(text="o", start=3, end=4),
+                Span(text="w", start=4, end=5),
+                Span(text="e", start=5, end=6),
+            ],
+        )
+
+    def test_a_fully_known_word_with_clusters_yields_basic_word_analysis(
+        self, knowledge
+    ):
+        analysis = analyse_word_kiswahili("stima", knowledge)
+
+        assert analysis == KiswahiliWordAnalysis(
+            word="stima",
+            graphemes=[
+                Span(text="s", start=0, end=1),
+                Span(text="t", start=1, end=2),
+                Span(text="i", start=2, end=3),
+                Span(text="m", start=3, end=4),
+                Span(text="a", start=4, end=5),
+            ],
+            clusters=[
+                Span(text="st", start=0, end=2),
+            ],
+        )
 
     def test_untaught_graphemes_are_located(self, knowledge):
         analysis = analyse_word_kiswahili("tulisikia", knowledge)
@@ -98,7 +129,9 @@ class TestFindKiswahili:
         analysis = analyse_word_kiswahili(word, knowledge)
 
         all_spans = (
-            analysis.invalid_graphemes
+            analysis.graphemes
+            + analysis.clusters
+            + analysis.invalid_graphemes
             + analysis.unknown_graphemes
             + analysis.unknown_clusters
         )
