@@ -1,8 +1,10 @@
-"""Shared configurations for Kiswahili decodability analysis."""
+"""Definitions for Kiswahili orthography"""
+
+from __future__ import annotations
 
 from enum import Enum
 
-from primerpro import Consonant, GraphemeInventory, Settings, Vowel, Word
+from primerpro import Consonant, GraphemeInventory, Settings, Vowel
 
 KISWAHILI_CONSONANT_GPCS = [
     ("b", "b"),
@@ -79,7 +81,7 @@ class ClusterPattern(Enum):
         '"m/n" + consonant + "y"',
     )
 
-    def __new__(cls, code: str, label: str) -> "ClusterPattern":
+    def __new__(cls, code: str, label: str) -> ClusterPattern:
         # Split the (code, label) tuple
         obj = object.__new__(cls)
         obj._value_ = code
@@ -181,60 +183,6 @@ def _get_primerpro_settings() -> Settings:
 
 
 primerpro_settings: Settings = _get_primerpro_settings()
-
-
-def get_graphemes(word: str) -> list[str]:
-    """Decompose a word into its constituent graphemes using PrimerPro settings.
-
-    Symbols are lowercased.
-    """
-    primerpro_word = Word(text=word, settings=primerpro_settings)
-    return [grapheme.symbol.lower() for grapheme in primerpro_word.graphemes]
-
-
-def get_clusters(word: str) -> set[str]:
-    """Get the set of clusters in a word using PrimerPro settings.
-
-    Symbols are lowercased.
-    """
-    primerpro_word = Word(text=word, settings=primerpro_settings)
-    graphemes = primerpro_word.graphemes
-
-    # search for CC and CCC clusters
-    clusters = set()
-    i = 0
-    while i < len(graphemes):
-        grapheme = graphemes[i]
-
-        if i < len(graphemes) - 2:
-            next_grapheme = graphemes[i + 1]
-            next_next_grapheme = graphemes[i + 2]
-
-            if (
-                grapheme.is_consonant
-                and next_grapheme.is_consonant
-                and next_next_grapheme.is_consonant
-            ):
-                clusters.add(
-                    (
-                        grapheme.symbol
-                        + next_grapheme.symbol
-                        + next_next_grapheme.symbol
-                    ).lower()
-                )
-                i += 3
-                continue
-
-        if i < len(graphemes) - 1:
-            next_grapheme = graphemes[i + 1]
-
-            if grapheme.is_consonant and next_grapheme.is_consonant:
-                clusters.add((grapheme.symbol + next_grapheme.symbol).lower())
-                i += 2
-
-        i += 1
-
-    return clusters
 
 
 __all__ = [
