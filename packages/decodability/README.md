@@ -98,7 +98,7 @@ definition of decodability. Two binary scorers feed the final score:
 | Scorer                      | Returns 1.0 when                                                                |
 | --------------------------- | ------------------------------------------------------------------------------- |
 | `score_known_gpcs_english`  | at least one valid parse of the word uses only GPCs the student has been taught |
-| `score_sight_words_english` | the word (case-insensitive) has been taught as a sight word                     |
+| `score_sight_words_english` | the word (case-insensitive) has been taught as a sight word, is a known sight word wearing taught affixes, or compounds known sight words and GPC-decodable chunks (`noone` = `no` + `one`, `someone` = `some` + `one`) |
 
 `aggregate_scores_ufli_curriculum` (registered as `ufli_curriculum_aggregator`) combines
 them as a decision tree: a known sight word is decodable regardless of anything else;
@@ -109,7 +109,9 @@ Both scorers must be listed in `scoring_methods`.
 Under the GPC scorer, reduced-vowel matches (parser-synthesized `REDUCED_*` GPCs from
 unstressed positions) count as taught whenever the student knows _any_ GPC for the same
 grapheme letter — vowel reduction is a universal spoken-English process, not a separate
-correspondence.
+correspondence. One exception: `REDUCED_YOD_U` (a bare `u` covering /j/ + a reduced
+vowel, as in `partic-u-larly` /j ə/) counts only when the student was taught the
+unreduced `u → ju` pair, since the glide belongs to that correspondence.
 
 ### Student knowledge
 
