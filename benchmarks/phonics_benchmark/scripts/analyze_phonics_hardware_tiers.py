@@ -4,8 +4,8 @@ Adapted from hardware_tiers.py on qfb-194-implement-lkb-workflow at acfbac1.
 Uses exactly the same access gate, total-parameter RAM budgets, precision band,
 tier merges, medians and top-N model means. Only Mobile + Tablet and Cloud
 enter this comparison; the intermediate tier remains in the classification audit.
-Models must have strictly more than 80% scorable items; denominators default to
-the actual dataset sizes, with optional overrides for historical comparisons.
+Models must have at least 700 scorable items by default. Dataset sizes describe
+coverage. An optional strict minimum coverage also uses each dataset's size.
 Neither response scoring nor the per-model bootstrap is rerun.
 """
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from fractions import Fraction
 from hashlib import sha256
 from pathlib import Path
 
@@ -87,9 +88,33 @@ def assign_hardware(spec: dict | None) -> dict:
     }
 
 
-def passes_coverage(scorable_items: int, denominator: int) -> bool:
-    """Integer comparison avoids rounding at the strictly-greater-than boundary."""
-    return scorable_items * 5 > denominator * 4
+def minimum_scorable_items(
+    expected_items: int, min_items: int = 700, min_coverage: float | None = None
+) -> int:
+    """Combine an inclusive count floor with a strict coverage threshold."""
+    if expected_items < 1 or min_items < 1:
+        raise ValueError("Dataset size and min_items must be positive")
+    if min_coverage is None:
+        return min_items
+    if not 0 <= min_coverage < 1:
+        raise ValueError("min_coverage must be in [0, 1)")
+    # Decimal input as a fraction preserves exact boundaries such as 800/1000.
+    strict_minimum = int(Fraction(str(min_coverage)) * expected_items // 1) + 1
+    return max(min_items, strict_minimum)
+
+
+def coverage_suffix(min_coverage: float | None) -> str:
+    if min_coverage is None:
+        return ""
+    minimum_scorable_items(1, 1, min_coverage)
+    return f"_coverage_gt{100 * min_coverage:g}"
+
+
+def passes_coverage(scorable_items: int, min_items: int = 700) -> bool:
+    """The minimum counts successfully scored items and includes the boundary."""
+    if min_items < 1:
+        raise ValueError("min_items must be positive")
+    return scorable_items >= min_items
 
 
 def read_csv(path: Path) -> pd.DataFrame:
@@ -120,12 +145,21 @@ def load_metadata(path: Path) -> dict:
 
 
 def build_audit(
-    run: Path, specs: dict, denominator: int, metric: str = "pooled_f2"
+    run: Path,
+    specs: dict,
+    denominator: int,
+    metric: str = "pooled_f2",
+    *,
+    min_items: int = 700,
+    min_coverage: float | None = None,
 ) -> pd.DataFrame:
     summary = read_csv(run / "report/summary_by_model.csv").rename(
         columns={"model_name": "model"}
     )
     coverage = read_csv(run / "coverage_by_model.csv")
+    if not coverage.expected_items.eq(denominator).all():
+        raise ValueError("Coverage denominator disagrees with dataset size")
+    required_items = minimum_scorable_items(denominator, min_items, min_coverage)
     if metric == "balanced_accuracy":
         summary = read_csv(run.parent / "balanced_accuracy" / f"{run.name}_summary.csv")
         summary = summary.rename(columns={"n_scorable": "n_items"})
@@ -169,11 +203,12 @@ def build_audit(
                 "language": run.name,
                 "metric": metric,
                 "coverage_denominator": denominator,
-                "coverage_for_filter": row["scorable_items"] / denominator,
+                "minimum_scorable_items": required_items,
+                "minimum_coverage_exclusive": min_coverage,
                 "actual_dataset_coverage": row["scorable_items"]
                 / row["expected_items"],
                 "passes_coverage": passes_coverage(
-                    int(row["scorable_items"]), denominator
+                    int(row["scorable_items"]), required_items
                 ),
                 "display_name": spec["display_name"] if spec else row["model"],
                 "open_weights": spec["open"] if spec else None,
@@ -182,7 +217,7 @@ def build_audit(
         )
         reasons = []
         if not row["passes_coverage"]:
-            reasons.append("coverage_not_above_80_percent")
+            reasons.append("below_minimum_scorable_items")
         if not pd.notna(row[metric]):
             reasons.append(f"no_defined_{metric}")
         if row["hardware_tier"] is None:
@@ -255,6 +290,8 @@ def plot_dumbbell(
     slide: bool = False,
     metric_label: str = "Pooled F2",
     gold_note: str = "",
+    min_items: int = 700,
+    min_coverage: float | None = None,
 ):
     metric_label = metric_label[0].lower() + metric_label[1:]
     tiers = [t for t in TIER_ORDER if t in set(stats.hardware_tier)]
@@ -400,10 +437,24 @@ def plot_dumbbell(
         fontsize=12,
         labelcolor=SECONDARY,
     )
-    thresholds = {lang: total * 4 // 5 + 1 for lang, total in denominators.items()}
+    eligibility = (
+        f"≥{min_items:,} scorable items per model "
+        f"(English: {denominators['english']:,} target items; "
+        f"Kiswahili: {denominators['kiswahili']:,})"
+    )
+    if min_coverage is not None:
+        thresholds = {
+            lang: minimum_scorable_items(size, min_items, min_coverage)
+            for lang, size in denominators.items()
+        }
+        eligibility = f">{100 * min_coverage:g}% coverage"
+        eligibility += (
+            f"; minimum scored items: English {thresholds['english']:,}"
+            f"/{denominators['english']:,}, "
+            f"Kiswahili {thresholds['kiswahili']:,}/{denominators['kiswahili']:,}"
+        )
     note = (
-        f"Eligibility: >80% scorable items (English ≥{thresholds['english']}; "
-        f"Kiswahili ≥{thresholds['kiswahili']}).\n"
+        f"Eligibility: {eligibility}.\n"
         "Device tiers assume quantized weights; benchmark scores do not "
         "establish quality after quantization."
     )
@@ -428,8 +479,15 @@ def main(
     metric: str = "pooled_f2",
     *,
     gold_note: str = "",
+    min_items: int = 700,
+    min_coverage: float | None = None,
 ) -> None:
+    if min_items < 1:
+        raise ValueError("min_items must be positive")
+    suffix = coverage_suffix(min_coverage)
     out = root / "hardware_tiers" / metric
+    if suffix:
+        out = out / suffix.lstrip("_")
     out.mkdir(parents=True, exist_ok=True)
     metadata = root / "plot_metadata/models.csv"
     inputs = [metadata]
@@ -449,7 +507,14 @@ def main(
     specs = load_metadata(metadata)
     audits = []
     for language, denominator in denominators.items():
-        audit = build_audit(root / language, specs, denominator, metric)
+        audit = build_audit(
+            root / language,
+            specs,
+            denominator,
+            metric,
+            min_items=min_items,
+            min_coverage=min_coverage,
+        )
         audit.to_csv(out / f"hardware_tiers_{language}_audit.csv", index=False)
         audit[audit.included].to_csv(
             out / f"hardware_tiers_{language}.csv", index=False
@@ -519,6 +584,8 @@ def main(
             slide=slide_view,
             metric_label=METRICS[metric],
             gold_note=gold_note,
+            min_items=min_items,
+            min_coverage=min_coverage,
         )
         try:
             for fmt in ("png", "pdf"):
@@ -537,9 +604,16 @@ def main(
         "input_sha256": hashes,
         "script_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
         "coverage_denominators": denominators,
-        "coverage_comparison": "scorable_items * 5 > denominator * 4",
+        "coverage_comparison": (
+            "scorable_items >= min_items and "
+            "scorable_items / expected_items > min_coverage"
+            if min_coverage is not None
+            else "scorable_items >= min_items"
+        ),
+        "minimum_coverage_exclusive": min_coverage,
         "minimum_scorable_items": {
-            lang: total * 4 // 5 + 1 for lang, total in denominators.items()
+            lang: minimum_scorable_items(size, min_items, min_coverage)
+            for lang, size in denominators.items()
         },
         "tier_max_parameters": dict(TIER_MAX_PARAMS),
         "precision_band": PRECISION_BAND,
@@ -566,24 +640,29 @@ if __name__ == "__main__":
         "--metrics", nargs="+", choices=list(METRICS), default=["pooled_f2"]
     )
     parser.add_argument("--top-n", type=int, default=10)
-    parser.add_argument("--english-denominator", type=int)
-    parser.add_argument("--kiswahili-denominator", type=int)
+    parser.add_argument("--min-items", type=int, default=700)
+    parser.add_argument(
+        "--min-coverage",
+        type=float,
+        help="Require coverage > this fraction (e.g. 0.8); save separate outputs.",
+    )
     args = parser.parse_args()
     denominators = {}
-    for language, override in (
-        ("english", args.english_denominator),
-        ("kiswahili", args.kiswahili_denominator),
-    ):
+    for language in SERIES:
         items = pd.read_json(args.root / language / "benchmark_items.jsonl", lines=True)
         if not items.benchmark_item_id.is_unique:
             parser.error(f"Duplicate item IDs in {language}")
-        denominators[language] = len(items) if override is None else override
-    if min(args.top_n, *denominators.values()) < 1:
-        parser.error("top-n and denominators must be positive")
+        denominators[language] = len(items)
+    if min(args.top_n, args.min_items, *denominators.values()) < 1:
+        parser.error("top-n, min-items and dataset sizes must be positive")
+    if args.min_coverage is not None and not 0 <= args.min_coverage < 1:
+        parser.error("--min-coverage must be in [0, 1)")
     for metric in args.metrics:
         main(
             args.root,
             args.top_n,
             denominators,
             metric,
+            min_items=args.min_items,
+            min_coverage=args.min_coverage,
         )

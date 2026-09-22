@@ -234,7 +234,14 @@ def plot_leaderboard(table: pd.DataFrame, colors: dict, language: str):
     return fig
 
 
-def main(root: Path) -> None:
+def eligible_models(table: pd.DataFrame, min_items: int = 700) -> pd.DataFrame:
+    """Select models by successfully scored items, not saved response rows."""
+    if min_items < 1:
+        raise ValueError("min_items must be positive")
+    return table[table.scorable_items.ge(min_items)].reset_index(drop=True)
+
+
+def main(root: Path, min_items: int = 700) -> None:
     metadata = root / "plot_metadata"
     source_paths = [
         metadata / filename
@@ -254,7 +261,21 @@ def main(root: Path) -> None:
     for language in ("english", "kiswahili"):
         run = root / language
         table, colors = load_plot_table(run, metadata)
+        table = eligible_models(table, min_items)
+        if table.empty:
+            raise ValueError(
+                f"No {language} models have at least {min_items} scored items"
+            )
         fig = plot_leaderboard(table, colors, language)
+        fig.axes[0].set_title(
+            f"{language.title()} decodability · Pooled F2\n"
+            f"Leaderboard · ≥{min_items:,} evaluated items",
+            loc="left",
+            fontsize=12,
+            fontweight="semibold",
+            color=INK_PRIMARY,
+            pad=35,
+        )
         try:
             for fmt in ("png", "pdf"):
                 path = run / "report" / f"pooled_f2_leaderboard.{fmt}"
@@ -286,6 +307,7 @@ def main(root: Path) -> None:
         "output_sha256": {str(p.relative_to(root)): digest(p) for p in outputs},
         "scores_recomputed": False,
         "bootstrap_recomputed": False,
+        "minimum_scorable_items": min_items,
         "plotted_bounds_equal_saved_bounds": True,
     }
     (root / "audit/f2_plot_manifest.json").write_text(
@@ -298,4 +320,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--root", type=Path, default=Path("outputs/phonics-merged-20260917")
     )
-    main(parser.parse_args().root)
+    parser.add_argument("--min-items", type=int, default=700)
+    args = parser.parse_args()
+    if args.min_items < 1:
+        parser.error("--min-items must be positive")
+    main(args.root, args.min_items)

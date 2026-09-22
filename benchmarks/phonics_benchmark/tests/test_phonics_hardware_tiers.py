@@ -1,4 +1,4 @@
-"""Check the tier gates, strict coverage threshold and top-N aggregation."""
+"""Check tier gates, the inclusive item-count threshold and top-N aggregation."""
 
 import importlib.util
 from pathlib import Path
@@ -13,18 +13,18 @@ SPEC.loader.exec_module(hardware)
 
 
 @pytest.mark.parametrize(
-    "count,denominator,expected",
+    "count,minimum,expected",
     [
-        (732, 915, False),
-        (733, 915, True),
-        (861, 1077, False),
-        (862, 1077, True),
-        (80, 100, False),
-        (81, 100, True),
+        (699, 700, False),
+        (700, 700, True),
+        (701, 700, True),
+        (499, 500, False),
+        (500, 500, True),
+        (501, 500, True),
     ],
 )
-def test_strict_coverage(count, denominator, expected):
-    assert hardware.passes_coverage(count, denominator) is expected
+def test_minimum_scored_items(count, minimum, expected):
+    assert hardware.passes_coverage(count, minimum) is expected
 
 
 @pytest.mark.parametrize(
@@ -78,3 +78,93 @@ def test_top_n_uses_available_models_and_equal_model_weights(metric):
     _, best, chosen = hardware.summarize_tiers(audit, 1, metric)
     assert best.iloc[0][f"top_n_mean_{metric}"] == pytest.approx(0.9)
     assert chosen.model.tolist() == ["high"]
+
+
+@pytest.mark.parametrize("language,total", [("english", 991), ("kiswahili", 1000)])
+@pytest.mark.parametrize("min_coverage", [None, 0.8])
+def test_audit_threshold_and_workstation_exclusion(
+    tmp_path, language, total, min_coverage
+):
+    run = tmp_path / language
+    (run / "report").mkdir(parents=True)
+    threshold = 700 if min_coverage is None else (793 if language == "english" else 801)
+    rows = [
+        ("below", threshold - 1),
+        ("exact", threshold),
+        ("above", threshold + 1),
+        ("workstation", 900),
+    ]
+    coverage = pd.DataFrame(
+        [
+            {
+                "model": model,
+                "expected_items": total,
+                "scorable_items": count,
+                "response_rows": total,
+            }
+            for model, count in rows
+        ]
+    )
+    coverage.to_csv(run / "coverage_by_model.csv", index=False)
+    pd.DataFrame(
+        [
+            {"model_name": model, "n_items": count, "pooled_f2": 0.5}
+            for model, count in rows
+        ]
+    ).to_csv(run / "report/summary_by_model.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": model,
+                "pooled_f2": 0.5,
+                "pooled_f2_ci_low": 0.4,
+                "pooled_f2_ci_high": 0.6,
+                "n_bootstrap": 1000,
+                "ci_level": 0.95,
+            }
+            for model, _ in rows
+        ]
+    ).to_csv(run / "report/bootstrap_ci.csv", index=False)
+    specs = {
+        model: {
+            "open": True,
+            "size": 12e9 if model == "workstation" else 3e9,
+            "display_name": model,
+        }
+        for model, _ in rows
+    }
+    audit = hardware.build_audit(run, specs, total, min_coverage=min_coverage)
+    assert audit.minimum_scorable_items.eq(threshold).all()
+    with pytest.raises(ValueError, match="denominator"):
+        hardware.build_audit(run, specs, total + 1, min_coverage=min_coverage)
+    assert audit.loc[audit.included, "model"].tolist() == ["exact", "above"]
+    assert (
+        audit.set_index("model").loc["below", "exclusion_reason"]
+        == "below_minimum_scorable_items"
+    )
+    assert (
+        audit.set_index("model").loc["workstation", "exclusion_reason"]
+        == "tier_excluded_from_comparison"
+    )
+
+
+@pytest.mark.parametrize(
+    "total,minimum,coverage,required",
+    [
+        (991, 700, 0.8, 793),
+        (1000, 700, 0.8, 801),
+        (5, 1, 0.8, 5),
+        (1000, 900, 0.8, 900),
+        (1000, 700, None, 700),
+    ],
+)
+def test_strict_coverage_uses_target_size_and_respects_count_floor(
+    total, minimum, coverage, required
+):
+    assert hardware.minimum_scorable_items(total, minimum, coverage) == required
+
+
+@pytest.mark.parametrize("coverage", [-0.1, 1, float("nan"), float("inf")])
+def test_invalid_coverage_rejected(coverage):
+    with pytest.raises(ValueError, match="min_coverage"):
+        hardware.minimum_scorable_items(1000, 700, coverage)
