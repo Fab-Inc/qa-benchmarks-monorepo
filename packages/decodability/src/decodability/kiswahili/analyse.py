@@ -15,11 +15,14 @@ from pydantic import BaseModel, ConfigDict
 from decodability.kiswahili.definitions import (
     VALID_GRAPHEMES,
 )
-from decodability.kiswahili.segment import Span, decompose_word, find_cluster_spans
+from decodability.kiswahili.segment import (
+    Span,
+    decompose_word,
+)
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 
-class KiswahiliWordAnalysis(BaseModel):
+class KiswahiliDecodabilityAnalysis(BaseModel):
     """Analysis of a Kiswahili word based on a student knowledge profile"""
 
     model_config = ConfigDict(frozen=True)
@@ -33,13 +36,14 @@ class KiswahiliWordAnalysis(BaseModel):
 
 def analyse_word_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> KiswahiliWordAnalysis:
+) -> KiswahiliDecodabilityAnalysis:
     """Analyze a Kiswahili word based on a student knowledge profile.
 
     The word is decomposed once and both graphemes and clusters are derived from that
     single decomposition.
     """
-    graphemes = decompose_word(word)
+    word_decomposition = decompose_word(word)
+    graphemes = word_decomposition.graphemes
     taught_graphemes = student_knowledge.graphemes
     taught_clusters = student_knowledge.all_known_clusters
 
@@ -53,11 +57,11 @@ def analyse_word_kiswahili(
 
     unknown_clusters = [
         span
-        for span in find_cluster_spans(graphemes)
+        for span in word_decomposition.clusters
         if span.normalised not in taught_clusters
     ]
 
-    return KiswahiliWordAnalysis(
+    return KiswahiliDecodabilityAnalysis(
         word=word,
         invalid_graphemes=invalid_graphemes,
         unknown_graphemes=unknown_graphemes,
@@ -66,7 +70,9 @@ def analyse_word_kiswahili(
     )
 
 
-def assess_decodability_kenya_tusome(word_analysis: KiswahiliWordAnalysis) -> bool:
+def assess_decodability_kenya_tusome(
+    word_analysis: KiswahiliDecodabilityAnalysis,
+) -> bool:
     """Decide decodability of a word based on the analysis results and the
     Kenya Tusome curriculum.
 

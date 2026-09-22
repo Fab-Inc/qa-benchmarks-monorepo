@@ -15,9 +15,9 @@ from decodability.kiswahili.scorers import (
     score_whole_words_kiswahili,
 )
 from decodability.kiswahili.segment import (
-    decompose_word,
     find_cluster_spans,
     get_clusters,
+    get_grapheme_spans,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
@@ -38,7 +38,7 @@ cluster_outputs = [
 ]
 
 
-class TestKiswahiliDefinition:
+class TestKiswahiliSegmentation:
     @pytest.mark.parametrize(
         "word, expected_graphemes",
         [
@@ -61,14 +61,14 @@ class TestKiswahiliDefinition:
 
     @pytest.mark.parametrize("word, expected_outputs", cluster_outputs)
     def test_find_cluster_spans_locates_each_cluster(self, word, expected_outputs):
-        spans = find_cluster_spans(decompose_word(word))
+        spans = find_cluster_spans(get_grapheme_spans(word))
 
         assert [(span.normalised, span.start) for span in spans] == expected_outputs
 
     @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
     def test_every_span_indexes_back_into_the_word(self, word):
         """Spans must be usable to slice the original word, casing included."""
-        graphemes = decompose_word(word)
+        graphemes = get_grapheme_spans(word)
 
         grapheme_spans = [grapheme.to_span() for grapheme in graphemes]
         for span in grapheme_spans + find_cluster_spans(graphemes):
@@ -77,14 +77,14 @@ class TestKiswahiliDefinition:
     def test_decompose_word_covers_the_whole_word_without_gaps(self):
         word = "ng'ombe"
 
-        graphemes = decompose_word(word)
+        graphemes = get_grapheme_spans(word)
 
         assert "".join(grapheme.text for grapheme in graphemes) == word
         assert graphemes[0].start == 0
         assert graphemes[-1].end == len(word)
 
     def test_decompose_word_flags_consonants(self):
-        graphemes = decompose_word("kunywea")
+        graphemes = get_grapheme_spans("kunywea")
 
         assert [grapheme.is_consonant for grapheme in graphemes] == [
             True,  # k
@@ -96,14 +96,14 @@ class TestKiswahiliDefinition:
         ]
 
     def test_decompose_word_preserves_casing_but_lowercases_the_symbol(self):
-        grapheme = decompose_word("Baba")[0]
+        grapheme = get_grapheme_spans("Baba")[0]
 
         assert grapheme.text == "B"
         assert grapheme.symbol == "b"
 
     @pytest.mark.parametrize("word", ["", "a"])
     def test_words_too_short_to_hold_a_cluster(self, word):
-        assert find_cluster_spans(decompose_word(word)) == []
+        assert find_cluster_spans(get_grapheme_spans(word)) == []
 
 
 class TestKiswahiliStudentKnowledgeModel:
