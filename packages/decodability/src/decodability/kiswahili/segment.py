@@ -8,7 +8,7 @@ from typing import Annotated
 from primerpro import Word
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from decodability.kiswahili.definitions import primerpro_settings
+from decodability.kiswahili.definitions import VALID_GRAPHEMES, primerpro_settings
 
 
 class Span(BaseModel):
@@ -60,6 +60,11 @@ class GraphemeSpan(Span):
     def symbol(self) -> str:
         """The lowercased grapheme symbol: an alias of :attr:`normalised`."""
         return self.normalised
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if the grapheme is valid against the known inventory."""
+        return self.normalised in VALID_GRAPHEMES
 
 
 class ClusterSpan(Span):
@@ -192,6 +197,9 @@ def get_clusters(word: str) -> list[str]:
 __all__ = [
     "Span",
     "GraphemeSpan",
+    "ClusterSpan",
+    "WordDecomposition",
+    "count_syllables",
     "decompose_word",
     "get_grapheme_spans",
     "find_cluster_spans",
