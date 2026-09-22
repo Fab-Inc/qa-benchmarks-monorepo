@@ -1404,6 +1404,35 @@ class TestCotCaughtVariantExpansion:
         for variant in get_word_phonemes("dog"):
             assert variant.is_monosyllabic
 
+    def test_ao_before_r_is_not_swapped(self):
+        """The merger does not apply before /r/: ``for`` stays /fɔr/ — it
+        never homophonizes with ``far`` /fɑr/ even for merged speakers."""
+        assert _add_cot_caught_variants([["F", "AO1", "R"]]) == [["F", "AO1", "R"]]
+
+    def test_only_non_pre_r_aos_are_swapped(self):
+        """In a mixed variant the pre-/r/ AO stays; the other still merges."""
+        assert _add_cot_caught_variants([["AO1", "T", "AO0", "R"]]) == [
+            ["AO1", "T", "AO0", "R"],
+            ["AA1", "T", "AO0", "R"],
+        ]
+
+    def test_for_yields_no_merged_reading_end_to_end(self):
+        vowels = {
+            phoneme.ipa
+            for variant in get_word_phonemes("for")
+            for phoneme in variant.phonemes
+        }
+        assert "ɑ" not in vowels, "for should not offer the merged /ɑr/ reading"
+
+    def test_for_parses_only_via_ɔr_correspondences(self):
+        """``o → ɑ`` must not match the /ɔ/ in /fɔr/; the word still parses
+        via ``or → ɔr`` and the unmerged ``o → ɔ``."""
+        _, parses = _parse_corpus_word("for")
+        assert parses, "for should still parse under the full UFLI inventory"
+        used = {match.gpc.id for _, parse in parses for match in parse}
+        assert "G010" not in used, "o -> ɑ should not match /ɔ/ before r"
+        assert {"G077", "G168"} <= used, "or -> ɔr and o -> ɔ should still parse"
+
 
 class TestRegressionCotCaughtMergerOnCorpusWords:
     """Words from the corpora that only parse under UFLI once cot-caught merger GPCs

@@ -154,22 +154,44 @@ def _derived_gpcs(inventory: tuple[GPC, ...]) -> tuple[GPC, ...]:
     return (*tuple(GPC(*spec) for spec in specs), *doubles, *repeated_finals)
 
 
-def _phonemes_match(gpc: GPC, actual: tuple[Phoneme, ...]) -> bool:
-    """Match a GPC, including the ordinary /əz/~/ɪz/ ``-es`` variation."""
-    return len(gpc.phonemes) == len(actual) and all(
-        wanted == heard.ipa
-        or (
+def _phonemes_match(
+    gpc: GPC, actual: tuple[Phoneme, ...], following: Phoneme | None
+) -> bool:
+    """Match a GPC against the heard phonemes.
+
+    Two relaxations of exact matching:
+
+    - ``o``/``au``/``augh``/``ough`` accept the cot-caught counterpart of
+      their vowel (/ɑ/ for /ɔ/ and vice versa) — except before /r/, where
+      the merger does not apply and ``for`` /fɔr/ never becomes /fɑr/.
+    - ``es`` accepts unstressed /ɪ/ for /ə/ — the ordinary /əz/~/ɪz/
+      ``-es`` variation.
+
+    ``following`` is the phoneme immediately after ``actual`` in the full
+    pronunciation (``None`` at word end); the pre-/r/ check needs it when
+    the vowel under test is the last phoneme the GPC covers.
+    """
+    if len(gpc.phonemes) != len(actual):
+        return False
+    for index, (wanted, heard) in enumerate(zip(gpc.phonemes, actual)):
+        if wanted == heard.ipa:
+            continue
+        after = actual[index + 1] if index + 1 < len(actual) else following
+        if (
             gpc.symbol in {"o", "au", "augh", "ough"}
             and {wanted, heard.ipa} == {"ɑ", "ɔ"}
-        )
-        or (
+            and (after is None or after.ipa != "r")
+        ):
+            continue
+        if (
             gpc.symbol == "es"
             and wanted == "ə"
             and heard.is_unstressed
             and heard.ipa == "ɪ"
-        )
-        for wanted, heard in zip(gpc.phonemes, actual, strict=True)
-    )
+        ):
+            continue
+        return False
+    return True
 
 
 def _derived_match_is_licensed(gpc: GPC, spelling: str, start: int) -> bool:
@@ -368,7 +390,13 @@ def parse_gpcs(
                     and _positions_are_free(
                         max(start, letter_index), letter_end - 1, reserved
                     )
-                    and _phonemes_match(gpc, phonemes[phoneme_index:phoneme_end])
+                    and _phonemes_match(
+                        gpc,
+                        phonemes[phoneme_index:phoneme_end],
+                        phonemes[phoneme_end]
+                        if phoneme_end < len(phonemes)
+                        else None,
+                    )
                 ):
                     match = GPCMatch(
                         gpc,
@@ -578,7 +606,13 @@ def align_word(
                     and _positions_are_free(
                         max(start, letter_index), letter_end - 1, reserved
                     )
-                    and _phonemes_match(gpc, phonemes[phoneme_index:phoneme_end])
+                    and _phonemes_match(
+                        gpc,
+                        phonemes[phoneme_index:phoneme_end],
+                        phonemes[phoneme_end]
+                        if phoneme_end < len(phonemes)
+                        else None,
+                    )
                 ):
                     match = GPCMatch(
                         gpc,

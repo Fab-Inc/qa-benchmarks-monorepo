@@ -105,8 +105,8 @@ def load_expectations(
         assert level(key[1]) <= level(key[0])
         assert words and words <= set(stories[key[1]])
         expectations[key] = words
-    assert len(expectations) == 189
-    assert sum(map(len, expectations.values())) == 257
+    assert len(expectations) == 195
+    assert sum(map(len, expectations.values())) == 263
     assert all(
         "also" not in words or level(profile_id) < 68
         for (profile_id, _), words in expectations.items()

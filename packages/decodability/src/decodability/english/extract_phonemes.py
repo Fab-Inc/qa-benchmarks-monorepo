@@ -74,21 +74,27 @@ def _add_cot_caught_variants(
     extra pronunciation variant lets a student taught only the merged reading
     still match the word.
 
+    The merger does not apply before /r/ — ``for`` /fɔr/ and ``far`` /fɑr/
+    stay distinct even for merged speakers — so an ``AO`` immediately
+    followed by ``R`` is left alone.
+
     Runs on ARPABET, before ``convert_arpabet_to_phoneme``, so the new variant
     goes through the same stress handling and normalization as CMU's own.
-    Stress digits are preserved (``AO1`` -> ``AA1``); every AO in a variant is
-    swapped; duplicates collapse in first-seen order.
+    Stress digits are preserved (``AO1`` -> ``AA1``); duplicates collapse in
+    first-seen order.
     """
     expanded: list[list[str]] = []
     for variant in arpabet_variants:
         expanded.append(list(variant))
-        if any(token.rstrip(STRESS_DIGITS) == "AO" for token in variant):
-            expanded.append(
-                [
-                    "AA" + token[2:] if token.rstrip(STRESS_DIGITS) == "AO" else token
-                    for token in variant
-                ]
-            )
+        merged = [
+            "AA" + token[2:]
+            if token.rstrip(STRESS_DIGITS) == "AO"
+            and (i + 1 == len(variant) or variant[i + 1].rstrip(STRESS_DIGITS) != "R")
+            else token
+            for i, token in enumerate(variant)
+        ]
+        if merged != variant:
+            expanded.append(merged)
     return [list(v) for v in dict.fromkeys(tuple(v) for v in expanded)]
 
 
