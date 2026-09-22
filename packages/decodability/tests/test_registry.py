@@ -28,11 +28,10 @@ def test_kiswahili_registry_entry_exposes_the_complete_integration() -> None:
 
     assert integration == {
         "name": "Kiswahili",
-        "extract_words": extract_words_kiswahili,
-        "student_knowledge_model": KiswahiliStudentKnowledge,
-        # DEPRECATED, pending removal once consumers move to the analysis entries.
         "scoring_methods": KISWAHILI_SCORING_METHODS,
         "aggregations": KISWAHILI_AGGREGATIONS,
+        "extract_words": extract_words_kiswahili,
+        "student_knowledge_model": KiswahiliStudentKnowledge,
     }
 
 
