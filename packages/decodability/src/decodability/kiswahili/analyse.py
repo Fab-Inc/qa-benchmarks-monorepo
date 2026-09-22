@@ -55,8 +55,10 @@ def analyse_word_kiswahili(
         elif grapheme.symbol not in taught_graphemes:
             unknown_graphemes.append(grapheme.to_span())
 
+    # ``clusters`` holds ``ClusterSpan``s, but this field is declared ``list[Span]``
+    # and pydantic compares by type, so narrow them as the graphemes above are.
     unknown_clusters = [
-        span
+        span.to_span()
         for span in word_decomposition.clusters
         if span.normalised not in taught_clusters
     ]

@@ -15,12 +15,18 @@ from decodability.kiswahili.scorers import (
     score_whole_words_kiswahili,
 )
 from decodability.kiswahili.segment import (
+    ClusterSpan,
+    GraphemeSpan,
+    Span,
+    count_syllables,
+    decompose_word,
     find_cluster_spans,
     get_clusters,
     get_grapheme_spans,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
+from pydantic import ValidationError
 
 # (word, [(cluster, start_index), ...]) for each expected consonant cluster.
 cluster_outputs = [
@@ -35,6 +41,23 @@ cluster_outputs = [
     ("mchanganyiko", [("mch", 0)]),
     ("mwembamba", [("mw", 0), ("mb", 3), ("mb", 6)]),
     ("transista", [("tr", 0), ("ns", 3), ("st", 6)]),
+    ("chai", []),  # a digraph with no cluster anywhere in the word
+    ("shamba", [("mb", 3)]),  # a digraph, then a cluster with a vowel still to come
+    ("nchi", [("nch", 0)]),  # the cluster absorbs a digraph and a tail remains
+    ("mtoto", [("mt", 0)]),  # the plain word-initial syllabic nasal, for contrast
+]
+
+# Words for the tiling invariant: the cluster table, plus shapes it has no reason
+# to carry. "" is excluded because it has no spans to index.
+tiling_words = [word for word, _ in cluster_outputs] + [
+    "a",  # a lone vowel
+    "b",  # a lone consonant, so no vowel nucleus
+    "mcq",  # c and q are out of inventory, so the consonant run does not form
+    "ngw",  # the whole word is one cluster, ending on a digraph
+    "mng'",  # the whole word is one cluster, ending on a trigraph
+    "Mtoto",
+    "SHAMBA",  # all-caps, so the digraphs do not match and "S", "H" stay apart
+    "habari",  # a long word with no clusters at all
 ]
 
 
@@ -65,6 +88,27 @@ class TestKiswahiliSegmentation:
 
         assert [(span.normalised, span.start) for span in spans] == expected_outputs
 
+    @pytest.mark.parametrize(
+        "word, expected_nasal",
+        [
+            ("mtoto", [True]),
+            ("Mtoto", [True]),  # the symbol is normalised, so a capital "M" counts
+            ("nchi", [True]),
+            ("Nchi", [True]),
+            ("ng'ombe", [True]),  # the nasal cluster "mb" sits mid-word
+            ("kunywea", [False]),  # "nyw" opens with the "ny" digraph, not "n"
+            ("ngw", [False]),  # "ngw" opens with the "ng" digraph, not "n"
+            ("blanketi", [False, True]),  # "bl" then "nk", in that order
+            ("transista", [False, True, False]),  # "ns" counts even mid-word
+            ("Baba", []),
+        ],
+    )
+    def test_nasal_flags_clusters_that_open_with_m_or_n(self, word, expected_nasal):
+        """A cluster is nasal when its first grapheme normalises to "m" or "n"."""
+        clusters = find_cluster_spans(get_grapheme_spans(word))
+
+        assert [cluster.nasal for cluster in clusters] == expected_nasal
+
     @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
     def test_every_span_indexes_back_into_the_word(self, word):
         """Spans must be usable to slice the original word, casing included."""
@@ -74,7 +118,7 @@ class TestKiswahiliSegmentation:
         for span in grapheme_spans + find_cluster_spans(graphemes):
             assert word[span.start : span.end] == span.text
 
-    def test_decompose_word_covers_the_whole_word_without_gaps(self):
+    def test_get_grapheme_spans_covers_the_whole_word(self):
         word = "ng'ombe"
 
         graphemes = get_grapheme_spans(word)
@@ -83,7 +127,7 @@ class TestKiswahiliSegmentation:
         assert graphemes[0].start == 0
         assert graphemes[-1].end == len(word)
 
-    def test_decompose_word_flags_consonants(self):
+    def test_get_grapheme_spans_flags_consonants(self):
         graphemes = get_grapheme_spans("kunywea")
 
         assert [grapheme.is_consonant for grapheme in graphemes] == [
@@ -95,7 +139,7 @@ class TestKiswahiliSegmentation:
             False,  # a
         ]
 
-    def test_decompose_word_preserves_casing_but_lowercases_the_symbol(self):
+    def test_get_grapheme_spans_preserves_casing(self):
         grapheme = get_grapheme_spans("Baba")[0]
 
         assert grapheme.text == "B"
@@ -104,6 +148,139 @@ class TestKiswahiliSegmentation:
     @pytest.mark.parametrize("word", ["", "a"])
     def test_words_too_short_to_hold_a_cluster(self, word):
         assert find_cluster_spans(get_grapheme_spans(word)) == []
+
+
+class TestSpanModel:
+    @pytest.mark.parametrize(
+        "word, index, expected_length",
+        [
+            ("baba", 0, 1),  # a single-letter grapheme
+            ("chai", 0, 2),  # a digraph
+            ("ng'ombe", 0, 3),  # a trigraph, apostrophe included
+        ],
+    )
+    def test_length_is_the_width_of_the_span(self, word, index, expected_length):
+        """``length`` is the half-open range's width, which is the text's length."""
+        grapheme = get_grapheme_spans(word)[index]
+
+        assert grapheme.length == expected_length == len(grapheme.text)
+
+    def test_cluster_symbol_is_the_lowercased_text(self):
+        """``symbol`` on a cluster is an alias of ``normalised``."""
+        cluster = find_cluster_spans(get_grapheme_spans("Mchw"))[0]
+
+        assert cluster.text == "Mchw"
+        assert cluster.symbol == "mchw"
+
+    def test_a_span_whose_range_contradicts_its_text_is_rejected(self):
+        """The range and the text must agree, so a mismatch fails validation."""
+        with pytest.raises(ValidationError, match="does not match text"):
+            Span(text="ch", start=0, end=1)
+
+
+class TestDecomposeWord:
+    @pytest.mark.parametrize("word", tiling_words)
+    def test_decomposition_tiles_the_whole_word(self, word):
+        """Graphemes and the flat decomposition each cover the word exactly once."""
+        result = decompose_word(word)
+
+        for spans in (result.graphemes, result.decomposition):
+            assert "".join(span.text for span in spans) == word
+            assert spans[0].start == 0
+            assert spans[-1].end == len(word)
+            assert [span.start for span in spans[1:]] == [
+                span.end for span in spans[:-1]
+            ]
+
+    @pytest.mark.parametrize(
+        "word, expected_decomposition",
+        [
+            ("chai", ["ch", "a", "i"]),  # a digraph outside any cluster
+            ("shamba", ["sh", "a", "mb", "a"]),
+            ("nchi", ["nch", "i"]),
+            ("mchezo", ["mch", "e", "z", "o"]),
+            ("ng'ombe", ["ng'", "o", "mb", "e"]),  # a trigraph, then a later cluster
+            ("mchw", ["mchw"]),  # the whole word is a single cluster
+            ("kunywea", ["k", "u", "nyw", "e", "a"]),  # the cluster sits mid-word
+            ("Baba", ["B", "a", "b", "a"]),  # entries keep the original casing
+        ],
+    )
+    def test_decomposition_lists_each_cluster_once_and_every_other_grapheme(
+        self, word, expected_decomposition
+    ):
+        """Every cluster collapses to one entry and the other graphemes stay put."""
+        assert [
+            span.text for span in decompose_word(word).decomposition
+        ] == expected_decomposition
+
+    @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
+    def test_decomposition_partitions_clusters_from_leftover_graphemes(self, word):
+        """Cluster entries are the clusters; the rest are the unabsorbed graphemes."""
+        result = decompose_word(word)
+
+        absorbed = {
+            offset
+            for cluster in result.clusters
+            for offset in range(cluster.start, cluster.end)
+        }
+        cluster_entries = [
+            span for span in result.decomposition if isinstance(span, ClusterSpan)
+        ]
+        grapheme_entries = [
+            span for span in result.decomposition if isinstance(span, GraphemeSpan)
+        ]
+
+        assert cluster_entries == result.clusters
+        assert grapheme_entries == [
+            grapheme for grapheme in result.graphemes if grapheme.start not in absorbed
+        ]
+        assert len(cluster_entries) + len(grapheme_entries) == len(result.decomposition)
+
+    @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
+    def test_fields_agree_with_the_standalone_helpers(self, word):
+        """The model's fields are exactly what the segmentation helpers return."""
+        result = decompose_word(word)
+
+        graphemes = get_grapheme_spans(word)
+        assert result.word == word
+        assert result.graphemes == graphemes
+        assert result.clusters == find_cluster_spans(graphemes)
+        assert result.syllable_count == count_syllables(graphemes)
+
+    @pytest.mark.parametrize(
+        "word, expected_syllable_count",
+        [
+            ("chai", 2),  # "ch" is one consonant grapheme, then two nuclei
+            ("shamba", 2),
+            ("nchi", 1),  # the syllabic nasal is not a nucleus
+            ("mchanganyiko", 4),
+            ("mchw", 0),  # no vowel at all
+            ("", 0),
+            # c and q are out of inventory, so they are not flagged as consonants
+            # and are counted as nuclei. This records current behaviour.
+            ("mcq", 2),
+        ],
+    )
+    def test_syllable_count_counts_vowel_nuclei(self, word, expected_syllable_count):
+        """Syllables are counted by vowel nuclei, so consonant runs add none."""
+        assert decompose_word(word).syllable_count == expected_syllable_count
+
+    @pytest.mark.parametrize(
+        "word, expected_decomposition",
+        [
+            ("", []),  # no grapheme is produced, so no Span is ever constructed
+            ("a", ["a"]),
+            ("b", ["b"]),
+            ("mcq", ["m", "c", "q"]),  # out-of-inventory letters break the run
+        ],
+    )
+    def test_words_with_no_cluster_to_collapse(self, word, expected_decomposition):
+        """With no cluster to collapse, the flat decomposition is just the graphemes."""
+        result = decompose_word(word)
+
+        assert [span.text for span in result.decomposition] == expected_decomposition
+        assert [span.text for span in result.graphemes] == expected_decomposition
+        assert result.clusters == []
 
 
 class TestKiswahiliStudentKnowledgeModel:
