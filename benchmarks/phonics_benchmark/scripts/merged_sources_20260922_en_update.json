@@ -1,0 +1,81 @@
+{
+  "groups": {
+    "sw_additional": [
+      "sw-tusome-clusters-additional-20260916-a",
+      "sw-tusome-clusters-additional-20260916-b",
+      "sw-additional-or-gemma-20260917",
+      "sw-additional-or-ministral-20260917",
+      "sw-additional-or-qwen9b-20260917",
+      "sw-additional-hf-parallel-20260917"
+    ],
+    "sw_original": [
+      "sw-tusome-clusters-20260905",
+      "sw-tusome-clusters-20260906-remaining",
+      "sw-original-hf-parallel-20260917",
+      "sw-original-or-gemma-20260917",
+      "sw-original-or-ministral-20260917",
+      "sw-original-or-qwen9b-20260917"
+    ],
+    "en": [
+      "en-ufli-schwa-stratified-20260915",
+      "en-ufli-schwa-stratified-20260915-google",
+      "en-stratified-or-gemma-20260917",
+      "en-stratified-or-ministral-20260917",
+      "en-stratified-or-qwen9b-20260917",
+      "en-stratified-hf-parallel-20260917"
+    ],
+    "en_extension": [
+      "en-extension-frontier-20260918",
+      "en-extension-hf-20260918",
+      "en-extension-or-ministral-20260918",
+      "en-extension-or-gemma-20260918",
+      "en-extension-or-qwen8b-20260918",
+      "en-extension-or-qwen14b-20260918",
+      "en-extension-or-qwen9b-20260918"
+    ],
+    "sw_extension": [
+      "sw-linear-extension-frontier-20260918",
+      "sw-linear-extension-hf-20260918",
+      "sw-linear-extension-or-ministral-20260918",
+      "sw-linear-extension-or-gemma-20260918",
+      "sw-linear-extension-or-qwen8b-20260918",
+      "sw-linear-extension-or-qwen14b-20260918",
+      "sw-linear-extension-or-qwen9b-20260918"
+    ]
+  },
+  "run_prefix": "gs://phonics-benchmark/phonics/runs/",
+  "updated_gold": [
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_additional_syllabic_nasals_ungated.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_balanced1000_syllabic_nasals_ungated.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/english/en-ufli-schwa-stratified-20260917-remainder-538.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-english_991_with_corrected_gold.jsonl",
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_syllabic_nasals_ungated.jsonl"
+  ],
+  "english_gold": "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-en-ufli-schwa-stratified-20260917.jsonl",
+  "group_languages": {
+    "en": "en",
+    "en_extension": "en",
+    "sw_original": "sw",
+    "sw_additional": "sw",
+    "sw_extension": "sw"
+  },
+  "gold_overlays": {
+    "en": [
+      "gs://phonics-benchmark/phonics/datasets/english/en-ufli-schwa-stratified-20260917-remainder-538.jsonl",
+      "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-english_991_with_corrected_gold.jsonl"
+    ],
+    "sw": [
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_syllabic_nasals_ungated.jsonl",
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_additional_syllabic_nasals_ungated.jsonl"
+    ]
+  },
+  "source_gold_status": {
+    "gs://phonics-benchmark/phonics/datasets/en-mixture-extension-20260918.jsonl": "provisional",
+    "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_additional_linear_syllabic_nasals_corrected.jsonl": "corrected"
+  },
+  "notes": [
+    "Full source-item union is the default; subset selection is a separate optional step.",
+    "English gold overlay is split in two: en-ufli-schwa-stratified-20260917-remainder-538.jsonl carries the 538 stratified items the 991-item file does not cover (Sept 20260917 correction stands), and phonics-datasets-english_991_with_corrected_gold.jsonl is authoritative for the 540 stratified + 451 extension items it does cover, superseding the 20260917 labels wherever the two disagree. 81 extension items outside the 991 remain provisional.",
+    "english_gold and the pre-20260922 stratified entry in updated_gold are legacy fallbacks, read only when gold_overlays is entirely absent; they play no role now that gold_overlays.en is set."
+  ]
+}
