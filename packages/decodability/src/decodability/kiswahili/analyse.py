@@ -25,6 +25,8 @@ class KiswahiliWordAnalysis(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     word: str
+    graphemes: list[Span] = []
+    clusters: list[Span] = []
     invalid_graphemes: list[Span] = []
     unknown_graphemes: list[Span] = []
     unknown_clusters: list[Span] = []
@@ -51,14 +53,15 @@ def analyse_word_kiswahili(
         elif grapheme.symbol not in taught_graphemes:
             unknown_graphemes.append(grapheme.to_span())
 
+    cluster_spans = find_cluster_spans(graphemes)
     unknown_clusters = [
-        span
-        for span in find_cluster_spans(graphemes)
-        if span.normalised not in taught_clusters
+        span for span in cluster_spans if span.normalised not in taught_clusters
     ]
 
     return KiswahiliWordAnalysis(
         word=word,
+        graphemes=[g.to_span() for g in graphemes],
+        clusters=cluster_spans,
         invalid_graphemes=invalid_graphemes,
         unknown_graphemes=unknown_graphemes,
         unknown_clusters=unknown_clusters,
