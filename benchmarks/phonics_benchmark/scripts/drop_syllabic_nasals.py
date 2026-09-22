@@ -28,118 +28,13 @@ import pandas as pd
 import typer
 from decodability.kiswahili import KiswahiliStudentKnowledge
 from decodability.kiswahili.analyse import is_decodable_kenya_tusome
-from decodability.kiswahili.definitions import get_clusters, get_graphemes
-from decodability.kiswahili.segment import GraphemeSpan, decompose_word
+from decodability.kiswahili.segment import (
+    GraphemeSpan,
+    decompose_word,
+    get_grapheme_spans,
+)
+from decodability.kiswahili.ungate_syllabic_nasals import TO_UNGATE, ok_to_ungate
 from phonics_benchmark.labeling import get_vocabulary_set
-
-# words identified as having syllabic nasals
-TO_UNGATE = [
-    "akamsalimia",
-    "akamtuma",
-    "alimnunulia",
-    "alimpeleka",
-    "alimpenda",
-    "hakumpenda",
-    "humpeleka",
-    "inamlinda",
-    "kumchapa",
-    "kumfukuza",
-    "kumkaribisha",
-    "mbunge",
-    "mbwa",
-    "mchana",
-    "mchanganyiko",
-    "mchele",
-    "mchezo",
-    "mchi",
-    "mchwa",
-    "mdogo",
-    "mdomo",
-    "mdudu",
-    "mfalme",
-    "mfano",
-    "mfupi",
-    "mgeni",
-    "mgonjwa",
-    "mheshimiwa",
-    "mjini",
-    "mjomba",
-    "mkali",
-    "mkate",
-    "mkono",
-    "mkononi",
-    "mkubwa",
-    "mkuu",
-    "mlango",
-    "mlingoti",
-    "mmoja",
-    "mpeketoni",
-    "mpunga",
-    "mraba",
-    "mrefu",
-    "msafiri",
-    "msalani",
-    "msichana",
-    "msingi",
-    "msituni",
-    "mstatili",
-    "mti",
-    "mtihani",
-    "mtini",
-    "mtoto",
-    "mtu",
-    "mvua",
-    "mzazi",
-    "mzee",
-    "nchi",
-    "nne",
-    "wamsalimie",
-    "wanamjua",
-    "zilizompatia",
-    "nzi",
-    "kuamka",
-    "kiamshakinywa",
-    "kuzungumza",
-    "namna",
-    "umri",
-    "huteremsha",
-    "nje",
-]
-
-# word-initial n fuses in front of these, always
-N_FUSED_AFTER = frozenset({"d", "j", "z", "g"})
-
-# m/n + w or y is a glide cluster, so gated
-GLIDES = frozenset({"w", "y"})
-
-
-@dataclass
-class ConsonantCluster:
-    """A consonant cluster within a word with analysis"""
-
-    cluster: str
-    graphemes: set[str]
-    syllabic_nasal: bool
-
-
-@dataclass
-class WordClusterAnalysis:
-    """Cluster analysis of a word - all clusters and their analyses"""
-
-    word: str
-    graphemes: set[str]
-    clusters: list[ConsonantCluster]
-
-
-def count_syllables(decomposition: list[GraphemeSpan]) -> int:
-    """Syllable count by vowel nuclei."""
-    return sum(1 for grapheme in decomposition if not grapheme.is_consonant)
-
-
-def has_monosyllabic_root(decomposition: list[GraphemeSpan]) -> bool:
-    """True when stripping the leading consonant leaves a one-syllable root."""
-    assert decomposition[0].is_consonant, "The first grapheme must be a consonant"
-    return count_syllables(decomposition[1:]) == 1
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -154,72 +49,9 @@ def save_as_jsonl(items: list[dict], path: Path) -> None:
             f.write("\n")
 
 
-def get_words_to_ungate(words: list[str]) -> list[WordClusterAnalysis]:
-    """Returns a list of WordClusterAnalysis for words that have syllabic nasals."""
-    words_to_ungate = []
-    for word in words:
-        graphemes = set(get_graphemes(word))
-        cluster_strings = get_clusters(word)
-        clusters = []
-
-        for cluster in cluster_strings:
-            decomposition = decompose_word(cluster)
-            syllabic_nasal = False
-            if decomposition[0].symbol == "m":
-                # manually identified all m- clusters that should be ungated already.
-                # There shouldn't be any glides but we check here anyway
-                if decomposition[1].symbol not in GLIDES:
-                    syllabic_nasal = True
-            elif decomposition[0].symbol == "n":
-                if decomposition[1].symbol not in N_FUSED_AFTER.union(GLIDES):
-                    syllabic_nasal = True
-                elif has_monosyllabic_root(decomposition):
-                    syllabic_nasal = True
-
-            clusters.append(
-                ConsonantCluster(cluster, set(get_graphemes(cluster)), syllabic_nasal)
-            )
-
-        words_to_ungate.append(
-            WordClusterAnalysis(word=word, graphemes=graphemes, clusters=clusters)
-        )
-
-    return words_to_ungate
-
-
-def ok_to_ungate(
-    word_cluster_analysis: WordClusterAnalysis, profile: KiswahiliStudentKnowledge
-) -> bool:
-    """Returns True if the word can be ungated based on the student's knowledge
-    profile.
-    """
-    ungate_word = False
-    if not word_cluster_analysis.graphemes.issubset(profile.graphemes):
-        # if the word contains graphemes that the student doesn't know, it can't be
-        # ungated
-        return False
-
-    for cluster_analysis in word_cluster_analysis.clusters:
-        # iterate through all consonant clusters in the potential word to ungate
-        if cluster_analysis.syllabic_nasal:
-            if cluster_analysis.graphemes.issubset(profile.graphemes):
-                # student knows all graphemes in this cluster, then ungate the word
-                ungate_word = True
-        elif cluster_analysis.cluster not in profile.all_known_clusters:
-            # student doesn't know this cluster, so we can't ungate the word
-            # this is a sufficient condition keep the word nondecodable
-            return False
-    return ungate_word
-
-
 @typer.run
 def main(load_items_path: str, save_items_path: str, log_level: str = "INFO") -> None:
     logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
-
-    words_to_ungate = get_words_to_ungate(TO_UNGATE)
-    logging.info(
-        "Words to ungate: \n" + "\n".join(str(word) for word in words_to_ungate)
-    )
 
     items = load_jsonl(Path(load_items_path))
     # get_vocabulary_set needs a frame and only reads `content`, but the raw dicts
@@ -229,37 +61,35 @@ def main(load_items_path: str, save_items_path: str, log_level: str = "INFO") ->
     ).tolist()
     logging.info(f"Loaded {len(items)} items from {load_items_path}")
 
+    words_to_ungate = [decompose_word(word) for word in TO_UNGATE]
+
     n_items_with_removal = 0
     n_items_with_addition = 0
     n_removed_words = 0
     n_added_words = 0
 
     for item, vocab_set in zip(items, vocab_sets, strict=True):
-        label = item["nondecodable_words"].copy()
+        new_label = item["nondecodable_words"].copy()
         removed = []
         added = []
         profile = KiswahiliStudentKnowledge.model_validate(item["student_knowledge"])
 
         for word_in_text, word_to_ungate in product(vocab_set, words_to_ungate):
             if word_in_text == word_to_ungate.word:
-                # these are the words we _might_ need to drop from nondecodable list
-                # this is only valid if the student already knows all graphemes and
-                # any other gated clusters.
-                # One predicate drives both directions. is_decodable_kenya_tusome
-                # is the baseline check and knows nothing about syllabic-nasal
-                # ungating, so alone it flags exactly the words we mean to ungate.
-                # Gating it on ok_to_ungate as well keeps the two branches from
-                # contradicting each other, which would make a second pass undo
-                # the first.
-                nondecodable = not is_decodable_kenya_tusome(
-                    word_in_text, profile
-                ) and not ok_to_ungate(word_to_ungate, profile)
+                # The word is nondecodable if it fails the baseline decodability check
+                # and is not eligible to be ungated based on the student's knowledge
+                # profile.
+                is_decodable_by_tool = is_decodable_kenya_tusome(word_in_text, profile)
+                can_be_ungated = ok_to_ungate(word_to_ungate, profile)
+                nondecodable = not is_decodable_by_tool and not can_be_ungated
 
-                if nondecodable and word_in_text not in label:
-                    label.append(word_in_text)
+                if nondecodable and word_in_text not in new_label:
+                    # Add it (back) to the nondecodable words list
+                    new_label.append(word_in_text)
                     added.append(word_in_text)
-                elif not nondecodable and word_in_text in label:
-                    label.remove(word_in_text)
+                elif not nondecodable and word_in_text in new_label:
+                    # Remove it from the nondecodable words list
+                    new_label.remove(word_in_text)
                     removed.append(word_in_text)
 
         if removed or added:
@@ -279,9 +109,9 @@ def main(load_items_path: str, save_items_path: str, log_level: str = "INFO") ->
                     f"{added}"
                 )
 
-            item["nondecodable_words"] = label
-            item["num_nondecodable_words"] = len(label)
-            item["nondecodable_ratio"] = len(label) / len(vocab_set)
+            item["nondecodable_words"] = new_label
+            item["num_nondecodable_words"] = len(new_label)
+            item["nondecodable_ratio"] = len(new_label) / len(vocab_set)
 
     save_as_jsonl(items, Path(save_items_path))
     logging.info(f"Saved updated items to {save_items_path}")

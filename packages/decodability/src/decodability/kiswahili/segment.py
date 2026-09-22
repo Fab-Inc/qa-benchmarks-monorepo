@@ -37,6 +37,11 @@ class Span(BaseModel):
         return self
 
     @property
+    def length(self) -> int:
+        """Return the length of the span."""
+        return self.end - self.start
+
+    @property
     def normalised(self) -> str:
         """Lowercased text, for matching against inventories and student knowledge."""
         return self.text.lower()
@@ -57,7 +62,37 @@ class GraphemeSpan(Span):
         return self.normalised
 
 
-def decompose_word(word: str) -> list[GraphemeSpan]:
+class ClusterSpan(Span):
+    """A span that is known to be a consonant cluster."""
+
+    nasal: bool
+
+    def to_span(self) -> Span:
+        """Return a plain :class:`Span` with the same text and range."""
+        return Span(text=self.text, start=self.start, end=self.end)
+
+    @property
+    def symbol(self) -> str:
+        """The lowercased cluster symbol: an alias of :attr:`normalised`."""
+        return self.normalised
+
+
+class WordDecomposition(BaseModel):
+    """A decomposition of a word into grapheme spans and cluster spans."""
+
+    word: str
+    graphemes: list[GraphemeSpan]
+    clusters: list[ClusterSpan]
+    decomposition: list[GraphemeSpan | ClusterSpan]
+    syllable_count: int
+
+
+def count_syllables(graphemes: list[GraphemeSpan]) -> int:
+    """Syllable count by vowel nuclei."""
+    return sum(1 for grapheme in graphemes if not grapheme.is_consonant)
+
+
+def get_grapheme_spans(word: str) -> list[GraphemeSpan]:
     """Decompose a word into its located graphemes using PrimerPro settings.
 
     NOTE: PrimerPro's grapheme decomposition doesn't flag out-of-inventory graphemes,
@@ -83,12 +118,12 @@ def decompose_word(word: str) -> list[GraphemeSpan]:
     return graphemes
 
 
-def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
+def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[ClusterSpan]:
     """Locate the consonant clusters in an already-decomposed word.
 
     A cluster is any run of two or more consecutive consonant graphemes.
     """
-    clusters: list[Span] = []
+    clusters: list[ClusterSpan] = []
     consonant_run: list[GraphemeSpan] = []
 
     def close_run() -> None:
@@ -96,10 +131,11 @@ def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
         if len(consonant_run) < 2:
             return
         clusters.append(
-            Span(
+            ClusterSpan(
                 text="".join(grapheme.text for grapheme in consonant_run),
                 start=consonant_run[0].start,
                 end=consonant_run[-1].end,
+                nasal=consonant_run[0].normalised in ["m", "n"],
             )
         )
 
@@ -114,20 +150,50 @@ def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
     return clusters
 
 
+def decompose_word(word: str) -> WordDecomposition:
+    """Decompose a word into its graphemes, consonant clusters, and full
+    decomposition."""
+    graphemes = get_grapheme_spans(word)
+    clusters = find_cluster_spans(graphemes)
+    cluster_by_start = {cluster.start: cluster for cluster in clusters}
+
+    decomposition: list[GraphemeSpan | ClusterSpan] = []
+    i = 0
+    while i < len(graphemes):
+        cluster = cluster_by_start.get(graphemes[i].start)
+        if cluster is None:
+            decomposition.append(graphemes[i])
+            i += 1
+            continue
+        decomposition.append(cluster)
+        # Skip past every grapheme the cluster absorbed.
+        while i < len(graphemes) and graphemes[i].end <= cluster.end:
+            i += 1
+
+    return WordDecomposition(
+        word=word,
+        graphemes=graphemes,
+        clusters=clusters,
+        decomposition=decomposition,
+        syllable_count=count_syllables(graphemes),
+    )
+
+
 def get_grapheme_symbols(word: str) -> list[str]:
     """Return the lowercased graphemes of a word, in order."""
-    return [grapheme.symbol for grapheme in decompose_word(word)]
+    return [grapheme.symbol for grapheme in get_grapheme_spans(word)]
 
 
 def get_clusters(word: str) -> list[str]:
     """Return the lowercased consonant clusters of a word, in order."""
-    return [span.normalised for span in find_cluster_spans(decompose_word(word))]
+    return [span.normalised for span in find_cluster_spans(get_grapheme_spans(word))]
 
 
 __all__ = [
     "Span",
     "GraphemeSpan",
     "decompose_word",
+    "get_grapheme_spans",
     "find_cluster_spans",
     "get_grapheme_symbols",
     "get_clusters",

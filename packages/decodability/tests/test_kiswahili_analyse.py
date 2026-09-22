@@ -2,8 +2,8 @@
 
 import pytest
 from decodability.kiswahili import (
+    KiswahiliDecodabilityAnalysis,
     KiswahiliStudentKnowledge,
-    KiswahiliWordAnalysis,
     aggregate_scores_kenya_tusome,
     analyse_word_kiswahili,
     assess_decodability_kenya_tusome,
@@ -40,7 +40,7 @@ class TestFindKiswahili:
     def test_a_fully_known_word_yields_no_analysis(self, knowledge):
         analysis = analyse_word_kiswahili("mayowe", knowledge)
 
-        assert analysis == KiswahiliWordAnalysis(word="mayowe")
+        assert analysis == KiswahiliDecodabilityAnalysis(word="mayowe")
 
     def test_untaught_graphemes_are_located(self, knowledge):
         analysis = analyse_word_kiswahili("tulisikia", knowledge)
@@ -135,7 +135,7 @@ class TestKenyaTusomeRule:
 
     def test_invalid_graphemes_alone_make_a_word_non_decodable(self):
         """A rule that only checked untaught graphemes would miss this."""
-        analysis = KiswahiliWordAnalysis(
+        analysis = KiswahiliDecodabilityAnalysis(
             word="x", invalid_graphemes=[Span(text="x", start=0, end=1)]
         )
 
@@ -173,7 +173,10 @@ class TestAnalysisModel:
     def test_the_analysis_round_trips_through_serialisation(self, knowledge):
         analysis = analyse_word_kiswahili("Xylophone", knowledge)
 
-        assert KiswahiliWordAnalysis.model_validate(analysis.model_dump()) == analysis
+        assert (
+            KiswahiliDecodabilityAnalysis.model_validate(analysis.model_dump())
+            == analysis
+        )
 
 
 class TestParityWithTheScoreBasedPath:

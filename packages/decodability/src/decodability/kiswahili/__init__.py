@@ -1,7 +1,7 @@
 from decodability import mean_score, rowwise, weighted_average
 from decodability.kiswahili.aggregators import aggregate_scores_kenya_tusome
 from decodability.kiswahili.analyse import (
-    KiswahiliWordAnalysis,
+    KiswahiliDecodabilityAnalysis,
     analyse_word_kiswahili,
     assess_decodability_kenya_tusome,
 )
@@ -32,7 +32,7 @@ AGGREGATIONS = {
 __all__ = [
     "SCORING_METHODS",
     "AGGREGATIONS",
-    "KiswahiliWordAnalysis",
+    "KiswahiliDecodabilityAnalysis",
     "aggregate_scores_kenya_tusome",
     "analyse_word_kiswahili",
     "assess_decodability_kenya_tusome",
