@@ -27,6 +27,52 @@ from merge_local_benchmark_runs import (
 )
 
 
+def linear_quotas(spec: dict) -> list[int]:
+    """Largest-remainder allocation for a linearly decreasing distribution."""
+    size = spec.get("size", 1000)
+    min_bin_size = spec.get("minimum", 10)
+    if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+        raise ValueError("Invalid linear quota size")
+    if (
+        not isinstance(min_bin_size, int)
+        or isinstance(min_bin_size, bool)
+        or min_bin_size < 1
+    ):
+        raise ValueError("Invalid linear minimum bin size")
+
+    # Compute the maximum bin size and step for a linearly decreasing distribution.
+    # Equations are a result of working out
+    # \sum_{i=0}^{9} step * i + min_bin_size = size, where
+    # step = (max_bin_size - min_bin_size) / 9
+    max_bin_size = (size - 5 * min_bin_size) / 5
+    step = (max_bin_size - min_bin_size) / 9
+    zero_share = spec.get("zero_share", 0.1)
+
+    quotas = [min_bin_size + step * (9 - i) for i in range(10)]
+    quotas = [math.floor(q) for q in quotas]
+    # Adjust quotas to ensure the sum matches the desired size using the
+    # largest-remainder method.
+    order = sorted(
+        range(10), key=lambda i: (-(quotas[i] - (min_bin_size + step * (9 - i))), i)
+    )
+    for i in order[: size - sum(quotas)]:
+        quotas[i] += 1
+
+    # split off first bucket into zero nondecodable and rest:
+    zero_quota = math.floor(size * zero_share)
+    first_bucket_quota = quotas[0]
+    quotas = [zero_quota] + [first_bucket_quota - zero_quota] + quotas[1:]
+
+    assert sum(quotas) == size, (
+        f"Sum of quotas {sum(quotas)} does not match size {size}"
+    )
+    assert min(quotas) == min_bin_size, (
+        f"Minimum quota {min(quotas)} does not match minimum bin size {min_bin_size}"
+    )
+
+    return quotas
+
+
 def mixture_quotas(spec: dict) -> list[int]:
     """Largest-remainder allocation for zero + Beta(1,b) + uniform."""
     size = spec.get("size", 1000)
@@ -58,12 +104,18 @@ def mixture_quotas(spec: dict) -> list[int]:
 
 def choose_items(items: dict, rule: dict, language: str, spec_dir: Path):
     """Choose IDs, retaining the full dataset's labels and reporting shortages."""
-    selectors = set(rule) & {"mixture", "items_file", "item_ids"}
+    selectors = set(rule) & {"mixture", "linear", "items_file", "item_ids"}
     if len(selectors) != 1:
-        raise ValueError("Choose exactly one of mixture, items_file or item_ids")
-    if "mixture" in rule:
-        spec = rule["mixture"]
-        quotas = mixture_quotas(spec)
+        raise ValueError(
+            "Choose exactly one of mixture, linear, items_file or item_ids"
+        )
+    if "mixture" in rule or "linear" in rule:
+        if "mixture" in rule:
+            spec = rule["mixture"]
+            quotas = mixture_quotas(spec)
+        else:
+            spec = rule["linear"]
+            quotas = linear_quotas(spec)
         policy = spec.get("shortfall", "error")
         if policy not in {"error", "keep_available"}:
             raise ValueError("shortfall must be error or keep_available")
@@ -97,7 +149,7 @@ def choose_items(items: dict, rule: dict, language: str, spec_dir: Path):
         if shortages and policy == "error":
             raise ValueError(f"Insufficient items for mixture: {shortages}")
         details = {
-            "method": "ratio_mixture",
+            "method": "ratio_mixture" if "mixture" in rule else "linearly_decreasing",
             "specification": spec,
             "requested_items": sum(quotas),
             "selected_items": len(selected),
