@@ -158,10 +158,8 @@ def fit_rasch(
             "raw_accuracy": correct_by_model / answered_by_model,
         }
     )
-    model_results["capability_rank"] = (
-        model_results["capability_logit_eap"]
-        .rank(method="min", ascending=False)
-        .astype(int)
+    model_results["capability_rank"] = model_results["capability_logit_eap"].rank(
+        method="min", ascending=False
     )
 
     return RaschEstimates(items=item_results, models=model_results)

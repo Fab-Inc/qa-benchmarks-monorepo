@@ -373,12 +373,7 @@ def report_on_run(
     # Item difficulty and model capability on a common logit scale.
     irt_files = write_irt_estimates(results, report_dir)
 
-    written = [
-        scored_path.name,
-        "summary_by_model.csv",
-        plot_path.name,
-        *irt_files,
-    ]
+    written.extend(irt_files)
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:
