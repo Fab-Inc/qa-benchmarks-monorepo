@@ -75,7 +75,7 @@ def inspect_dataset(run: Path) -> tuple[int, str]:
     return len(items), f"{run.name.title()} gold: {details}."
 
 
-def validate_scores(run: Path) -> pd.DataFrame:
+def validate_scores(run: Path, min_items: int = 700) -> pd.DataFrame:
     table, _ = leaderboard.load_plot_table(run, run.parent / "plot_metadata")
     counts = pd.read_csv(
         run / "report/results_with_scoring.csv",
@@ -100,19 +100,25 @@ def validate_scores(run: Path) -> pd.DataFrame:
         rtol=0,
         atol=1e-14,
     )
-    table["passes_80_percent_gate"] = (
-        table.scorable_items * 5 > table.expected_items * 4
-    )
+    table["minimum_scorable_items"] = min_items
+    table["passes_minimum_items"] = table.scorable_items.ge(min_items)
     return table
 
 
-def save_leaderboards(run: Path, table: pd.DataFrame, gold_note: str) -> None:
+def save_leaderboards(
+    run: Path,
+    table: pd.DataFrame,
+    gold_note: str,
+    min_items: int = 700,
+    *,
+    output_suffix: str | None = None,
+    eligibility_label: str | None = None,
+) -> None:
     _, colors = leaderboard.load_plot_table(run, run.parent / "plot_metadata")
-    eligible = table[table.passes_80_percent_gate]
-    for suffix, selected, label in (
-        ("", table, "All scored models"),
-        ("_coverage_gt80", eligible, ">80% evaluated items"),
-    ):
+    selected = leaderboard.eligible_models(table, min_items)
+    label = eligibility_label or f"≥{min_items:,} evaluated items"
+    suffixes = ("", f"_min{min_items}") if output_suffix is None else (output_suffix,)
+    for suffix in suffixes:
         if selected.empty:
             raise ValueError(f"No models qualify for {label} in {run.name}")
         fig = leaderboard.plot_leaderboard(selected, colors, run.name)
@@ -155,7 +161,17 @@ def save_leaderboards(run: Path, table: pd.DataFrame, gold_note: str) -> None:
         )
 
 
-def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dict:
+def run_analysis(
+    root: Path,
+    metadata: Path,
+    n_bootstrap: int,
+    seed: int,
+    min_items: int = 700,
+    min_coverage: float | None = None,
+) -> dict:
+    if min_items < 1:
+        raise ValueError("min_items must be positive")
+    suffix = hardware.coverage_suffix(min_coverage)
     root, metadata = root.resolve(), metadata.resolve()
     before = verify_merge(root)
     datasets = {lang: inspect_dataset(root / lang) for lang in LANGUAGES}
@@ -180,14 +196,29 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
             ci_level=0.95,
             seed=seed,
         )
-        table = validate_scores(root / language)
-        save_leaderboards(root / language, table, gold_note)
+        required_items = hardware.minimum_scorable_items(size, min_items, min_coverage)
+        table = validate_scores(root / language, required_items)
+        if min_coverage is not None:
+            table["minimum_coverage_exclusive"] = min_coverage
+        save_leaderboards(
+            root / language,
+            table,
+            gold_note,
+            required_items,
+            output_suffix=suffix or None,
+            eligibility_label=(
+                f">{100 * min_coverage:g}% coverage · "
+                f"≥{required_items:,} evaluated items"
+                if min_coverage is not None
+                else None
+            ),
+        )
         summaries.append(table.assign(language=language))
         validation[language] = {
             "target_items": size,
             "models_scored": len(table),
-            "models_above_80_percent": int(table.passes_80_percent_gate.sum()),
-            "minimum_scorable_items": size * 4 // 5 + 1,
+            "models_meeting_minimum_items": int(table.passes_minimum_items.sum()),
+            "minimum_scorable_items": required_items,
             "gold_note": gold_note,
         }
     hardware.main(
@@ -196,10 +227,15 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
         denominators={lang: data[0] for lang, data in datasets.items()},
         metric="pooled_f2",
         gold_note=datasets["english"][1],
+        min_items=min_items,
+        min_coverage=min_coverage,
     )
+    hardware_dir = root / "hardware_tiers/pooled_f2"
+    if suffix:
+        hardware_dir = hardware_dir / suffix.lstrip("_")
     for language in LANGUAGES:
         audit = leaderboard.read_csv(
-            root / "hardware_tiers/pooled_f2" / f"hardware_tiers_{language}_audit.csv"
+            hardware_dir / f"hardware_tiers_{language}_audit.csv"
         )
         included = audit[audit.included]
         if not set(included.hardware_tier) <= {"Mobile + Tablet", "Cloud"}:
@@ -209,8 +245,10 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
         validation[language]["hardware_models"] = (
             included.groupby("hardware_tier").size().to_dict()
         )
-    pd.concat(summaries, ignore_index=True).to_csv(
-        root / "pooled_f2_summary_by_language_and_model.csv", index=False
+    all_models = pd.concat(summaries, ignore_index=True)
+    all_models.to_csv(root / f"audit/f2_model_eligibility{suffix}.csv", index=False)
+    all_models[all_models.passes_minimum_items].to_csv(
+        root / f"pooled_f2_summary_by_language_and_model{suffix}.csv", index=False
     )
     if verify_merge(root) != before:
         raise ValueError("Input manifest changed during analysis")
@@ -225,6 +263,14 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
         "n_bootstrap": n_bootstrap,
         "seed": seed,
         "ci_level": 0.95,
+        "minimum_scorable_items": min_items,
+        "minimum_coverage_exclusive": min_coverage,
+        "eligibility_comparison": (
+            "scorable_items >= min_items and "
+            "scorable_items / expected_items > min_coverage"
+            if min_coverage is not None
+            else "scorable_items >= min_items"
+        ),
         "input_manifest_sha256": digest(root / "artifact_manifest.json"),
         "scripts_sha256": {p.name: digest(p) for p in scripts},
         "metadata_sha256": {
@@ -233,7 +279,7 @@ def run_analysis(root: Path, metadata: Path, n_bootstrap: int, seed: int) -> dic
         "validation": validation,
         "merged_inputs_unchanged": True,
     }
-    (root / "audit/f2_analysis_run.json").write_text(
+    (root / f"audit/f2_analysis_run{suffix}.json").write_text(
         json.dumps(record, indent=2) + "\n"
     )
     print(json.dumps(validation, indent=2))
@@ -251,12 +297,34 @@ def main() -> None:
     parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
     parser.add_argument("--n-bootstrap", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--min-items",
+        type=int,
+        default=700,
+        help="Inclusive minimum of successfully scored items per model.",
+    )
+    parser.add_argument(
+        "--min-coverage",
+        type=float,
+        help="Require coverage > this fraction (e.g. 0.8); save separate outputs.",
+    )
     args = parser.parse_args()
     if args.n_bootstrap < 1:
         parser.error(
             "--n-bootstrap must be positive: plots require confidence intervals"
         )
-    run_analysis(args.root, args.metadata, args.n_bootstrap, args.seed)
+    if args.min_items < 1:
+        parser.error("--min-items must be positive")
+    if args.min_coverage is not None and not 0 <= args.min_coverage < 1:
+        parser.error("--min-coverage must be in [0, 1)")
+    run_analysis(
+        args.root,
+        args.metadata,
+        args.n_bootstrap,
+        args.seed,
+        args.min_items,
+        args.min_coverage,
+    )
 
 
 if __name__ == "__main__":

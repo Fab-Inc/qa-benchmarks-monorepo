@@ -117,9 +117,73 @@ def test_bundled_metadata_supports_new_qwen_alias(analysis):
     assert set(models.provider) <= set(providers.provider)
 
 
-@pytest.mark.parametrize(
-    "count,total,expected",
-    [(792, 991, False), (793, 991, True), (800, 1000, False), (801, 1000, True)],
-)
-def test_new_dataset_coverage_boundary(analysis, count, total, expected):
-    assert analysis.hardware.passes_coverage(count, total) is expected
+def test_leaderboard_filter_counts_successes_and_preserves_intervals(analysis):
+    table = pd.DataFrame(
+        {
+            "model": ["below", "exact", "above"],
+            "scorable_items": [699, 700, 701],
+            "response_rows": [991, 991, 991],
+            "score": [0.95, 0.9, 0.8],
+            "ci_low": [0.94, 0.89, 0.79],
+            "ci_high": [0.96, 0.91, 0.81],
+        }
+    )
+    filtered = analysis.leaderboard.eligible_models(table)
+    pd.testing.assert_frame_equal(
+        filtered, table.iloc[1:].reset_index(drop=True), check_exact=True
+    )
+    assert analysis.leaderboard.eligible_models(table, 701).model.tolist() == ["above"]
+
+
+def test_nonpositive_threshold_rejected(analysis):
+    with pytest.raises(ValueError, match="positive"):
+        analysis.leaderboard.eligible_models(pd.DataFrame(), 0)
+
+
+def test_coverage_plot_preserves_default_and_minimum_item_outputs(
+    analysis, tmp_path, monkeypatch
+):
+    run = tmp_path / "english"
+    report = run / "report"
+    report.mkdir(parents=True)
+    for suffix in ("", "_min700"):
+        for ext in ("png", "pdf", "csv"):
+            (report / f"pooled_f2_leaderboard{suffix}.{ext}").write_bytes(b"existing")
+    table = pd.DataFrame(
+        {
+            "model": ["below", "eligible"],
+            "display_name": ["Below", "Eligible"],
+            "scorable_items": [792, 793],
+            "n_items": [792, 793],
+            "expected_items": [991, 991],
+            "provider": ["test", "test"],
+            "color": ["#2a78d6", "#2a78d6"],
+            "score": [0.95, 0.9],
+            "ci_low": [0.94, 0.89],
+            "ci_high": [0.96, 0.91],
+            "ci_level": [0.95, 0.95],
+            "n_bootstrap": [1000, 1000],
+        }
+    )
+    monkeypatch.setattr(
+        analysis.leaderboard,
+        "load_plot_table",
+        lambda *_: (table, {"test": "#2a78d6"}),
+    )
+    analysis.save_leaderboards(
+        run,
+        table,
+        "English gold: 991 corrected items.",
+        793,
+        output_suffix="_coverage_gt80",
+        eligibility_label=">80% coverage",
+    )
+    saved = analysis.leaderboard.read_csv(
+        report / "pooled_f2_leaderboard_coverage_gt80.csv"
+    )
+    pd.testing.assert_frame_equal(saved, table.iloc[1:].reset_index(drop=True))
+    for suffix in ("", "_min700"):
+        for ext in ("png", "pdf", "csv"):
+            assert (
+                report / f"pooled_f2_leaderboard{suffix}.{ext}"
+            ).read_bytes() == b"existing"
