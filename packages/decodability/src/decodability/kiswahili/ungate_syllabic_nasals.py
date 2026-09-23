@@ -91,6 +91,8 @@ GLIDES = frozenset({"w", "y"})
 
 
 def is_syllabic_nasal(cluster: ClusterSpan) -> bool:
+    """Determine if the given cluster is a syllabic nasal.
+    Not yet a generalised check."""
     if not cluster.nasal:
         return False
     if cluster.text[0] == "m":
