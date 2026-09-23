@@ -5,7 +5,10 @@ Vendored from the CDPK benchmark-website pipeline
 (``benchmark_website_datasets.frontier_analysis``) and trimmed to what this
 cluster's publisher needs: Pareto/concave frontier computation, successive layer
 peeling, and the default-model selection that combines them with a
-provider/family dedup. Used by ``scripts/results_for_website.py``.
+provider/family dedup. Used by ``fab_benchmark_publisher.leaderboard``.
+
+Kept as a near-verbatim copy of the upstream module so it still diffs cleanly
+against it; prefer fixing something upstream and re-vendoring over editing here.
 
 Dropped from the original, deliberately:
   * ``build_benchmarks_models_df`` - parses the CDPK published-JSON shape; this
@@ -508,6 +511,12 @@ def create_default_models_list(
 
         for provider, families in PROVIDER_FAMILY_FILTERS.items():
             provider_df = models_df[models_df["provider"] == provider]
+            # A provider in the filter table but absent from models.csv (renamed,
+            # dropped) leaves an empty frame, and .apply over an empty Series returns
+            # a non-boolean Series -- which pandas reads as COLUMN selection, yielding
+            # a frame with no columns and a KeyError on the sort below. Skip instead.
+            if provider_df.empty:
+                continue
 
             def _matches(model_id, pattern):
                 """Return True if model_id matches the regex pattern."""

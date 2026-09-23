@@ -58,11 +58,11 @@ OUTPUTS (under --outdir, default results/analysis/)
   hardware_tiers_<language>_<experiment-id>.csv   per-model tier + accuracy, the audit
                                                   trail behind every tier statistic
   hardware_tiers_medians.csv                      the plotted values (table-view twin)
-  hardware_tiers_medians.png                      tier medians, both languages
+  hardware_tiers_medians.svg                      tier medians, both languages
 
 Run:
     uv run python benchmarks/linguistic_knowledge_benchmark/scripts/hardware_tiers.py
-    uv run python .../hardware_tiers.py --format pdf --outdir /tmp/figs
+    uv run python .../hardware_tiers.py --format png --outdir /tmp/figs
     uv run python .../hardware_tiers.py \
         --experiment-id-english final-137-items_fallback \
         --experiment-id-kiswahili final-135-items_fallback
@@ -694,7 +694,7 @@ def main() -> None:
         )
     ap.add_argument("--models-csv", default=str(MODELS_CSV))
     ap.add_argument("--outdir", default=os.path.join(root, "results", "analysis"))
-    ap.add_argument("--format", default="png", choices=["png", "pdf", "svg"])
+    ap.add_argument("--format", default="svg", choices=["svg", "png", "pdf"])
     ap.add_argument(
         "--top-n",
         type=int,

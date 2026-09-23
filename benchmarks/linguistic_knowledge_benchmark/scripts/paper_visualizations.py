@@ -62,14 +62,14 @@ from analyze_results import (
     load_provider_colors,
     load_summary,
 )
+
+# compute_frontier is the raw-Pareto frontier the leaderboard itself draws. Reused
+# rather than reimplemented so the paper's frontier line and the website's are the
+# same curve by construction.
+from fab_benchmark_publisher.frontier import compute_frontier
 from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, PROVIDERS_CSV
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
-
-# The raw-Pareto frontier the leaderboard itself draws. Reused rather than
-# reimplemented so the paper's frontier line and the website's are the same curve by
-# construction; scripts/ is on sys.path, so `website` resolves as a sibling package.
-from website.frontier_analysis import compute_frontier
 
 # --------------------------------------------------------------------------- #
 # Design tokens (see the dataviz palette; validated for CVD in light mode)

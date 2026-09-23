@@ -10,6 +10,12 @@ data/processed/
 
 # LKB's cache of run-bench/judge-bench responses -- local scratch, not committed.
 benchmarks/linguistic_knowledge_benchmark/cache/
+# Phonics' default output_dir (config.py's "results"): one folder per run_id, holding
+# responses/, config.json and log.json. The durable copy lives in GCS via results_dest.
+benchmarks/phonics_benchmark/results/
+# Cluster-wide leaderboard bundles from `fab-leaderboard publish`, one folder per run.
+# Leading slash: the benchmarks' own results/ trees are tracked in part, this one is not.
+/results/
 # Synced from fab-open-configs at runtime (see cmd.py's _download_shared_configs),
 # not committed.
 custom_models.yaml

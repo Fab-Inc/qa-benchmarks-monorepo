@@ -185,8 +185,8 @@ def run_benchmark(
         experiment_id: Optional experiment ID; writes under
             cache/<language>/experiments/<experiment_id>/responses/.
             Defaults to 'default' when not specified.
-        output_dir: Directory to save results (default:
-            cache/<language>/experiments/<experiment_id>/responses)
+        output_dir: Directory to save results. Defaults to
+            cache/<language>/experiments/<experiment_id>/responses/
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
         output, latency, total_tokens, completion_tokens, reasoning_tokens,
