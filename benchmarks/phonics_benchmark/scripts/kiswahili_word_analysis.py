@@ -11,6 +11,7 @@ Two tidy tables drive every plot:
     combinations one row per (model, cell) over the full cross product
 """
 
+import textwrap
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -20,9 +21,11 @@ import pandas as pd
 REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
 )
-BASE = REPO_ROOT / "outputs/phonics-mixture-corrected-20260921/full"
+BASE = (
+    REPO_ROOT
+    / "outputs/phonics-mixture-corrected-20260921/selections/beta1-8-provisional"
+)
 REPORT = BASE / "kiswahili/report"
-CACHE = REPORT / "word_level.pkl"
 
 # Palette and furniture copied from plot_report_f2_leaderboards.py on the
 # add-phonics-local-merge branch, so these figures sit alongside the F2
@@ -34,14 +37,16 @@ FEATURES = [
     "is_known_word",
     "grapheme_bin",
     "has_multigraph",
-    "has_nonnasal_cluster",
-    "has_nasal_cluster",
+    "has_cluster",
+    # "has_nonnasal_cluster",
+    # "has_nasal_cluster",
 ]
 TAGS = {
     "is_known_word": "known",
     "has_multigraph": "multi",
-    "has_nonnasal_cluster": "clust",
-    "has_nasal_cluster": "NASAL",
+    "has_cluster": "CLUST",
+    # "has_nonnasal_cluster": "clust",
+    # "has_nasal_cluster": "NASAL",
 }
 GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 9), (9, 14)])
 # Level order for plotting. `level` is stored as a label rather than a mix of
@@ -51,8 +56,9 @@ LEVEL_ORDER = {
     "is_known_word": ["False", "True"],
     "grapheme_bin": ["2-5", "6-9", "10-14"],
     "has_multigraph": ["False", "True"],
-    "has_nonnasal_cluster": ["False", "True"],
-    "has_nasal_cluster": ["False", "True"],
+    "has_cluster": ["False", "True"],
+    # "has_nonnasal_cluster": ["False", "True"],
+    # "has_nasal_cluster": ["False", "True"],
 }
 
 
@@ -122,6 +128,7 @@ def build():
     words["has_nasal_cluster"] = [
         any(is_nasal(c.text) for c in p.clusters) for p in parts
     ]
+    words["has_cluster"] = [len(p.clusters) > 0 for p in parts]
     item_words = item_words.merge(words, on="word")
 
     item_words["predicted"] = [
@@ -133,18 +140,6 @@ def build():
     return item_words.drop(
         columns=["student_knowledge", "response_parsed", "nondecodable_words"]
     )
-
-
-def load():
-    """Cached word frame, restricted to models that carry a hardware tier.
-
-    15 of the 48 scored models are absent from the hardware-tier file and are
-    dropped here rather than plotted in a third colour.
-    """
-    if not CACHE.exists():
-        build().to_pickle(CACHE)
-    words = pd.read_pickle(CACHE).dropna(subset=["hardware_tier"])
-    return words
 
 
 # --------------------------------------------------------------------------
@@ -215,10 +210,12 @@ def cell_group(row):
     """
     if row.is_known_word:
         return 0
-    if row.has_nasal_cluster:
-        return 4
-    if row.has_nonnasal_cluster:
+    if row.has_cluster:
         return 3
+    # if row.has_nasal_cluster:
+    #     return 4
+    # if row.has_nonnasal_cluster:
+    #     return 3
     if row.has_multigraph:
         return 2
     return 1
@@ -249,11 +246,8 @@ def level_label(value):
 
 
 # --------------------------------------------------------------------------
-# Plots, all driven by the two tables above
+# Plots
 # --------------------------------------------------------------------------
-# Known whole words are all decodable, so J has no recall denominator there.
-# They stay in the tables and in plot_known_word_alarms, and are left out of
-# the marginals heatmap rather than shown on a scale J does not share.
 PLOT_FEATURES = [f for f in FEATURES if f != "is_known_word"]
 
 
@@ -346,6 +340,276 @@ def plot_marginals(marginals, fig, models):
     return models
 
 
+# Dumbbell furniture ported from plot_dumbbell in analyze_phonics_hardware_tiers.py
+# on add-phonics-local-merge. The two series are the levels of a word feature
+# rather than the two languages, since everything here is Kiswahili.
+TIER_ORDER = ["Mobile + Tablet", "Cloud"]
+TIER_LABELS = {
+    "Cloud": ("Cloud", "Datacenter or API-only"),
+    "Mobile + Tablet": ("Mobile + tablet", "Up to 12GB RAM, INT4"),
+}
+# Green and dark pink rather than the language charts' blue and orange, so a
+# feature split and a language split stay distinguishable side by side.
+LEVEL_COLORS = {"False": "#63b7bb", "True": "#0b4f52"}
+TOP_N = 10
+FEATURE_PLOTS = {
+    "has_multigraph": ("multigraphs", "No multigraph", "Has a multigraph"),
+    "has_cluster": ("consonant clusters", "No cluster", "Has a cluster"),
+    # "has_nonnasal_cluster": (
+    #     "non-nasal consonant clusters",
+    #     "No non-nasal cluster",
+    #     "Has a non-nasal cluster",
+    # ),
+    # "has_nasal_cluster": (
+    #     "nasal consonant clusters",
+    #     "No nasal cluster",
+    #     "Has a nasal cluster",
+    # ),
+}
+
+
+def top_n_stats(marginals, feature):
+    """Mean Adj. balanced accuracy of the best TOP_N models per (tier, level)
+    for one feature.
+
+    Top-N is picked within each (tier, level), as summarize_tiers does for
+    languages. The two dots on a row can therefore rest on different models:
+    the chart asks what the best available models achieve on each kind of
+    word, not how one fixed roster moves between them.
+    """
+    panel = marginals[marginals.feature == feature].dropna(subset=["j"])
+    rows = []
+    for (tier, level), group in panel.groupby(
+        ["hardware_tier", "level"], observed=True
+    ):
+        top = group.sort_values(["j", "model"], ascending=[False, True]).head(TOP_N)
+        rows.append(
+            {
+                "hardware_tier": tier,
+                "level": level,
+                "median_j": top.j.mean(),
+                "n_models": len(top),
+                "n_available": len(group),
+                "words": top.n.median(),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def draw_dumbbell(ax, y, points, size=170, fontsize=15):
+    """One row: two dots joined by a connector, each labelled with its value.
+
+    Y is categorical, so near-equal values are nudged apart vertically instead
+    of overprinting.
+    """
+    close = max(points.values()) - min(points.values()) < 3
+    point_y = {
+        lv: y + ({"False": -0.12, "True": 0.12}[lv] if close else 0) for lv in points
+    }
+    low, high = min(points.values()), max(points.values())
+    if close:
+        ax.plot(
+            list(points.values()),
+            list(point_y.values()),
+            color=BASELINE,
+            lw=2,
+            zorder=1,
+        )
+    elif high - low > 1.2:
+        ax.plot([low + 0.6, high - 0.6], [y, y], color=BASELINE, lw=2, zorder=1)
+    for level, score in points.items():
+        ax.scatter(
+            score,
+            point_y[level],
+            s=size,
+            color=LEVEL_COLORS[level],
+            zorder=3,
+            edgecolors=SURFACE,
+            linewidths=2,
+        )
+        left = score <= min(v for lv, v in points.items() if lv != level)
+        ax.annotate(
+            f"{score:.1f}%",
+            (score, point_y[level]),
+            xytext=(-12 if left else 12, 0),
+            textcoords="offset points",
+            ha="right" if left else "left",
+            va="center",
+            fontsize=fontsize,
+            color=INK_PRIMARY,
+        )
+
+
+def level_legend(fig, off_label, on_label, anchor):
+    fig.legend(
+        handles=[
+            plt.Line2D(
+                [],
+                [],
+                marker="o",
+                linestyle="none",
+                markersize=11,
+                markerfacecolor=LEVEL_COLORS[lv],
+                markeredgecolor=SURFACE,
+                label=label,
+            )
+            for lv, label in [("False", off_label), ("True", on_label)]
+        ],
+        loc="upper left",
+        bbox_to_anchor=anchor,
+        ncol=2,
+        frameon=False,
+        fontsize=12,
+        labelcolor=INK_SECONDARY,
+    )
+
+
+def plot_feature_summary_dumbell(marginals):
+    """All three features on one axis: a block of two tier rows per feature.
+
+    Each block is the single-feature chart repeated, so the eye compares tiers
+    within a feature and features within a tier without switching charts. The
+    per-row model and word counts are dropped here because six rows cannot
+    carry them; they stay on the single-feature charts and in the CSV. The
+    right-hand column is the gap in percentage points, which is what the
+    connector length already encodes.
+    """
+    features = list(FEATURE_PLOTS)
+    # y grows upward, so build bottom-up and the first feature lands on top.
+    layout = [(f, t) for f in reversed(features) for t in TIER_ORDER]
+
+    fig, ax = plt.subplots(figsize=(11.5, 7.2))
+    fig.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+
+    for y, (feature, tier) in enumerate(layout):
+        stats = top_n_stats(marginals, feature)
+        group = stats[stats.hardware_tier.eq(tier)]
+        points = dict(zip(group.level, group.median_j * 100))
+        draw_dumbbell(ax, y, points, size=130, fontsize=12)
+        ax.annotate(
+            TIER_LABELS[tier][0],
+            (-0.02, y),
+            xycoords=("axes fraction", "data"),
+            ha="right",
+            va="center",
+            fontsize=12,
+            color=INK_SECONDARY,
+        )
+
+    # Feature heading sits between its two tier rows; a rule separates blocks.
+    for block, feature in enumerate(reversed(features)):
+        ax.annotate(
+            textwrap.fill(FEATURE_PLOTS[feature][0], 19),
+            (-0.02, 2 * block + 0.5),
+            xycoords=("axes fraction", "data"),
+            xytext=(-118, 0),
+            textcoords="offset points",
+            ha="right",
+            va="center",
+            fontsize=13,
+            fontweight="semibold",
+            color=INK_PRIMARY,
+            linespacing=1.3,
+        )
+        if block:
+            ax.axhline(2 * block - 0.5, color=GRIDLINE, lw=1, zorder=0)
+
+    ax.set_xlim(-14, 112)
+    ax.set_xticks([0, 20, 40, 60, 80, 100])
+    ax.set_ylim(-0.7, len(layout) - 0.3)
+    ax.set_yticks([])
+    ax.set_xlabel(
+        f"Mean adjusted balanced accuracy of top {TOP_N} models",
+        fontsize=12,
+        color=INK_MUTED,
+    )
+    ax.tick_params(axis="x", labelsize=12, colors=INK_MUTED, length=0)
+    ax.grid(axis="x", color=GRIDLINE, lw=1)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.spines["bottom"].set_color(GRIDLINE)
+    fig.subplots_adjust(left=0.38, right=0.96, top=0.78, bottom=0.14)
+
+    fig.text(
+        0.025,
+        0.975,
+        "How well do models handle Kiswahili's multigraphs and consonant clusters?",
+        va="top",
+        fontsize=18,
+        fontweight="bold",
+        color=INK_PRIMARY,
+    )
+    fig.text(
+        0.025,
+        0.915,
+        f"Mean adjusted balanced accuracy of the top {TOP_N} eligible models per group,"
+        "by word feature.",
+        va="top",
+        fontsize=11,
+        color=INK_SECONDARY,
+    )
+    level_legend(fig, "Without the feature", "With the feature", (0.025, 0.855))
+    fig.text(
+        0.025,
+        0.02,
+        "Kiswahili only; Eligibility: >80% coverage; minimum scored "
+        "items."
+        "Device tiers assume quantized weights; "
+        "benchmark scores do not establish quality after quantization.",
+        va="bottom",
+        fontsize=8.5,
+        color=INK_SECONDARY,
+        linespacing=1.55,
+    )
+    return fig
+
+
+def plot_combinations(combinations, ax, models):
+    """Models against the full cross product of features, plain to clustered.
+
+    A cell no model can score is dropped from the axis rather than left as a
+    blank column. That removes the thin combinations (a multigraph alongside a
+    cluster, and most 10-14 grapheme clusters) and the known-word cells, whose
+    J is undefined because every known word is decodable.
+    """
+    grid = combinations.pivot_table(index="model", columns="cell", values="j")
+    order = [cell for cell in ordered_cells(combinations) if cell in grid]
+    grid = grid[order].loc[models]
+
+    cmap = plt.get_cmap("YlGnBu").with_extremes(bad=GRIDLINE)
+    im = ax.imshow(grid.values, cmap=cmap, vmin=0, vmax=1, aspect="auto")
+    for row, col in np.ndindex(grid.shape):
+        value = grid.values[row, col]
+        if not np.isnan(value):
+            ax.text(
+                col,
+                row,
+                f"{value:.2f}",
+                ha="center",
+                va="center",
+                fontsize=6.5,
+                color=SURFACE if value > 0.55 else INK_PRIMARY,
+            )
+    names = display_names()
+    tiers = combinations.drop_duplicates("model").set_index("model").hardware_tier
+    ax.set_xticks(
+        range(grid.shape[1]), grid.columns, rotation=45, ha="right", fontsize=8
+    )
+    ax.set_yticks(range(len(grid)), [names.get(m, m) for m in grid.index], fontsize=9)
+    for label, model in zip(ax.get_yticklabels(), grid.index):
+        label.set_color(TIER_COLORS[tiers[model]])
+    ax.set_title(
+        "Adj. BA by word-type combination, ordered plain to clustered",
+        fontsize=12,
+        fontweight="semibold",
+        color=INK_PRIMARY,
+    )
+    style(ax)
+    ax.figure.colorbar(im, ax=ax, label="Adj. BA  (0 = chance)", shrink=0.5, pad=0.02)
+    return grid
+
+
 def plot_known_word_alarms(words, ax, models):
     """Known whole words are decodable by definition, so J is undefined there.
 
@@ -385,7 +649,7 @@ def plot_known_word_alarms(words, ax, models):
 
 
 if __name__ == "__main__":
-    words = load()
+    words = build()
     marginals = marginal_table(words, min_pos=20, min_neg=20)
     combinations = combination_table(words)
     order = {cell: i for i, cell in enumerate(ordered_cells(combinations))}
@@ -413,6 +677,15 @@ if __name__ == "__main__":
         facecolor=SURFACE,
     )
 
+    fig, ax = plt.subplots(figsize=(12, max(5, 2.0 + 0.34 * n)), layout="constrained")
+    shown = plot_combinations(combinations, ax, ranking)
+    fig.savefig(
+        REPORT / "word_type_heatmap.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor=SURFACE,
+    )
+
     fig, ax = plt.subplots(figsize=(9, max(5, 2.0 + 0.34 * n)), layout="constrained")
     plot_known_word_alarms(words, ax, ranking)
     fig.savefig(
@@ -422,7 +695,16 @@ if __name__ == "__main__":
         facecolor=SURFACE,
     )
 
-    print(
-        f"models: {n}   marginal rows: {len(marginals)}   "
-        f"cells: {len(combinations)} ({combinations.j.isna().sum()} too thin to score)"
+    summary = plot_feature_summary_dumbell(marginals)
+    summary.savefig(
+        REPORT / "tier_medians_all_features.png", dpi=300, facecolor=SURFACE
     )
+
+    dropped = sorted(set(combinations.cell) - set(shown.columns))
+    sizes = combinations.groupby("cell").n.median()
+    print(
+        f"models: {n}   marginal rows: {len(marginals)}"
+        f"   cells: {combinations.cell.nunique()}"
+    )
+    print(f"heatmap shows {shown.shape[1]}; dropped {len(dropped)} no model can score:")
+    print("  " + ", ".join(f"{cell} (median n={int(sizes[cell])})" for cell in dropped))
