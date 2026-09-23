@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Annotated
 
 from primerpro import Word
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from decodability.kiswahili.definitions import VALID_GRAPHEMES, primerpro_settings
 
@@ -71,6 +71,17 @@ class ClusterSpan(Span):
     """A span that is known to be a consonant cluster."""
 
     nasal: bool
+
+    @field_validator("text")
+    def check_cluster_length(cls, value: str) -> str:  # noqa: N805
+        if len(value) < 2:
+            raise ValueError("A cluster must consist of at least two characters.")
+        return value
+
+    @field_validator("text")
+    def check_all_consonants(cls, value: str) -> str:  # noqa: N805
+        assert all(grapheme.is_consonant for grapheme in get_grapheme_spans(value))
+        return value
 
     def to_span(self) -> Span:
         """Return a plain :class:`Span` with the same text and range."""

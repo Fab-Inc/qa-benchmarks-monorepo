@@ -26,6 +26,10 @@ from decodability.kiswahili.segment import (
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
+from decodability.kiswahili.ungate_syllabic_nasals import (
+    is_syllabic_nasal,
+    ok_to_ungate,
+)
 from pydantic import ValidationError
 
 # (word, [(cluster, start_index), ...]) for each expected consonant cluster.
@@ -847,3 +851,42 @@ class TestKiswahiliAggregators:
         }
         final_score = aggregate_scores_kenya_tusome(scores)
         assert final_score == 1.0
+
+
+class TestKiswahiliSyllabicNasalUngating:
+    @pytest.mark.parametrize(
+        "cluster,expected",
+        [
+            ("mp", True),
+            ("nt", True),
+            ("mw", False),
+            # "mb" left out as it's not supported yet
+            ("nz", False),
+            ("mchw", True),
+            ("kw", False),
+        ],
+    )
+    def test_is_syllabic_nasal(self, cluster, expected):
+        cluster_span = ClusterSpan(
+            text=cluster, start=0, end=len(cluster), nasal=cluster[0] in {"m", "n"}
+        )
+        assert is_syllabic_nasal(cluster_span) == expected
+
+    @pytest.mark.parametrize(
+        "word,profile,expected",
+        [
+            (
+                "mbwea",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "b", "w", "e", "a"},
+                    clusters={"mbw"},
+                    cluster_patterns={ClusterPattern.PRENASALISED_M},
+                    whole_words=set(),
+                ),
+                True,
+            ),
+        ],
+    )
+    def test_ok_to_ungate(self, word, profile, expected):
+        word_decomp = decompose_word(word)
+        assert ok_to_ungate(word_decomp, profile) == expected
