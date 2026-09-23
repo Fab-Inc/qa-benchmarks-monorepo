@@ -153,8 +153,8 @@ def test_coverage_plot_preserves_default_and_minimum_item_outputs(
         {
             "model": ["below", "eligible"],
             "display_name": ["Below", "Eligible"],
-            "scorable_items": [792, 793],
-            "n_items": [792, 793],
+            "scorable_items": [891, 892],
+            "n_items": [891, 892],
             "expected_items": [991, 991],
             "provider": ["test", "test"],
             "color": ["#2a78d6", "#2a78d6"],
@@ -174,12 +174,12 @@ def test_coverage_plot_preserves_default_and_minimum_item_outputs(
         run,
         table,
         "English gold: 991 corrected items.",
-        793,
-        output_suffix="_coverage_gt80",
-        eligibility_label=">80% coverage",
+        892,
+        output_suffix="_coverage_gt90",
+        eligibility_label=">90% coverage",
     )
     saved = analysis.leaderboard.read_csv(
-        report / "pooled_f2_leaderboard_coverage_gt80.csv"
+        report / "pooled_f2_leaderboard_coverage_gt90.csv"
     )
     pd.testing.assert_frame_equal(saved, table.iloc[1:].reset_index(drop=True))
     for suffix in ("", "_min700"):

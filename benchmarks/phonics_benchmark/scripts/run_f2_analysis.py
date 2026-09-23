@@ -306,7 +306,7 @@ def main() -> None:
     parser.add_argument(
         "--min-coverage",
         type=float,
-        help="Require coverage > this fraction (e.g. 0.8); save separate outputs.",
+        help="Require coverage > this fraction (e.g. 0.9); save separate outputs.",
     )
     args = parser.parse_args()
     if args.n_bootstrap < 1:

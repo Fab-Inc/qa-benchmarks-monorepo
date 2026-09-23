@@ -30,7 +30,7 @@ def main():
     merged_before = verify_merge(root)
     datasets = {lang: inspect_dataset(root / lang) for lang in ("english", "kiswahili")}
     source = root / "balanced_accuracy"
-    source_hardware = root / "hardware_tiers/balanced_accuracy/coverage_gt80"
+    source_hardware = root / "hardware_tiers/balanced_accuracy/coverage_gt90"
     inputs = [
         p
         for directory in (source, source_hardware)
@@ -39,7 +39,7 @@ def main():
     ]
     before = {str(p.relative_to(root)): digest(p) for p in inputs}
     out = root / "adjusted_balanced_accuracy"
-    tier_out = root / "hardware_tiers/adjusted_balanced_accuracy/coverage_gt80"
+    tier_out = root / "hardware_tiers/adjusted_balanced_accuracy/coverage_gt90"
     out.mkdir(exist_ok=True)
     tier_out.mkdir(parents=True, exist_ok=True)
     colors = (
@@ -52,7 +52,7 @@ def main():
 
     for lang, (size, gold_note) in datasets.items():
         raw = read_csv(
-            source / f"{lang}_balanced_accuracy_leaderboard_coverage_gt80.csv"
+            source / f"{lang}_balanced_accuracy_leaderboard_coverage_gt90.csv"
         )
         table = raw.copy()
         for generic, saved in (
@@ -73,7 +73,7 @@ def main():
             rtol=0,
             atol=1e-11,
         )
-        required = hardware.minimum_scorable_items(size, 700, 0.8)
+        required = hardware.minimum_scorable_items(size, 700, 0.9)
         assert table.n_items.ge(required).all()
         plot_table = table.copy()
         plot_table[["score", "ci_low", "ci_high"]] /= 100
@@ -88,7 +88,7 @@ def main():
         ax.set_xlabel("Adjusted balanced accuracy (0 = chance; 100 = perfect)")
         ax.set_title(
             f"{lang.title()} decodability · Adjusted balanced "
-            f"accuracy\nLeaderboard · >80% coverage · ≥{required:,} evaluated items",
+            f"accuracy\nLeaderboard · >90% coverage · ≥{required:,} evaluated items",
             loc="left",
             fontsize=12,
             fontweight="semibold",
@@ -121,7 +121,7 @@ def main():
             color="#52514e",
             va="top",
         )
-        stem = out / f"{lang}_adjusted_balanced_accuracy_leaderboard_coverage_gt80"
+        stem = out / f"{lang}_adjusted_balanced_accuracy_leaderboard_coverage_gt90"
         for ext in ("png", "pdf"):
             path = stem.with_suffix(f".{ext}")
             fig.savefig(path, dpi=250, bbox_inches="tight", facecolor=SURFACE)
@@ -209,7 +209,7 @@ def main():
             metric_label="Adjusted balanced accuracy",
             gold_note=datasets["english"][1],
             min_items=700,
-            min_coverage=0.8,
+            min_coverage=0.9,
         )
         ax = fig.axes[0]
         ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
@@ -237,7 +237,7 @@ def main():
         if path.resolve() != dest.resolve():
             shutil.copy2(path, dest)
     hardware_link = (
-        "../hardware_tiers/adjusted_balanced_accuracy/coverage_gt80/"
+        "../hardware_tiers/adjusted_balanced_accuracy/coverage_gt90/"
         "hardware_tiers_top10_mean_slide.png"
     )
     command = (
@@ -256,11 +256,11 @@ BA analysis; model ranks, coverage filters, data and bootstrap samples are uncha
 - [Kiswahili leaderboard][kiswahili]
 - [Hardware comparison][hardware]
 
-[english]: english_adjusted_balanced_accuracy_leaderboard_coverage_gt80.png
-[kiswahili]: kiswahili_adjusted_balanced_accuracy_leaderboard_coverage_gt80.png
+[english]: english_adjusted_balanced_accuracy_leaderboard_coverage_gt90.png
+[kiswahili]: kiswahili_adjusted_balanced_accuracy_leaderboard_coverage_gt90.png
 [hardware]: {hardware_link}
 
-PNG/PDF/CSV outputs. Models require >80% coverage and at least 700 scored items:
+PNG/PDF/CSV outputs. Models require >90% coverage and at least 700 scored items:
 {details["english"]["minimum_scorable_items"]}/{datasets["english"][0]} English and
 {details["kiswahili"]["minimum_scorable_items"]}/{datasets["kiswahili"][0]}
 Kiswahili items.

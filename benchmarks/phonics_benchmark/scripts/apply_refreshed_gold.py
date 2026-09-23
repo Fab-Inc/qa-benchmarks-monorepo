@@ -14,6 +14,23 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
+import pandas as pd
+
+
+def verify_coverage_unchanged(previous: Path, current: Path) -> None:
+    """Allow new eligibility flags while requiring identical response counts."""
+    frames = [
+        pd.read_csv(path)
+        .drop(
+            columns=["passes_80_percent_gate", "passes_90_percent_gate"],
+            errors="ignore",
+        )
+        .set_index("model")
+        .sort_index()
+        for path in (previous, current)
+    ]
+    pd.testing.assert_frame_equal(*frames, check_exact=True)
+
 
 def main(args):
     import merge_local_benchmark_runs as merge
@@ -143,13 +160,16 @@ def main(args):
             for unchanged in (
                 "responses/merged.jsonl",
                 "provenance.jsonl",
-                "coverage_by_model.csv",
                 "excluded_responses.jsonl",
             ):
                 if merge.digest(staging / name / unchanged) != merge.digest(
                     run / unchanged
                 ):
                     raise ValueError(f"Unexpected change to {name}/{unchanged}")
+            verify_coverage_unchanged(
+                run / "coverage_by_model.csv",
+                staging / name / "coverage_by_model.csv",
+            )
             if language == "sw" and merge.digest(
                 staging / name / "benchmark_items.jsonl"
             ) != merge.digest(run / "benchmark_items.jsonl"):

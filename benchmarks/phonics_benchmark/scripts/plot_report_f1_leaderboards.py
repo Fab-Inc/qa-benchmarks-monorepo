@@ -228,7 +228,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-coverage",
         type=float,
-        help="Require coverage > this fraction (e.g. 0.8); save separate outputs.",
+        help="Require coverage > this fraction (e.g. 0.9); save separate outputs.",
     )
     parser.add_argument("--hardware-tiers", action="store_true")
     args = parser.parse_args()
