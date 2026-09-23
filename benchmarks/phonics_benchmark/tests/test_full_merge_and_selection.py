@@ -297,3 +297,106 @@ def test_downloader_discovers_source_and_overlay_files_without_cloud_writes(
     assert json.loads((root / "source_manifest.json").read_text()) == json.loads(
         manifest.read_text()
     )
+
+
+def test_current_manifest_applies_all_three_corrected_kiswahili_overlays(tmp_path):
+    manifest = json.loads((SCRIPTS / "merged_sources_20260921.json").read_text())
+    filenames = [
+        "benchmark_items_syllabic_nasals_corrected.jsonl",
+        "benchmark_items_additional_syllabic_nasals_corrected.jsonl",
+        "benchmark_items_additional_linear_syllabic_nasals_corrected_20260921.jsonl",
+    ]
+    root = tmp_path / "snapshot"
+    source_uri = "gs://bucket/source.jsonl"
+    rows = [
+        {
+            "benchmark_item_id": key,
+            "language_iso_code": "sw",
+            "content": "Mama ana kuku.",
+            "student_knowledge": {"graphemes": [], "whole_words": []},
+            "nondecodable_words": [],
+        }
+        for key in ("original", "additional", "extension")
+    ]
+    source = root / "sources/datasets/source.jsonl"
+    merge.write_jsonl(source, rows)
+    for filename, row in zip(filenames, rows, strict=True):
+        merge.write_jsonl(
+            root / "sources/datasets" / filename,
+            [{**row, "nondecodable_words": ["kuku"]}],
+        )
+    merge.write_json(
+        root / "sources/runs/run/config.json",
+        {
+            "resolved_config": {
+                "run_id": "run",
+                "language": "sw",
+                "models": ["m"],
+                "prompt_name": "decodability_evaluation_clusters",
+                "items_sha256": merge.digest(source),
+                "metadata": {"items_source_uri": source_uri},
+            }
+        },
+    )
+    manifest["groups"] = {"sw_original": ["run"]}
+    manifest["gold_overlays"].pop("en")
+    manifest["source_gold_status"] = {source_uri: "corrected"}
+    manifest_path = tmp_path / "manifest.json"
+    merge.write_json(manifest_path, manifest)
+    merge.write_json(
+        root / "download_manifest.json",
+        {
+            "started_at": "2026-09-22T00:00:00Z",
+            "downloads": [],
+            "files": [
+                {"path": str(path.relative_to(root)), "sha256": merge.digest(path)}
+                for path in sorted((root / "sources").rglob("*"))
+                if path.is_file()
+            ],
+        },
+    )
+    merge.merge_snapshot(root, manifest_path)
+    items = merge.read_jsonl(root / "full/kiswahili/benchmark_items.jsonl")
+    assert {row["benchmark_item_id"] for row in items} == {
+        "original",
+        "additional",
+        "extension",
+    }
+    assert all(row["nondecodable_words"] == ["kuku"] for row in items)
+    assert all(row["nondecodable_ratio"] == pytest.approx(1 / 3) for row in items)
+    assert merge.read_jsonl(source) == rows
+
+
+def test_merged_coverage_excludes_exactly_90_percent_successes(tmp_path):
+    items = {str(i): item(str(i)) for i in range(10)}
+    responses = [
+        (
+            {
+                "model": model,
+                "benchmark_item_id": key,
+                "model_call_id": f"{model}-{key}",
+                "call_status": "success",
+                "output": "unparseable" if model == "exact90" and key == "9" else "[]",
+            },
+            {},
+            [],
+        )
+        for model in ("exact90", "complete")
+        for key in items
+    ]
+    stats = merge.write_analysis_run(
+        tmp_path / "run",
+        tmp_path / "run",
+        "en",
+        items,
+        responses,
+        {"exact90", "complete"},
+        {key: {"benchmark_item_id": key, "gold_status": "corrected"} for key in items},
+        {},
+    )
+    coverage = pd.read_csv(tmp_path / "run/coverage_by_model.csv").set_index("model")
+    assert coverage.response_rows.eq(10).all()
+    assert coverage.loc["exact90", "scorable_items"] == 9
+    assert not coverage.loc["exact90", "passes_90_percent_gate"]
+    assert coverage.loc["complete", "passes_90_percent_gate"]
+    assert stats["models_over90"] == 1

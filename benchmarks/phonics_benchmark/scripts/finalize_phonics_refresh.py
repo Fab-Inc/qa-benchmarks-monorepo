@@ -232,13 +232,13 @@ def main(args):
         eligible = read_csv(
             root
             / "adjusted_balanced_accuracy"
-            / f"{language}_adjusted_balanced_accuracy_leaderboard_coverage_gt80.csv"
+            / f"{language}_adjusted_balanced_accuracy_leaderboard_coverage_gt90.csv"
         )
         f1 = read_csv(
-            root / language / "report/pooled_f1_leaderboard_coverage_gt80.csv"
+            root / language / "report/pooled_f1_leaderboard_coverage_gt90.csv"
         )
         f2 = read_csv(
-            root / language / "report/pooled_f2_leaderboard_coverage_gt80.csv"
+            root / language / "report/pooled_f2_leaderboard_coverage_gt90.csv"
         )
         if set(eligible.model) != set(f1.model) or set(eligible.model) != set(f2.model):
             raise ValueError("Eligible model sets differ between metrics")
@@ -256,7 +256,7 @@ def main(args):
             metadata, on="model", how="left", validate="one_to_one"
         )
         combined["language"] = language
-        required = minimum_scorable_items(size, 700, 0.8)
+        required = minimum_scorable_items(size, 700, 0.9)
         combined["passes_coverage_filter"] = combined.n_scorable.ge(required)
         if set(combined.loc[combined.passes_coverage_filter, "model"]) != set(
             eligible.model
@@ -309,7 +309,7 @@ def main(args):
     combined = pd.concat(frames, ignore_index=True)
     combined.to_csv(root / "model_summary_all_scored.csv", index=False)
     combined[combined.passes_coverage_filter].to_csv(
-        root / "model_summary_coverage_gt80.csv", index=False
+        root / "model_summary_coverage_gt90.csv", index=False
     )
     if changes:
         pd.concat(changes, ignore_index=True).to_csv(
@@ -348,7 +348,7 @@ def main(args):
     lines = [
         "# Phonics reports",
         "",
-        "Combined summaries and plots use the same strict >80% coverage gate "
+        "Combined summaries and plots use the same strict >90% coverage gate "
         "and a 700-item minimum.",
         "",
     ]
@@ -361,17 +361,17 @@ def main(args):
         for metric in ("pooled_f1", "pooled_f2"):
             lines.append(
                 f"  [{metric} "
-                f"leaderboard]({relative}/{language}/report/{metric}_leaderboard_coverage_gt80.png)"
+                f"leaderboard]({relative}/{language}/report/{metric}_leaderboard_coverage_gt90.png)"
             )
         lines.append(
             f"  [Adjusted BA "
-            f"leaderboard]({relative}/adjusted_balanced_accuracy/{language}_adjusted_balanced_accuracy_leaderboard_coverage_gt80.png)"
+            f"leaderboard]({relative}/adjusted_balanced_accuracy/{language}_adjusted_balanced_accuracy_leaderboard_coverage_gt90.png)"
         )
     lines.extend(
         [
             "",
             f"[Eligible model "
-            f"summary]({relative}/model_summary_coverage_gt80.csv) · [All "
+            f"summary]({relative}/model_summary_coverage_gt90.csv) · [All "
             f"scored models]({relative}/model_summary_all_scored.csv)",
             "",
         ]
@@ -384,7 +384,7 @@ def main(args):
     ):
         lines.append(
             f"- [{metric} hardware "
-            f"comparison]({relative}/hardware_tiers/{metric}/coverage_gt80/hardware_tiers_top10_mean_slide.png)"
+            f"comparison]({relative}/hardware_tiers/{metric}/coverage_gt90/hardware_tiers_top10_mean_slide.png)"
         )
     lines.extend(
         [

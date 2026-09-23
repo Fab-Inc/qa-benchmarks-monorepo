@@ -13,6 +13,11 @@ corrected gold separately, or include it as a download-only dataset in your sour
 manifest. Do not add it alongside conflicting older gold overlays in the merger: this
 step applies the new file as the authoritative replacement.
 
+The current source manifest applies corrected Kiswahili gold to the full pool during the
+merge. To update an older snapshot, download and merge into a new root first; rerunning
+reports alone cannot update its labels. The English refresh below retains the corrected
+Kiswahili labels from that new full pool while selecting the previous IDs.
+
 ```sh
 PHONICS_SCRIPTS=benchmarks/phonics_benchmark/scripts
 PHONICS_DOWNLOAD=outputs/NEW_DOWNLOAD
@@ -48,11 +53,11 @@ root and run only the following commands, in order:
 ```sh
 uv run --frozen --package phonics-benchmark python \
   "$PHONICS_SCRIPTS/run_f2_analysis.py" \
-  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.8
+  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.9
 
 uv run --frozen --package phonics-benchmark python \
   "$PHONICS_SCRIPTS/plot_report_f1_leaderboards.py" \
-  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.8 --hardware-tiers
+  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.9 --hardware-tiers
 
 uv run --frozen --package phonics-benchmark python \
   "$PHONICS_SCRIPTS/run_balanced_accuracy_reports.py" --root "$PHONICS_ANALYSIS"
@@ -64,9 +69,9 @@ uv run --frozen --package phonics-benchmark python \
   "$PHONICS_SCRIPTS/finalize_phonics_refresh.py" --root "$PHONICS_ANALYSIS"
 ```
 
-The BA drivers intentionally use the latest report policy: **strictly >80% of target
-items and at least 700 successfully scored items**. This requires 793/991 English and
-801/1,000 Kiswahili items. The denominator includes unanswered items. They check that
+The BA drivers intentionally use the latest report policy: **strictly >90% of target
+items and at least 700 successfully scored items**. This requires 892/991 English and
+901/1,000 Kiswahili items. The denominator includes unanswered items. They check that
 the eligible models match the F1/F2 reports. Hardware comparisons exclude Workstation
 and average up to ten highest-scoring models per group. Group means have no group-level
 CIs.
@@ -79,10 +84,10 @@ points; negative values are retained. F1, F2 and ordinary BA retain their 0–1 
 Adjusted BA preserves BA rankings and transforms the saved CIs.
 
 The finalizer writes `model_summary_all_scored.csv` and
-`model_summary_coverage_gt80.csv`, combining F1/F2/BA/adjusted-BA scores and CIs. It
+`model_summary_coverage_gt90.csv`, combining F1/F2/BA/adjusted-BA scores and CIs. It
 also creates a report index linking the leaderboards and hardware plots. PNG, PDF and
 CSV outputs are under each language's `report/`, `balanced_accuracy/`,
-`adjusted_balanced_accuracy/` and `hardware_tiers/METRIC/coverage_gt80/`. Rerunning
+`adjusted_balanced_accuracy/` and `hardware_tiers/METRIC/coverage_gt90/`. Rerunning
 replaces derived reports, while merged inputs are checked unchanged.
 
 For a before/after comparison, replace the final command above with:

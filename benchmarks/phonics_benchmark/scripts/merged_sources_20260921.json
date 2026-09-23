@@ -14,7 +14,8 @@
       "sw-original-hf-parallel-20260917",
       "sw-original-or-gemma-20260917",
       "sw-original-or-ministral-20260917",
-      "sw-original-or-qwen9b-20260917"
+      "sw-original-or-qwen9b-20260917",
+      "sw-original-astra-20260922"
     ],
     "en": [
       "en-ufli-schwa-stratified-20260915",
@@ -22,7 +23,8 @@
       "en-stratified-or-gemma-20260917",
       "en-stratified-or-ministral-20260917",
       "en-stratified-or-qwen9b-20260917",
-      "en-stratified-hf-parallel-20260917"
+      "en-stratified-hf-parallel-20260917",
+      "en-stratified-astra-20260922"
     ],
     "en_extension": [
       "en-extension-frontier-20260918",
@@ -63,8 +65,9 @@
       "gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-en-ufli-schwa-stratified-20260917.jsonl"
     ],
     "sw": [
-      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_syllabic_nasals_ungated.jsonl",
-      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/benchmark_items_additional_syllabic_nasals_ungated.jsonl"
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_syllabic_nasals_corrected.jsonl",
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_additional_syllabic_nasals_corrected.jsonl",
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_additional_linear_syllabic_nasals_corrected_20260921.jsonl"
     ]
   },
   "source_gold_status": {
@@ -73,6 +76,7 @@
   },
   "notes": [
     "Full source-item union is the default; subset selection is a separate optional step.",
-    "English extension gold is provisional; gold-only overlays do not change model inputs."
+    "English extension gold is provisional; gold-only overlays do not change model inputs.",
+    "Kiswahili scoring uses the corrected original, additional and September 21 linear-extension overlays; updated_gold entries are download-only when gold_overlays is present."
   ]
 }

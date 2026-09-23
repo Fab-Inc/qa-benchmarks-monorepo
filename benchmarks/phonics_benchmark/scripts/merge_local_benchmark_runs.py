@@ -336,6 +336,8 @@ def write_analysis_run(
             "parse_failed": count["parse_failed"],
             "scorable_fraction": count["scorable_items"] / size,
             "complete_scorable": count["scorable_items"] == size,
+            "passes_90_percent_gate": count["scorable_items"] * 10 > size * 9,
+            # Retain the historical flag for older analysis consumers.
             "passes_80_percent_gate": count["scorable_items"] * 5 > size * 4,
         }
 
@@ -362,6 +364,7 @@ def write_analysis_run(
         "models_with_responses": sum(c["response_rows"] > 0 for c in coverage),
         "models_with_scores": sum(c["scorable_items"] > 0 for c in coverage),
         "models_complete_scorable": sum(c["complete_scorable"] for c in coverage),
+        "models_over90": sum(c["passes_90_percent_gate"] for c in coverage),
         "models_over80": sum(c["passes_80_percent_gate"] for c in coverage),
         "gold_status_counts": dict(statuses),
         "ratio_band_counts": dict(sorted(bands.items())),

@@ -81,18 +81,22 @@ def test_top_n_uses_available_models_and_equal_model_weights(metric):
 
 
 @pytest.mark.parametrize("language,total", [("english", 991), ("kiswahili", 1000)])
-@pytest.mark.parametrize("min_coverage", [None, 0.8])
+@pytest.mark.parametrize("min_coverage", [None, 0.8, 0.9])
 def test_audit_threshold_and_workstation_exclusion(
     tmp_path, language, total, min_coverage
 ):
     run = tmp_path / language
     (run / "report").mkdir(parents=True)
-    threshold = 700 if min_coverage is None else (793 if language == "english" else 801)
+    threshold = {
+        None: 700,
+        0.8: 793 if language == "english" else 801,
+        0.9: 892 if language == "english" else 901,
+    }[min_coverage]
     rows = [
         ("below", threshold - 1),
         ("exact", threshold),
         ("above", threshold + 1),
-        ("workstation", 900),
+        ("workstation", total),
     ]
     coverage = pd.DataFrame(
         [
@@ -155,6 +159,10 @@ def test_audit_threshold_and_workstation_exclusion(
         (1000, 700, 0.8, 801),
         (5, 1, 0.8, 5),
         (1000, 900, 0.8, 900),
+        (991, 700, 0.9, 892),
+        (1000, 700, 0.9, 901),
+        (10, 1, 0.9, 10),
+        (1000, 950, 0.9, 950),
         (1000, 700, None, 700),
     ],
 )

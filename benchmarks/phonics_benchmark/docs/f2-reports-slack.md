@@ -96,29 +96,29 @@ model inclusion/exclusion audits, selected top models, means and medians.
 *Coverage:* plots and the combined analysis summary require at least 700 successfully
 parsed/scored items per model in either language. Exactly 700 qualifies; failed and
 unparseable responses do not count. Change `--min-items` to choose a different cutoff.
-To also require the original strict >80% coverage rule, add `--min-coverage 0.8`:
+To also require the current strict >90% coverage rule, add `--min-coverage 0.9`:
 
 ```sh
 uv run --frozen --package phonics-benchmark python \
   "$PHONICS_SCRIPTS/run_f2_analysis.py" \
-  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.8
+  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.9
 ```
 
 The denominator is the actual number of target items in each selected dataset, including
 items without responses, never the number of saved responses. With 991 English and 1,000
-Kiswahili items this requires at least 793 and 801 scored items, respectively; exactly
-80% is excluded. Both criteria apply; use `--min-items 1` if only the coverage rule is
+Kiswahili items this requires at least 892 and 901 scored items, respectively; exactly
+90% is excluded. Both criteria apply; use `--min-items 1` if only the coverage rule is
 desired for a smaller dataset.
 
 The coverage option writes separate variants and preserves the ≥700 outputs:
 
 ```text
-english/report/pooled_f2_leaderboard_coverage_gt80.png
-kiswahili/report/pooled_f2_leaderboard_coverage_gt80.png
-hardware_tiers/pooled_f2/coverage_gt80/hardware_tiers_top10_mean_slide.png
-pooled_f2_summary_by_language_and_model_coverage_gt80.csv
-audit/f2_model_eligibility_coverage_gt80.csv
-audit/f2_analysis_run_coverage_gt80.json
+english/report/pooled_f2_leaderboard_coverage_gt90.png
+kiswahili/report/pooled_f2_leaderboard_coverage_gt90.png
+hardware_tiers/pooled_f2/coverage_gt90/hardware_tiers_top10_mean_slide.png
+pooled_f2_summary_by_language_and_model_coverage_gt90.csv
+audit/f2_model_eligibility_coverage_gt90.csv
+audit/f2_analysis_run_coverage_gt90.json
 ```
 
 The per-model score and bootstrap source tables are recomputed under `report/` with the
@@ -128,16 +128,18 @@ For the ≥700 rule, the current data admits 31 English and 39 Kiswahili models 
 leaderboards. The hardware plot averages the best ten eligible models per
 group/language, or all eligible models when fewer than ten qualify (currently seven
 small models in each language). These group means have no group-level confidence
-intervals. The >80% rule admits 30 English and 34 Kiswahili leaderboard models, with six
-English and seven Kiswahili small models in the hardware comparison.
+intervals. The current >90% rule uses the actual dataset size; eligible model counts are
+recorded in each report's audit and depend on the downloaded response snapshot.
 
 *Gold labels:* the original `beta1-8-provisional` selection has 540 corrected English
 items and 451 provisional extension items. The corrected fixed-ID snapshot is at
 `outputs/phonics-merged-20260921-corrected-english/selections/fixed-991-en-1000-sw`; set
 `PHONICS_ANALYSIS` to that directory to use all 991 corrected English items. All 1,000
-Kiswahili items have corrected gold. The plots read gold status from the input
-provenance. CIs describe item-sampling uncertainty, not uncertainty in labels. Scores
-are pooled F2, without item or ratio weights.
+Kiswahili items were marked corrected in that snapshot, but it predates the latest
+Kiswahili overlays. Use a new download and merge with the current manifest for those
+corrections. The plots read gold status from the input provenance. CIs describe
+item-sampling uncertainty, not uncertainty in labels. Scores are pooled F2, without item
+or ratio weights.
 
 For exact September 21 results, reuse that frozen source snapshot. A fresh download may
 contain newer responses. Rebuild a moved snapshot locally if its recorded absolute

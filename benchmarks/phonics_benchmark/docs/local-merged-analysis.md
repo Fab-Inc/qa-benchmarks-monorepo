@@ -14,11 +14,16 @@ uv run --frozen --package phonics-benchmark python \
   --root outputs/NEW-SNAPSHOT
 ```
 
-The September 21 manifest contains the 18 previous destinations plus 14 extension
-destinations. Each group has an explicit language. Whole source folders, their
-generation datasets, and declared gold overlays are downloaded and checksummed. Existing
-snapshot roots are refused. Dataset URIs sharing a filename are refused instead of
-silently overwriting one another.
+The September 21 manifest now contains 34 destinations: the 18 previous destinations, 14
+extension destinations, and two Astra medium backfills added on September 22.
+`en-stratified-astra-20260922` belongs to `en` (1,078 original English sample items);
+`sw-original-astra-20260922` belongs to `sw_original` (1,665 original Kiswahili items,
+including four reused successes). Their responses merge into `full/english/` and
+`full/kiswahili/`, respectively. These runs add model coverage without changing the item
+pools. Download a new snapshot to include their accumulating responses. Each group has
+an explicit language. Whole source folders, their generation datasets, and declared gold
+overlays are downloaded and checksummed. Existing snapshot roots are refused. Dataset
+URIs sharing a filename are refused instead of silently overwriting one another.
 
 ## 2. Merge the complete source pool
 
@@ -47,8 +52,13 @@ same text and student knowledge; word counts and ratios are recomputed using the
 scorer's unique-word vocabulary. Overlapping overlays must agree. Source labels remain
 in effect for IDs without overlays. English's 532 extension items are explicitly
 **provisional**, whereas all current Kiswahili pool labels have corrected provenance.
-Correcting English labels later requires a new version of the full dataset and a fresh
-subset selection because ratio bins can change.
+Kiswahili overlays use the three files under `syllabic-nasals-corrected/`, including
+`benchmark_items_additional_linear_syllabic_nasals_corrected_20260921.jsonl` for the
+extension. Re-download and merge into a new snapshot to apply these corrections;
+existing snapshots retain their older labels. Legacy `updated_gold` entries are
+download-only when `gold_overlays` is present. Correcting English labels later requires
+a new version of the full dataset and a fresh subset selection because ratio bins can
+change.
 
 Each language directory contains:
 
@@ -59,11 +69,12 @@ Each language directory contains:
 - `excluded_responses.jsonl`: failed calls and unparseable outputs, kept in raw data.
 
 Coverage includes models with no responses and always divides by the actual unique item
-count of that output dataset. Strict >80% eligibility is
-`scorable_items * 5 > expected_items * 4`. Errors, parse failures and missing responses
-are counted separately. The companion analysis scripts likewise derive coverage
-denominators from the dataset; hardware-tier historical overrides remain available
-explicitly.
+count of that output dataset. Strict >90% eligibility is
+`scorable_items * 10 > expected_items * 9`. Coverage CSVs include
+`passes_90_percent_gate`; the >80% flag remains for historical consumers. Errors, parse
+failures and missing responses are counted separately. The companion analysis scripts
+likewise derive coverage denominators from the dataset; hardware-tier historical
+overrides remain available explicitly.
 
 The full folder contains source, duplicate and gold-change audits plus an
 `artifact_manifest.json`. Publishing is atomic after validation; an existing full folder

@@ -57,8 +57,8 @@ def load_balanced_table(root, language):
     if not table.ci_low.le(table.ci_high).all():
         raise ValueError("Reversed confidence interval")
     denominator = int(table.expected_items.iloc[0])
-    gate = table.n_scorable * 5 > denominator * 4
-    if not gate.eq(table.passes_previous_80_percent_gate).all():
+    gate = table.n_scorable * 10 > denominator * 9
+    if not gate.eq(table.passes_90_percent_gate).all():
         raise ValueError("Coverage gate differs from saved results")
     return table.sort_values(["score", "model"], ascending=[False, True]).reset_index(
         drop=True
@@ -120,19 +120,19 @@ def main():
         assert actual.equals(coverage.scorable_items)
         result, counts = ba.summarize(scored, items, n_bootstrap=1000, seed=0)
         result.insert(0, "dataset", lang)
-        result["passes_previous_80_percent_gate"] = result.n_scorable * 5 > size * 4
+        result["passes_90_percent_gate"] = result.n_scorable * 10 > size * 9
         result.to_csv(output / f"{lang}_summary.csv", index=False)
         counts[["model", "benchmark_item_id", *ba.COUNTS]].to_csv(
             output / f"{lang}_item_counts.csv", index=False
         )
         summaries.append(result)
         full_table, colors = load_balanced_table(root, lang)
-        required = hardware.minimum_scorable_items(size, 700, 0.8)
+        required = hardware.minimum_scorable_items(size, 700, 0.9)
         full_table["minimum_scorable_items"] = required
         full_table["passes_minimum_items"] = full_table.n_scorable.ge(required)
         eligibility.append(full_table.assign(language=lang))
         table = full_table[full_table.passes_minimum_items].reset_index(drop=True)
-        f1 = read_csv(root / lang / "report/pooled_f1_leaderboard_coverage_gt80.csv")
+        f1 = read_csv(root / lang / "report/pooled_f1_leaderboard_coverage_gt90.csv")
         assert set(table.model) == set(f1.model)
         np.testing.assert_allclose(
             table.score, (table.recall + table.specificity) / 2, rtol=0, atol=1e-14
@@ -143,7 +143,7 @@ def main():
         ax.set_xlabel("Balanced accuracy")
         ax.set_title(
             f"{lang.title()} decodability · Balanced accuracy\nLeaderboard · "
-            f">80% coverage · ≥{required:,} evaluated items",
+            f">90% coverage · ≥{required:,} evaluated items",
             loc="left",
             fontsize=12,
             fontweight="semibold",
@@ -168,7 +168,7 @@ def main():
             color="#52514e",
             va="top",
         )
-        stem = output / f"{lang}_balanced_accuracy_leaderboard_coverage_gt80"
+        stem = output / f"{lang}_balanced_accuracy_leaderboard_coverage_gt90"
         for extension in ("png", "pdf"):
             fig.savefig(
                 stem.with_suffix(f".{extension}"),
@@ -220,13 +220,13 @@ def main():
         output / "summary_all_datasets.csv", index=False
     )
     pd.concat(eligibility, ignore_index=True).to_csv(
-        output / "model_eligibility_coverage_gt80.csv", index=False
+        output / "model_eligibility_coverage_gt90.csv", index=False
     )
     pd.DataFrame(baseline_rows).to_csv(
-        output / "baseline_counts_coverage_gt80.csv", index=False
+        output / "baseline_counts_coverage_gt90.csv", index=False
     )
     pd.concat(model_rows, ignore_index=True).to_csv(
-        output / "baseline_comparison_coverage_gt80.csv", index=False
+        output / "baseline_comparison_coverage_gt90.csv", index=False
     )
     hardware.main(
         root,
@@ -235,13 +235,13 @@ def main():
         metric="balanced_accuracy",
         gold_note=datasets["english"][1],
         min_items=700,
-        min_coverage=0.8,
+        min_coverage=0.9,
     )
-    hardware_dir = root / "hardware_tiers/balanced_accuracy/coverage_gt80"
+    hardware_dir = root / "hardware_tiers/balanced_accuracy/coverage_gt90"
     for lang in datasets:
         current = read_csv(hardware_dir / f"hardware_tiers_{lang}.csv")
         previous = read_csv(
-            root / f"hardware_tiers/pooled_f1/coverage_gt80/hardware_tiers_{lang}.csv"
+            root / f"hardware_tiers/pooled_f1/coverage_gt90/hardware_tiers_{lang}.csv"
         )
         assert set(current.model) == set(previous.model)
         assert not current.hardware_tier.eq("Workstation").any()
@@ -266,7 +266,7 @@ def main():
         if source.resolve() != target.resolve():
             shutil.copy2(source, target)
     hardware_link = (
-        "../hardware_tiers/balanced_accuracy/coverage_gt80/"
+        "../hardware_tiers/balanced_accuracy/coverage_gt90/"
         "hardware_tiers_top10_mean_slide.png"
     )
     command = (
@@ -278,19 +278,19 @@ def main():
 
 {datasets["english"][0]:,} English and
 {datasets["kiswahili"][0]:,} Kiswahili target items.
-Models must have >80% successful, parsed and scored responses: at least
+Models must have >90% successful, parsed and scored responses: at least
 {details["english"]["minimum_scorable_items"]:,} English or
 {details["kiswahili"]["minimum_scorable_items"]:,} Kiswahili items.
 The 700-item minimum also applies. The eligible model sets match the F1/F2 plots.
 
-- [English leaderboard](english_balanced_accuracy_leaderboard_coverage_gt80.png)
-- [Kiswahili leaderboard](kiswahili_balanced_accuracy_leaderboard_coverage_gt80.png)
+- [English leaderboard](english_balanced_accuracy_leaderboard_coverage_gt90.png)
+- [Kiswahili leaderboard](kiswahili_balanced_accuracy_leaderboard_coverage_gt90.png)
 - [Hardware comparison][hardware]
 
 [hardware]: {hardware_link}
 
-- [Counts below/at the 50% baseline](baseline_counts_coverage_gt80.csv)
-- [Per-model baseline comparisons](baseline_comparison_coverage_gt80.csv)
+- [Counts below/at the 50% baseline](baseline_counts_coverage_gt90.csv)
+- [Per-model baseline comparisons](baseline_comparison_coverage_gt90.csv)
 
 PDF and CSV versions accompany the figures. Pooled balanced accuracy is the mean
 of pooled recall and specificity across unique vocabulary words within each item.
