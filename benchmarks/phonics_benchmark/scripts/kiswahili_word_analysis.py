@@ -5,6 +5,7 @@ Change `BASE` path to point to a different run.
 Every score here is adjusted balanced accuracy = recall - FPR.
 
 Two tables are used for plotting:
+    summary      one row per (model) aggregated across all features
     marginals    one row per (model, feature, level)
     combinations one row per (model, cell) where cell is the combination of features
 """
@@ -68,7 +69,47 @@ def is_nasal(cluster):
 # --------------------------------------------------------------------------
 # Prepare data
 # --------------------------------------------------------------------------
-def build():
+def load_results():
+    """Item-level results for tiered models, with the set columns parsed.
+
+    Only models the tier file places are kept. Dropping them here rather than
+    at each call site keeps the model set consistent: groupby discards rows
+    with a NaN key, so a tally keyed on hardware_tier would lose the untiered
+    models while one keyed on model alone would keep them.
+    """
+    results = pd.read_csv(REPORT / "results_with_scoring.csv")
+    tiers = pd.read_csv(BASE / "hardware_tiers/pooled_f2/hardware_tiers_kiswahili.csv")
+    results = results.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
+    results["vocab_set"] = results.vocab_set.apply(eval)
+    for col in ["response_parsed", "nondecodable_words"]:
+        results[col] = results[col].apply(lambda cell: {w.lower() for w in eval(cell)})
+    return results
+
+
+def hallucination_table(results):
+    """Per model: items containing an out-of-vocabulary word, and the share of
+    predicted words that are out of vocabulary."""
+    frame = results.assign(
+        n_hallucinated=[
+            len(r - v) for r, v in zip(results.response_parsed, results.vocab_set)
+        ],
+        n_predicted=results.response_parsed.map(len),
+    )
+    frame["has_hallucination"] = frame.n_hallucinated > 0
+    out = frame.groupby(["hardware_tier", "model"], observed=True).agg(
+        n_items=("has_hallucination", "size"),
+        items_with_hallucination=("has_hallucination", "sum"),
+        n_predicted_words=("n_predicted", "sum"),
+        n_hallucinated_words=("n_hallucinated", "sum"),
+    )
+    out["prop_items"] = out.items_with_hallucination / out.n_items
+    out["prop_words"] = out.n_hallucinated_words / out.n_predicted_words.replace(
+        0, np.nan
+    )
+    return out.reset_index().sort_values("prop_words", ascending=False)
+
+
+def build(results=None):
     """Explode items to words and attach decodability features.
 
     The two library calls have different keys, so they are deduplicated
@@ -80,12 +121,7 @@ def build():
     from decodability.kiswahili import KiswahiliStudentKnowledge, analyse_word_kiswahili
     from decodability.kiswahili.segment import decompose_word
 
-    df = pd.read_csv(REPORT / "results_with_scoring.csv")
-    tiers = pd.read_csv(BASE / "hardware_tiers/pooled_f2/hardware_tiers_kiswahili.csv")
-    # Keep only models with hardware tiers.
-    df = df.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
-    for col in ["vocab_set", "response_parsed", "nondecodable_words"]:
-        df[col] = df[col].apply(eval)
+    df = load_results() if results is None else results
 
     item_words = (
         df[
@@ -164,8 +200,26 @@ def tally(words, keys, min_pos=50, min_neg=50):
     counts["recall"] = counts.tp / counts.pos
     counts["fpr"] = counts.fp / counts.neg
     counts["j"] = counts.recall - counts.fpr
-    counts.loc[(counts.pos < min_pos) | (counts.neg < min_neg), "j"] = np.nan
+    # counts.loc[(counts.pos < min_pos) | (counts.neg < min_neg), "j"] = np.nan
     return counts.reset_index()
+
+
+def summary_table(words, **kwargs):
+    """One row per model, aggregated across all features."""
+    summary = tally(words, ["hardware_tier", "model"], **kwargs, min_pos=0, min_neg=0)
+    cols = [
+        "hardware_tier",
+        "model",
+        "n",
+        "tp",
+        "fp",
+        "pos",
+        "neg",
+        "recall",
+        "fpr",
+        "j",
+    ]
+    return summary[cols]
 
 
 def marginal_table(words, **kwargs):
@@ -367,21 +421,23 @@ FEATURE_PLOTS = {
 }
 
 
-def top_n_stats(marginals, feature):
+def top_n_stats(summary, marginals, feature):
     """Mean Adj. balanced accuracy of the best TOP_N models per (tier, level)
     for one feature.
 
-    Top-N is picked within each (tier, level), as summarize_tiers does for
-    languages. The two dots on a row can therefore rest on different models:
-    the chart asks what the best available models achieve on each kind of
-    word, not how one fixed roster moves between them.
+    Top-N is picked within each hardware_tier.
     """
     panel = marginals[marginals.feature == feature].dropna(subset=["j"])
     rows = []
     for (tier, level), group in panel.groupby(
         ["hardware_tier", "level"], observed=True
     ):
-        top = group.sort_values(["j", "model"], ascending=[False, True]).head(TOP_N)
+        models = (
+            summary[summary.hardware_tier == tier]
+            .sort_values(["j", "model"], ascending=[False, True])
+            .head(TOP_N)["model"]
+        )
+        top = group[group.model.isin(models)]
         rows.append(
             {
                 "hardware_tier": tier,
@@ -463,7 +519,7 @@ def level_legend(fig, off_label, on_label, anchor):
     )
 
 
-def plot_feature_summary_dumbell(marginals):
+def plot_feature_summary_dumbell(summary, marginals):
     """All three features on one axis: a block of two tier rows per feature.
 
     Each block is the single-feature chart repeated, so the eye compares tiers
@@ -482,7 +538,7 @@ def plot_feature_summary_dumbell(marginals):
     ax.set_facecolor(SURFACE)
 
     for y, (feature, tier) in enumerate(layout):
-        stats = top_n_stats(marginals, feature)
+        stats = top_n_stats(summary, marginals, feature)
         group = stats[stats.hardware_tier.eq(tier)]
         points = dict(zip(group.level, group.median_j * 100))
         draw_dumbbell(ax, y, points, size=130, fontsize=12)
@@ -519,7 +575,7 @@ def plot_feature_summary_dumbell(marginals):
     ax.set_ylim(-0.7, len(layout) - 0.3)
     ax.set_yticks([])
     ax.set_xlabel(
-        f"Mean adjusted balanced accuracy of top {TOP_N} models",
+        "Mean adjusted balanced accuracy (0% = chance, 100% = perfect)",
         fontsize=12,
         color=INK_MUTED,
     )
@@ -648,7 +704,14 @@ def plot_known_word_alarms(words, ax, models):
 
 
 if __name__ == "__main__":
-    words = build()
+    results = load_results()
+    words = build(results)
+    # hallucinations - to be analyzed separately
+    hallucinations = hallucination_table(results)
+    hallucinations.to_csv(REPORT / "hallucination_summary.csv", index=False)
+
+    # word-level analysis
+    summary = summary_table(words)
     marginals = marginal_table(words, min_pos=20, min_neg=20)
     combinations = combination_table(words)
     order = {cell: i for i, cell in enumerate(ordered_cells(combinations))}
@@ -694,7 +757,7 @@ if __name__ == "__main__":
         facecolor=SURFACE,
     )
 
-    summary = plot_feature_summary_dumbell(marginals)
+    summary = plot_feature_summary_dumbell(summary, marginals)
     summary.savefig(
         REPORT / "tier_medians_all_features.png", dpi=300, facecolor=SURFACE
     )
