@@ -1,14 +1,12 @@
-"""Word-level failure analysis for the corrected Kiswahili run.
+"""Word-level failure analysis for Kiswahili
 
-Every score here is Youden's J = recall - FPR. Precision and raw accuracy both
-move with the share of words that are actually nondecodable, which varies
-widely across the word types compared below, so they would rank word types
-largely by their base rate. J conditions each rate on the true class: 0 is
-chance everywhere, 1 is perfect.
+Change `BASE` path to point to a different run.
 
-Two tidy tables drive every plot:
+Every score here is adjusted balanced accuracy = recall - FPR.
+
+Two tables are used for plotting:
     marginals    one row per (model, feature, level)
-    combinations one row per (model, cell) over the full cross product
+    combinations one row per (model, cell) where cell is the combination of features
 """
 
 import textwrap
