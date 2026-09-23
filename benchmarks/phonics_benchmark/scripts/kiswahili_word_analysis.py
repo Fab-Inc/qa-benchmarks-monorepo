@@ -84,7 +84,8 @@ def build():
 
     df = pd.read_csv(REPORT / "results_with_scoring.csv")
     tiers = pd.read_csv(BASE / "hardware_tiers/pooled_f2/hardware_tiers_kiswahili.csv")
-    df = df.merge(tiers[["model", "hardware_tier"]], on="model", how="left")
+    # Keep only models with hardware tiers.
+    df = df.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
     for col in ["vocab_set", "response_parsed", "nondecodable_words"]:
         df[col] = df[col].apply(eval)
 
