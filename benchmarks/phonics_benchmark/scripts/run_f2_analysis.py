@@ -52,6 +52,8 @@ def inspect_dataset(run: Path) -> tuple[int, str]:
         raise ValueError(f"Expected non-empty unique item IDs in {run}")
     config = json.loads((run / "config.json").read_text())["resolved_config"]
     configured_path = Path(config["items_path"])
+    if not configured_path.is_absolute():
+        configured_path = run / configured_path
     if not configured_path.is_file() or digest(configured_path) != digest(items_path):
         raise ValueError(
             f"Config must resolve to this merged dataset in {run}; "

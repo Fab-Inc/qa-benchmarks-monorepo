@@ -60,6 +60,14 @@ def test_sizes_and_gold_notes_come_from_input(analysis, run_dir):
     assert note == "English gold: 3 corrected items; 2 provisional items."
 
 
+def test_relative_run_item_path_is_resolved_from_run_directory(analysis, run_dir):
+    path = run_dir / "config.json"
+    config = json.loads(path.read_text())
+    config["resolved_config"]["items_path"] = "benchmark_items.jsonl"
+    path.write_text(json.dumps(config))
+    assert analysis.inspect_dataset(run_dir)[0] == 5
+
+
 def test_old_denominator_rejected(analysis, run_dir):
     (run_dir / "coverage_by_model.csv").write_text(
         "model,expected_items,scorable_items\nexample,991,4\n"

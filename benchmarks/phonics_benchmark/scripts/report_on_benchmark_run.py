@@ -175,7 +175,7 @@ def warn_about_exclusions(excluded: pd.DataFrame) -> None:
     typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
 
 
-def load_run_items(resolved_config: dict) -> pd.DataFrame:
+def load_run_items(resolved_config: dict, run_dir: Path | None = None) -> pd.DataFrame:
     """Load the exact item set the run was executed against.
 
     Warns if the file's bytes don't hash to the ``items_sha256`` recorded at
@@ -183,6 +183,8 @@ def load_run_items(resolved_config: dict) -> pd.DataFrame:
     items than the models saw.
     """
     items_path = Path(resolved_config["items_path"])
+    if not items_path.is_absolute() and run_dir is not None:
+        items_path = run_dir / items_path
     if not items_path.is_file():
         raise typer.BadParameter(f"The run's items file no longer exists: {items_path}")
 
@@ -273,7 +275,7 @@ def report_on_run(
             "not be parsed."
         )
 
-    items = load_run_items(resolved_config)
+    items = load_run_items(resolved_config, run_dir)
 
     results = responses.merge(
         items[ITEM_METADATA_COLUMNS], on="benchmark_item_id", how="left"
