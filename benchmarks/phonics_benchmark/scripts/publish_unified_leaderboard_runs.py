@@ -1,12 +1,13 @@
-"""Create the unified analysis runs in GCS without replacing existing objects.
+"""Create the unified runs in GCS without replacing existing objects.
 
 Only files listed in the bundle's seal are uploaded, and any other file in a run
 directory stops the publish. Every new object is uploaded with an
 absent-generation precondition. Existing objects are accepted only when their
 CRC32C matches the local sealed bundle. A run-relative path named with
---replace may be overwritten, conditional on the generation checked here.
-Both runs are checked before anything is written. No source run is changed or
-deleted.
+--replace may be overwritten, and one named with --delete may be removed, each
+conditional on the generation checked here. Each run's source config goes to
+run-configs/, and its items must already be at its items_path. Both runs are
+checked before anything is written. No source run is changed or deleted.
 """
 
 from __future__ import annotations
@@ -42,6 +43,8 @@ class RunPlan:
     checksums: dict[str, str]
     create: list[str]
     replace: dict[str, GCSObject]
+    delete: dict[str, GCSObject]
+    run_config: tuple[str, str, Path] | None
     response_rows: int
 
     def report(self) -> dict:
@@ -50,7 +53,12 @@ class RunPlan:
             "destination": self.destination,
             "objects": len(self.files),
             "response_rows": self.response_rows,
-            "create": [f"gs://{self.bucket}/{name}" for name in self.create],
+            "create": [f"gs://{self.bucket}/{name}" for name in self.create]
+            + (
+                [f"gs://{self.run_config[0]}/{self.run_config[1]}"]
+                if self.run_config
+                else []
+            ),
             "replace": [
                 {
                     "object": f"gs://{self.bucket}/{name}",
@@ -59,6 +67,14 @@ class RunPlan:
                     "crc32c": self.checksums[name],
                 }
                 for name, remote in self.replace.items()
+            ],
+            "delete": [
+                {
+                    "object": f"gs://{self.bucket}/{name}",
+                    "previous_generation": remote.generation,
+                    "previous_crc32c": remote.crc32c,
+                }
+                for name, remote in self.delete.items()
             ],
         }
 
@@ -81,21 +97,44 @@ def sealed_run_files(root: Path, sealed: dict, name: str) -> dict[str, Path]:
     return {relative: run / relative for relative in sorted(sealed_paths)}
 
 
+def remote_object(uri: str, client) -> tuple[str, str, GCSObject | None]:
+    bucket, name = parse_gs_uri(uri)
+    listed = list_gcs_objects(bucket_name=bucket, prefix=name, storage_client=client)
+    return bucket, name, next((obj for obj in listed if obj.name == name), None)
+
+
 def plan_run(
-    root: Path, sealed: dict, language: str, details: dict, replace: set, client
+    root: Path,
+    sealed: dict,
+    language: str,
+    details: dict,
+    replace: set,
+    delete: set,
+    client,
 ) -> RunPlan:
     run = root / language
-    config = json.loads((run / "config.json").read_text())["resolved_config"]
+    config = json.loads((run / "config.json").read_text())
     destination = details["gcs_prefix"]
     if (
-        config["run_id"] != details["run_id"]
-        or config["metadata"]["items_source_uri"]
-        != destination + "benchmark_items.jsonl"
+        config["resolved_config"]["run_id"] != details["run_id"]
+        or config["resolved_config"]["results_dest"] != destination
+        or config["raw_config"]["items_path"] != details["items_uri"]
     ):
         raise ValueError(f"Run config disagrees with destination: {language}")
     local = sealed_run_files(root, sealed, language)
     if unknown := sorted(replace - set(local)):
         raise ValueError(f"--replace names files not sealed in {language}: {unknown}")
+    if sealed_names := sorted(delete & set(local)):
+        raise ValueError(f"--delete names sealed files in {language}: {sealed_names}")
+    _, _, items = remote_object(details["items_uri"], client)
+    if items is None or items.crc32c != _file_crc32c(run / "benchmark_items.jsonl"):
+        raise ValueError(f"Published items differ from the run: {details['items_uri']}")
+    config_bucket, config_name, published_config = remote_object(
+        details["run_config_uri"], client
+    )
+    config_path = root / "run-configs" / f"{details['run_id']}.json"
+    if published_config and published_config.crc32c != _file_crc32c(config_path):
+        raise ValueError(f"Existing run config differs: {details['run_config_uri']}")
     bucket, prefix = parse_gs_uri(destination)
     prefix = prefix.rstrip("/") + "/"
     files = {prefix + relative: path for relative, path in local.items()}
@@ -105,11 +144,16 @@ def plan_run(
             bucket_name=bucket, prefix=prefix, storage_client=client
         )
     }
-    if set(existing) - set(files):
-        raise ValueError(f"Unexpected objects already under {destination}")
+    removable = {prefix + relative for relative in delete}
+    if unexpected := sorted(set(existing) - set(files) - removable):
+        raise ValueError(f"Unexpected objects under {destination}: {unexpected}")
+    if absent := sorted(removable - set(existing)):
+        raise ValueError(f"--delete names objects that do not exist: {absent}")
     checksums = {name: _file_crc32c(path) for name, path in files.items()}
     changed = {
-        name: obj for name, obj in existing.items() if obj.crc32c != checksums[name]
+        name: obj
+        for name, obj in existing.items()
+        if name in files and obj.crc32c != checksums[name]
     }
     if blocked := sorted(
         name for name in changed if name.removeprefix(prefix) not in replace
@@ -125,11 +169,16 @@ def plan_run(
         checksums=checksums,
         create=sorted(set(files) - set(existing)),
         replace=dict(sorted(changed.items())),
+        delete={name: existing[name] for name in sorted(removable)},
+        run_config=None
+        if published_config
+        else (config_bucket, config_name, config_path),
         response_rows=details["response_rows"],
     )
 
 
 def execute(plan: RunPlan, client) -> None:
+    """Create, then replace, then delete, so no response is ever missing."""
     sync = RunSync(plan.run, plan.destination, storage_client=client)
     for name in plan.create:
         sync.push_file(plan.files[name])
@@ -139,6 +188,19 @@ def execute(plan: RunPlan, client) -> None:
             bucket_name=plan.bucket,
             file_name=name,
             if_generation_match=remote.generation,
+            storage_client=client,
+        )
+    for name, remote in plan.delete.items():
+        client.bucket(plan.bucket).blob(name).delete(
+            if_generation_match=remote.generation
+        )
+    if plan.run_config:
+        bucket, name, path = plan.run_config
+        upload_file_with_generation(
+            source_path=path,
+            bucket_name=bucket,
+            file_name=name,
+            if_generation_match=0,
             storage_client=client,
         )
     remote = {
@@ -158,6 +220,7 @@ def publish(
     replace: tuple[str, ...] = (),
     dry_run: bool = False,
     client=None,
+    delete: tuple[str, ...] = (),
 ) -> dict:
     root = root.resolve()
     sealed = verify_artifacts(root)
@@ -177,7 +240,9 @@ def publish(
     info = json.loads((root / "bundle_info.json").read_text())
     client = client or Client()
     plans = {
-        language: plan_run(root, sealed, language, details, set(replace), client)
+        language: plan_run(
+            root, sealed, language, details, set(replace), set(delete), client
+        )
         for language, details in info["runs"].items()
     }
     if not dry_run:
@@ -197,9 +262,26 @@ if __name__ == "__main__":
         help="run-relative path whose existing object may be overwritten; repeatable",
     )
     parser.add_argument(
+        "--delete",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="run-relative path of an unsealed existing object to remove; repeatable",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="check everything and print the planned writes without uploading",
     )
     args = parser.parse_args()
-    print(json.dumps(publish(args.root, tuple(args.replace), args.dry_run), indent=2))
+    print(
+        json.dumps(
+            publish(
+                args.root,
+                tuple(args.replace),
+                args.dry_run,
+                delete=tuple(args.delete),
+            ),
+            indent=2,
+        )
+    )

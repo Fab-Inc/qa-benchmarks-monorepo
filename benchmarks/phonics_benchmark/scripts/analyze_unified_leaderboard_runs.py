@@ -1,6 +1,6 @@
 """Score unified raw responses and verify adjusted BA against a saved report.
 
-This analysis starts from the bundle's raw JSONL responses and corrected items.
+This analysis starts from the runs' per-model response files and corrected items.
 It parses and scores the responses anew, then uses the production 1,000-draw,
 seed-0 item bootstrap. A comparison mismatch prevents analysis publication.
 """
@@ -40,14 +40,14 @@ COMPARE_COLUMNS = (
 
 def score_one(run: Path, language: str) -> tuple[pd.DataFrame, dict]:
     config = json.loads((run / "config.json").read_text())
-    if not config.get("analysis_only"):
-        raise ValueError(f"Expected an analysis-only run: {run}")
+    if "config_id" not in config or "raw_config" not in config:
+        raise ValueError(f"Expected a runner config snapshot: {run}")
     resolved = config["resolved_config"]
     if resolved["language"] != language:
         raise ValueError(f"Wrong run language: {run}")
-    items_path = Path(resolved["items_path"])
-    if not items_path.is_absolute():
-        items_path = run / items_path
+    # The snapshot's items_path is the runner's download location; the run
+    # folder keeps the same bytes.
+    items_path = run / "benchmark_items.jsonl"
     if digest(items_path) != resolved["items_sha256"]:
         raise ValueError(f"Configured items changed: {run}")
     items = ba.load_items(items_path, language)
@@ -55,8 +55,13 @@ def score_one(run: Path, language: str) -> tuple[pd.DataFrame, dict]:
         ["benchmark_item_id", "content", "student_knowledge", "nondecodable_words"]
     ]
     scorable, raw_count, failed, unparseable = [], 0, 0, 0
+    rows = (
+        row
+        for path in sorted((run / "responses").glob("*.jsonl"))
+        for row in read_jsonl(path)
+    )
     with contextlib.redirect_stdout(io.StringIO()):
-        for row in read_jsonl(run / "responses/merged.jsonl"):
+        for row in rows:
             raw_count += 1
             if row["call_status"] != "success":
                 failed += 1
@@ -115,11 +120,20 @@ def score_one(run: Path, language: str) -> tuple[pd.DataFrame, dict]:
     return summary, details
 
 
-def compare(summary: pd.DataFrame, reference_path: Path) -> dict:
+def compare(
+    summary: pd.DataFrame,
+    reference_path: Path,
+    dropped: tuple[str, ...] = (),
+    skipped: tuple[str, ...] = (),
+) -> dict:
+    """Compare every model except dropped ones and ones whose rows differ on purpose."""
     old = pd.read_csv(reference_path, float_precision="round_trip").set_index("model")
     new = summary.set_index("model")
-    if set(old.index) != set(new.index):
+    excluded = set(dropped) | set(skipped)
+    if set(old.index) - excluded != set(new.index) - excluded:
         raise ValueError(f"Model set differs from {reference_path}")
+    new = new.loc[[model for model in new.index if model not in excluded]]
+    old = old.loc[list(new.index)]
     old, new = old.sort_index(), new.sort_index()
     max_difference = 0.0
     for column in COMPARE_COLUMNS:
@@ -136,6 +150,8 @@ def compare(summary: pd.DataFrame, reference_path: Path) -> dict:
     return {
         "reference_sha256": digest(reference_path),
         "matched_models": len(new),
+        "dropped_models": sorted(set(dropped) & set(pd.read_csv(reference_path).model)),
+        "skipped_models": sorted(skipped),
         "max_absolute_difference": max_difference,
         "matching_tolerance": 1e-10,
     }
@@ -166,7 +182,11 @@ def compare_combined(summary: pd.DataFrame, language: str, path: Path) -> dict:
     }
 
 
-def run(root: Path = DEFAULT_ROOT, reference: Path | None = DEFAULT_REFERENCE) -> dict:
+def run(
+    root: Path = DEFAULT_ROOT,
+    reference: Path | None = DEFAULT_REFERENCE,
+    skipped: dict[str, tuple[str, ...]] | None = None,
+) -> dict:
     root = root.resolve()
     reference = reference.resolve() if reference else None
     original_manifest = verify_artifacts(root)
@@ -175,6 +195,9 @@ def run(root: Path = DEFAULT_ROOT, reference: Path | None = DEFAULT_REFERENCE) -
     output = root / "analysis"
     if output.exists():
         raise FileExistsError(f"Preserving existing analysis: {output}")
+    dropped = tuple(
+        json.loads((root / "bundle_info.json").read_text())["dropped_models"]
+    )
     summaries, details = {}, {}
     for name, language in LANGUAGES.items():
         summary, stats = score_one(root / name, language)
@@ -183,7 +206,10 @@ def run(root: Path = DEFAULT_ROOT, reference: Path | None = DEFAULT_REFERENCE) -
         stats["eligible_models"] = int(summary.n_scorable.ge(required).sum())
         if reference:
             stats["comparison"] = compare(
-                summary, reference / "balanced_accuracy" / f"{name}_summary.csv"
+                summary,
+                reference / "balanced_accuracy" / f"{name}_summary.csv",
+                dropped,
+                (skipped or {}).get(name, ()),
             )
             stats["combined_summary_comparison"] = compare_combined(
                 summary, name, reference / "model_summary_coverage_gt90.csv"
@@ -218,5 +244,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--reference", type=Path, default=DEFAULT_REFERENCE)
+    parser.add_argument(
+        "--skip-model",
+        action="append",
+        default=[],
+        metavar="LANGUAGE:MODEL",
+        help="leave a model whose rows differ from the reference on purpose "
+        "out of the per-model comparison; repeatable",
+    )
     args = parser.parse_args()
-    print(json.dumps(run(args.root, args.reference), indent=2))
+    skipped = {}
+    for value in args.skip_model:
+        language, model = value.split(":", 1)
+        if language not in LANGUAGES:
+            parser.error(f"Unknown language in --skip-model: {value}")
+        skipped[language] = (*skipped.get(language, ()), model)
+    print(json.dumps(run(args.root, args.reference, skipped), indent=2))
