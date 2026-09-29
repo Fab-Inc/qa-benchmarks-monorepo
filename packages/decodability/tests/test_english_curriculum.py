@@ -46,7 +46,7 @@ def level(item_id: str) -> int:
 
 
 def load_stories() -> dict[str, tuple[str, ...]]:
-    with (FIXTURES / "english_stories.tsv").open() as handle:
+    with (FIXTURES / "english_stories.tsv").open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
     stories = {}
     for row in rows:
@@ -65,7 +65,9 @@ def load_stories() -> dict[str, tuple[str, ...]]:
 def load_profiles() -> dict[str, EnglishStudentKnowledge]:
     profiles = {}
     knowledge = {"gpcs": [], "sight_words": [], "affixes": []}
-    with (FIXTURES / "english_profiles.jsonl").open() as handle:
+    with (FIXTURES / "english_profiles.jsonl").open(
+        encoding="utf-8"
+    ) as handle:
         rows = [json.loads(line) for line in handle]
     for row in rows:
         profile_id = row.pop("profile_id")
@@ -94,7 +96,7 @@ def load_expectations(
     stories: dict[str, tuple[str, ...]],
     profiles: dict[str, EnglishStudentKnowledge],
 ) -> dict[tuple[str, str], frozenset[str]]:
-    with (FIXTURES / "english_nondecodable.tsv").open() as handle:
+    with (FIXTURES / "english_nondecodable.tsv").open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
     expectations = {}
     for row in rows:
