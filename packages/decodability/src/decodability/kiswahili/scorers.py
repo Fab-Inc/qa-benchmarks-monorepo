@@ -32,7 +32,7 @@ def score_known_clusters_and_patterns_kiswahili(
     The score is binary: if there's any cluster that the student doesn't know, the
     score is 0.
 
-    If the word doesn't contain any cluter, the score is 1.0, since the student
+    If the word doesn't contain any cluster, the score is 1.0, since the student
     doesn't need to know any clusters to decode it.
     """
     taught_clusters = student_knowledge.all_known_clusters

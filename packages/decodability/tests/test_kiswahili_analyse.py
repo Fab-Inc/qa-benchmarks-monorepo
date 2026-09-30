@@ -168,7 +168,7 @@ class TestAnalysisModel:
         analysis = analyse_word_kiswahili("baba", knowledge)
 
         with pytest.raises(ValidationError):
-            analysis.decodable = False
+            analysis.known_whole_word = not analysis.known_whole_word
 
     def test_the_analysis_round_trips_through_serialisation(self, knowledge):
         analysis = analyse_word_kiswahili("Xylophone", knowledge)

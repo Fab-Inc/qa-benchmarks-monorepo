@@ -84,11 +84,11 @@ class KiswahiliStudentKnowledge(BaseModel):
     @model_validator(mode="after")
     def check_clusters_not_covered_by_patterns(self) -> "KiswahiliStudentKnowledge":
         """Ensure clusters are not also represented by known cluster patterns."""
-        overlapping_clusters = {
-            pattern: self.clusters & VALID_CLUSTERS[pattern]
-            for pattern in self.cluster_patterns
-            if self.clusters & VALID_CLUSTERS[pattern]
-        }
+        overlapping_clusters = {}
+        for pattern in self.cluster_patterns:
+            overlap = self.clusters & VALID_CLUSTERS[pattern]
+            if overlap:
+                overlapping_clusters[pattern] = overlap
 
         if overlapping_clusters:
             details = "; ".join(
