@@ -95,9 +95,9 @@ uppercase letters as separate graphemes, so we enforce all lowercase for the fie
 English decodability follows the UFLI Foundations scope and sequence with a binary
 definition of decodability. Two binary scorers feed the final score:
 
-| Scorer                      | Returns 1.0 when                                                                |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| `score_known_gpcs_english`  | at least one valid parse of the word uses only GPCs the student has been taught |
+| Scorer                      | Returns 1.0 when                                                                                                                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `score_known_gpcs_english`  | at least one valid parse of the word uses only GPCs the student has been taught                                                                                                                                         |
 | `score_sight_words_english` | the word (case-insensitive) has been taught as a sight word, is a known sight word wearing taught affixes, or compounds known sight words and GPC-decodable chunks (`noone` = `no` + `one`, `someone` = `some` + `one`) |
 
 `aggregate_scores_ufli_curriculum` (registered as `ufli_curriculum_aggregator`) combines

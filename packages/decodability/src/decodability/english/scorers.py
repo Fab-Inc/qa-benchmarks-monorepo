@@ -46,15 +46,17 @@ def _is_taught_match(match: GPCMatch, taught_set: set, taught_graphemes: set) ->
     if match.gpc.id == "DERIVED_GU":
         return {"g", "u"} <= taught_graphemes and ("g", "g") in taught_set
     if match.gpc.id.startswith("DERIVED_DOUBLE_"):
-        return match.gpc.symbol in taught_graphemes and (
-            match.gpc.symbol[0], "".join(match.gpc.phonemes)
-        ) in taught_set
+        return (
+            match.gpc.symbol in taught_graphemes
+            and (match.gpc.symbol[0], "".join(match.gpc.phonemes)) in taught_set
+        )
     if match.gpc.id.startswith("DERIVED_REPEAT_FINAL_"):
         base = match.gpc.symbol[:-1]
         doubled = match.gpc.symbol[-1] * 2
-        return doubled in taught_graphemes and (
-            base, "".join(match.gpc.phonemes)
-        ) in taught_set
+        return (
+            doubled in taught_graphemes
+            and (base, "".join(match.gpc.phonemes)) in taught_set
+        )
     if match.gpc.id == "DERIVED_AL":
         return ("all", "ɔl") in taught_set
     if match.gpc.id == "DERIVED_IE_FINAL":
@@ -157,14 +159,19 @@ def score_sight_words_english(
         return 1.0
 
     base, apostrophe, clitic = lowered.partition("'")
-    if apostrophe and base in taught_sight_words and clitic in {
-        "d",
-        "ll",
-        "m",
-        "re",
-        "s",
-        "ve",
-    }:
+    if (
+        apostrophe
+        and base in taught_sight_words
+        and clitic
+        in {
+            "d",
+            "ll",
+            "m",
+            "re",
+            "s",
+            "ve",
+        }
+    ):
         return 1.0
 
     if (
@@ -302,8 +309,7 @@ def _compound_segments(
         if not any(sight_forms):
             continue
         if not all(
-            is_sight
-            or score_known_gpcs_english(chunk, student_knowledge) == 1.0
+            is_sight or score_known_gpcs_english(chunk, student_knowledge) == 1.0
             for chunk, is_sight in zip(chunks, sight_forms, strict=True)
         ):
             continue

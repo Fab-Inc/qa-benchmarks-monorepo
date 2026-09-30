@@ -120,15 +120,12 @@ class GPC:
         object.__setattr__(self, "is_silent", self.id.startswith("SILENT_"))
 
 
-
 @cache
 def _derived_gpcs(inventory: tuple[GPC, ...]) -> tuple[GPC, ...]:
     doubles = (
         GPC(f"DERIVED_DOUBLE_{gpc.id}", gpc.symbol * 2, gpc.phonemes)
         for gpc in inventory
-        if len(gpc.symbol) == 1
-        and gpc.symbol not in VOWEL_LETTERS
-        and not gpc.is_split
+        if len(gpc.symbol) == 1 and gpc.symbol not in VOWEL_LETTERS and not gpc.is_split
     )
     repeated_finals = (
         GPC(
@@ -331,9 +328,9 @@ def parse_gpcs(
     interjection = _interjection_parse(spelling, phoneme_strings)
     if interjection is not None:
         return (interjection,)
-    contiguous = tuple(
-        gpc for gpc in inventory if not gpc.is_split
-    ) + _derived_gpcs(inventory)
+    contiguous = tuple(gpc for gpc in inventory if not gpc.is_split) + _derived_gpcs(
+        inventory
+    )
     split = tuple(gpc for gpc in inventory if gpc.is_split)
     spells_letter_names = _is_letter_name_pronunciation(
         spelling, phoneme_strings, inventory
@@ -389,9 +386,7 @@ def parse_gpcs(
                     and _phonemes_match(
                         gpc,
                         phonemes[phoneme_index:phoneme_end],
-                        phonemes[phoneme_end]
-                        if phoneme_end < len(phonemes)
-                        else None,
+                        phonemes[phoneme_end] if phoneme_end < len(phonemes) else None,
                     )
                 ):
                     match = GPCMatch(

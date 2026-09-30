@@ -65,9 +65,7 @@ def load_stories() -> dict[str, tuple[str, ...]]:
 def load_profiles() -> dict[str, EnglishStudentKnowledge]:
     profiles = {}
     knowledge = {"gpcs": [], "sight_words": [], "affixes": []}
-    with (FIXTURES / "english_profiles.jsonl").open(
-        encoding="utf-8"
-    ) as handle:
+    with (FIXTURES / "english_profiles.jsonl").open(encoding="utf-8") as handle:
         rows = [json.loads(line) for line in handle]
     for row in rows:
         profile_id = row.pop("profile_id")

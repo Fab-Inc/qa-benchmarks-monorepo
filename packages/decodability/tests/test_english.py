@@ -173,9 +173,7 @@ class TestScorers:
 
         # a decodable prefix chunk alone isn't enough — the rest must be a
         # sight word or decodable too (``view`` is neither here)
-        no_stem = EnglishStudentKnowledge(
-            gpcs=[("pre", "pri")], sight_words={"happy"}
-        )
+        no_stem = EnglishStudentKnowledge(gpcs=[("pre", "pri")], sight_words={"happy"})
         assert score_sight_words_english("preview", no_stem) == 0.0
 
     def test_score_sight_words_english_stacked_affixes(self):
@@ -844,9 +842,7 @@ class TestScoreReducedYodRequiresYodPair:
     def test_other_u_gpcs_do_not_unlock_the_yod(self):
         """``u → ʌ`` (or ``u → u``) teaches the letter but not the glide."""
         for u_pair in ("ʌ", "u", "ʊ"):
-            student = EnglishStudentKnowledge(
-                gpcs=[*self._BASE_GPCS, ("u", u_pair)]
-            )
+            student = EnglishStudentKnowledge(gpcs=[*self._BASE_GPCS, ("u", u_pair)])
             assert score_known_gpcs_english("particularly", student) == 0.0
 
     def test_u_ju_also_credits_plain_reduced_u(self):
@@ -923,9 +919,7 @@ class TestCompoundSightWordDecoding:
 
     def test_no_sight_words_at_all_short_circuits(self):
         """No taught sight words → no compound can qualify."""
-        student = EnglishStudentKnowledge(
-            gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")]
-        )
+        student = EnglishStudentKnowledge(gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")])
         assert score_sight_words_english("someone", student) == 0.0
 
 
@@ -1021,9 +1015,7 @@ class TestSharedLetters:
 
 class TestProductiveSpellingAndPronunciationRules:
     def test_positional_final_e_is_silent_after_a_consonant(self):
-        student = EnglishStudentKnowledge(
-            gpcs=[("h", "h"), ("ou", "aʊ"), ("s", "s")]
-        )
+        student = EnglishStudentKnowledge(gpcs=[("h", "h"), ("ou", "aʊ"), ("s", "s")])
         assert score_known_gpcs_english("house", student) == 1.0
 
     def test_final_e_does_not_turn_bare_u_into_the_ue_vowel_team(self):
@@ -1094,12 +1086,18 @@ class TestProductiveSpellingAndPronunciationRules:
         )
 
     def test_letter_name_initialisms_use_known_constituent_letters(self):
-        assert score_known_gpcs_english(
-            "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
-        ) == 1.0
-        assert score_known_gpcs_english(
-            "ok", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
-        ) == 1.0
+        assert (
+            score_known_gpcs_english(
+                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+            )
+            == 1.0
+        )
+        assert (
+            score_known_gpcs_english(
+                "ok", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
+            )
+            == 1.0
+        )
 
     def test_taught_digraph_is_not_reinterpreted_as_an_initialism(self):
         student = EnglishStudentKnowledge(gpcs=[("t", "t"), ("h", "h")])
