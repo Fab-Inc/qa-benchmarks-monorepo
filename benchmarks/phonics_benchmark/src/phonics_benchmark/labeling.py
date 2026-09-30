@@ -12,7 +12,7 @@ from functools import partial
 
 import pandas as pd
 from decodability import DECODABILITY_REGISTRY, Aggregation, Measure, annotate_words
-from decodability.kiswahili.definitions import primerpro_settings
+from decodability.kiswahili.definitions import ClusterPattern, primerpro_settings
 from primerpro import Word
 
 from phonics_benchmark.utils import require_columns
@@ -151,3 +151,55 @@ def get_valid_knowledge_str(language: str) -> str:
         [grapheme.symbol for grapheme in inventory.consonants]
     )
     return f"- Vowels: {vowels_string}\n- Consonants: {consonants_string}"
+
+
+def get_missing_knowledge_str(language: str, student_knowledge: dict) -> str:
+    """Get string for missing knowledge for the specified language and student."""
+    if language != "sw":
+        raise NotImplementedError(
+            "Missing knowledge string is only implemented for Kiswahili, not "
+            f"{language}."
+        )
+
+    grapheme_inventory = primerpro_settings.grapheme_inventory
+
+    if grapheme_inventory is None:
+        raise ValueError("Grapheme inventory is not defined in primerpro_settings.")
+
+    knowledge_model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
+    profile = knowledge_model.model_validate(student_knowledge)
+
+    unknown_graphemes = [
+        grapheme.symbol
+        for grapheme in grapheme_inventory._get_all_graphemes()
+        if grapheme.symbol not in profile.graphemes
+    ]
+    prenasalised_patterns = (
+        # patterns that are a superset of the m- and n- prenasalised patterns,
+        # which makes the full list of unknown cluster patterns not MECE.
+        # So, we want to exclude these from the full list of valid cluster patterns.
+        ClusterPattern.PRENASALISED,
+        ClusterPattern.PRENASALISED_LABIALISED_GLIDE,
+        ClusterPattern.PRENASALISED_PALATALISED_GLIDE,
+    )
+    unknown_cluster_patterns = [
+        pattern.label
+        for pattern in ClusterPattern
+        if (
+            pattern.label not in profile.cluster_patterns
+            and pattern not in prenasalised_patterns
+        )
+    ]
+
+    unknown_graphemes_string = (
+        ", ".join(unknown_graphemes) if unknown_graphemes else "None"
+    )
+    unknown_cluster_patterns_string = (
+        ", ".join(unknown_cluster_patterns) if unknown_cluster_patterns else "None"
+    )
+    return (
+        f"- Unknown graphemes: {unknown_graphemes_string}\n"
+        f"- Unknown cluster patterns: {unknown_cluster_patterns_string}\n"
+        f"- Unknown clusters: any other consonant clusters not covered by known "
+        f"cluster patterns\n"
+    )
