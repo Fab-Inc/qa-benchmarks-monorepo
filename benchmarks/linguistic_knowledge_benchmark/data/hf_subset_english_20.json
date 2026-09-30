@@ -1,0 +1,516 @@
+[
+  {
+    "question_id": 3,
+    "domain": "D1",
+    "subdomain": "one grapheme, several pronunciations",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "In which word does the grapheme 'ea' spell the same vowel sound as it does in 'break'?",
+    "options": {
+      "A": "real",
+      "B": "dream",
+      "C": "great",
+      "D": "thread"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "ea spells three phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.40:Section 3 - Graphemes",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.142:Teaching alternative pronunciations for graphemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 17,
+    "domain": "D1",
+    "subdomain": "long vowel digraphs",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word is the long o sound spelt with a vowel digraph rather than a split digraph?",
+    "options": {
+      "A": "goat",
+      "B": "home",
+      "C": "note",
+      "D": "robe"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "oa spells the long o sound",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1: Mark schemes and content domain references for Paper 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 25,
+    "domain": "D3",
+    "subdomain": "noun formation",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the noun formed from the verb 'act'.",
+    "expected_answers": [
+      "action"
+    ],
+    "linguistic_feature": "/ʃən/ spelt –tion",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.45-48:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 26,
+    "domain": "D1",
+    "subdomain": "silent letters",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the correct spelling of the word meaning 'not right or not correct', which begins with the /r/ sound.",
+    "expected_answers": [
+      "wrong"
+    ],
+    "linguistic_feature": "Initial /r/ spelt wr",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p6:Table 1",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 28,
+    "domain": "D1",
+    "subdomain": "comma use",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "In standard British punctuation, how many commas are needed in the sentence 'She packed apples oranges and pears'?",
+    "expected_answers": [
+      "1",
+      "one"
+    ],
+    "linguistic_feature": "Commas in a list",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:pp11-13:8. Mark schemes for Paper 2: questions (Qu.2, 6, 8, 10, 15)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 34,
+    "domain": "D1",
+    "subdomain": "suffix spellings",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "Write the word meaning 'a living being', which shares its root with 'create'.",
+    "expected_answers": [
+      "creature"
+    ],
+    "linguistic_feature": "/tʃə/ ending spelt –ture",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 36,
+    "domain": "D1",
+    "subdomain": "etymological spellings",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "In which word do the letters 'ch' spell /ʃ/?",
+    "options": {
+      "A": "chicken",
+      "B": "mischief",
+      "C": "chuckle",
+      "D": "machine"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "/ʃ/ spelt ch in French words",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.49-53:Spelling – work for years 3 and 4",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 47,
+    "domain": "D1",
+    "subdomain": "parenthesis punctuation",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "A pair of commas is needed in 'She decided although she was tired that she would go'. Where does the second comma belong?",
+    "options": {
+      "A": "after 'would'",
+      "B": "after 'tired'",
+      "C": "after 'go'",
+      "D": "after 'decided'"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Paired commas mark an embedded clause",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p11:5. Mark schemes Qu.12, Qu.14",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 53,
+    "domain": "D2",
+    "subdomain": "alliteration",
+    "grade": "G0",
+    "answer_type": "multiple_choice",
+    "question": "Which word begins with the same sound as 'city'?",
+    "options": {
+      "A": "kite",
+      "B": "chip",
+      "C": "sun",
+      "D": "cot"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Alliterative words share their initial sound",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "DfE_Development_Matters_Report_Sep2023.pdf:p.79:Literacy - 3 and 4-year-olds will be learning to:",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 57,
+    "domain": "D2",
+    "subdomain": "letters versus phonemes",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "How many phonemes does the letter pair qu represent in the word 'queen'?",
+    "expected_answers": [
+      "2",
+      "two"
+    ],
+    "linguistic_feature": "qu spells two phonemes",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.80:Phase Three - Summary / Letters (footnote on x and qu)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 60,
+    "domain": "D2",
+    "subdomain": "letters versus phonemes",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "How many phonemes does the word 'caught' contain?",
+    "options": {
+      "A": "2",
+      "B": "3",
+      "C": "4",
+      "D": "6"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Letter count differs from phoneme count",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.80-84:Glossary – phoneme, syllable, schwa",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 76,
+    "domain": "D2",
+    "subdomain": "ending pronunciation",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words ends with the sound /ʃəs/?",
+    "options": {
+      "A": "nervous",
+      "B": "curious",
+      "C": "mysterious",
+      "D": "suspicious"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "The ending of suspicious is /ʃəs/",
+    "svr_strand": "decoding",
+    "geeap_component": "phonological_awareness",
+    "sources": [
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p18:Table 3, Qu.14, Qu.16",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 84,
+    "domain": "D4",
+    "subdomain": "regular past tense",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which spelling of the past tense is correct, even though the ending sounds like /t/?",
+    "options": {
+      "A": "wished",
+      "B": "wishd",
+      "C": "wishet",
+      "D": "wisht"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Past tense suffix –ed",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.41:Adding the endings –ing, –ed and –er to verbs",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 86,
+    "domain": "D4",
+    "subdomain": "y to i alternation",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the form of the verb 'copy' that is used after 'is'.",
+    "expected_answers": [
+      "copying"
+    ],
+    "linguistic_feature": "y becomes i before –ed but not before –ing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:pp.46-47:Spelling – work for year 2",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 96,
+    "domain": "D5",
+    "subdomain": "conjunctions",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Which conjunction completes 'I wanted to buy an apple ___ I forgot my money'?",
+    "options": {
+      "A": "if",
+      "B": "because",
+      "C": "or",
+      "D": "but"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Subordinating and co-ordinating conjunctions",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p11:8. Mark schemes Qu.1",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS1_English_GPS_test_mark_schemes.pdf:p12:8. Mark schemes Qu.5",
+        "tier": "teacher_material"
+      },
+      {
+        "locator": "2026_KS2_English_GPS_mark_schemes.pdf:p16:5. Mark schemes Qu.48",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 103,
+    "domain": "D6",
+    "subdomain": "prefix meaning",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In which word does 'un-' mean 'not'?",
+    "options": {
+      "A": "untie",
+      "B": "unzip",
+      "C": "unkind",
+      "D": "unlock"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "un– means not or undoing",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.65:Year 1 – Word",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 114,
+    "domain": "D7",
+    "subdomain": "cohesion",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word links one paragraph to another by number?",
+    "options": {
+      "A": "nearby",
+      "B": "secondly",
+      "C": "later",
+      "D": "meanwhile"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Number adverbials link paragraphs",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "reading_comprehension",
+    "sources": [
+      {
+        "locator": "PRIMARY_national_curriculum_-_English_220714.pdf:p.68:Year 5 – Text",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 122,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G0",
+    "answer_type": "short_form",
+    "question": "What is the term for turning a spoken word into its written spelling?",
+    "expected_answers": [
+      "encoding",
+      "encode",
+      "to encode"
+    ],
+    "linguistic_feature": "Encode",
+    "svr_strand": "decoding",
+    "geeap_component": "writing",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.46:Encoding (spelling)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 131,
+    "domain": "D9",
+    "subdomain": "phonics terminology",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "What is the term for a single grapheme having more than one pronunciation?",
+    "options": {
+      "A": "alternative spellings",
+      "B": "alternative pronunciations",
+      "C": "homophones",
+      "D": "homographs"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Alternative pronunciations",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Letters_and_Sounds_-_DFES-00281-2007.pdf:PDF p.142:Teaching alternative pronunciations for graphemes",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 136,
+    "domain": "D9",
+    "subdomain": "morphological terminology",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "Which of these words belongs to the same word family as 'extend'?",
+    "options": {
+      "A": "external",
+      "B": "extensive",
+      "C": "extinct",
+      "D": "exterior"
+    },
+    "expected_answers": [
+      "B"
+    ],
+    "linguistic_feature": "Word family",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "The_reading_framework_.pdf:p.164:Appendix 12 Glossary - word family",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "typologist_judgement"
+  }
+]

@@ -8,5 +8,14 @@ version = "0.1.0"
 description = "Shared benchmark result contracts, processing, and upload helpers"
 requires-python = ">=3.13"
 dependencies = [
+  # The leaderboard's providermeta.json is served from an Azure container, not GCS.
+  "azure-storage-blob>=12",
   "google-cloud-storage>=2",
+  # frontier.py / leaderboard.py only. Kept out of __init__.py so importing the
+  # package for its GCS helpers does not pay for pandas -- see the note there.
+  "numpy>=1.26.0",
+  "pandas>=2.0.0",
 ]
+
+[project.scripts]
+fab-leaderboard = "fab_benchmark_publisher.leaderboard_cli:main"

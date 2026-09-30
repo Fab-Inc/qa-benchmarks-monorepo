@@ -1,11 +1,10 @@
 """
 Linguistic Knowledge Eval Module
 Evaluates LLM performance on language knowledge questions.
-Supports multiple_choice, short_form, and true_false answer types.
+Supports multiple_choice and short_form answer types.
 """
 
 import json
-import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -21,44 +20,11 @@ from linguistic_knowledge_benchmark.shared_utils import (
     EVAL_MODELS,
     RATE_LIMITED_MODELS,
     english_language_name,
-    run_dir,
+    experiment_dir,
 )
 
 CALL_STATUS_SUCCESS = "success"
 CALL_STATUS_ERROR = "error"
-
-
-# MCQ letter-extraction regexes.
-ANSWER_PATTERNS = [
-    r"^\s*([ABCD])(?:[\.(?:\s*\n)]+.*)*$",
-    r"^\s*\(([ABCD])\)",  # letter in parentheses, e.g. (C)
-    r"^<think>[\s\S]*?</think>[\s\S]*?([ABCD])$",  # for deepseek R1
-    r"^## Step 1[\s\S]*?([ABCD])[\.\s]*$",  # for llama 4
-    r'[\s\S]*\n([A-D])"?$',  # for claude 4
-    # for glm 4.1v-9b-thinking
-    r"<answer>(?:<\|begin_of_box\|>)?([ABCD])(?:<\|end_of_box\|>)?$",
-]
-ANSWER_REGEXES = [re.compile(pat) for pat in ANSWER_PATTERNS]
-
-
-def parse_answer(resp: str) -> str | None:
-    """
-    Parse model response to extract the answer letter (A-D).
-    Returns None if no valid answer found.
-
-    judge_bench.py imports this function directly from run_bench.py.
-    """
-    if pd.isna(resp) or resp is None:
-        return None
-
-    resp = str(resp).strip()
-
-    for regex in ANSWER_REGEXES:
-        match = regex.match(resp)
-        if match is not None:
-            return match.groups()[0]
-
-    return None
 
 
 def _build_system_prompts(language_name: str) -> dict[str, str]:
@@ -83,10 +49,6 @@ def _build_system_prompts(language_name: str) -> dict[str, str]:
         "short_form": (
             prefix + "Answer the question."
             "\nProvide only the answer in 1-3 words. Do not explain."
-        ),
-        "true_false": (
-            prefix + "Answer the following question with exactly 'True' or 'False'."
-            "\nDo not explain."
         ),
     }
 
@@ -120,12 +82,13 @@ def load_dataset(dataset_path: Path) -> list[dict]:
         return json.load(f)
 
 
-def _responses_dir(language_name: str, run_id: str | None = None) -> Path:
-    """Return the responses directory for a language/run.
+def _responses_dir(language_name: str, experiment_id: str | None = None) -> Path:
+    """Return the responses directory for a language/experiment.
 
-    Always writes under runs/; omitting run_id uses the 'default' run.
+    Always writes under experiments/; omitting experiment_id uses the 'default'
+    experiment.
     """
-    return run_dir(language_name, run_id) / "responses"
+    return experiment_dir(language_name, experiment_id) / "responses"
 
 
 def git_hash() -> str | None:
@@ -145,10 +108,12 @@ def git_hash() -> str | None:
 
 
 def update_log(
-    run_directory: Path, model_name: str, fields: dict[str, str | None]
+    experiment_directory: Path,
+    model_name: str,
+    fields: dict[str, str | list[str] | None],
 ) -> None:
     """Merge-write model provenance fields into log.json; skip None values."""
-    log_path = run_directory / "log.json"
+    log_path = experiment_directory / "log.json"
     log_data: dict = {}
     if log_path.exists():
         with open(log_path, encoding="utf-8") as _f:
@@ -204,32 +169,33 @@ def run_benchmark(
     dataset_path: Path,
     force: bool = False,
     retry_errors: bool = False,
-    run_id: str | None = None,
+    experiment_id: str | None = None,
     output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
     """Run the Linguistic Knowledge benchmark for a given model.
 
     Args:
         model_name: Model name (must match key in EVAL_MODELS / custom_models.yaml)
-        language_name: Display name of the language (e.g. "Luganda", "Yoruba"),
+        language_name: Display name of the language (e.g. "Kiswahili", "Yoruba"),
             interpolated into the system prompts.
         dataset_path: Path to the dataset JSON file.
         force: Force re-run even if cached results exist
         retry_errors: Retry rows with persisted call_status="error" in an
             existing cache file
-        run_id: Optional run ID; writes under
-            cache/<language>/runs/<run_id>/responses/.
+        experiment_id: Optional experiment ID; writes under
+            cache/<language>/experiments/<experiment_id>/responses/.
             Defaults to 'default' when not specified.
-        output_dir: Directory to save results (default:
-            cache/<language>/runs/<run_id>/responses)
+        output_dir: Directory to save results. Defaults to
+            cache/<language>/experiments/<experiment_id>/responses/
     Returns:
         DataFrame with columns: question_id, domain, answer_type, expected_answers,
-        output, latency, total_tokens, completion_tokens, reasoning_tokens
+        output, latency, total_tokens, completion_tokens, reasoning_tokens,
+        call_status, error_type, error_message, retry_count
     """
     if output_dir is None:
-        output_dir = _responses_dir(language_name, run_id)
+        output_dir = _responses_dir(language_name, experiment_id)
     output_dir = Path(output_dir)
-    run_directory = output_dir.parent
+    experiment_directory = output_dir.parent
 
     # Validate model name
     if model_name not in EVAL_MODELS:
@@ -341,11 +307,11 @@ def run_benchmark(
     results_df.to_csv(cache_path, index=False)
     prefix = "responses_retry" if retry_errors else "responses"
     update_log(
-        run_directory,
+        experiment_directory,
         model_name,
         {
-            f"{prefix}_timestamp-utc": datetime.now(UTC).isoformat(),
-            f"{prefix}_git-hash": git_hash(),
+            f"{prefix}_timestamp_utc": datetime.now(UTC).isoformat(),
+            f"{prefix}_git_hash": git_hash(),
         },
     )
     print(f"Results saved to {cache_path}")

@@ -138,6 +138,96 @@ def download_file(
     blob.download_to_filename(write_path)
 
 
+# Config every benchmark shares, published to a public bucket rather than committed
+# here so the bucket is the single source of truth and no checkout can drift from it.
+# The consequence is that a fresh checkout has none of them.
+SHARED_CONFIG_BUCKET = "fab-open-configs"
+
+# Every object ensure_shared_config is allowed to fetch, by its basename. Without this
+# guard a mistyped --models-csv would send its typo to the bucket as an object name,
+# and a test passing a deliberately-absent path would make a real network call.
+SHARED_CONFIG_NAMES = frozenset({"custom_models.yaml", "models.csv", "providers.csv"})
+
+
+def ensure_shared_config(path: str | Path) -> Path:
+    """Return `path`, fetching it from the shared-config bucket if missing or stale.
+
+    Raises FileNotFoundError for a path that is not a shared config -- that is a typo
+    or an intentionally-local file, and neither can be downloaded.
+    """
+    destination = Path(path)
+    if destination.name not in SHARED_CONFIG_NAMES:
+        if destination.is_file():
+            return destination
+        raise FileNotFoundError(
+            f"{destination} not found, and is not one of the shared config files "
+            f"({', '.join(sorted(SHARED_CONFIG_NAMES))}) that can be fetched"
+        )
+    present = destination.is_file()
+    if present:
+        # Existence alone is not enough: these files gain models and providers over
+        # time, and a stale copy makes new models silently vanish from a published
+        # bundle rather than fail visibly. Compare checksums -- one metadata call, no
+        # download -- and re-fetch only on a mismatch. If the bucket is unreachable,
+        # carry on with the local copy: being unable to confirm freshness is a reason
+        # to say so, not a reason to refuse to work offline.
+        from google.cloud.storage import Client
+
+        from fab_benchmark_publisher.run_sync import _file_crc32c
+
+        try:
+            blob = (
+                Client.create_anonymous_client()
+                .bucket(SHARED_CONFIG_BUCKET)
+                .blob(destination.name)
+            )
+            blob.reload()
+            remote = blob.crc32c
+            # None means the bucket reported no checksum: "cannot tell", not
+            # "differs" -- re-downloading on that would be pure waste.
+            if remote is None or remote == _file_crc32c(destination):
+                return destination
+        except Exception as e:
+            print(f"  ({destination.name}: cannot check the bucket -- {e})")
+            print("   using the local copy, which may be out of date")
+            return destination
+    verb = "Refreshing" if present else "Fetching"
+    print(f"{verb} {destination.name} from gs://{SHARED_CONFIG_BUCKET}/ ...")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    download_file(
+        bucket_name=SHARED_CONFIG_BUCKET,
+        file_name=destination.name,
+        write_path=destination,
+        require_auth=False,
+    )
+    return destination
+
+
+# The leaderboard's global model and provider catalogue: every provider's colour and
+# logo, and every model's display name, price, size and release date, keyed by the same
+# positional ids the bundle's `data` rows carry. It is shared by every benchmark cluster
+# on the site and published from an Azure container we do not own, so nothing here
+# builds or uploads it -- we only read it, to check that the models we publish can
+# actually be resolved against it.
+AZURE_PROVIDERMETA_URL = (
+    "https://fabdatastorage.blob.core.windows.net/ai-for-ed-public/providermeta.json"
+)
+
+
+def fetch_providermeta(url: str = AZURE_PROVIDERMETA_URL) -> dict:
+    """Download and parse the leaderboard's providermeta.json from Azure.
+
+    The container is public, so no credential is needed. AZURE_SAS_TOKEN is used when
+    set, for the day it stops being public -- no code change needed then.
+    """
+    from azure.storage.blob import BlobClient
+
+    blob = BlobClient.from_blob_url(
+        url, credential=os.environ.get("AZURE_SAS_TOKEN") or None
+    )
+    return json.loads(blob.download_blob().readall())
+
+
 def upload_json(
     data: object,
     *,
