@@ -1,11 +1,8 @@
-from functools import reduce
-
-from decodability.kiswahili.definitions import (
-    VALID_CLUSTERS,
+from decodability.kiswahili.segment import (
     get_clusters,
-    get_graphemes,
+    get_grapheme_symbols,
 )
-from decodability.kiswahili.models import KiswahiliStudentKnowledge
+from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 
 def score_known_graphemes_kiswahili(
@@ -21,7 +18,7 @@ def score_known_graphemes_kiswahili(
     if not taught_graphemes:
         return 0.0
 
-    if any(grapheme not in taught_graphemes for grapheme in get_graphemes(word)):
+    if any(grapheme not in taught_graphemes for grapheme in get_grapheme_symbols(word)):
         return 0.0
 
     return 1.0
@@ -35,17 +32,10 @@ def score_known_clusters_and_patterns_kiswahili(
     The score is binary: if there's any cluster that the student doesn't know, the
     score is 0.
 
-    If the word doesn't contain any cluter, the score is 1.0, since the student
+    If the word doesn't contain any cluster, the score is 1.0, since the student
     doesn't need to know any clusters to decode it.
     """
-    taught_cluster_patterns = student_knowledge.cluster_patterns
-    taught_clusters_from_taught_patterns = reduce(
-        set.union,
-        (VALID_CLUSTERS[pattern] for pattern in taught_cluster_patterns),
-        set(),
-    )
-
-    taught_clusters = student_knowledge.clusters | taught_clusters_from_taught_patterns
+    taught_clusters = student_knowledge.all_known_clusters
 
     for cluster in get_clusters(word):
         if cluster not in taught_clusters:
