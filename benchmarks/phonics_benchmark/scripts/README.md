@@ -61,6 +61,26 @@ curated after running the benchmark, e.g. using Item Response Theory.
 See [`../README.md`](../README.md) to learn how to set up the run configuration and run
 the benchmark.
 
+## Refresh cloud runs before reporting
+
+A cloud run keeps writing responses to GCS after you first download it, so pull the
+current state before you score it:
+
+```shell
+uv run --frozen --package phonics-benchmark python \
+   benchmarks/phonics_benchmark/scripts/sync_runs_from_gcs.py \
+   --run-id $YOUR_RUN_ID \
+   --run-id $ANOTHER_RUN_ID
+```
+
+`--all-local` refreshes every cloud run already in `outputs/` instead of naming them.
+Runs executed on this machine are left alone — they have no remote copy.
+
+Only `config.json` and `responses/` are pulled, so the `report/` directory you generated
+locally survives; pass `--all-artifacts` to mirror the whole run prefix. The bucket and
+project come from `BUCKET_NAME` and `GOOGLE_CLOUD_PROJECT` in the `.env` files, so
+nothing needs exporting first.
+
 ## Generate benchmark report
 
 Generate a report on benchmark run by running

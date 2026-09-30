@@ -1,12 +1,31 @@
-"""Score one benchmark run and report per-model metrics.
+"""Score benchmark runs against the items they executed on, and report metrics.
 
-Reads a run directory written by ``phonics-benchmark run-decodability`` and writes
-its scoring outputs back into the same directory.
+Reads run directories written by ``phonics-benchmark run-decodability`` and
+writes the scoring outputs back into them.
 
-The language and the benchmark item file are read from the run's own
-``config.json`` snapshot rather than passed in, so a run is always scored against
-the exact item set it was executed on. If that file has changed since the run,
-the recorded ``items_sha256`` no longer matches and the script says so.
+The language and the benchmark item file are read from each run's own
+``config.json`` snapshot, so a run is always scored against the exact item set
+it was executed on. If that file has changed since the run, the recorded
+``items_sha256`` no longer matches and the script says so. ``--items-path``
+points at the items instead, for a run whose recorded path is unreachable from
+here — a cloud run records the container's — and must still hash to that
+``items_sha256``. To score against a *revised* gold standard on purpose, where
+that hash cannot match, use ``regrade_benchmark_run.py``.
+
+Repeating ``--run-id`` scores several runs that were executed on the same items
+— a benchmark split across runs by provider, say — and pools them into one
+combined report as well as writing each run's own. ``--combined-name`` names the
+directory for it under ``<output root>/analysis/``, which is outside the run-id
+namespace: a directory beside the runs would resolve as a ``--run-id`` but hold
+no responses. Pooling re-scores the runs together rather than merging their
+reports, because a bootstrap interval has to resample one item set across every
+model for the intervals to be comparable between them.
+
+Where one model was scored on the same item in two of the runs, only the run
+that scored it on more items goes into the pool — a rerun normally supersedes a
+truncated first attempt. The drop is announced, recorded in the combined
+``scoring_provenance.json``, and applies to the pool alone: each run's own
+report still covers everything that run scored.
 
 Scoring is only on responses with successful provider calls and output parsing.
 If any responses are excluded, the script prints how many, per model.
@@ -18,7 +37,7 @@ Run from the repository root, e.g.:
         --run-id sw-tusome-260810 \\
         --inspect-sample-size 20
 
-Writes, into `{run directory}/report`:
+Writes, into `{run directory}/report` or whatever ``--report-subdir`` names:
 
 - ``results_with_scoring.csv`` — every model/item row with its confusion counts
 - ``summary_by_model.csv`` — one row per model, plus an ``is_baseline`` row each
@@ -28,6 +47,7 @@ Writes, into `{run directory}/report`:
   ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
+- ``scoring_provenance.json`` — which gold file and hashes produced these numbers
 
 The bootstrap resamples benchmark items with replacement, so its interval covers
 item-sampling error and nothing else: not run-to-run variation in a model's own
@@ -38,198 +58,225 @@ one text backs many items.
 
 from __future__ import annotations
 
-import json
-from hashlib import sha256
 from pathlib import Path
 
 import pandas as pd
 import typer
-from phonics_benchmark.bootstrap import bootstrap_metric_cis
-from phonics_benchmark.parsing import parse_word_list
-from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
-from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
-from phonics_benchmark.scoring import (
-    BASELINE_MODEL_NAMES,
-    accuracy_by_nondecodable_count,
-    add_per_item_confusion_matrix,
-    build_baseline_results,
-    summarize_by_model,
+from phonics_benchmark.reporting import (
+    DEFAULT_OUTPUT_ROOT,
+    ScoredRun,
+    build_scored_run,
+    load_run,
+    load_run_items,
+    write_report,
 )
-from phonics_benchmark.utils import require_columns
-
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[1] / "outputs"
-
-# Fixed rather than exposed as a flag: the sample is for eyeballing, and a stable
-# seed means re-running the script shows you the same items.
-INSPECTION_RANDOM_STATE = 42
-
-# Item metadata joined onto each response row. `nondecodable_words` is the gold
-# answer; the rest are the difficulty columns the breakdowns group by.
-ITEM_METADATA_COLUMNS = [
-    "benchmark_item_id",
-    "student_knowledge",
-    "content",
-    "nondecodable_words",
-    "nondecodable_ratio",
-    "num_nondecodable_words",
-    "num_total_words",
-]
-
-# Enough to judge a response by eye without the noise of the full row.
-INSPECTION_COLUMNS = [
-    "run_id",
-    "benchmark_item_id",
-    "model",
-    "prompt",
-    "latency_seconds",
-    "tokens_used_completion",
-    "content",
-    "student_knowledge",
-    "nondecodable_words",
-    "response_parsed",
-    "tp_count",
-    "fp_count",
-    "fn_count",
-    "tn",
-    "perfect_match",
-]
 
 
-def resolve_run_dir(run_id: str, output_root: Path) -> Path:
-    """Return the run's output directory, checking it looks like one."""
-    run_dir = output_root / run_id
-    if not run_dir.is_dir():
-        raise typer.BadParameter(f"Run directory does not exist: {run_dir}")
-    if not (run_dir / "responses").is_dir():
+def score_one_run(
+    run_id: str,
+    output_root: Path,
+    items_path: Path | None,
+) -> ScoredRun:
+    """Load and score one run against the items it executed on."""
+    loaded = load_run(run_id, output_root)
+    items = load_run_items(loaded.resolved_config, items_path)
+    gold_path = items_path or Path(loaded.resolved_config["items_path"])
+    return build_scored_run(loaded, items, gold_path)
+
+
+def verify_runs_are_comparable(scored_runs: list[ScoredRun]) -> None:
+    """Refuse to pool runs whose numbers do not belong on one axis.
+
+    Pooling assumes the runs are slices of one benchmark, sliced by model, by
+    item, or both. Three differences make that false and cannot be worked
+    around: a different language, which means a different decodability rule;
+    different items at run time, which means the models were not shown the same
+    texts; and a different gold standard, which makes the metrics answer a
+    different question.
+
+    A model scored twice on the same item would also break the pool, but that
+    one is repairable rather than fatal — see pool_results.
+    """
+    languages = {run.language for run in scored_runs}
+    if len(languages) > 1:
         raise typer.BadParameter(
-            f"{run_dir} has no responses/ subdirectory — is it a run directory?"
+            f"These runs span {len(languages)} languages ({sorted(languages)}). "
+            "Decodability is language-specific, so they cannot be pooled."
         )
-    return run_dir
 
-
-def read_run_snapshot(run_dir: Path) -> dict:
-    """Return the ``resolved_config`` block of a run's config snapshot."""
-    snapshot_path = run_dir / "config.json"
-    try:
-        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    # What the models were shown, as opposed to what they are scored against.
+    # Runs executed on different item sets answered different exams, and that
+    # stays true even when both are later scored against one gold file.
+    executed_on = {
+        run.run_id: run.provenance.get("run_items_sha256") for run in scored_runs
+    }
+    distinct_executed = {digest for digest in executed_on.values() if digest}
+    if len(distinct_executed) > 1:
+        detail = "\n".join(
+            f"  {run_id}: {str(digest)[:12]}"
+            for run_id, digest in sorted(executed_on.items())
+        )
         raise typer.BadParameter(
-            f"Missing {snapshot_path}; the run's language and item set are read "
-            "from it. Was this run written by an older version of the runner?"
-        ) from None
-    return snapshot["resolved_config"]
+            "These runs were executed on different item sets, so their models "
+            f"were not shown the same texts and cannot be pooled:\n{detail}"
+        )
+
+    golds = {run.provenance["gold_items_sha256"] for run in scored_runs}
+    if len(golds) > 1:
+        detail = "\n".join(
+            f"  {run.run_id}: {run.provenance['gold_items_sha256'][:12]}"
+            for run in scored_runs
+        )
+        raise typer.BadParameter(
+            f"These runs were scored against {len(golds)} different gold "
+            f"standards, so their metrics cannot be pooled:\n{detail}"
+        )
 
 
-def load_run_responses(run_dir: Path) -> pd.DataFrame:
-    """Concatenate every model's responses JSONL and parse each raw response."""
-    response_file_paths = sorted((run_dir / "responses").glob("*.jsonl"))
-    if not response_file_paths:
-        raise typer.BadParameter(f"No responses/*.jsonl found in {run_dir}")
-
-    frames = [load_results(path) for path in response_file_paths]
-    frames = [frame for frame in frames if not frame.empty]
-    if not frames:
-        raise typer.BadParameter(f"Every responses file in {run_dir} was empty")
-
-    results = pd.concat(frames, ignore_index=True)
-
-    parsed = results["output"].apply(parse_word_list)
-    results["response_parsed"] = [result.words for result in parsed]
-    results["parse_ok"] = [result.parse_ok for result in parsed]
-
-    return results
+def items_scored(results: pd.DataFrame, model: str) -> set:
+    """The distinct benchmark items one model was scored on in one run."""
+    return set(results[results["model"] == model]["benchmark_item_id"].unique())
 
 
-@require_columns(["call_status", "parse_ok"])
-def split_scorable_responses(
-    responses: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split loaded responses into included vs. excluded rows for scoring.
+def pool_results(scored_runs: list[ScoredRun]) -> tuple[pd.DataFrame, list[dict]]:
+    """Concatenate the runs' rows, keeping one run's copy of any repeated model.
 
-    Two types of rows are excluded:
+    A model scored on the same item in two runs would have that item counted
+    twice in its pooled confusion totals. Rather than refuse, drop the copy from
+    the run that scored that model on fewer items: when a model is rerun it is
+    normally because the first attempt was truncated, so the longer one
+    supersedes it. The usual case is a strict superset, where nothing is lost.
 
-    * ``call_status`` is not ``success``
-    * ``parse_ok`` is False
+    A whole model-run is dropped rather than just the repeated items, so every
+    pooled row for a model comes from one execution. Where that discards items
+    the kept run does not have, the caller is told how many.
 
-    Returns ``(scorable, excluded)`` with ``excluded`` having an ``exclusion_reason``
-    column.
+    Returns the pooled frame and a record of what was dropped, which the
+    combined report keeps in its ``scoring_provenance.json`` — a leaderboard
+    should not be the only trace of a model-run having been set aside.
     """
-    call_failed = responses["call_status"].ne(CALL_STATUS_SUCCESS)
-    parse_failed = ~responses["parse_ok"] & ~call_failed
-
-    reason = pd.Series(index=responses.index, dtype="object")
-    reason[parse_failed] = "parse_failed"
-    reason[call_failed] = "call_failed"
-
-    excluded = responses[reason.notna()].copy()
-    excluded["exclusion_reason"] = reason[reason.notna()]
-    scorable = responses[reason.isna()].copy()
-    return scorable, excluded
-
-
-def warn_about_exclusions(excluded: pd.DataFrame) -> None:
-    """Print a per-model, per-reason count of the rows left out of scoring.
-
-    Counts only: the excluded rows themselves stay in the run's own
-    ``responses/*.jsonl``, so the report has no reason to copy them.
-    """
-    breakdown = (
-        excluded.groupby(["model", "exclusion_reason"]).size().unstack(fill_value=0)
+    frames = {run.run_id: run.results for run in scored_runs}
+    coverage = pd.concat(
+        [
+            results[["model", "benchmark_item_id"]].assign(run_id=run_id)
+            for run_id, results in frames.items()
+        ],
+        ignore_index=True,
     )
+    repeated = coverage[coverage.duplicated(["model", "benchmark_item_id"], keep=False)]
+
+    dropped: list[dict] = []
+    drop_by_run: dict[str, set[str]] = {}
+    for model in sorted(repeated["model"].unique()):
+        # Stable sort, and groupby orders run_ids alphabetically, so an exact
+        # tie in item count resolves the same way on every rerun.
+        counts = (
+            coverage[coverage["model"] == model]
+            .groupby("run_id")["benchmark_item_id"]
+            .nunique()
+            .sort_values(ascending=False, kind="stable")
+        )
+        kept_run = str(counts.index[0])
+        kept_items = items_scored(frames[kept_run], model)
+        for run_id in map(str, counts.index[1:]):
+            run_items = items_scored(frames[run_id], model)
+            drop_by_run.setdefault(run_id, set()).add(model)
+            dropped.append(
+                {
+                    "model": model,
+                    "kept_run": kept_run,
+                    "kept_items": len(kept_items),
+                    "dropped_run": run_id,
+                    "dropped_items": len(run_items),
+                    "items_lost": len(run_items - kept_items),
+                    "tied_on_item_count": len(run_items) == len(kept_items),
+                }
+            )
+
+    announce_dropped_model_runs(dropped)
+
+    pooled = pd.concat(
+        [
+            results[~results["model"].isin(drop_by_run.get(run_id, set()))]
+            for run_id, results in frames.items()
+        ],
+        ignore_index=True,
+    )
+    return pooled, dropped
+
+
+def announce_dropped_model_runs(dropped: list[dict]) -> None:
+    """Say which model-runs were left out of the pool, and what it cost."""
+    if not dropped:
+        return
     typer.secho(
-        f"WARNING: excluded {len(excluded)} response row(s) from scoring.\n",
-        fg=typer.colors.YELLOW,
+        f"Dropped {len(dropped)} model-run(s) from the pool as superseded:",
+        fg=typer.colors.CYAN,
         err=True,
     )
-    typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
-
-
-def load_run_items_from_config(resolved_config: dict) -> pd.DataFrame:
-    """Load the exact item set the run was executed against.
-
-    Warns if the file's bytes don't hash to the ``items_sha256`` recorded at
-    run time, which would mean the scores are being computed against different
-    items than the models saw.
-    """
-    items_path = Path(resolved_config["items_path"])
-    if not items_path.is_file():
-        raise typer.BadParameter(f"The run's items file no longer exists: {items_path}")
-
-    recorded_sha256 = resolved_config.get("items_sha256")
-    # actual sha256 from items.py:24
-    actual_sha256 = sha256(items_path.read_bytes()).hexdigest()
-    if recorded_sha256 and recorded_sha256 != actual_sha256:
+    for record in dropped:
+        line = (
+            f"  {record['model']}: kept {record['kept_run']} "
+            f"({record['kept_items']} items), dropped {record['dropped_run']} "
+            f"({record['dropped_items']} items)"
+        )
+        if record["tied_on_item_count"]:
+            line += " — same item count, kept the first by run ID"
+        if record["items_lost"]:
+            line += (
+                f"\n    WARNING: this discards {record['items_lost']} item(s) "
+                "the kept run does not cover"
+            )
         typer.secho(
-            f"WARNING: {items_path} has changed since this run.\n"
-            f"  recorded items_sha256: {recorded_sha256}\n"
-            f"  current  items_sha256: {actual_sha256}",
-            fg=typer.colors.YELLOW,
+            line,
+            fg=typer.colors.YELLOW if record["items_lost"] else typer.colors.CYAN,
             err=True,
         )
 
-    items = pd.read_json(items_path, lines=True)
-    return items
 
+def warn_about_partial_coverage(pooled: pd.DataFrame) -> None:
+    """Name models that the pool does not cover evenly.
 
-def sample_items_for_inspection(
-    scored_results: pd.DataFrame,
-    sample_size: int,
-) -> pd.DataFrame:
-    """Return every model's row for a random sample of benchmark items."""
-    item_ids = pd.Series(scored_results["benchmark_item_id"].unique())
-    sampled_ids = item_ids.sample(
-        min(sample_size, len(item_ids)), random_state=INSPECTION_RANDOM_STATE
+    Coverage is counted per model over the pooled rows, not per run: a model
+    split across item shards is complete even though neither shard holds all of
+    it. Failed and unparseable responses are already excluded, so a short count
+    here is a real gap in what that model was scored on, and its metrics rest on
+    a different item subset from everyone else's.
+    """
+    pooled_items = pooled["benchmark_item_id"].nunique()
+    per_model = pooled.groupby("model")["benchmark_item_id"].nunique()
+    short = per_model[per_model < pooled_items]
+    if short.empty:
+        return
+    detail = "\n".join(
+        f"  {model}: {count} of {pooled_items} items" for model, count in short.items()
     )
-    sampled = scored_results[scored_results["benchmark_item_id"].isin(sampled_ids)]
-    columns = [column for column in INSPECTION_COLUMNS if column in sampled.columns]
-    return sampled[columns].sort_values(["benchmark_item_id", "model"])
+    typer.secho(
+        "WARNING: these models were not scored on every pooled item, so their "
+        f"metrics rest on a different item subset:\n{detail}",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
 
 
 def report_on_run(
-    run_id: str = typer.Option(
+    run_ids: list[str] = typer.Option(
         ...,
         "--run-id",
-        help="Run ID to report on, resolved under the output root.",
+        help=(
+            "Run ID to report on, resolved under the output root. Repeat it to "
+            "score several runs that share an item set and pool them into one "
+            "combined report as well as their own."
+        ),
+    ),
+    combined_name: str | None = typer.Option(
+        None,
+        "--combined-name",
+        help=(
+            "Directory name for the combined report, written under "
+            "<output root>/analysis/. Required when more than one --run-id is "
+            "given, and unused for a single run."
+        ),
     ),
     output_root: Path = typer.Option(
         DEFAULT_OUTPUT_ROOT,
@@ -237,11 +284,23 @@ def report_on_run(
         file_okay=False,
         help="Where --run-id is looked up. Defaults to the package's outputs/ folder.",
     ),
-    benchmark_items_path: Path = typer.Option(
+    items_path: Path | None = typer.Option(
         None,
-        "--benchmark-items-path",
-        help="Path to the benchmark items JSONL file, if overriding the one specified "
-        "in the run config.",
+        "--items-path",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help=(
+            "Local copy of the run's benchmark items, for a run whose recorded "
+            "items_path is not reachable from here (a cloud run records the "
+            "container's path). Must hash to the run's items_sha256, and to "
+            "every run's when several are given."
+        ),
+    ),
+    report_subdir: str = typer.Option(
+        "report",
+        "--report-subdir",
+        help="Directory under each run to write that run's report into.",
     ),
     inspect_sample_size: int | None = typer.Option(
         None,
@@ -271,98 +330,78 @@ def report_on_run(
         help="Bootstrap seed. Fixed by default so reruns give the same interval.",
     ),
 ) -> None:
-    """Report on a benchmark run and write its per-model summary and plots."""
-    run_dir = resolve_run_dir(run_id, output_root)
-    report_dir = run_dir / "report"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    resolved_config = read_run_snapshot(run_dir)
-    language = resolved_config["language"]
-
-    all_responses = load_run_responses(run_dir)
-    responses, excluded = split_scorable_responses(all_responses)
-    written: list[str] = []
-    if not excluded.empty:
-        warn_about_exclusions(excluded)
-    if responses.empty:
+    """Report on one or more benchmark runs, and pool them if there are several."""
+    duplicates = sorted({run_id for run_id in run_ids if run_ids.count(run_id) > 1})
+    if duplicates:
         raise typer.BadParameter(
-            f"Nothing to score. Every response row in {run_dir} failed or could"
-            "not be parsed."
+            f"--run-id was given more than once for {duplicates}. A run can only "
+            "contribute to the pool once."
         )
 
-    if benchmark_items_path is not None:
-        items = pd.read_json(benchmark_items_path, lines=True)
-        assert set(items.benchmark_item_id).issuperset(
-            set(all_responses.benchmark_item_id)
-        )
-    else:
-        items = load_run_items_from_config(resolved_config)
-
-    results = responses.merge(
-        items[ITEM_METADATA_COLUMNS], on="benchmark_item_id", how="left"
-    )
-    missing_metadata = int(results["nondecodable_words"].isna().sum())
-    if missing_metadata:
+    combined_dir: Path | None = None
+    if len(run_ids) > 1:
+        if combined_name is None:
+            raise typer.BadParameter(
+                "--combined-name is required with more than one --run-id: it "
+                "names the directory under analysis/ that the combined report "
+                "goes in."
+            )
+        combined_dir = output_root / "analysis" / combined_name
+    elif combined_name is not None:
         typer.secho(
-            f"WARNING: {missing_metadata} response row(s) matched no benchmark "
-            "item and cannot be scored.",
+            "WARNING: --combined-name is ignored with a single --run-id; that "
+            "run's report goes in its own directory as usual.",
             fg=typer.colors.YELLOW,
             err=True,
         )
 
-    results = add_per_item_confusion_matrix(results, language)
-    scored_path = report_dir / "results_with_scoring.csv"
-    results.to_csv(scored_path, index=False)
-    written.append(scored_path.name)
+    # Score every run before writing anything, so a run that does not belong in
+    # the pool fails while the previous reports are still untouched.
+    scored_runs = [score_one_run(run_id, output_root, items_path) for run_id in run_ids]
+    if len(scored_runs) > 1:
+        verify_runs_are_comparable(scored_runs)
 
-    # Per-model accuracy + pooled word-level confusion (precision/recall/f1),
-    # with the two trivial classifiers appended as reference rows.
-    summary = summarize_by_model(results, add_baseline=True, language=language)
-
-    typer.echo(f"\nPer-model summary for {resolved_config['run_id']}:")
-    typer.echo(summary.to_string(index=False))
-    summary.to_csv(report_dir / "summary_by_model.csv", index=False)
-    written.append("summary_by_model.csv")
-
-    # How much of the gap between two models is item-sampling noise? See
-    # bootstrap.py for what the interval does and does not cover.
-    if n_bootstrap:
-        ci_report = bootstrap_metric_cis(
-            results,
+    for run in scored_runs:
+        write_report(
+            run.results,
+            run.language,
+            run.run_dir / report_subdir,
+            run.provenance,
+            run.run_id,
             n_bootstrap=n_bootstrap,
             ci_level=ci_level,
             seed=seed,
-            add_baseline=True,
-            language=language,
+            inspect_sample_size=inspect_sample_size,
         )
-        typer.echo(
-            f"\nBootstrap {ci_level:.0%} CIs from {n_bootstrap} replicates, "
-            f"resampling {ci_report['n_items_resampled'].iloc[0]} items:"
-        )
-        typer.echo(ci_report.to_string(index=False))
-        ci_report.to_csv(report_dir / "bootstrap_ci.csv", index=False)
-        written.append("bootstrap_ci.csv")
 
-    # Does accuracy degrade as items get harder (more non-decodable words)?
-    accuracy_by_count = accuracy_by_nondecodable_count(results)
-    plot_path = report_dir / "accuracy_by_nondecodable_count.png"
-    save_accuracy_by_nondecodable_count_plot(accuracy_by_count, plot_path)
-    written.append(plot_path.name)
+    if combined_dir is None:
+        return
 
-    # Sample a few items for inspection, if requested.
-    if inspect_sample_size:
-        sampled = sample_items_for_inspection(results, inspect_sample_size)
-        sampled_path = report_dir / "sampled_items_for_inspection.csv"
-        sampled.to_csv(sampled_path, index=False)
-        written.append(sampled_path.name)
-        typer.echo(
-            f"\nSampled {len(sampled['benchmark_item_id'].unique())} items for "
-            f"inspection in {sampled_path}."
-        )
-        typer.echo("  Use --inspect-sample-size to change the number of items.")
-
-    typer.echo(f"\nWrote to {report_dir}:")
-    for name in written:
-        typer.echo(f"  - {name}")
+    # Only the pool drops a superseded model-run; each run's own report above
+    # still reports everything that run actually scored.
+    # Every row already carries its own run_id, so the pooled CSV stays traceable
+    # back to the run each response came from.
+    pooled, dropped = pool_results(scored_runs)
+    warn_about_partial_coverage(pooled)
+    combined_provenance = {
+        "run_ids": [run.run_id for run in scored_runs],
+        # Identical across runs — verify_runs_are_comparable refused otherwise.
+        "gold_items_path": scored_runs[0].provenance["gold_items_path"],
+        "gold_items_sha256": scored_runs[0].provenance["gold_items_sha256"],
+        "dropped_as_superseded": dropped,
+        "runs": {run.run_id: run.provenance for run in scored_runs},
+    }
+    write_report(
+        pooled,
+        scored_runs[0].language,
+        combined_dir,
+        combined_provenance,
+        f"{len(scored_runs)} pooled runs ({', '.join(run_ids)})",
+        n_bootstrap=n_bootstrap,
+        ci_level=ci_level,
+        seed=seed,
+        inspect_sample_size=inspect_sample_size,
+    )
 
 
 def main() -> None:
