@@ -12,6 +12,7 @@
   "scope": "Only models named in the September 21 merge coverage tables; provider SVGs, prices, and unrelated model columns omitted.",
   "qwen3-8b-alibaba": "Recorded API model qwen/qwen3-8b in en-extension-or-qwen8b-20260918/config.json; architecture/display metadata from qwen-3-8b-fp8, without copying routing or precision assumptions.",
   "gpt-6-astra-medium": "Added to models.csv on 2026-09-23 from en-stratified-astra-20260922/config.json and sw-original-astra-20260922/config.json: Api_Interface=OpenAI, Api_Model_Name=gpt-6-astra, reasoning_effort=medium. Treated as closed weights for the Cloud (API-only) access gate, consistent with the recorded OpenAI GPT API model; parameter count and documentation URL remain unspecified. Display name agrees with the existing override. Coverage eligibility is computed from each refreshed dataset.",
+  "claude-opus-5-5-medium": "Added to models.csv on 2026-09-30 from the en-gold-leaderboard-20260922 and sw-gold-leaderboard-20260922 config.json model_configs: Api_Interface=AnthropicStreaming, Api_Model_Name=claude-opus-5-5, effort=medium, adaptive thinking. Closed weights for the Cloud (API-only) access gate, as for the other Claude API models; parameter count remains unspecified.",
   "hardware_convention": "Total parameter counts, including MoE total rather than active parameters; fixed original LKB hardware budgets, not a new hardware survey.",
-  "updated_date": "2026-09-23"
+  "updated_date": "2026-09-30"
 }

@@ -61,3 +61,4 @@ claude-opus-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/m
 hf-gemma-4-12b-it,Google,True,https://huggingface.co/google/gemma-4-12B-it,12000000000.0,Gemma-4 12B
 qwen3-8b-alibaba,Alibaba,True,https://huggingface.co/Qwen/Qwen3-8B,8000000000.0,Qwen-3 8B
 gpt-6-astra-medium,OpenAI,False,,,GPT-6 Astra (Medium)
+claude-opus-5-5-medium,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,,Claude Opus 5.5 (Medium)
