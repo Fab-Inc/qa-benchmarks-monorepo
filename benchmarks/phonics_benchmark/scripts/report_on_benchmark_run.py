@@ -27,12 +27,6 @@ Writes, into `{run directory}/report`:
   confidence intervals, skipped by ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
-
-The bootstrap resamples benchmark items with replacement, so its interval covers
-item-sampling error and nothing else: not run-to-run variation in a model's own
-output, and not whether the item set represents Kiswahili texts in general. Each
-item counts as one independent draw, which understates the interval on runs where
-one text backs many items.
 """
 
 from __future__ import annotations
