@@ -30,7 +30,10 @@ def pooled_fbeta(
     ):
         return (numerator / denominator).where(denominator > 0)
     else:
-        return np.where(denominator > 0, numerator / denominator, np.nan)
+        # np.where evaluates the division everywhere before masking, so silence
+        # the 0/0 warning for the cells it then replaces with NaN.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(denominator > 0, numerator / denominator, np.nan)
 
 
 @require_columns(["response_parsed", "nondecodable_words"])
