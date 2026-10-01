@@ -44,10 +44,8 @@ from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import save_accuracy_by_nondecodable_count_plot
 from phonics_benchmark.results import CALL_STATUS_SUCCESS, load_results
 from phonics_benchmark.scoring import (
-    BASELINE_MODEL_NAMES,
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
-    build_baseline_results,
     summarize_by_model,
 )
 from phonics_benchmark.utils import require_columns
