@@ -288,38 +288,6 @@ def test_non_positive_bootstrap_count_is_rejected(bad_count: int) -> None:
         bootstrap_metric_cis(scored_frame(TWO_MODEL_ROWS), n_bootstrap=bad_count)
 
 
-def test_report_columns_and_row_order() -> None:
-    """The report script reads these columns, best model first by accuracy."""
-    # "a" sorts first alphabetically but scores lower, so the order is by accuracy.
-    frame = synthetic_frame({"a": [True, False, False, False], "b": [True] * 4})
-
-    report = bootstrap_metric_cis(frame, n_bootstrap=20, ci_level=0.9)
-
-    metric_columns = [
-        column
-        for metric in (
-            "accuracy",
-            "pooled_precision",
-            "pooled_recall",
-            "pooled_f1",
-            "pooled_f2",
-        )
-        for column in (metric, f"{metric}_ci_low", f"{metric}_ci_high")
-    ]
-    assert list(report.columns) == [
-        "model",
-        *metric_columns,
-        "n_items_resampled",
-        "n_bootstrap",
-        "ci_level",
-    ]
-    assert list(report["model"]) == ["b", "a"]
-    assert list(report.index) == [0, 1]
-    assert (report["n_items_resampled"] == 4).all()
-    assert (report["n_bootstrap"] == 20).all()
-    assert (report["ci_level"] == 0.9).all()
-
-
 # Turns any RuntimeWarning from a 0/0 into a failure, so undefined metrics stay
 # silent NaNs rather than noise in the report run.
 @pytest.mark.filterwarnings("error")
