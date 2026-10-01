@@ -1,0 +1,50 @@
+{
+  "run_id": "sw-generation-pruned-whole-wordsv2",
+  "language": "sw",
+  "items_path": "../data/kiswahili/benchmark_items_no_redundant_whole_words_sentences_story.jsonl",
+  "prompt_name": "decodable_text_generation",
+  "output_dir": "../outputs",
+  "models": [
+    "gpt-5.5-2026-04-23-medium",
+    "claude-fable-5",
+    "gpt-5.4-2026-03-05-medium",
+    "gemini-3.6-flash",
+    "gpt-6-astra-medium",
+    "claude-opus-5",
+    "gemini-3.5-flash",
+    "gpt-5.6-terra",
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "gpt-5.6-luna",
+    "claude-sonnet-5",
+    "o3-2025-04-16",
+    "mimo-v2.5-pro",
+    "fw-gpt-oss-120b",
+    "gpt-5-nano-2025-08-07-medium",
+    "claude-sonnet-4-6",
+    "kimi-k3",
+    "inkling",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
+    "gemini-3.1-flash-lite-preview",
+    "gpt-4.1",
+    "gpt-5.4-nano-2026-03-17",
+    "gemma-3-12b-it",
+    "ministral-3-8b-2512",
+    "mistral-small-2603"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 4,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili) student knowledge profiles",
+    "task": "generate decodable sentences and stories with the original prompt",
+    "item_set": "156 profiles x 2 scenarios = 312 items",
+    "scenarios": [
+      "sentences",
+      "story"
+    ],
+    "profiles": "redundant whole_words removed; nonredundant whole_words retained",
+    "experiment": "original prompt with only nonredundant whole_words listed"
+  }
+}

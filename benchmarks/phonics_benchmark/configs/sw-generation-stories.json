@@ -1,0 +1,33 @@
+{
+  "run_id": "sw-generation-stories",
+  "language": "sw",
+  "items_path": "../data/kiswahili/benchmark_items.jsonl",
+  "prompt_name": "decodable_text_generation",
+  "output_dir": "../outputs",
+  "models": [
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+    "gemini-3.1-flash-lite-preview",
+    "gpt-4.1",
+    "gpt-5.6-terra",
+    "gpt-5.4-nano-2026-03-17",
+    "gemma-4-31b-it",
+    "gemma-3-12b-it",
+    "gemini-3.1-pro-preview",
+    "ministral-3-8b-2512",
+    "mistral-small-2603"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 4,
+  "metadata": {
+    "dataset": "Tusome Kenya (Kiswahili) student knowledge profiles",
+    "task": "generate text in which every word is decodable for the student",
+    "item_set": "pruned whole words (156 profiles x 1 scenario = 156 items)",
+    "scenarios": [
+      "story"
+    ],
+    "provenance": "data store -> student_knowledge_profiles.jsonl -> scripts/build_benchmark_items.py",
+    "profiles": "profiles from data/kiswahili/student_knowledge_profiles.jsonl"
+  }
+}
