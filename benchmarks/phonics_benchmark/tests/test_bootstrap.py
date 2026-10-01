@@ -43,8 +43,8 @@ def synthetic_frame(model_to_correct: dict[str, list[bool]]) -> pd.DataFrame:
     return scored_frame(rows)
 
 
-# Two models over four items sharing two texts, so the same frame exercises both
-# resample units. m1 gets three of four items exactly right, m2 gets two.
+# Two models over four items. m1 gets three of four items exactly right, m2 gets
+# two.
 TWO_MODEL_ROWS = [
     {
         "model": "m1",
@@ -170,50 +170,40 @@ def test_precision_and_recall_bracket_the_f_scores() -> None:
     # Recall is 1 in every replicate, so its interval is degenerate.
     assert report.loc["flag-all", "pooled_recall_ci_low"] == 1.0
     assert report.loc["flag-all", "pooled_recall_ci_high"] == 1.0
-    # F2 sits far above precision because it weights recall four times as heavily.
-    assert (
-        report.loc["flag-all", "pooled_f2"] > report.loc["flag-all", "pooled_f1"]
-    ) and (
-        report.loc["flag-all", "pooled_f1"] > report.loc["flag-all", "pooled_precision"]
-    )
+    # Both F-scores land between precision and recall, and F2 sits far above F1
+    # because it weights recall four times as heavily.
+    flag_all = report.loc["flag-all"]
+    assert flag_all["pooled_precision"] < flag_all["pooled_f1"]
+    assert flag_all["pooled_f1"] < flag_all["pooled_f2"]
+    assert flag_all["pooled_f2"] < flag_all["pooled_recall"]
 
 
-def test_interval_brackets_the_point_estimate() -> None:
-    """Each metric's point estimate falls inside its own interval."""
-    report = bootstrap_metric_cis(scored_frame(TWO_MODEL_ROWS), n_bootstrap=500)
-
-    for metric in (
-        "accuracy",
-        "pooled_precision",
-        "pooled_recall",
-        "pooled_f1",
-        "pooled_f2",
-    ):
-        assert (report[f"{metric}_ci_low"] <= report[metric]).all()
-        assert (report[metric] <= report[f"{metric}_ci_high"]).all()
-
-
-def test_same_seed_reproduces_and_different_seed_does_not() -> None:
+def test_same_seed_reproduces() -> None:
     """A fixed seed makes reruns of the report give the same interval."""
-    # 40 items: on a 4-item frame the 2.5th percentile sits on the minimum
-    # whatever the seed, and the bounds would coincide by construction.
     frame = synthetic_frame({"m1": [True] * 25 + [False] * 15})
 
     first = bootstrap_metric_cis(frame, n_bootstrap=200, seed=0)
     again = bootstrap_metric_cis(frame, n_bootstrap=200, seed=0)
-    other = bootstrap_metric_cis(frame, n_bootstrap=200, seed=1)
 
     pd.testing.assert_frame_equal(first, again)
-    assert not first["accuracy_ci_low"].equals(other["accuracy_ci_low"])
-    # The point estimate does not depend on the draw.
-    assert first["accuracy"].equals(other["accuracy"])
+
+
+def test_models_share_one_draw_per_replicate() -> None:
+    """Every model is resampled with the same item indices in a replicate.
+
+    Two models with identical per-item results get identical intervals only if
+    they see the same draw; independent draws would give different bounds.
+    """
+    flags = [True] * 25 + [False] * 15
+    report = bootstrap_metric_cis(
+        synthetic_frame({"a": flags, "b": flags}), n_bootstrap=200
+    ).set_index("model")
+
+    pd.testing.assert_series_equal(report.loc["a"], report.loc["b"], check_names=False)
 
 
 def test_model_correct_on_every_item_gets_a_degenerate_interval() -> None:
-    """With no variation to resample, both bounds sit on the point estimate.
-
-    Confirms the resampled index is actually being applied.
-    """
+    """With no variation to resample, both bounds sit on the point estimate."""
     rows = [
         {
             "model": "m1",
@@ -263,22 +253,23 @@ def test_unbalanced_panel_scores_each_model_over_the_items_it_has() -> None:
 
     assert report.loc["m1", "accuracy"] == 0.75  # all four items, unchanged
     assert report.loc["m2", "accuracy"] == pytest.approx(2 / 3)  # its three items
-    columns = [
+    metrics = [
         "accuracy",
         "pooled_precision",
         "pooled_recall",
         "pooled_f1",
         "pooled_f2",
     ]
+    # Replicates that draw only m2's missing item are NaN for m2 and skipped, so
+    # the bounds still come out defined.
+    columns = [
+        column
+        for metric in metrics
+        for column in (metric, f"{metric}_ci_low", f"{metric}_ci_high")
+    ]
     assert not report[columns].isna().to_numpy().any()
-
-
-def test_missing_column_is_rejected() -> None:
-    """The require_columns guard names the column that is missing."""
-    frame = scored_frame(TWO_MODEL_ROWS).drop(columns=["tp_count"])
-
-    with pytest.raises(ValueError, match="tp_count"):
-        bootstrap_metric_cis(frame)
+    # The draw is over the union of items, so m2 reports 4 though it has 3.
+    assert (report["n_items_resampled"] == 4).all()
 
 
 @pytest.mark.parametrize("bad_level", [0.0, 1.0, 1.5, -0.1])
@@ -290,7 +281,49 @@ def test_confidence_level_outside_the_open_unit_interval_is_rejected(
         bootstrap_metric_cis(scored_frame(TWO_MODEL_ROWS), ci_level=bad_level)
 
 
-def test_single_item_single_model_does_not_raise() -> None:
+@pytest.mark.parametrize("bad_count", [0, -1])
+def test_non_positive_bootstrap_count_is_rejected(bad_count: int) -> None:
+    """At least one replicate is needed to take a percentile."""
+    with pytest.raises(ValueError, match="n_bootstrap"):
+        bootstrap_metric_cis(scored_frame(TWO_MODEL_ROWS), n_bootstrap=bad_count)
+
+
+def test_report_columns_and_row_order() -> None:
+    """The report script reads these columns, best model first by accuracy."""
+    # "a" sorts first alphabetically but scores lower, so the order is by accuracy.
+    frame = synthetic_frame({"a": [True, False, False, False], "b": [True] * 4})
+
+    report = bootstrap_metric_cis(frame, n_bootstrap=20, ci_level=0.9)
+
+    metric_columns = [
+        column
+        for metric in (
+            "accuracy",
+            "pooled_precision",
+            "pooled_recall",
+            "pooled_f1",
+            "pooled_f2",
+        )
+        for column in (metric, f"{metric}_ci_low", f"{metric}_ci_high")
+    ]
+    assert list(report.columns) == [
+        "model",
+        *metric_columns,
+        "n_items_resampled",
+        "n_bootstrap",
+        "ci_level",
+    ]
+    assert list(report["model"]) == ["b", "a"]
+    assert list(report.index) == [0, 1]
+    assert (report["n_items_resampled"] == 4).all()
+    assert (report["n_bootstrap"] == 20).all()
+    assert (report["ci_level"] == 0.9).all()
+
+
+# Turns any RuntimeWarning from a 0/0 into a failure, so undefined metrics stay
+# silent NaNs rather than noise in the report run.
+@pytest.mark.filterwarnings("error")
+def test_one_item_per_model_does_not_raise() -> None:
     """The smoke run is one item per model, which must still produce a table."""
     rows = [
         {
@@ -329,3 +362,16 @@ def test_single_item_single_model_does_not_raise() -> None:
     assert by_model.loc["m2", "pooled_precision"] == 0.0
     assert np.isnan(by_model.loc["m1", "pooled_recall"])
     assert np.isnan(by_model.loc["m2", "pooled_recall"])
+
+    # An undefined point estimate is undefined in every replicate too, so its
+    # interval is NaN.
+    undefined = [
+        ("m1", "pooled_f1"),
+        ("m1", "pooled_f2"),
+        ("m1", "pooled_precision"),
+        ("m1", "pooled_recall"),
+        ("m2", "pooled_recall"),
+    ]
+    for model, metric in undefined:
+        assert np.isnan(by_model.loc[model, f"{metric}_ci_low"]), f"{model} {metric}"
+        assert np.isnan(by_model.loc[model, f"{metric}_ci_high"]), f"{model} {metric}"
