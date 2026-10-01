@@ -16,7 +16,8 @@ Run from the repository root, e.g.:
     uv run --frozen --package phonics-benchmark python \\
         benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \\
         --run-id sw-tusome-260810 \\
-        --inspect-sample-size 20
+        --inspect-sample-size 20 \\
+        --n-bootstrap 10000
 
 Writes, into `{run directory}/report`:
 
