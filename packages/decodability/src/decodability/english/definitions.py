@@ -232,6 +232,8 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G172", "ssion", ("ʃ", "ə", "n")),
     ("G173", "o-e", ("ʌ",)),
     ("G174", "rr", ("r",)),
+    ("G175", "-ier", ("i", "ə", "r")),  # comparative suffix: happier
+    ("G176", "-iest", ("i", "ə", "s", "t")),  # superlative suffix: happiest
 ]
 
 
