@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "The foundational-literacy leaderboard's columns, in the order the website shows",
+    "them. Shared by every benchmark publishing to this leaderboard, which is why it",
+    "lives at the repo root rather than inside one of them.",
+    "",
+    "A pair listed here with no records file is REPORTED AS MISSING by",
+    "'fab-leaderboard publish' rather than silently dropped -- that is the whole point",
+    "of naming the expected pairs instead of publishing whatever files happen to exist.",
+    "",
+    "benchmark_domain is the id the website keys on and the records filename uses",
+    "(leaderboard_records_<benchmark_domain>.json); display_name is the selector label.",
+    "Adding a language or a benchmark type means adding a row here and teaching that",
+    "benchmark to write the matching records file."
+  ],
+  "cluster_name": "foundational-literacy",
+  "pairs": [
+    { "benchmark_domain": "LK-sw", "display_name": "LK Kiswahili" },
+    { "benchmark_domain": "DA-sw", "display_name": "DA Kiswahili" },
+    { "benchmark_domain": "DTG-sw", "display_name": "DTG Kiswahili" },
+    { "benchmark_domain": "LK-en", "display_name": "LK English" },
+    { "benchmark_domain": "DA-en", "display_name": "DA English" }
+  ]
+}

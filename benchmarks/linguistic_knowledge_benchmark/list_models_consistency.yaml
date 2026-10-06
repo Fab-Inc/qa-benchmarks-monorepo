@@ -1,0 +1,23 @@
+# Model subset for the "consistency" validation check (run against the *_20x.json
+# repeated dataset from scripts/build_consistency_dataset.py). Same 10 models as
+# list_models_irt.yaml,
+# Not wired up automatically -- the CLI's model list is hardcoded at
+# src/linguistic_knowledge_benchmark/shared_utils.py:12
+#     MODELS_LIST_YAML = BENCH_DIR / "list_models.yaml"
+# with no CLI override, so to actually use this file before running run-bench/
+# judge-bench, either:
+#   (a) temporarily overwrite list_models.yaml's content with this file's (back up
+#       list_models.yaml first), or
+#   (b) temporarily edit that shared_utils.py line to point at
+#       "list_models_consistency.yaml" instead
+# and revert whichever one you used afterward.
+claude-haiku-4-5-20251001: Claude Haiku 4.5
+claude-sonnet-4-6: Claude Sonnet 4.6
+gemini-3.1-flash-lite-preview: Gemini 3.1 Flash Lite
+gemini-3.1-pro-preview: Gemini 3.1 Pro Preview
+gemma-3-12b-it: Gemma 3 12B
+gemma-4-31b-it: Gemma 4 31B
+gpt-4.1: GPT-4.1
+gpt-5.4-nano-2026-03-17: GPT-5.4 Nano
+ministral-3-8b-2512: Ministral 3 8B
+mistral-small-2603: Mistral Small

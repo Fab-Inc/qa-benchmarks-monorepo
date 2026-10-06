@@ -1,0 +1,495 @@
+[
+  {
+    "question_id": 1,
+    "domain": "D1",
+    "subdomain": "digraphs as single graphemes",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "In the written word fedha, the letters d and h together stand for how many consonant sounds?",
+    "options": {
+      "A": "one single sound",
+      "B": "three separate sounds",
+      "C": "two separate sounds",
+      "D": "no sound at all"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Digraphs spell a single sound",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.7:Ch.2 opening paragraph",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 8,
+    "domain": "D1",
+    "subdomain": "consonant-cluster onsets",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "Treating each consonant cluster as one onset, how many syllables does the word 'mwalimu' contain?",
+    "options": {
+      "A": "Three",
+      "B": "Two",
+      "C": "Four",
+      "D": "Five"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Consonant clusters are single syllable onsets",
+    "svr_strand": "decoding",
+    "geeap_component": "systematic_phonics",
+    "sources": [
+      {
+        "locator": "Kiswahili_2_-_Kitabu_cha_Mwanafunzi.pdf:PDF p.16 / book p.13:Wiki ya 3: Siku ya 3 na 4 — Soma silabi",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 22,
+    "domain": "D3",
+    "subdomain": "JI-/MA- class (cl.5/6) number",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "The noun jino means 'tooth'. Write its plural form.",
+    "expected_answers": [
+      "meno"
+    ],
+    "linguistic_feature": "JI-/MA- class: bare/ji- singular, ma- plural",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.58:Ch.7 Section A: The M-/WA- Class",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 30,
+    "domain": "D3",
+    "subdomain": "M-/MI- numeral concord",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "For the noun miaka (years), which form means 'two years'?",
+    "options": {
+      "A": "miaka miwili",
+      "B": "miaka mbili",
+      "C": "miaka wawili",
+      "D": "miaka mawili"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "M-/MI- numerals take m-/mi- concord",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_2_-_Mwongozo_wa_Mwalimu.pdf:PDF p.95:Wiki ya 14: Siku ya 1 - Sarufi (Umoja/Wingi)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 34,
+    "domain": "D3",
+    "subdomain": "whole-sentence pluralisation",
+    "grade": "G3",
+    "answer_type": "multiple_choice",
+    "question": "When 'Ganda hili ni la ndizi' is put into the plural with 'maganda', the associative word 'la' changes to:",
+    "options": {
+      "A": "wa",
+      "B": "za",
+      "C": "cha",
+      "D": "ya"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Pluralising a sentence changes every agreeing element",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_3_-_Mazoezi_ya_Lugha_-_Kitabu_cha_Mwanafunzi_-_Darasa_la_3.pdf:PDF p.7 / book p.3:Marejeleo 1 — Sarufi (Andika wingi wa sentensi hizi)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 45,
+    "domain": "D3",
+    "subdomain": "diminutive class shift (KI-/VI-)",
+    "grade": "G5",
+    "answer_type": "short_form",
+    "question": "Write the diminutive ('small child') singular form of the noun mtoto ('child').",
+    "expected_answers": [
+      "kitoto"
+    ],
+    "linguistic_feature": "Diminutives shift a noun into KI-/VI- with its agreements",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.389:Ch.38 Section A: Diminutive Nouns",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "language_empirical"
+  },
+  {
+    "question_id": 49,
+    "domain": "D4",
+    "subdomain": "object marker",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "Write the form of the verb -piga (to hit) meaning 'he hit him/her' (third-person singular subject, past tense, with a third-person singular human object).",
+    "expected_answers": [
+      "alimpiga"
+    ],
+    "linguistic_feature": "Object marker inside the verb tracks object person/number",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Mwongozo_wa_Mwalimu.pdf:PDF p.46:Wiki ya 3: Siku ya 5 - Sarufi (wakati uliopo na ujao)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 51,
+    "domain": "D4",
+    "subdomain": "perfect -me- / situative -ki-",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "Write the situative form of the verb -soma (to read) meaning 'when/if she reads' (third-person singular).",
+    "expected_answers": [
+      "akisoma"
+    ],
+    "linguistic_feature": "Perfect -me- and situative -ki- appear in decoding",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Mwongozo_wa_Mwalimu.pdf:PDF p.46:Wiki ya 3: Siku ya 5 - Sarufi (wakati uliopo na ujao)",
+        "tier": "teacher_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 53,
+    "domain": "D4",
+    "subdomain": "habitual hu-",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "The habitual form of the stem -rudi ('return'), meaning 'usually returns', is:",
+    "options": {
+      "A": "alirudi",
+      "B": "anarudi",
+      "C": "watarudi",
+      "D": "hurudi"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Habitual hu- carries no subject prefix",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Kitabu_cha_Mwanafunzi.pdf:book p.15:Wiki ya 4: Siku ya 5 — Sarufi (Wakati uliopo / Wakati ujao)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 71,
+    "domain": "D4",
+    "subdomain": "past contrary-to-fact conditional",
+    "grade": "beyond_primary",
+    "answer_type": "multiple_choice",
+    "question": "Which marker expresses a past contrary-to-fact condition ('If I had studied...')?",
+    "options": {
+      "A": "-nge-",
+      "B": "-ki-",
+      "C": "-ngali-",
+      "D": "-na-"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "-ngali-/-ngeli- mark past contrary-to-fact conditionals",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.335:Ch.32 opening",
+        "tier": "student_material"
+      },
+      {
+        "locator": "Swahili_Learners__Reference_Grammar.pdf:p.276 (PDF 261):Chapter 40 The Conditional Mood, PAST TENSE",
+        "tier": "other"
+      }
+    ],
+    "grade_placement_evidence": "source_attested"
+  },
+  {
+    "question_id": 74,
+    "domain": "D5",
+    "subdomain": "numeral position",
+    "grade": "G1",
+    "answer_type": "multiple_choice",
+    "question": "Which is the correct Swahili phrase for 'two motorbikes'?",
+    "options": {
+      "A": "pikipiki mbili",
+      "B": "mbili pikipiki",
+      "C": "pikipiki wawili",
+      "D": "mbili za pikipiki"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Numerals follow the noun they count",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Kitabu_cha_Mwanafunzi.pdf:book p.46:Wiki ya 10: Siku ya 5 — Sarufi (wapi questions)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 81,
+    "domain": "D5",
+    "subdomain": "prepositional-phrase inventory",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "Which particle correctly completes the fixed expression 'mbali ___ nyumbani' meaning 'far from home'?",
+    "options": {
+      "A": "ya",
+      "B": "kwa",
+      "C": "na",
+      "D": "la"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Prepositional expressions are two-word units ending in na/ya",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "KENYA_GRADE-4-KICD-CURRICULUM-DESIGNS-VOLUME-1.pdf:3.4.1:Sarufi – Aina za Maneno: Viunganishi",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 88,
+    "domain": "D6",
+    "subdomain": "themed vocabulary banks",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "What everyday object does the Swahili word 'mshumaa' name?",
+    "expected_answers": [
+      "candle",
+      "a candle"
+    ],
+    "linguistic_feature": "Riddle-answer words form a themed vocabulary bank",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Kitabu_cha_Mwanafunzi.pdf:book p.60:Wiki ya 13: Siku ya 5 — Sarufi: Neno / Kinyume",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 93,
+    "domain": "D6",
+    "subdomain": "days of the week",
+    "grade": "G2",
+    "answer_type": "short_form",
+    "question": "Write the Swahili name for Saturday (the day Swahili counts as the first of the week).",
+    "expected_answers": [
+      "Jumamosi",
+      "jumamosi"
+    ],
+    "linguistic_feature": "Days of the week are named",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.183:Ch.18 Section A",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "language_empirical"
+  },
+  {
+    "question_id": 102,
+    "domain": "D6",
+    "subdomain": "three-member synonym sets",
+    "grade": "G5",
+    "answer_type": "multiple_choice",
+    "question": "Which word is a synonym of 'simanzi'?",
+    "options": {
+      "A": "huzuni",
+      "B": "furaha",
+      "C": "hasira",
+      "D": "uchovu"
+    },
+    "expected_answers": [
+      "A"
+    ],
+    "linguistic_feature": "Common nouns have three-member synonym sets",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "KENYA_GRADE_5_CURRICULUM_DESIGNS-_KISWAHILI.pdf:8.1.1:Kusikiliza na Kuzungumza – Visawe: Visawe vya maneno matatu",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 107,
+    "domain": "D8",
+    "subdomain": "respect greeting (Shikamoo/Marahaba)",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "Write the customary one-word reply to the respectful greeting Shikamoo.",
+    "expected_answers": [
+      "Marahaba",
+      "marahaba"
+    ],
+    "linguistic_feature": "Shikamoo is the respect greeting to elders; reply Marahaba",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Swahili_Grammar_for_Introductory_and_Intermediate.pdf:p.30:Ch.4 Section D: Shikamoo Greetings",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 111,
+    "domain": "D8",
+    "subdomain": "euphemism",
+    "grade": "G4",
+    "answer_type": "multiple_choice",
+    "question": "The polite expression 'kwenda haja ndogo' refers to which act?",
+    "options": {
+      "A": "defecating",
+      "B": "bathing",
+      "C": "urinating",
+      "D": "vomiting"
+    },
+    "expected_answers": [
+      "C"
+    ],
+    "linguistic_feature": "Euphemisms for bodily functions and body parts",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "KENYA_GRADE-4-KICD-CURRICULUM-DESIGNS-VOLUME-1.pdf:2.1.1:Kusikiliza na Kuzungumza – Maamkuzi na Maagano",
+        "tier": "curriculum"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 116,
+    "domain": "D9",
+    "subdomain": "term: antonym (kinyume)",
+    "grade": "G1",
+    "answer_type": "short_form",
+    "question": "What is the Swahili term for a word's opposite (its antonym)?",
+    "expected_answers": [
+      "kinyume"
+    ],
+    "linguistic_feature": "Kinyume is the label for a word's opposite",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_1_-_Kitabu_cha_Mwanafunzi.pdf:book p.10 and passim:Sarufi boxes (87 occurrences)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 121,
+    "domain": "D9",
+    "subdomain": "term: numeral (tarakimu)",
+    "grade": "G2",
+    "answer_type": "multiple_choice",
+    "question": "The Swahili term 'tarakimu' refers to:",
+    "options": {
+      "A": "numbers spelled out in words",
+      "B": "letters of the alphabet",
+      "C": "syllables of a word",
+      "D": "numerals written as digits"
+    },
+    "expected_answers": [
+      "D"
+    ],
+    "linguistic_feature": "Tarakimu names numerals vs number words",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_2_-_Kitabu_cha_Mwanafunzi.pdf:PDF p.16 / book p.13:Wiki ya 3: Siku ya 3 na 4 — Sarufi (Neno / Kukanusha)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  },
+  {
+    "question_id": 127,
+    "domain": "D9",
+    "subdomain": "term: negation (ukanusho)",
+    "grade": "G3",
+    "answer_type": "short_form",
+    "question": "What is the Swahili term for the negated form of a verb (the negation)?",
+    "expected_answers": [
+      "ukanusho"
+    ],
+    "linguistic_feature": "Ukanusho names negation, incl. of tenses",
+    "svr_strand": "language_comprehension",
+    "geeap_component": "oral_language",
+    "sources": [
+      {
+        "locator": "Kiswahili_3_-_Mazoezi_ya_Lugha_-_Kitabu_cha_Mwanafunzi_-_Darasa_la_3.pdf:PDF p.102 / book p.98:Ndege nimpendaye 2 — Sarufi (vihusishi)",
+        "tier": "student_material"
+      }
+    ],
+    "grade_placement_evidence": "curriculum_anchored"
+  }
+]

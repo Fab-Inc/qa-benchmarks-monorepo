@@ -9,50 +9,29 @@ from linguistic_knowledge_benchmark import run_bench, shared_utils
 
 
 # --------------------------------------------------------------------------- #
-# parse_answer
-# --------------------------------------------------------------------------- #
-@pytest.mark.parametrize(
-    "raw, expected",
-    [
-        ("A", "A"),
-        ("  C ", "C"),
-        ("(D)", "D"),
-        ("<think>reasoning here</think>B", "B"),
-        ("Some explanation\nB", "B"),
-        ("not an answer at all", None),
-    ],
-)
-def test_parse_answer_patterns(raw, expected):
-    assert run_bench.parse_answer(raw) == expected
-
-
-def test_parse_answer_handles_nan_and_none():
-    assert run_bench.parse_answer(float("nan")) is None
-    assert run_bench.parse_answer(None) is None
-
-
-# --------------------------------------------------------------------------- #
 # _build_system_prompts
 # --------------------------------------------------------------------------- #
 def test_build_system_prompts_has_all_answer_types():
-    prompts = run_bench._build_system_prompts("Luganda")
-    assert set(prompts) == {"multiple_choice", "short_form", "true_false"}
+    prompts = run_bench._build_system_prompts("Kiswahili")
+    assert set(prompts) == {"multiple_choice", "short_form"}
 
 
 def test_build_system_prompts_prefix_gives_language_context_for_all_types():
-    prompts = run_bench._build_system_prompts("Luganda")
+    # Unmapped language name (contrast with the Kiswahili->Swahili normalization
+    # test below): passed through to the prompt verbatim.
+    prompts = run_bench._build_system_prompts("Yoruba")
     # Every answer type is prefixed with English-medium context naming the
     # language the question is about.
-    for answer_type in ("multiple_choice", "short_form", "true_false"):
+    for answer_type in ("multiple_choice", "short_form"):
         assert prompts[answer_type].startswith("The following question")
-        assert "Luganda" in prompts[answer_type]
+        assert "Yoruba" in prompts[answer_type]
 
 
 def test_build_system_prompts_normalizes_kiswahili_to_swahili():
     # Kiswahili is the CLI/display name (endonym); prompts stay English-medium
     # and should use the English form "Swahili" instead.
     prompts = run_bench._build_system_prompts("Kiswahili")
-    for answer_type in ("multiple_choice", "short_form", "true_false"):
+    for answer_type in ("multiple_choice", "short_form"):
         assert "Swahili" in prompts[answer_type]
         assert "Kiswahili" not in prompts[answer_type]
 
@@ -110,7 +89,7 @@ def test_run_benchmark_invalid_model_raises(tmp_path):
     with pytest.raises(ValueError, match="Invalid model"):
         run_bench.run_benchmark(
             "totally-unknown-model",
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=ds,
             output_dir=tmp_path / "out",
         )
@@ -136,7 +115,7 @@ def test_run_benchmark_cache_hit_returns_existing(tmp_path, monkeypatch):
     monkeypatch.setattr(run_bench, "get_caller", boom)
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
     )
@@ -154,27 +133,27 @@ def test_run_benchmark_full_run_writes_csv(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=out,
     )
 
-    assert len(df) == 3
-    assert list(df["output"]) == ["B", "B", "B"]
-    assert list(df["call_status"]) == [run_bench.CALL_STATUS_SUCCESS] * 3
-    assert list(df["error_type"]) == ["", "", ""]
+    assert len(df) == 2
+    assert list(df["output"]) == ["B", "B"]
+    assert list(df["call_status"]) == [run_bench.CALL_STATUS_SUCCESS] * 2
+    assert list(df["error_type"]) == ["", ""]
     assert (out / f"responses_{VALID_MODEL}.csv").exists()
     # expected_answers serialized with the pipe join
     assert df.loc[0, "expected_answers"] == "B"
     # fresh run: no retries
-    assert list(df["retry_count"]) == [0, 0, 0]
+    assert list(df["retry_count"]) == [0, 0]
     # log.json written at run dir level (parent of responses/)
     log_path = out.parent / "log.json"
     assert log_path.exists()
     entry = json.loads(log_path.read_text())[VALID_MODEL]
-    assert "responses_timestamp-utc" in entry
-    assert entry["responses_git-hash"] == "abc1234"
-    assert "responses_retry_timestamp-utc" not in entry
+    assert "responses_timestamp_utc" in entry
+    assert entry["responses_git_hash"] == "abc1234"
+    assert "responses_retry_timestamp_utc" not in entry
 
 
 def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
@@ -186,7 +165,7 @@ def test_run_benchmark_error_branch_records_error_status(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=tmp_path / "out",
     )
@@ -214,7 +193,7 @@ def test_run_benchmark_cache_with_errors_returns_existing(tmp_path):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
     )
@@ -236,7 +215,7 @@ def test_run_benchmark_retry_errors_no_error_rows_returns_cached(tmp_path):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=tmp_path / "ds.json",
         output_dir=out,
         retry_errors=True,
@@ -248,7 +227,7 @@ def test_run_benchmark_retry_errors_missing_cache_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="cannot use --retry-errors"):
         run_bench.run_benchmark(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=tmp_path / "ds.json",
             output_dir=tmp_path / "out",
             retry_errors=True,
@@ -299,7 +278,7 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
 
     df = run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=out,
         retry_errors=True,
@@ -313,9 +292,9 @@ def test_run_benchmark_retry_errors_replaces_failed_rows(tmp_path, monkeypatch):
     assert len(caller.calls) == 1
     # retry run writes responses_retry_* fields, not responses_*
     log_entry = json.loads((out.parent / "log.json").read_text())[VALID_MODEL]
-    assert "responses_retry_timestamp-utc" in log_entry
-    assert log_entry["responses_retry_git-hash"] == "retry456"
-    assert "responses_timestamp-utc" not in log_entry
+    assert "responses_retry_timestamp_utc" in log_entry
+    assert log_entry["responses_retry_git_hash"] == "retry456"
+    assert "responses_timestamp_utc" not in log_entry
 
 
 def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
@@ -330,14 +309,14 @@ def test_run_benchmark_caller_not_implemented_raises(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="not"):
         run_bench.run_benchmark(
             VALID_MODEL,
-            language_name="Luganda",
+            language_name="Kiswahili",
             dataset_path=ds,
             output_dir=tmp_path / "out",
         )
 
 
 def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
-    """output_dir=None derives cache/<language>/runs/default/responses."""
+    """output_dir=None derives cache/<language>/experiments/default/responses."""
     from conftest import sample_questions
 
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path / "cache")
@@ -346,14 +325,14 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
     )
     expected = (
         tmp_path
         / "cache"
-        / "luganda"
-        / "runs"
+        / "kiswahili"
+        / "experiments"
         / "default"
         / "responses"
         / f"responses_{VALID_MODEL}.csv"
@@ -361,7 +340,9 @@ def test_run_benchmark_default_output_dir(tmp_path, monkeypatch):
     assert expected.exists()
 
 
-def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch):
+def test_run_benchmark_experiment_id_uses_experiment_specific_output_dir(
+    tmp_path, monkeypatch
+):
     from conftest import sample_questions
 
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path / "cache")
@@ -370,16 +351,16 @@ def test_run_benchmark_run_id_uses_run_specific_output_dir(tmp_path, monkeypatch
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
-        run_id="run-123",
+        experiment_id="experiment-123",
     )
     expected = (
         tmp_path
         / "cache"
-        / "luganda"
-        / "runs"
-        / "run-123"
+        / "kiswahili"
+        / "experiments"
+        / "experiment-123"
         / "responses"
         / f"responses_{VALID_MODEL}.csv"
     )
@@ -397,8 +378,46 @@ def test_run_benchmark_rate_limited_sleeps(tmp_path, monkeypatch):
 
     run_bench.run_benchmark(
         VALID_MODEL,
-        language_name="Luganda",
+        language_name="Kiswahili",
         dataset_path=ds,
         output_dir=tmp_path / "out",
     )
     assert sleeps == [5]
+
+
+# --------------------------------------------------------------------------- #
+# git_hash / update_log / _error_mask / retry-error edge cases
+# --------------------------------------------------------------------------- #
+def test_git_hash_returns_none_on_error(monkeypatch, capsys):
+    import subprocess
+
+    def boom(*a, **k):
+        raise OSError("no git here")
+
+    # git_hash imports subprocess lazily, so patch the real module.
+    monkeypatch.setattr(subprocess, "check_output", boom)
+    assert run_bench.git_hash() is None
+    assert "could not read git hash" in capsys.readouterr().err
+
+
+def test_update_log_merges_existing_and_skips_none(tmp_path):
+    (tmp_path / "log.json").write_text(json.dumps({"m": {"a": "1"}}))
+    run_bench.update_log(tmp_path, "m", {"b": "2", "c": None})
+    data = json.loads((tmp_path / "log.json").read_text())
+    assert data["m"] == {"a": "1", "b": "2"}  # merged; None value skipped
+
+
+def test_error_mask_without_call_status_column():
+    mask = run_bench._error_mask(pd.DataFrame({"question_id": [1, 2]}))
+    assert list(mask) == [False, False]
+
+
+def test_run_benchmark_retry_errors_without_cache_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="cannot use --retry-errors"):
+        run_bench.run_benchmark(
+            VALID_MODEL,
+            language_name="Kiswahili",
+            dataset_path=tmp_path / "ds.json",
+            output_dir=tmp_path / "out",
+            retry_errors=True,
+        )

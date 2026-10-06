@@ -27,27 +27,28 @@ any specific language's rules:
 
 Language-specific modules go under `decodability/<language>/`.
 
-| Module             | Responsibility                                                                                                          |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `definitions.py`   | Language constants and any external decoding-tool setup                                                                 |
-| `models.py`        | The student-knowledge pydantic model                                                                                    |
-| `scorers.py`       | Per-word scoring functions mapping `(word, student_knowledge)` to a score in range [0.0, 1.0]                           |
-| `aggregators.py`   | Functions that combine a word's per-measure scores into one final score.                                                |
-| `extract_words.py` | Language-specific word extractor.                                                                                       |
-| `__init__.py`      | Exposes the `SCORING_METHODS` and `AGGREGATIONS` registries (see [Config Shape](#config-shape)) and the public exports. |
+| Module                 | Responsibility                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `definitions.py`       | Language orthography definitions and any external decoding-tool setup                                                   |
+| `student_knowledge.py` | The student-knowledge pydantic model                                                                                    |
+| `segment.py`           | Language-specific word segmentation                                                                                     |
+| `analyse.py`           | Language-specific word analyses based on a student knowledge profile for decodability                                   |
+| `extract_words.py`     | Language-specific word extractor.                                                                                       |
+| `scorers.py`           | (Deprecated) Per-word scoring functions mapping `(word, student_knowledge)` to a score in range [0.0, 1.0]              |
+| `aggregators.py`       | (Deprecated) Functions that combine a word's per-measure scores into one final score.                                   |
+| `__init__.py`          | Exposes the `SCORING_METHODS` and `AGGREGATIONS` registries (see [Config Shape](#config-shape)) and the public exports. |
 
 The dependency structure is as follows:
 
 ```mermaid
 flowchart
-  models.py --for data validation--> definitions.py
-  scorers.py --for scoring logic--> definitions.py
-  extract_words.py --for data validation*--> definitions.py
-  aggregators.py --> scorers.py
+  analyse.py --> student_knowledge.py
+  analyse.py --> segment.py
+  analyse.py --> definitions.py
+  student_knowledge.py --> definitions.py
+  segment.py --> definitions.py
+  extract_words.py --> definitions.py
 ```
-
-_\*This linkage currently doesn't exist for Kiswahili but theoretically we may use a
-language-wide config to extract valid tokens._
 
 A language may add more modules where the tooling requires it. English extends the
 shared shape with three:
@@ -68,9 +69,9 @@ binary definition of decodability. Three binary scorers feed the final score:
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `score_known_graphemes_kiswahili`             | every grapheme in the word has been taught                                                                                                          |
 | `score_known_clusters_and_patterns_kiswahili` | every cluster in the word is known, directly or by pattern, or if the word contains no consonant clusters (no cluster knowledge required to decode) |
-| `score_whole_words_kiswahili`                 | the word has been taught as a sight word                                                                                                            |
+| `score_whole_words_kiswahili`                 | the word has been taught as a whole word                                                                                                            |
 
-`aggregate_scores_kenya_tusome` combines them as a decision tree: a known sight word is
+`aggregate_scores_kenya_tusome` combines them as a decision tree: a known whole word is
 decodable regardless of anything else; otherwise an untaught grapheme _or_ an unknown
 cluster makes the word non-decodable.
 
