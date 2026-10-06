@@ -772,6 +772,37 @@ requires-dist = [
 ]
 
 [[package]]
+name = "decodable-text-generation"
+version = "0.1.0"
+source = { editable = "benchmarks/decodable_text_generation" }
+dependencies = [
+    { name = "decodability" },
+    { name = "fab-benchmark-publisher" },
+    { name = "fabdata-llm" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "phonics-benchmark" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "decodability", editable = "packages/decodability" },
+    { name = "fab-benchmark-publisher", editable = "packages/fab_benchmark_publisher" },
+    { name = "fabdata-llm", git = "https://github.com/AI-for-Education/fabdata-llm.git?rev=main" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.0" },
+    { name = "phonics-benchmark", editable = "benchmarks/phonics_benchmark" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "typer", specifier = ">=0.12.0" },
+]
+
+[[package]]
 name = "dill"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
