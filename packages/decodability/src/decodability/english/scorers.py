@@ -13,9 +13,7 @@ GPC_INVENTORY = tuple(
 # Teaching any of these doubled consonants (lesson 67) introduces the
 # general doubling convention, unlocking DERIVED_DOUBLE_/
 # DERIVED_REPEAT_FINAL_ matches for all consonants.
-_DOUBLING_CONSONANTS = frozenset(
-    {"bb", "cc", "dd", "gg", "mm", "nn", "pp", "rr", "tt"}
-)
+_DOUBLING_CONSONANTS = frozenset({"bb", "cc", "dd", "gg", "mm", "nn", "pp", "rr", "tt"})
 
 
 def normalize_taught_gpcs(
@@ -53,16 +51,11 @@ def _is_taught_match(match: GPCMatch, taught_set: set, taught_graphemes: set) ->
     if match.gpc.id == "DERIVED_GU":
         return {"g", "u"} <= taught_graphemes and ("g", "g") in taught_set
     if match.gpc.id.startswith("DERIVED_DOUBLE_"):
-        return bool(taught_graphemes & _DOUBLING_CONSONANTS) and (
-            match.gpc.symbol[0],
-            "".join(match.gpc.phonemes),
-        ) in taught_set
+        singleton = (match.gpc.symbol[0], "".join(match.gpc.phonemes))
+        return bool(taught_graphemes & _DOUBLING_CONSONANTS) and singleton in taught_set
     if match.gpc.id.startswith("DERIVED_REPEAT_FINAL_"):
-        base = match.gpc.symbol[:-1]
-        return bool(taught_graphemes & _DOUBLING_CONSONANTS) and (
-            base,
-            "".join(match.gpc.phonemes),
-        ) in taught_set
+        base = (match.gpc.symbol[:-1], "".join(match.gpc.phonemes))
+        return bool(taught_graphemes & _DOUBLING_CONSONANTS) and base in taught_set
     if match.gpc.id == "DERIVED_AL":
         return ("all", "ɔl") in taught_set
     if match.gpc.id == "DERIVED_IE_FINAL":
