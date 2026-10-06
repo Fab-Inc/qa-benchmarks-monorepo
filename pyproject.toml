@@ -28,7 +28,6 @@ members = [
   "packages/decodability",
   "benchmarks/phonics_benchmark",
   "benchmarks/linguistic_knowledge_benchmark",
-  "benchmarks/decodable_text_generation",
 ]
 
 [tool.uv.sources]
