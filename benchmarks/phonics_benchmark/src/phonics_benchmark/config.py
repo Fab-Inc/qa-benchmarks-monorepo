@@ -159,6 +159,7 @@ def load_run_config(
     config_path: str | Path,
     *,
     task: str = DECODABILITY_TASK,
+    default_prompt_name: str | None = None,
 ) -> BenchmarkRunConfig:
     """Load and validate a phonics benchmark run config from JSON."""
 
@@ -177,6 +178,7 @@ def load_run_config(
         task=task,
         base_dir=base_dir,
         config_path=path,
+        default_prompt_name=default_prompt_name,
     )
 
 
@@ -235,6 +237,7 @@ def _parse_run_config(
     task: str,
     base_dir: Path,
     config_path: Path | None,
+    default_prompt_name: str | None = None,
 ) -> BenchmarkRunConfig:
     run_id = _parse_run_id(raw_config.get("run_id"))
 
@@ -285,7 +288,9 @@ def _parse_run_config(
     if custom_models_path is not None and not isinstance(custom_models_path, str):
         raise ConfigError("'custom_models_path' must be a string when provided")
 
-    prompt_name = raw_config.get("prompt_name", DEFAULT_PROMPT_NAME)
+    prompt_name = raw_config.get(
+        "prompt_name", default_prompt_name or DEFAULT_PROMPT_NAME
+    )
     if not isinstance(prompt_name, str) or not prompt_name.strip():
         raise ConfigError("'prompt_name' must be a non-empty string when provided")
 

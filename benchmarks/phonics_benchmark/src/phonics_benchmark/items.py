@@ -3,17 +3,37 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Collection, Mapping
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 from phonics_benchmark.config import ConfigError
 
+# benchmark_item_id is always required and gets its own checks (trimmed,
+# unique); the rest map each required field to the type its value must have.
+DEFAULT_REQUIRED_FIELDS: dict[str, type] = {
+    "benchmark_item_id": str,
+    "content": str,
+    "student_knowledge": dict,
+}
+
 
 def load_benchmark_items(
     items_path: str | Path,
+    *,
+    required_fields: Mapping[str, type] | None = None,
+    extra_fields: Collection[str] = (),
 ) -> tuple[list[dict[str, Any]], str]:
-    """Load normalized execution items and hash the exact JSONL bytes consumed."""
+    """Load normalized execution items and hash the exact JSONL bytes consumed.
+
+    ``required_fields`` maps each field the task needs to the type its value
+    must have (``str`` = non-empty, non-whitespace; ``dict`` = object).
+    ``benchmark_item_id`` is always required and must be a trimmed, unique,
+    non-empty string. Items keep the required fields plus any of
+    ``extra_fields`` present on the record; dataset-owned fields beyond those
+    are dropped.
+    """
 
     path = Path(items_path)
     try:
@@ -31,6 +51,9 @@ def load_benchmark_items(
 
     if not artifact_text:
         raise ConfigError(f"No benchmark items were loaded from {path}")
+
+    required = dict(required_fields or DEFAULT_REQUIRED_FIELDS)
+    required["benchmark_item_id"] = str
 
     items: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
@@ -62,25 +85,30 @@ def load_benchmark_items(
                 f"'{benchmark_item_id}'"
             )
 
-        content = record.get("content")
-        if not isinstance(content, str) or not content.strip():
-            raise ConfigError(
-                f"{path}:{line_number}: content must be a non-empty, "
-                "non-whitespace string"
-            )
-
-        student_knowledge = record.get("student_knowledge")
-        if not isinstance(student_knowledge, dict):
-            raise ConfigError(
-                f"{path}:{line_number}: student_knowledge must be an object"
-            )
+        for field_name, field_type in required.items():
+            if field_name == "benchmark_item_id":
+                continue
+            value = record.get(field_name)
+            if field_type is str:
+                if not isinstance(value, str) or not value.strip():
+                    raise ConfigError(
+                        f"{path}:{line_number}: {field_name} must be a non-empty, "
+                        "non-whitespace string"
+                    )
+            elif not isinstance(value, field_type):
+                raise ConfigError(
+                    f"{path}:{line_number}: {field_name} must be an object"
+                    if field_type is dict
+                    else f"{path}:{line_number}: {field_name} has the wrong type"
+                )
 
         seen_ids.add(benchmark_item_id)
+        kept_fields = set(required) | set(extra_fields)
         items.append(
             {
-                "benchmark_item_id": benchmark_item_id,
-                "content": content,
-                "student_knowledge": student_knowledge,
+                field_name: record[field_name]
+                for field_name in record
+                if field_name in kept_fields
             }
         )
 
