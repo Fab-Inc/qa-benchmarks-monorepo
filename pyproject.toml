@@ -34,7 +34,7 @@ members = [
 fab-benchmark-publisher = { workspace = true }
 primerpro = { workspace = true }
 decodability = { workspace = true }
-fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
+fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "feat/upgrade-openai-version" }
 
 [tool.coverage.report]
 show_missing = true
