@@ -16,6 +16,8 @@ import analyze_phonics_hardware_tiers as hardware
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import PercentFormatter
 
 # Copied from HARDWARE_TIER_COLORS in
@@ -54,7 +56,13 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         required=True,
         help="Analysis root holding <language>/ runs and hardware_tiers/.",
     )
-    parser.add_argument("--language", default="english", choices=list(hardware.SERIES))
+    parser.add_argument(
+        "--language",
+        nargs="+",
+        choices=list(hardware.SERIES),
+        default=list(hardware.SERIES),
+        help="Languages to plot, one set of files each. Defaults to all.",
+    )
     parser.add_argument("--top-n", type=int, default=10)
     parser.add_argument("--metric", default="pooled_f2", choices=list(hardware.METRICS))
     parser.add_argument(
@@ -62,6 +70,11 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         help="Use the hardware_tiers outputs made with this --min-coverage (e.g. 0.9).",
     )
+
+
+def ranking_phrase(metric: str, language: str) -> str:
+    """Footnote wording, e.g. "highest-pooled_f2 English models"."""
+    return f"highest-{metric} {language.title()} models"
 
 
 def tier_dir(root: Path, metric: str, min_coverage: float | None) -> Path:
@@ -119,21 +132,21 @@ def explode_words(scored: pd.DataFrame) -> pd.DataFrame:
     return words
 
 
-def style_axes(ax: plt.Axes) -> None:
+def style_axes(ax: Axes) -> None:
     ax.spines[["top", "right"]].set_visible(False)
     ax.set_axisbelow(True)
 
 
-def finish(fig: plt.Figure, path: Path, note: str) -> None:
+def finish(fig: Figure, path: Path, note: str) -> None:
     """Save the figure as PNG at ``path`` and as a PDF beside it."""
-    fig.text(0.01, 0.01, note, fontsize=8, color="#898781", ha="left", va="bottom")
+    fig.text(0.5, 0.01, note, fontsize=8, color="#898781", ha="center", va="bottom")
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(path, dpi=200)
     fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
 
 
-def percent_axis(ax: plt.Axes) -> None:
+def percent_axis(ax: Axes) -> None:
     ax.set_ylim(0, 1)
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
     ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
@@ -165,6 +178,7 @@ __all__ = [
     "np",
     "parse_word_set",
     "percent_axis",
+    "ranking_phrase",
     "style_axes",
     "tier_dir",
     "tier_title",

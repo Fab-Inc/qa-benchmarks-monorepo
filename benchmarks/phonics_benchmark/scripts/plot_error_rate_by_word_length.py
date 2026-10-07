@@ -5,7 +5,7 @@
 
 Counts are pooled over every selected model in a tier, so each rate is
 opportunity-weighted: a model that saw more words in a bin counts for more.
-Writes error_analysis/{fp,fn}_rate_by_word_length.{csv,png,pdf} next to the
+Writes error_analysis/{fp,fn}_rate_by_word_length_<language>.{csv,png,pdf} next to the
 hardware-tier outputs.
 
 How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the same
@@ -16,9 +16,10 @@ How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the sa
       --root outputs/phonics-mixture-20260922/selections/beta1-8-provisional \\
       --error fp
 
-Omit --error to make both plots. Other options: --language (english or kiswahili),
---top-n (default 10), --metric (ranking metric, default pooled_f2) and
---min-coverage (e.g. 0.9, to use the coverage-filtered hardware-tier outputs).
+Omit --error to make both plots. Both languages are plotted unless --language
+english or --language kiswahili is given. Other options: --top-n (default 10),
+--metric (ranking metric, default pooled_f2) and --min-coverage (e.g. 0.9, to use the
+coverage-filtered hardware-tier outputs).
 """
 
 from __future__ import annotations
@@ -51,7 +52,9 @@ def rate_by_length(words: pd.DataFrame, error: str) -> pd.DataFrame:
     return table.reset_index()
 
 
-def plot(table: pd.DataFrame, error: str, title_suffix: str, path) -> None:
+def plot(
+    table: pd.DataFrame, error: str, title_suffix: str, ranking: str, path
+) -> None:
     _, _, label = ERRORS[error]
     bins = [common.length_label(lo, hi) for lo, hi in common.LENGTH_BINS]
     fig, ax = plt.subplots(figsize=(8, 5.5))
@@ -82,8 +85,8 @@ def plot(table: pd.DataFrame, error: str, title_suffix: str, path) -> None:
     common.finish(
         fig,
         path,
-        f"{abbreviation} rate averaged (opportunity-weighted) across the top-ranked "
-        "models in each hardware tier.",
+        f"{abbreviation} rate averaged (opportunity-weighted) across the {ranking} "
+        "in each hardware tier.",
     )
 
 
@@ -94,24 +97,23 @@ def main() -> None:
         "--error", nargs="+", choices=list(ERRORS), default=list(ERRORS)
     )
     args = parser.parse_args()
-    models = common.load_top_models(
-        args.root, args.language, args.top_n, args.metric, args.min_coverage
-    )
-    scored = common.load_scored_items(args.root, args.language, models)
-    words = common.explode_words(scored)
     out = common.tier_dir(args.root, args.metric, args.min_coverage) / "error_analysis"
     out.mkdir(parents=True, exist_ok=True)
-    for error in args.error:
-        table = rate_by_length(words, error)
-        table.insert(0, "language", args.language)
-        table.to_csv(out / f"{error}_rate_by_word_length.csv", index=False)
-        plot(
-            table,
-            error,
-            common.tier_title(models),
-            out / f"{error}_rate_by_word_length.png",
+    for language in args.language:
+        models = common.load_top_models(
+            args.root, language, args.top_n, args.metric, args.min_coverage
         )
-        print(table.to_string(index=False))
+        scored = common.load_scored_items(args.root, language, models)
+        words = common.explode_words(scored)
+        ranking = common.ranking_phrase(args.metric, language)
+        for error in args.error:
+            table = rate_by_length(words, error)
+            table.insert(0, "language", language)
+            stem = f"{error}_rate_by_word_length_{language}"
+            table.to_csv(out / f"{stem}.csv", index=False)
+            title = common.tier_title(models)
+            plot(table, error, title, ranking, out / f"{stem}.png")
+            print(table.to_string(index=False))
 
 
 if __name__ == "__main__":

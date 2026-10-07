@@ -86,3 +86,22 @@ def test_calibration_keeps_ratio_one_in_last_bin():
     assert set(table.actual_bin) == {5, 9}
     last = table[table.actual_bin.eq(9)].iloc[0]
     assert last.mean_actual == 1.0 and last.mean_predicted == 1.0
+
+
+def test_ranking_phrase():
+    assert (
+        common.ranking_phrase("pooled_f2", "english")
+        == "highest-pooled_f2 English models"
+    )
+
+
+def test_language_defaults_to_all_languages():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    common.add_common_args(parser)
+    args = parser.parse_args(["--root", "x"])
+    assert args.language == ["english", "kiswahili"]
+    assert parser.parse_args(["--root", "x", "--language", "english"]).language == [
+        "english"
+    ]
