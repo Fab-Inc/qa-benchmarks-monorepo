@@ -587,9 +587,7 @@ class TestScorers:
             clusters=known_clusters,
         )
         assert (
-            score_known_clusters_and_patterns_lenient_kiswahili(
-                word, student_knowledge
-            )
+            score_known_clusters_and_patterns_lenient_kiswahili(word, student_knowledge)
             == expected
         )
 

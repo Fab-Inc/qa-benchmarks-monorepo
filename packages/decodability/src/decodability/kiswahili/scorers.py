@@ -50,8 +50,7 @@ def score_known_clusters_and_patterns_kiswahili(
     graphemes = decompose_word(word)
     return float(
         all(
-            span.normalised in taught_clusters
-            for span in find_cluster_spans(graphemes)
+            span.normalised in taught_clusters for span in find_cluster_spans(graphemes)
         )
     )
 
@@ -85,8 +84,7 @@ def score_known_clusters_and_patterns_lenient_kiswahili(
         if span in fused_clusters:
             return False
         return all(
-            symbol in taught_graphemes
-            for symbol in get_grapheme_symbols(span.text)
+            symbol in taught_graphemes for symbol in get_grapheme_symbols(span.text)
         )
 
     for clustering in find_clustering_variants(graphemes):

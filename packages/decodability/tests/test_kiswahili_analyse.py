@@ -192,9 +192,7 @@ class TestKenyaTusomeRule:
             Span(text="mb", start=3, end=5),
             Span(text="mb", start=6, end=8),
         ]
-        assert analysis.lenient_unknown_clusters == [
-            Span(text="mw", start=0, end=2)
-        ]
+        assert analysis.lenient_unknown_clusters == [Span(text="mw", start=0, end=2)]
         assert assess_decodability_kenya_tusome(analysis) is False
         assert assess_decodability_kenya_tusome_lenient(analysis) is False
 

@@ -79,8 +79,7 @@ def analyse_word_kiswahili(
         if span in fused_clusters:
             return True
         return any(
-            symbol not in taught_graphemes
-            for symbol in get_grapheme_symbols(span.text)
+            symbol not in taught_graphemes for symbol in get_grapheme_symbols(span.text)
         )
 
     clustering_variants = find_clustering_variants(graphemes)

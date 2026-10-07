@@ -145,8 +145,7 @@ class NasalBoundary:
         attaches to — a one-vowel root makes the nasal carry its own syllable.
         """
         return sum(
-            not grapheme.is_consonant
-            for grapheme in self.graphemes[self.index + 1 :]
+            not grapheme.is_consonant for grapheme in self.graphemes[self.index + 1 :]
         )
 
 
@@ -220,9 +219,7 @@ _NASAL_CLUSTER_FOLLOWERS = {
 }
 
 
-def _nasal_reading(
-    boundary: NasalBoundary, rules: Sequence[NasalRule]
-) -> NasalReading:
+def _nasal_reading(boundary: NasalBoundary, rules: Sequence[NasalRule]) -> NasalReading:
     """Run the rule list over one boundary; first non-abstaining rule wins.
 
     If every rule abstains the boundary is treated as FUSED, so a gap in the
@@ -269,9 +266,7 @@ def _nasal_verdicts(
 
 def _pair_span(nasal: GraphemeSpan, follower: GraphemeSpan) -> Span:
     """The cluster span covering a nasal and its following consonant."""
-    return Span(
-        text=nasal.text + follower.text, start=nasal.start, end=follower.end
-    )
+    return Span(text=nasal.text + follower.text, start=nasal.start, end=follower.end)
 
 
 def _clusterings_of_run(
@@ -342,9 +337,7 @@ def find_clustering_variants(
     for run in _consonant_runs(graphemes):
         verdicts = _nasal_verdicts(graphemes, run, rules)
         run_variants = _clusterings_of_run(graphemes, run, verdicts)
-        variants = [
-            prefix + suffix for prefix in variants for suffix in run_variants
-        ]
+        variants = [prefix + suffix for prefix in variants for suffix in run_variants]
     return variants
 
 
@@ -385,9 +378,7 @@ def find_fused_cluster_spans(
     for run in _consonant_runs(graphemes):
         for pos, reading in sorted(_nasal_verdicts(graphemes, run, rules).items()):
             if reading is NasalReading.FUSED:
-                fused.append(
-                    _pair_span(graphemes[run[pos]], graphemes[run[pos + 1]])
-                )
+                fused.append(_pair_span(graphemes[run[pos]], graphemes[run[pos + 1]]))
     return fused
 
 
