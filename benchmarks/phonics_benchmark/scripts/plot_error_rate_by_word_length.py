@@ -5,7 +5,7 @@
 
 Counts are pooled over every selected model in a tier, so each rate is
 opportunity-weighted: a model that saw more words in a bin counts for more.
-Writes error_analysis/{fp,fn}_rate_by_word_length.{csv,png} next to the
+Writes error_analysis/{fp,fn}_rate_by_word_length.{csv,png,pdf} next to the
 hardware-tier outputs.
 
 How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the same

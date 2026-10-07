@@ -125,9 +125,11 @@ def style_axes(ax: plt.Axes) -> None:
 
 
 def finish(fig: plt.Figure, path: Path, note: str) -> None:
+    """Save the figure as PNG at ``path`` and as a PDF beside it."""
     fig.text(0.01, 0.01, note, fontsize=8, color="#898781", ha="left", va="bottom")
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(path, dpi=200)
+    fig.savefig(path.with_suffix(".pdf"))
     plt.close(fig)
 
 

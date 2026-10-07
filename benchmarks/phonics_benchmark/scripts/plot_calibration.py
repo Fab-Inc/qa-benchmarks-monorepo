@@ -5,7 +5,7 @@ the predicted ratio is (TP + FP) / vocabulary size. Rows are grouped into ten
 equal-width bins of actual ratio (0-10%, ..., 90-100%) and each bin plots the mean
 actual against the mean predicted ratio over the selected models in the tier.
 Points below the diagonal mean the models under-flag; above, they over-flag.
-Writes error_analysis/calibration.{csv,png} next to the hardware-tier outputs.
+Writes error_analysis/calibration.{csv,png,pdf} next to the hardware-tier outputs.
 
 How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the same
 --root first, since this script reads its hardware_tiers_top{N}_models.csv:
