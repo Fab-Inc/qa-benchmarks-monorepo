@@ -11,30 +11,56 @@ from decodability.kiswahili.definitions import (
 from decodability.kiswahili.extract_words import extract_words_kiswahili
 from decodability.kiswahili.scorers import (
     score_known_clusters_and_patterns_kiswahili,
+    score_known_clusters_and_patterns_lenient_kiswahili,
     score_known_graphemes_kiswahili,
     score_whole_words_kiswahili,
 )
 from decodability.kiswahili.segment import (
     decompose_word,
+    find_ambiguous_boundaries,
     find_cluster_spans,
+    find_clustering_variants,
     get_clusters,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 # (word, [(cluster, start_index), ...]) for each expected consonant cluster.
+# find_cluster_spans resolves ambiguous nasal boundaries (m + b/v can be the
+# syllabic m- marker or the fused prenasalised onset) as fused, so it lists
+# every cluster any viable reading could require. Nasals before consonants
+# other than the taught onsets are syllabic and never part of a cluster.
 cluster_outputs = [
-    ("mbwea'", [("mbw", 0)]),
+    ("mbwea'", [("mb", 0)]),
     ("kunywea", [("nyw", 2)]),
     ("ng'ombe", [("mb", 4)]),
     ("Baba", []),
-    ("mchw", [("mchw", 0)]),
+    ("mchw", [("chw", 1)]),
     ("hospitali", [("sp", 2)]),
-    ("blanketi", [("bl", 0), ("nk", 3)]),
+    ("blanketi", [("bl", 0)]),
     ("mwenzangu", [("mw", 0), ("nz", 3)]),
-    ("mchanganyiko", [("mch", 0)]),
+    ("mchanganyiko", []),
     ("mwembamba", [("mw", 0), ("mb", 3), ("mb", 6)]),
-    ("transista", [("tr", 0), ("ns", 3), ("st", 6)]),
+    ("transista", [("tr", 0), ("st", 6)]),
+    # Syllabic nasals: nasal + consonant is decodable from the graphemes alone.
+    ("mtoto", []),
+    ("mmoja", []),
+    ("mnyama", []),
+    ("mstatili", [("st", 1)]),
+    ("mvua", [("mv", 0)]),
+    ("nchi", []),
+    ("wanne", []),
+    ("ndizi", [("nd", 0)]),
+    ("njia", [("nj", 0)]),
+    ("pandwa", [("nd", 2)]),
+    # Word-initial n + d/j/z on a one-vowel root is syllabic, so no cluster.
+    ("nzi", []),
+    ("nje", []),
+    # On a longer root or word-medially the same onset stays fused.
+    ("nziwa", [("nz", 0)]),
+    ("anza", [("nz", 1)]),
+    # Consonant + nasal (no following consonant) is still a cluster.
+    ("rasmi", [("sm", 2)]),
 ]
 
 
@@ -64,6 +90,60 @@ class TestKiswahiliDefinition:
         spans = find_cluster_spans(decompose_word(word))
 
         assert [(span.normalised, span.start) for span in spans] == expected_outputs
+
+    @pytest.mark.parametrize(
+        "word, expected_variants",
+        [
+            # Only m + b/v boundaries are ambiguous (provisional rule); every
+            # other boundary has a single reading, so most words have exactly
+            # one clustering.
+            ("ndizi", [["nd"]]),
+            ("mtoto", [[]]),
+            ("mstatili", [["st"]]),
+            # nzi's initial n is syllabic (monosyllabic root) — no cluster.
+            ("nzi", [[]]),
+            # nziwa's root has two vowels, so nz stays fused.
+            ("nziwa", [["nz"]]),
+            ("ng'ombe", [["mb"], []]),
+            # m + b/v can be the syllabic m- marker or the fused onset.
+            ("mbuzi", [["mb"], []]),
+            ("mvua", [["mv"], []]),
+            # Read syllabically, the m leaves a bw stretch cluster behind.
+            ("mbwea'", [["mb"], ["bw"]]),
+            # Variants are fused-first: index 0 resolves every ambiguous
+            # boundary as a cluster.
+            (
+                "mwembamba",
+                [["mw", "mb", "mb"], ["mw", "mb"], ["mw", "mb"], ["mw"]],
+            ),
+        ],
+    )
+    def test_find_clustering_variants(self, word, expected_variants):
+        variants = find_clustering_variants(decompose_word(word))
+
+        assert [
+            [span.normalised for span in variant] for variant in variants
+        ] == expected_variants
+
+    @pytest.mark.parametrize(
+        "word, expected_boundaries",
+        [
+            ("mbuzi", [("mb", 0)]),
+            ("mvua", [("mv", 0)]),
+            ("ng'ombe", [("mb", 4)]),
+            ("mwembamba", [("mb", 3), ("mb", 6)]),
+            # nd is unambiguously fused, mt unambiguously syllabic.
+            ("ndizi", []),
+            ("mtoto", []),
+            # nzi's n is resolved syllabic by rule, not left ambiguous.
+            ("nzi", []),
+            ("baba", []),
+        ],
+    )
+    def test_find_ambiguous_boundaries(self, word, expected_boundaries):
+        boundaries = find_ambiguous_boundaries(decompose_word(word))
+
+        assert [(s.normalised, s.start) for s in boundaries] == expected_boundaries
 
     @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
     def test_every_span_indexes_back_into_the_word(self, word):
@@ -432,13 +512,27 @@ class TestScorers:
     @pytest.mark.parametrize(
         "word, known_graphemes, known_clusters, expected",
         [
-            ("mbwea'", {"m", "b", "w", "e", "a"}, {"mbw"}, 1.0),
+            ("mbwea'", {"m", "b", "w", "e", "a"}, {"mb"}, 1.0),
+            # Strictly, the ambiguous mb boundary counts as fused, so knowing
+            # bw (the syllabic reading's leftover cluster) does not suffice.
+            ("mbwea'", {"m", "b", "w", "e", "a"}, {"bw"}, 0.0),
             ("mbwea'", {"m", "b", "w", "e", "a"}, set(), 0.0),
             ("kunywea", {"k", "u", "n", "y", "ny", "w", "e", "a"}, {"nyw"}, 1.0),
             ("ng'ombe", {"ng'", "o", "m", "b", "e"}, {"mb"}, 1.0),
+            # mb is ambiguous, and ambiguous counts as fused under this scorer.
             ("ng'ombe", {"ng'", "o", "m", "b", "e"}, set(), 0.0),
             ("Baba", {"b", "a"}, set(), 1.0),
-            ("mchw", {"m", "ch", "w"}, {"mchw"}, 1.0),
+            ("mchw", {"m", "ch", "w"}, {"chw"}, 1.0),
+            # Syllabic nasals need no cluster knowledge at all.
+            ("mtoto", {"m", "t", "o"}, set(), 1.0),
+            ("nchi", {"n", "ch", "i"}, set(), 1.0),
+            ("ndizi", {"n", "d", "i", "z"}, set(), 0.0),
+            ("ndizi", {"n", "d", "i", "z"}, {"nd"}, 1.0),
+            # nzi's initial n is syllabic (one-vowel root): no cluster to know.
+            ("nzi", {"n", "z", "i"}, set(), 1.0),
+            # nziwa's root has two vowels, so nz stays fused and must be known.
+            ("nziwa", {"n", "z", "i", "w", "a"}, set(), 0.0),
+            ("nziwa", {"n", "z", "i", "w", "a"}, {"nz"}, 1.0),
             ("hospitali", {"h", "o", "s", "p", "i", "t", "a", "l"}, {"sp"}, 1.0),
             ("blanketi", {"b", "l", "a", "n", "k", "e", "t", "i"}, {"bl", "nk"}, 1.0),
         ],
@@ -457,19 +551,62 @@ class TestScorers:
         )
 
     @pytest.mark.parametrize(
+        "word, known_graphemes, known_clusters, expected",
+        [
+            # Under the lenient rule any cluster that is not a fused nasal
+            # onset decomposes into its graphemes — so mb, mv, bw and the
+            # non-nasal stretches all read from grapheme knowledge alone.
+            ("ng'ombe", {"ng'", "o", "m", "b", "e"}, set(), 1.0),
+            ("mvua", {"m", "v", "u", "a"}, set(), 1.0),
+            ("mbwea'", {"m", "b", "w", "e", "a"}, set(), 1.0),
+            ("blanketi", set("blanketi"), set(), 1.0),
+            ("hospitali", set("hospital"), set(), 1.0),
+            ("mpya", {"m", "p", "y", "a"}, set(), 1.0),
+            # With m untaught the fused reading of mbwea' does not decompose,
+            # but the syllabic reading's bw does.
+            ("mbwea'", {"b", "w", "e", "a"}, set(), 1.0),
+            # Taught clusters still satisfy the word outright.
+            ("ng'ombe", {"ng'", "o", "m", "b", "e"}, {"mb"}, 1.0),
+            ("mbwea'", {"m", "b", "w", "e", "a"}, {"bw"}, 1.0),
+            ("mbwea'", {"m", "b", "w", "e", "a"}, {"mb"}, 1.0),
+            # Only untaught fused onsets still block the lenient reading.
+            ("ndizi", {"n", "d", "i", "z"}, set(), 0.0),
+            ("ndizi", {"n", "d", "i", "z"}, {"nd"}, 1.0),
+            ("mwembamba", set("mwembamba"), set(), 0.0),
+            ("mwembamba", set("mwembamba"), {"mw"}, 1.0),
+            ("mtoto", {"m", "t", "o"}, set(), 1.0),
+            ("baba", {"b", "a"}, set(), 1.0),
+        ],
+    )
+    def test_score_known_clusters_and_patterns_lenient_kiswahili(
+        self, word, known_graphemes, known_clusters, expected
+    ):
+        """Leniently, only fused nasal onsets must be taught as clusters."""
+        student_knowledge = KiswahiliStudentKnowledge(
+            graphemes=known_graphemes,
+            clusters=known_clusters,
+        )
+        assert (
+            score_known_clusters_and_patterns_lenient_kiswahili(
+                word, student_knowledge
+            )
+            == expected
+        )
+
+    @pytest.mark.parametrize(
         "word, known_graphemes, known_cluster_patterns, expected",
         [
             (
                 "mbwea'",
                 {"m", "b", "w", "e", "a"},
                 {ClusterPattern.M_LABIALISED_GLIDE},
-                1.0,
-            ),
+                0.0,
+            ),  # "mbw" knowledge does not cover the required "mb" onset
             (
                 "mbwea'",
                 {"m", "b", "w", "e", "a"},
                 {ClusterPattern.PRENASALISED_M, ClusterPattern.LABIALISED_GLIDE},
-                0.0,
+                1.0,
             ),
             (
                 "kunywea",
@@ -483,10 +620,11 @@ class TestScorers:
                 {ClusterPattern.PRENASALISED_M},
                 1.0,
             ),
+            # mb is ambiguous, and ambiguous counts as fused under this scorer.
             ("ng'ombe", {"ng'", "o", "m", "b", "e"}, set(), 0.0),
             ("Baba", {"b", "a"}, set(), 1.0),
-            ("mchw", {"m", "ch", "w"}, {ClusterPattern.LABIALISED_GLIDE}, 0.0),
-            ("mpya", {"m", "p", "y", "a"}, {ClusterPattern.M_PALATALISED_GLIDE}, 1.0),
+            ("mchw", {"m", "ch", "w"}, {ClusterPattern.LABIALISED_GLIDE}, 1.0),
+            ("mpya", {"m", "p", "y", "a"}, {ClusterPattern.M_PALATALISED_GLIDE}, 0.0),
             (
                 "hospitali",
                 {"h", "o", "s", "p", "i", "t", "a", "l"},
@@ -522,14 +660,14 @@ class TestScorers:
                 {"m", "b", "w", "e", "a"},
                 set(),
                 {ClusterPattern.M_LABIALISED_GLIDE},
-                1.0,
+                0.0,
             ),
             (
                 "mbwea'",
                 {"m", "b", "w", "e", "a"},
                 {"mb"},
                 {ClusterPattern.LABIALISED_GLIDE},
-                0.0,
+                1.0,
             ),
             (
                 "kunywea",
@@ -552,14 +690,14 @@ class TestScorers:
                     "mp",
                 },
                 {ClusterPattern.PALATALISED_GLIDE},
-                0.0,
+                1.0,
             ),
             (
                 "mpya",
                 {"m", "b", "p", "y", "a"},
                 {"mb"},
                 {ClusterPattern.M_PALATALISED_GLIDE},
-                1.0,
+                0.0,
             ),
         ],
     )
