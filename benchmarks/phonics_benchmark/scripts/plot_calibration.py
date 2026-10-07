@@ -13,7 +13,7 @@ How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the sa
 
     uv run --frozen --package phonics-benchmark python \\
       benchmarks/phonics_benchmark/scripts/plot_calibration.py \\
-      --root outputs/phonics-mixture-20260922/selections/beta1-8-provisional
+      --root $ROOT
 
 Both languages are plotted unless --language english or --language kiswahili is
 given. Other options: --top-n (default 10), --metric (ranking metric, default
