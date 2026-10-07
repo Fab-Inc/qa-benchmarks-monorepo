@@ -18,6 +18,7 @@ from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.phoneme_overrides import CMUDICT_OVERRIDES
 from decodability.english.scorers import (
     GPC_INVENTORY,
+    _compound_segments,
     score_known_gpcs_english,
     score_sight_words_english,
 )
@@ -61,19 +62,18 @@ class TestEnglishStudentKnowledgeModel:
             ),
             (
                 {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
-                '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"\n'
-                "- Known sight words: None",
+                "- Known GPCs: c -> /k/; a -> /æ/; t -> /t/\n- Known sight words: None",
             ),
             (
                 {"sight_words": {"The", "and"}},
-                '- Known GPCs: None\n- Known sight words: "and", "the"',
+                "- Known GPCs: None\n- Known sight words: and, the",
             ),
             (
                 {
                     "gpcs": [("th", "ð"), ("th", "θ")],
                     "sight_words": {"the"},
                 },
-                '- Known GPCs: "th" → "ð"; "th" → "θ"\n- Known sight words: "the"',
+                "- Known GPCs: th -> /ð/; th -> /θ/\n- Known sight words: the",
             ),
         ],
     )
@@ -125,6 +125,70 @@ class TestScorers:
         assert score_sight_words_english("The", student_knowledge) == 1.0
         assert score_sight_words_english("and", student_knowledge) == 1.0
         assert score_sight_words_english("cat", student_knowledge) == 0.0
+
+    def test_score_sight_words_english_inflections(self):
+        """An inflected sight word passes when its affix was taught."""
+        knowledge = EnglishStudentKnowledge(
+            affixes={"-s", "-ed", "-ing", "-ies"},
+            sight_words={"friend", "walk", "cry", "make"},
+        )
+        assert score_sight_words_english("friends", knowledge) == 1.0
+        assert score_sight_words_english("walked", knowledge) == 1.0
+        assert score_sight_words_english("walking", knowledge) == 1.0
+        # cry -> cries via the -ies unit (the ie letters spell the stem's y)
+        assert score_sight_words_english("cries", knowledge) == 1.0
+        # silent-e restoration: make + s
+        assert score_sight_words_english("makes", knowledge) == 1.0
+
+        # letter GPCs alone don't unlock inflections — the affix must be taught
+        no_affixes = EnglishStudentKnowledge(
+            gpcs=[("s", "z"), ("ed", "t")], sight_words={"friend", "walk"}
+        )
+        assert score_sight_words_english("friends", no_affixes) == 0.0
+        assert score_sight_words_english("walked", no_affixes) == 0.0
+
+        # and the stem must be a known sight word
+        unknown_stem = EnglishStudentKnowledge(affixes={"-s"}, sight_words={"pal"})
+        assert score_sight_words_english("friends", unknown_stem) == 0.0
+
+    def test_score_sight_words_english_prefixes(self):
+        """A prefixed sight word passes when its affix was taught."""
+        knowledge = EnglishStudentKnowledge(
+            affixes={"pre-", "un-", "re-"},
+            sight_words={"view", "happy", "do", "friend"},
+        )
+        assert score_sight_words_english("preview", knowledge) == 1.0
+        assert score_sight_words_english("unhappy", knowledge) == 1.0
+        assert score_sight_words_english("redo", knowledge) == 1.0
+
+        # the affix route requires the taught unit — but ``pre``/``un`` are
+        # real words and decodable chunks here, so the compound rule picks
+        # these up (pre + view, un + happy)
+        untaught_affix = EnglishStudentKnowledge(
+            gpcs=[("pre", "pri"), ("un", "ʌn")],
+            sight_words={"view", "happy"},
+        )
+        assert score_sight_words_english("preview", untaught_affix) == 1.0
+        assert score_sight_words_english("unhappy", untaught_affix) == 1.0
+
+        # a decodable prefix chunk alone isn't enough — the rest must be a
+        # sight word or decodable too (``view`` is neither here)
+        no_stem = EnglishStudentKnowledge(gpcs=[("pre", "pri")], sight_words={"happy"})
+        assert score_sight_words_english("preview", no_stem) == 0.0
+
+    def test_score_sight_words_english_stacked_affixes(self):
+        """A sight word wearing a taught prefix and suffix resolves."""
+        knowledge = EnglishStudentKnowledge(
+            affixes={"un-", "-ly", "pre-", "-s", "-ing", "re-"},
+            sight_words={"friend", "view", "do"},
+        )
+        assert score_sight_words_english("unfriendly", knowledge) == 1.0
+        assert score_sight_words_english("previews", knowledge) == 1.0
+        assert score_sight_words_english("redoing", knowledge) == 1.0
+
+        # one missing affix sinks the chain
+        no_suffix = EnglishStudentKnowledge(affixes={"un-"}, sight_words={"friend"})
+        assert score_sight_words_english("unfriendly", no_suffix) == 0.0
 
 
 class TestEnglishTokenizer:
@@ -275,6 +339,27 @@ class TestPhonemeOverrides:
             Phoneme("n", False),
         )
 
+    def test_sloth_short_o_override(self):
+        """The override adds the short-o reading to ``sloth``; OOV ``sloths``
+        inherits both readings through the s-suffix fallback."""
+        sloth_ipas = {
+            tuple(p.ipa for p in v.phonemes) for v in get_word_phonemes("sloth")
+        }
+        assert ("s", "l", "ɑ", "θ") in sloth_ipas
+        assert ("s", "l", "oʊ", "θ") in sloth_ipas
+
+        sloths_ipas = {
+            tuple(p.ipa for p in v.phonemes) for v in get_word_phonemes("sloths")
+        }
+        assert ("s", "l", "ɑ", "θ", "s") in sloths_ipas
+        assert ("s", "l", "oʊ", "θ", "z") in sloths_ipas
+
+        student = EnglishStudentKnowledge(
+            gpcs=[("s", "s"), ("l", "l"), ("o", "ɑ"), ("th", "θ")]
+        )
+        assert score_known_gpcs_english("sloth", student) == 1.0
+        assert score_known_gpcs_english("sloths", student) == 1.0
+
 
 class TestSuffixedSFallback:
     """OOV words ending in ``s``/``'s`` inherit the base word's CMUdict
@@ -365,10 +450,104 @@ class TestGPCValidation:
         with pytest.raises(ValueError, match="two-part split graphemes only"):
             GPC(id="x", grapheme="a-b-c", phonemes=("k",))
 
-    @pytest.mark.parametrize("grapheme", ["-a", "a-", "-"])
-    def test_gpc_rejects_split_missing_a_side(self, grapheme: str):
+    def test_gpc_rejects_bare_marker(self):
         with pytest.raises(ValueError, match="letters on both sides"):
-            GPC(id="x", grapheme=grapheme, phonemes=("k",))
+            GPC(id="x", grapheme="-", phonemes=("k",))
+
+    @pytest.mark.parametrize(
+        "grapheme, symbol, is_prefix, is_suffix",
+        [
+            ("-ed", "ed", False, True),  # word-final affix
+            ("-ve", "ve", False, True),  # positional grapheme
+            ("pre-", "pre", True, False),  # word-initial affix
+            ("un-", "un", True, False),
+            ("a-e", "a-e", False, False),  # split digraph, no edge marker
+            ("s", "s", False, False),  # plain letter
+        ],
+    )
+    def test_gpc_edge_markers_set_position(
+        self,
+        grapheme: str,
+        symbol: str,
+        is_prefix: bool,
+        is_suffix: bool,
+    ):
+        """A leading ``-`` marks a word-final unit, a trailing ``-`` a
+        word-initial one; either way the marker comes off ``symbol``."""
+        gpc = GPC(id="x", grapheme=grapheme, phonemes=("k",))
+        assert gpc.symbol == symbol
+        assert gpc.is_prefix is is_prefix
+        assert gpc.is_suffix is is_suffix
+        assert gpc.is_split is ("-" in symbol)
+
+    def test_suffix_gpc_matches_medially(self):
+        """``-ing`` is stripped to ``ing`` for matching — the same chunk
+        appears mid-word in inflected forms, so ``sings`` parses as
+        s + ing + s, not only at the word's end."""
+        inventory = (GPC("S", "s", ("s",)), GPC("ING", "-ing", ("ɪ", "ŋ")))
+        parses = parse_gpcs("sing", _say("s", "ɪ", "ŋ"), inventory)
+        assert parses and parses[0][1].gpc.id == "ING"
+        medial = parse_gpcs("sings", _say("s", "ɪ", "ŋ", "s"), inventory)
+        assert medial and medial[0][1].gpc.id == "ING"
+
+    def test_prefix_gpc_matches_medially(self):
+        """``pre-`` likewise matches wherever the ``pre`` chunk appears."""
+        inventory = (GPC("S", "s", ("s",)), GPC("PRE", "pre-", ("p", "r", "i")))
+        parses = parse_gpcs("pre", _say("p", "r", "i"), inventory)
+        assert parses and parses[0][0].gpc.id == "PRE"
+        medial = parse_gpcs("spre", _say("s", "p", "r", "i"), inventory)
+        assert medial and medial[0][1].gpc.id == "PRE"
+
+    @pytest.mark.parametrize(
+        "word, gpcs, expected",
+        [
+            # -ing as a taught unit decodes words containing the chunk.
+            ("sing", [("s", "s"), ("ing", "ɪŋ")], 1.0),
+            ("king", [("k", "k"), ("ing", "ɪŋ")], 1.0),
+            # medial -ve in an inflection: give + s.
+            ("gives", [("g", "g"), ("i", "ɪ"), ("ve", "v"), ("s", "z")], 1.0),
+            # medial -le: table + s.
+            (
+                "tables",
+                [("t", "t"), ("a", "eɪ"), ("b", "b"), ("le", "əl"), ("s", "z")],
+                1.0,
+            ),
+            # the unit also covers non-morphemic occurrences (sing + er).
+            ("singer", [("s", "s"), ("ing", "ɪŋ"), ("er", "ər")], 1.0),
+            ("singer", [("s", "s"), ("i", "ɪ"), ("ng", "ŋ"), ("er", "ər")], 1.0),
+        ],
+    )
+    def test_affix_gpcs_match_at_any_position(
+        self,
+        word: str,
+        gpcs: list[tuple[str, str]],
+        expected: float,
+    ):
+        student = EnglishStudentKnowledge(gpcs=gpcs)
+        assert score_known_gpcs_english(word, student) == expected
+
+    @pytest.mark.parametrize(
+        "gpcs",
+        [
+            [("-ed", "t")],  # marked form, as written in the workbook
+            [("ed", "t")],  # stripped form, as stored in profiles
+            [("pre-", "pri")],
+            [("_ce", "s")],  # underscore marker, as written in the workbook
+            [("a_e", "eɪ")],  # underscore split digraph
+        ],
+    )
+    def test_marked_and_stripped_gpc_forms_validate(self, gpcs):
+        """Affix markers on taught GPCs are presentation, not identity."""
+        EnglishStudentKnowledge(gpcs=gpcs)
+
+    def test_marked_affix_gpc_scores_like_stripped(self):
+        """A profile listing ``("-ed", "d")`` gets the same credit as
+        ``("ed", "d")``: ``played`` parses via ``play`` + ``-ed``."""
+        for gpcs in ([("-ed", "d")], [("ed", "d")]):
+            student = EnglishStudentKnowledge(
+                gpcs=[("p", "p"), ("l", "l"), ("ay", "eɪ"), *gpcs]
+            )
+            assert score_known_gpcs_english("played", student) == 1.0
 
 
 class TestParseGpcsValidation:
@@ -539,6 +718,414 @@ class TestScoreReducedVowelCreditsAnyGraphemeGpc:
             ]
         )
         assert score_known_gpcs_english("planet", student) == 0.0
+
+
+class TestReducedYodFreePass:
+    """When the inventory teaches ``u → (j, u)``, a bare ``u`` paired with
+    /j/ plus an unstressed vowel parses via ``REDUCED_YOD_U`` — the glide is
+    part of the taught correspondence; only its vowel reduces. This is what
+    lets ``partic-u-larly`` /j ə/ decode for a student who knows ``u → ju``.
+    """
+
+    # ``tuler`` is a stand-in word: t + u + l + er, /t j ə l ə r/. The only
+    # way ``u`` covers /j ə/ is the reduced-yod pass.
+    _TULER_PHONEMES = (
+        Phoneme("t", False),
+        Phoneme("j", False),
+        Phoneme("ə", True),  # unstressed — the reducible vowel of the yod pair
+        Phoneme("l", False),
+        Phoneme("ə", True),
+        Phoneme("r", False),
+    )
+    _TULER_INVENTORY = (
+        GPC("T", "t", ("t",)),
+        GPC("U_YOD", "u", ("j", "u")),
+        GPC("L", "l", ("l",)),
+        GPC("ER", "er", ("ə", "r")),
+    )
+
+    def test_u_covers_j_plus_unstressed_vowel(self):
+        parses = parse_gpcs(
+            "tuler",
+            Pronunciation(phonemes=self._TULER_PHONEMES, is_monosyllabic=False),
+            self._TULER_INVENTORY,
+        )
+        assert len(parses) == 1
+        (parse,) = parses
+        u_match = parse[1]
+        assert u_match.gpc.id == "REDUCED_YOD_U"
+        assert u_match.gpc.grapheme == "u"
+        assert u_match.gpc.phonemes == ("j", "ə")
+        assert u_match.letter_positions == (1,)
+        assert u_match.phoneme_span == (1, 3)
+        assert u_match.gpc.is_reduced_vowel
+
+    def test_yod_pass_requires_u_to_ju_in_inventory(self):
+        """Without a ``u → (j, u)`` GPC the pass is withheld — the glide is
+        part of that correspondence, not a universal reduction."""
+        inventory = tuple(gpc for gpc in self._TULER_INVENTORY if gpc.id != "U_YOD")
+        parses = parse_gpcs(
+            "tuler",
+            Pronunciation(phonemes=self._TULER_PHONEMES, is_monosyllabic=False),
+            inventory,
+        )
+        assert parses == ()
+
+    def test_yod_pass_requires_unstressed_vowel(self):
+        """A stressed vowel after /j/ doesn't reduce — ``u`` → /j ə/ only
+        fires on the unstressed form."""
+        phonemes = (
+            Phoneme("t", False),
+            Phoneme("j", False),
+            Phoneme("ə", False),  # stressed schwa — no reduction
+            Phoneme("l", False),
+            Phoneme("ə", True),
+            Phoneme("r", False),
+        )
+        parses = parse_gpcs(
+            "tuler",
+            Pronunciation(phonemes=phonemes, is_monosyllabic=False),
+            self._TULER_INVENTORY,
+        )
+        assert parses == ()
+
+    def test_yod_pass_withheld_when_monosyllabic(self):
+        parses = parse_gpcs(
+            "tuler",
+            Pronunciation(phonemes=self._TULER_PHONEMES, is_monosyllabic=True),
+            self._TULER_INVENTORY,
+        )
+        assert parses == ()
+
+    def test_yod_pass_fires_only_on_u(self):
+        """The glide belongs to the ``u`` correspondence — another vowel
+        letter can't claim /j ə/."""
+        parses = parse_gpcs(
+            "toler",
+            Pronunciation(phonemes=self._TULER_PHONEMES, is_monosyllabic=False),
+            self._TULER_INVENTORY,
+        )
+        assert parses == ()
+
+    def test_particularly_parses_via_reduced_yod_end_to_end(self):
+        """Through the real pipeline: ``particularly`` parses under the full
+        UFLI inventory only because ``u`` covers /j ə/."""
+        variants, parses = _parse_corpus_word("particularly")
+        assert parses, "particularly should parse under the full UFLI inventory"
+        assert any(
+            any(match.gpc.id == "REDUCED_YOD_U" for match in parse)
+            for _, parse in parses
+        )
+
+
+class TestScoreReducedYodRequiresYodPair:
+    """The scorer credits ``REDUCED_YOD_U`` only when the unreduced pair
+    ``u → ju`` was taught — knowing just any ``u`` GPC (``u → ʌ``) is not
+    enough, since the /j/ glide is part of the correspondence.
+    """
+
+    _BASE_GPCS = [
+        ("p", "p"),
+        ("ar", "ɑr"),
+        ("t", "t"),
+        ("i", "ɪ"),
+        ("c", "k"),
+        ("l", "l"),
+        ("ar", "ər"),
+        ("-ly", "li"),
+    ]
+
+    def test_u_ju_taught_decodes_particularly(self):
+        student = EnglishStudentKnowledge(gpcs=[*self._BASE_GPCS, ("u", "ju")])
+        assert score_known_gpcs_english("particularly", student) == 1.0
+
+    def test_other_u_gpcs_do_not_unlock_the_yod(self):
+        """``u → ʌ`` (or ``u → u``) teaches the letter but not the glide."""
+        for u_pair in ("ʌ", "u", "ʊ"):
+            student = EnglishStudentKnowledge(gpcs=[*self._BASE_GPCS, ("u", u_pair)])
+            assert score_known_gpcs_english("particularly", student) == 0.0
+
+    def test_u_ju_also_credits_plain_reduced_u(self):
+        """``u → ju`` is a ``u`` GPC, so it satisfies the ordinary reduced-
+        vowel rule too — ``album``'s ``u → ə`` parses for free."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("a", "æ"), ("l", "l"), ("b", "b"), ("m", "m"), ("u", "ju")]
+        )
+        assert score_known_gpcs_english("album", student) == 1.0
+
+
+class TestCompoundSightWordDecoding:
+    """A word built from known pieces is decodable: every contiguous chunk
+    must be a taught sight word or independently GPC-decodable, and at least
+    one chunk must be a sight word.
+    """
+
+    def test_two_sight_words(self):
+        """``noone`` = ``no`` + ``one`` — undecodable as a whole (the middle
+        ``o`` has no phoneme) but both halves are memorized."""
+        student = EnglishStudentKnowledge(sight_words={"no", "one"})
+        assert score_sight_words_english("noone", student) == 1.0
+        assert _compound_segments("noone", student) == ["no", "one"]
+
+    def test_sight_word_plus_decodable_rest(self):
+        """``someone`` = ``some`` (s, o-e → ʌ, m) + sight word ``one``."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")],
+            sight_words={"one"},
+        )
+        assert score_sight_words_english("someone", student) == 1.0
+        assert _compound_segments("someone", student) == ["some", "one"]
+
+    def test_decodable_chunk_can_follow_the_sight_word(self):
+        """The sight word needn't come last: ``onesome``-style splits work."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")],
+            sight_words={"one"},
+        )
+        assert _compound_segments("onesome", student) == ["one", "some"]
+
+    def test_requires_a_sight_word_chunk(self):
+        """A compound of purely decodable chunks is out of scope — ``catdog``
+        stays undecodable even though ``cat`` and ``dog`` both decode."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("c", "k"),
+                ("a", "æ"),
+                ("t", "t"),
+                ("d", "d"),
+                ("o", "ɑ"),
+                ("g", "g"),
+            ],
+            sight_words={"the"},
+        )
+        assert score_sight_words_english("catdog", student) == 0.0
+
+    def test_missing_sight_word_chunk_fails(self):
+        """``someone`` without ``one`` in sight words stays undecodable."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")],
+            sight_words={"two"},
+        )
+        assert score_sight_words_english("someone", student) == 0.0
+
+    def test_undecodable_rest_fails(self):
+        """The non-sight chunks must actually decode — without ``o-e → ʌ``
+        the ``some`` half can't be sounded out."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("s", "s"), ("m", "m")],
+            sight_words={"one"},
+        )
+        assert score_sight_words_english("someone", student) == 0.0
+
+    def test_no_sight_words_at_all_short_circuits(self):
+        """No taught sight words → no compound can qualify."""
+        student = EnglishStudentKnowledge(gpcs=[("s", "s"), ("o-e", "ʌ"), ("m", "m")])
+        assert score_sight_words_english("someone", student) == 0.0
+
+
+class TestSharedLetters:
+    """A grapheme may reuse one boundary letter claimed by a neighbor — the
+    ``g`` in ``jungle`` serves ``ng → ŋ`` and ``g → g``; the ``e`` in
+    ``placed`` is the ``a-e`` tail, part of ``ce → s``, and part of
+    ``-ed → t``. Only boundary letters share; interiors stay exclusive.
+    """
+
+    def test_jungle_g_shared_between_ng_and_g(self):
+        variants, parses = _parse_corpus_word("jungle")
+        assert parses, "jungle should parse under the full UFLI inventory"
+        # some parse puts ng on (2,3) and g on (3,) — the shared g
+        assert any(
+            ("ng", (2, 3)) in matches and ("g", (3,)) in matches
+            for _, parse in parses
+            for matches in [[(m.gpc.grapheme, m.letter_positions) for m in parse]]
+        )
+
+    def test_placed_e_shared_three_ways(self):
+        variants, parses = _parse_corpus_word("placed")
+        assert parses, "placed should parse under the full UFLI inventory"
+        assert any(
+            [(m.gpc.grapheme, m.letter_positions) for m in parse]
+            == [
+                ("p", (0,)),
+                ("l", (1,)),
+                ("a-e", (2, 4)),
+                ("ce", (3, 4)),
+                ("-ed", (4, 5)),
+            ]
+            for _, parse in parses
+        )
+
+    def test_shared_letter_only_one_position_back(self):
+        """A grapheme can borrow the previous match's last letter — not two
+        letters back. ``bc`` after ``abc`` would share two letters."""
+        inventory = (
+            GPC("ABC", "abc", ("x",)),
+            GPC("BC", "bc", ("y", "z")),
+        )
+        phonemes = _say("x", "y", "z")
+        assert parse_gpcs("abc", phonemes, inventory) == ()
+        # but bc starting on abc's last letter (one back) is allowed
+        inventory2 = (
+            GPC("AB", "ab", ("x",)),
+            GPC("BC", "bc", ("y", "z")),
+        )
+        parses = parse_gpcs("abc", phonemes, inventory2)
+        assert len(parses) == 1
+        assert [m.letter_positions for m in parses[0]] == [(0, 1), (1, 2)]
+
+    def test_reserved_tail_shareable_only_as_last_letter(self):
+        """A split tail can be shared as a match's last letter (``be`` below)
+        but not buried in a match's interior (``bec``)."""
+        # a-e[0,2] reserves position 2; bec[1,3] needs it mid-span → blocked
+        blocked = parse_gpcs(
+            "abec",
+            _say("eɪ", "x"),
+            (GPC("A_E", "a-e", ("eɪ",)), GPC("BEC", "bec", ("x",))),
+        )
+        assert blocked == ()
+        # be[1,2] ends on the reserved tail — the shared silent-e case
+        allowed = parse_gpcs(
+            "abe",
+            _say("eɪ", "j", "ə"),
+            (GPC("A_E", "a-e", ("eɪ",)), GPC("BE", "be", ("j", "ə"))),
+        )
+        assert len(allowed) == 1
+        assert [m.letter_positions for m in allowed[0]] == [(0, 2), (1, 2)]
+
+    def test_jungle_scores_end_to_end(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("j", "dʒ"), ("u", "ʌ"), ("ng", "ŋ"), ("g", "g"), ("-le", "əl")]
+        )
+        assert score_known_gpcs_english("jungle", student) == 1.0
+
+    def test_placed_scores_end_to_end(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("p", "p"), ("l", "l"), ("a_e", "eɪ"), ("_ce", "s"), ("-ed", "t")]
+        )
+        assert score_known_gpcs_english("placed", student) == 1.0
+
+    def test_placed_needs_the_shared_letter_pieces(self):
+        """Without ``ce → s`` the shared-``e`` parse collapses — ``placed``
+        stays undecodable."""
+        student = EnglishStudentKnowledge(
+            gpcs=[("p", "p"), ("l", "l"), ("a_e", "eɪ"), ("-ed", "t")]
+        )
+        assert score_known_gpcs_english("placed", student) == 0.0
+
+
+class TestProductiveSpellingAndPronunciationRules:
+    def test_positional_final_e_is_silent_after_a_consonant(self):
+        student = EnglishStudentKnowledge(gpcs=[("h", "h"), ("ou", "aʊ"), ("s", "s")])
+        assert score_known_gpcs_english("house", student) == 1.0
+
+    def test_final_e_does_not_turn_bare_u_into_the_ue_vowel_team(self):
+        student = EnglishStudentKnowledge(gpcs=[("b", "b"), ("l", "l"), ("u", "u")])
+        assert score_known_gpcs_english("blue", student) == 0.0
+
+    def test_dropped_e_soft_c_is_licensed_by_taught_ce(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("d", "d"), ("a", "æ"), ("n", "n"), ("ce", "s"), ("ing", "ɪŋ")]
+        )
+        assert score_known_gpcs_english("dancing", student) == 1.0
+
+    def test_dropped_e_rule_does_not_replace_ordinary_hard_c(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("a", "æ"), ("n", "n"), ("ce", "s"), ("ing", "ɪŋ")]
+        )
+        assert score_known_gpcs_english("canning", student) == 0.0
+
+    @pytest.mark.parametrize(
+        "spelling, phonemes, derived_id",
+        [
+            ("x", ("g", "z"), "DERIVED_X_VOICED"),
+            ("xc", ("k", "s"), "DERIVED_XC"),
+            ("xh", ("g", "z"), "DERIVED_XH"),
+        ],
+    )
+    def test_contextual_x_readings_are_available(
+        self, spelling: str, phonemes: tuple[str, ...], derived_id: str
+    ):
+        parses = parse_gpcs(spelling, _say(*phonemes), ())
+        assert any(parse[0].gpc.id == derived_id for parse in parses)
+
+    def test_contextual_x_reading_still_requires_taught_x(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("e", "ɛ"), ("a", "æ"), ("c", "k"), ("t", "t")]
+        )
+        assert score_known_gpcs_english("exact", student) == 0.0
+        student.gpcs.append(("x", "ks"))
+        assert score_known_gpcs_english("exact", student) == 1.0
+
+    def test_es_allows_the_reduced_iz_pronunciation_and_shared_e(self):
+        pronunciation = Pronunciation(
+            phonemes=(
+                *_tag("p", "l", "ɛ", "dʒ"),
+                Phoneme("ɪ", True),
+                Phoneme("z", False),
+            ),
+            is_monosyllabic=False,
+        )
+        inventory = (
+            GPC("P", "p", ("p",)),
+            GPC("L", "l", ("l",)),
+            GPC("E", "e", ("ɛ",)),
+            GPC("DGE", "dge", ("dʒ",)),
+            GPC("ES", "-es", ("ə", "z")),
+        )
+        parses = parse_gpcs("pledges", pronunciation, inventory)
+        assert any(
+            [(m.gpc.symbol, m.letter_positions) for m in parse]
+            == [
+                ("p", (0,)),
+                ("l", (1,)),
+                ("e", (2,)),
+                ("dge", (3, 4, 5)),
+                ("es", (5, 6)),
+            ]
+            for parse in parses
+        )
+
+    def test_letter_name_initialisms_use_known_constituent_letters(self):
+        assert (
+            score_known_gpcs_english(
+                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+            )
+            == 1.0
+        )
+        assert (
+            score_known_gpcs_english(
+                "ok", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
+            )
+            == 1.0
+        )
+
+    def test_taught_digraph_is_not_reinterpreted_as_an_initialism(self):
+        student = EnglishStudentKnowledge(gpcs=[("t", "t"), ("h", "h")])
+        assert score_known_gpcs_english("th", student) == 0.0
+
+    def test_gu_glide_is_licensed_by_taught_g_and_u(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("bi", "baɪ"),
+                ("l", "l"),
+                ("i", "ɪ"),
+                ("ng", "ŋ"),
+                ("g", "g"),
+                ("u", "ʌ"),
+                ("a", "æ"),
+            ]
+        )
+        assert score_known_gpcs_english("bilingual", student) == 1.0
+        without_u = EnglishStudentKnowledge(gpcs=student.gpcs[:-2] + [("a", "æ")])
+        assert score_known_gpcs_english("bilingual", without_u) == 0.0
+
+    @pytest.mark.parametrize("word", ["isn't", "wasn't"])
+    def test_nt_contraction_can_use_syllabic_n(self, word: str):
+        variants = get_word_phonemes(word)
+        assert any(
+            not any(phoneme.ipa == "ə" for phoneme in variant.phonemes)
+            for variant in variants
+        )
 
 
 class TestApostropheIsSilent:
@@ -814,6 +1401,35 @@ class TestCotCaughtVariantExpansion:
         """Swapping the vowel must not change how many syllables the word has."""
         for variant in get_word_phonemes("dog"):
             assert variant.is_monosyllabic
+
+    def test_ao_before_r_is_not_swapped(self):
+        """The merger does not apply before /r/: ``for`` stays /fɔr/ — it
+        never homophonizes with ``far`` /fɑr/ even for merged speakers."""
+        assert _add_cot_caught_variants([["F", "AO1", "R"]]) == [["F", "AO1", "R"]]
+
+    def test_only_non_pre_r_aos_are_swapped(self):
+        """In a mixed variant the pre-/r/ AO stays; the other still merges."""
+        assert _add_cot_caught_variants([["AO1", "T", "AO0", "R"]]) == [
+            ["AO1", "T", "AO0", "R"],
+            ["AA1", "T", "AO0", "R"],
+        ]
+
+    def test_for_yields_no_merged_reading_end_to_end(self):
+        vowels = {
+            phoneme.ipa
+            for variant in get_word_phonemes("for")
+            for phoneme in variant.phonemes
+        }
+        assert "ɑ" not in vowels, "for should not offer the merged /ɑr/ reading"
+
+    def test_for_parses_only_via_ɔr_correspondences(self):
+        """``o → ɑ`` must not match the /ɔ/ in /fɔr/; the word still parses
+        via ``or → ɔr`` and the unmerged ``o → ɔ``."""
+        _, parses = _parse_corpus_word("for")
+        assert parses, "for should still parse under the full UFLI inventory"
+        used = {match.gpc.id for _, parse in parses for match in parse}
+        assert "G010" not in used, "o -> ɑ should not match /ɔ/ before r"
+        assert {"G077", "G168"} <= used, "or -> ɔr and o -> ɔ should still parse"
 
 
 class TestRegressionCotCaughtMergerOnCorpusWords:

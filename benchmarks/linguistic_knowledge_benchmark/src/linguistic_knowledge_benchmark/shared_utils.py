@@ -41,7 +41,7 @@ def require_synced_config(path: str | Path) -> None:
 
 
 MODELS_LIST_YAML = BENCH_DIR / "list_models.yaml"
-with open(MODELS_LIST_YAML) as _f:
+with open(MODELS_LIST_YAML, encoding="utf-8") as _f:
     EVAL_MODELS: dict[str, str] = yaml.safe_load(_f)
 
 RATE_LIMITED_MODELS = {

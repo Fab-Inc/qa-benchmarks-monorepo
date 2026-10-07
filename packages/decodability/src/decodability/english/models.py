@@ -1,11 +1,19 @@
 from pydantic import BaseModel, field_validator
 
-from decodability.english.definitions import UFLI_GPC_PAIRS_FLAT
+from decodability.english.definitions import (
+    UFLI_GPC_PAIRS_FLAT,
+    normalize_gpc_grapheme,
+)
 
 
 class EnglishStudentKnowledge(BaseModel):
     gpcs: list[tuple[str, str]] = []
     sight_words: set[str] = set()
+    # Marker-bearing units taught as chunks: affixes ("-ed", "-ies", "un-")
+    # and positional graphemes ("_ce", "-ve", "-le"). The workbook writes the
+    # marker at the edge of the grapheme; ingestion preserves it here while
+    # the same pair also lands in ``gpcs`` stripped, as letter knowledge.
+    affixes: set[str] = set()
 
     @field_validator("gpcs")
     @classmethod
@@ -13,8 +21,17 @@ class EnglishStudentKnowledge(BaseModel):
         cls,
         gpcs: list[tuple[str, str]],
     ) -> list[tuple[str, str]]:
-        """Check that every GPC is taught in the UFLI inventory."""
-        invalid = [g for g in gpcs if tuple(g) not in UFLI_GPC_PAIRS_FLAT]
+        """Check that every GPC is taught in the UFLI inventory.
+
+        Graphemes are compared in canonical form, so a pair carries the same
+        meaning whether the profile writes the affix marker (``-ed``,
+        ``pre-``, ``_ce``) or not (``ed``, ``pre``, ``ce``).
+        """
+        invalid = [
+            g
+            for g in gpcs
+            if (normalize_gpc_grapheme(g[0]), g[1]) not in UFLI_GPC_PAIRS_FLAT
+        ]
         if invalid:
             raise ValueError(
                 f"Not taught GPCs: {invalid}. "
@@ -28,10 +45,16 @@ class EnglishStudentKnowledge(BaseModel):
         """Lowercase all sight words to ensure consistency."""
         return {word.lower() for word in sight_words}
 
+    @field_validator("affixes")
+    @classmethod
+    def lowercase_affixes(cls, affixes: set[str]) -> set[str]:
+        """Lowercase all affixes to ensure consistency."""
+        return {affix.lower() for affix in affixes}
+
     def __str__(self) -> str:
         """Return a string representation of the EnglishStudentKnowledge instance."""
-        gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
-        sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
+        gpcs = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in self.gpcs)
+        sight_words = ", ".join(sorted(self.sight_words))
 
         return "\n".join(
             [

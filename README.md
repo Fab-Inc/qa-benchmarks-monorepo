@@ -10,6 +10,8 @@ It contains:
 - `packages/decodability`: standalone scaffolding for language-specific decodability
   tooling.
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
+- `benchmarks/decodable_text_generation`: the decodable text generation benchmarks
+  (child and curriculum), reusing the phonics run harness.
 - `benchmarks/linguistic_knowledge_benchmark`: benchmark-specific package for the
   linguistic knowledge benchmark.
 

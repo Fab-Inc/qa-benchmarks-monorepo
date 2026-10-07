@@ -34,6 +34,7 @@ members = [
 fab-benchmark-publisher = { workspace = true }
 primerpro = { workspace = true }
 decodability = { workspace = true }
+phonics-benchmark = { workspace = true }
 fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
 [tool.coverage.report]

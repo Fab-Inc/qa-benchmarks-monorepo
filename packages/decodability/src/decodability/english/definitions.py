@@ -75,6 +75,7 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G014", "g", ("g",)),
     ("G015", "b", ("b",)),
     ("G016", "e", ("ɛ",)),
+    ("G017", "-s", ("s",)),
     ("G018", "s", ("z",)),
     ("G019", "k", ("k",)),
     ("G020", "h", ("h",)),
@@ -111,12 +112,12 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G051", "u-e", ("j", "u")),  # split digraph (yod)
     ("G052", "ce", ("s",)),  # soft c + silent e (_ce)
     ("G053", "ge", ("dʒ",)),  # soft g + silent e (_ge)
-    ("G054", "ve", ("v",)),  # words don't end in v (-ve)
-    ("G055", "es", ("ə", "z")),
-    ("G056", "ed", ("t",)),
-    ("G057", "ed", ("d",)),
-    ("G058", "ed", ("ə", "d")),
-    ("G059", "ing", ("ɪ", "ŋ")),
+    ("G054", "-ve", ("v",)),  # words don't end in v (-ve)
+    ("G055", "-es", ("ə", "z")),
+    ("G056", "-ed", ("t",)),
+    ("G057", "-ed", ("d",)),
+    ("G058", "-ed", ("ə", "d")),
+    ("G059", "-ing", ("ɪ", "ŋ")),
     ("G060", "a", ("eɪ",)),  # open syllable
     ("G061", "e", ("i",)),  # open syllable
     ("G062", "i", ("aɪ",)),  # open syllable
@@ -132,7 +133,7 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G072", "ost", ("oʊ", "s", "t")),
     ("G073", "y", ("aɪ",)),
     ("G074", "y", ("i",)),
-    ("G075", "le", ("ə", "l")),  # -le syllable ending
+    ("G075", "-le", ("ə", "l")),  # -le syllable ending
     ("G076", "ar", ("ɑ", "r")),
     ("G077", "or", ("ɔ", "r")),
     ("G078", "ore", ("ɔ", "r")),
@@ -168,17 +169,18 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G108", "kn", ("n",)),
     ("G109", "wr", ("r",)),
     ("G110", "mb", ("m",)),
-    ("G112", "est", ("ə", "s", "t")),
-    ("G113", "ly", ("l", "i")),
-    ("G114", "less", ("l", "ə", "s")),
-    ("G115", "ful", ("f", "ə", "l")),
-    ("G116", "un", ("ʌ", "n")),
-    ("G117", "pre", ("p", "r", "i")),
-    ("G118", "re", ("r", "i")),
-    ("G119", "dis", ("d", "ɪ", "s")),
-    ("G120", "ied", ("aɪ", "d")),
-    ("G121", "ies", ("aɪ", "z")),
-    ("G122", "ies", ("i", "z")),
+    ("G111", "-er", ("ə", "r")),
+    ("G112", "-est", ("ə", "s", "t")),
+    ("G113", "-ly", ("l", "i")),
+    ("G114", "-less", ("l", "ə", "s")),
+    ("G115", "-ful", ("f", "ə", "l")),
+    ("G116", "un-", ("ʌ", "n")),
+    ("G117", "pre-", ("p", "r", "i")),
+    ("G118", "re-", ("r", "i")),
+    ("G119", "dis-", ("d", "ɪ", "s")),
+    ("G120", "-ied", ("aɪ", "d")),
+    ("G121", "-ies", ("aɪ", "z")),
+    ("G122", "-ies", ("i", "z")),
     ("G123", "ar", ("ə", "r")),  # unstressed ar: beggar, dollar
     ("G125", "air", ("ɛ", "r")),
     ("G126", "are", ("ɛ", "r")),
@@ -202,19 +204,19 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G144", "gn", ("n",)),
     ("G145", "gh", ("g",)),
     ("G146", "st", ("s",)),  # silent t
-    ("G147", "tion", ("ʃ", "ə", "n")),
-    ("G148", "sion", ("ʒ", "ə", "n")),
-    ("G149", "sion", ("ʃ", "ə", "n")),
-    ("G150", "ture", ("tʃ", "ə", "r")),
-    ("G151", "ist", ("ɪ", "s", "t")),
-    ("G152", "ish", ("ɪ", "ʃ")),
-    ("G153", "ness", ("n", "ə", "s")),
-    ("G154", "ment", ("m", "ə", "n", "t")),
-    ("G155", "able", ("ə", "b", "ə", "l")),
-    ("G156", "ible", ("ə", "b", "ə", "l")),
-    ("G157", "bi", ("b", "aɪ")),
-    ("G158", "tri", ("t", "r", "aɪ")),
-    ("G159", "uni", ("j", "u", "n", "i")),
+    ("G147", "-tion", ("ʃ", "ə", "n")),
+    ("G148", "-sion", ("ʒ", "ə", "n")),
+    ("G149", "-sion", ("ʃ", "ə", "n")),
+    ("G150", "-ture", ("tʃ", "ə", "r")),
+    ("G151", "-ist", ("ɪ", "s", "t")),
+    ("G152", "-ish", ("ɪ", "ʃ")),
+    ("G153", "-ness", ("n", "ə", "s")),
+    ("G154", "-ment", ("m", "ə", "n", "t")),
+    ("G155", "-able", ("ə", "b", "ə", "l")),
+    ("G156", "-ible", ("ə", "b", "ə", "l")),
+    ("G157", "bi-", ("b", "aɪ")),
+    ("G158", "tri-", ("t", "r", "aɪ")),
+    ("G159", "uni-", ("j", "u", "n", "i")),
     ("G160", "bb", ("b",)),
     ("G161", "cc", ("k",)),
     ("G162", "dd", ("d",)),
@@ -230,12 +232,31 @@ UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
     ("G172", "ssion", ("ʃ", "ə", "n")),
     ("G173", "o-e", ("ʌ",)),
     ("G174", "rr", ("r",)),
+    ("G175", "-ier", ("i", "ə", "r")),  # comparative suffix: happier
+    ("G176", "-iest", ("i", "ə", "s", "t")),  # superlative suffix: happiest
 ]
 
+
+def normalize_gpc_grapheme(grapheme: str) -> str:
+    """Map a grapheme to its canonical taught-pair form.
+
+    Edge positional markers are removed — a leading ``-``/``_`` marks a
+    word-final unit (``-ed``, ``_ce``), a trailing one a word-initial unit
+    (``pre-``) — while a medial ``_`` is rewritten to the split-digraph
+    hyphen the inventory uses (``a_e`` → ``a-e``). Matches the normalization
+    workbook ingestion applies, so marked, stripped, and underscore-written
+    forms of the same unit all compare equal.
+    """
+    return grapheme.strip("-_").replace("_", "-")
+
+
 # Student-facing form: the phoneme side is a single joined IPA string, so a
-# multi-phoneme GPC like ``("x", ("k", "s"))`` reads as ``("x", "ks")``. Used
-# by ``EnglishStudentKnowledge`` validation and by the scorer to check parser
-# matches against the student's taught set.
+# multi-phoneme GPC like ``("x", ("k", "s"))`` reads as ``("x", "ks")``. The
+# grapheme side is normalized to its canonical form (affix markers stripped:
+# ``-ed`` → ``ed``, ``pre-`` → ``pre``), matching how taught GPCs are stored
+# in student profiles. Used by ``EnglishStudentKnowledge`` validation and by
+# the scorer to check parser matches against the student's taught set.
 UFLI_GPC_PAIRS_FLAT: frozenset[tuple[str, str]] = frozenset(
-    (grapheme, "".join(phonemes)) for _, grapheme, phonemes in UFLI_GPC_INVENTORY
+    (normalize_gpc_grapheme(grapheme), "".join(phonemes))
+    for _, grapheme, phonemes in UFLI_GPC_INVENTORY
 )

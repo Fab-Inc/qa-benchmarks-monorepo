@@ -29,7 +29,7 @@ _WORD_LISTS_PATH = (
 
 
 def main() -> None:
-    with open(_WORD_LISTS_PATH) as f:
+    with open(_WORD_LISTS_PATH, encoding="utf-8") as f:
         gpc_ids: dict[str, list[str]] = json.load(f)
 
     for gpc in gpc_ids:
