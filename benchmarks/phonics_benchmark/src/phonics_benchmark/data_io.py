@@ -85,22 +85,20 @@ def read_decodable_texts(language: str, data_root: Path) -> list[DecodableText]:
     )
 
 
-def read_student_knowledge_profiles[ModelT: BaseModel](
-    language: str, data_root: Path, *, model: type[ModelT] = StudentKnowledge
-) -> list[ModelT]:
+def read_student_knowledge_profiles(
+    language: str, data_root: Path
+) -> list[StudentKnowledge]:
     """Parse student_knowledge_profiles.jsonl for the given language.
 
-    Only checks the generic StudentKnowledge shape unless another `model` is
-    given (e.g. a benchmark that extends the record with extra fields). The
-    contents of each profile's `student_knowledge` are language-specific — call
-    validate_student_knowledge() to check those against the language's
-    decodability model.
+    Only checks the generic StudentKnowledge shape. The contents of each profile's
+    `student_knowledge` are language-specific — call validate_student_knowledge()
+    to check those against the language's decodability model.
     """
     return _read_records(
         language,
         data_root,
         STUDENT_PROFILES_FILENAME,
-        model,
+        StudentKnowledge,
         STUDENT_PROFILES_ID_NAME,
     )
 
