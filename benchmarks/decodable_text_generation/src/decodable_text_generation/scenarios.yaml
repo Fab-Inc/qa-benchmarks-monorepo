@@ -1,0 +1,27 @@
+# Generation scenarios for the decodable-text-generation benchmark.
+#
+# Each entry is keyed by its scenario_id and holds the TASK instruction injected
+# into the {scenario} placeholder of the decodable_text_generation prompt.
+#
+# Every scenario states its own length target so the task is well defined and
+# comparable across models. Length does not enter the decodability score; it is
+# reported separately as per-item `correct_amount` / `correct_amount_rate`
+# (see scoring.py's length requirements).
+#
+# Scenarios use YAML folded scalars (>-): a single line break becomes a space;
+# blank lines are preserved as newlines (N blank lines -> N newlines).
+
+words: >-
+  Generate a list of 20 words for this student to practice reading.
+
+  If there are not enough words in the language for this particular student to read, you may stop early.
+
+sentences: >-
+  Write 10 independent practice sentences for this student to read.
+
+  Each sentence should stand on its own and does not need to connect to the others.
+
+story: >-
+  Write a short story for this student to read on their own, as practice in reading with what they have learned so far.
+  
+  The story should be engaging and age-appropriate for a child who is learning to read, and suited to where this student is in their learning.

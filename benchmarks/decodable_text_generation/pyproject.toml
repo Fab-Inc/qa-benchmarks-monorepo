@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "decodable-text-generation"
+version = "0.1.0"
+description = "Decodable text generation benchmark package"
+requires-python = ">=3.13"
+dependencies = [
+  "decodability",
+  "fab-benchmark-publisher",
+  "fabdata-llm",
+  "openpyxl>=3.1.5",
+  "pandas>=3.0.0",
+  "phonics-benchmark",
+  "pydantic>=2.13.4",
+  "python-dotenv>=1.0.0",
+  "pyyaml>=6.0",
+  "typer>=0.12.0",
+]
+
+[project.scripts]
+decodable-text-generation = "decodable_text_generation.cmd:main"
