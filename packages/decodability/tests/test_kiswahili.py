@@ -855,22 +855,32 @@ class TestKiswahiliAggregators:
 
 class TestKiswahiliSyllabicNasalUngating:
     @pytest.mark.parametrize(
-        "cluster,expected",
+        "word,cluster_index,expected",
         [
-            ("mp", True),
-            ("nt", True),
-            ("mw", False),
-            # "mb" left out as it's not supported yet
-            ("nz", False),
-            ("mchw", True),
-            ("kw", False),
+            ("mpaka", 0, True),
+            ("sentensi", 0, True),
+            ("mwili", 0, False),
+            ("kwa", 0, False),
+            # word-initial, one syllable after the nasal
+            ("nzi", 0, True),
+            ("nje", 0, True),
+            ("mchwa", 0, True),
+            ("mbu", 0, True),
+            ("mbwa", 0, True),
+            # fused before j/z/d once more than one syllable follows
+            ("njia", 0, False),
+            ("kanzu", 0, False),
+            # medial mb is fused
+            ("nyumba", 0, False),
+            ("mjomba", 0, True),
+            ("mjomba", 1, False),
+            ("chumvi", 0, False),
         ],
     )
-    def test_is_syllabic_nasal(self, cluster, expected):
-        cluster_span = ClusterSpan(
-            text=cluster, start=0, end=len(cluster), nasal=cluster[0] in {"m", "n"}
-        )
-        assert is_syllabic_nasal(cluster_span) == expected
+    def test_is_syllabic_nasal(self, word, cluster_index, expected):
+        word_decomp = decompose_word(word)
+        cluster_span = word_decomp.clusters[cluster_index]
+        assert is_syllabic_nasal(word_decomp, cluster_span) == expected
 
     @pytest.mark.parametrize(
         "word,profile,expected",
@@ -881,6 +891,38 @@ class TestKiswahiliSyllabicNasalUngating:
                     graphemes={"m", "b", "w", "e", "a"},
                     clusters={"mbw"},
                     cluster_patterns={ClusterPattern.PRENASALISED_M},
+                    whole_words=set(),
+                ),
+                False,
+            ),
+            (
+                # mj is syllabic, but the medial mb is fused and unknown
+                "mjomba",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "b", "j", "o", "a"},
+                    clusters=set(),
+                    cluster_patterns=set(),
+                    whole_words=set(),
+                ),
+                False,
+            ),
+            (
+                # the "m" + consonant pattern covers mb, so the word can be ungated
+                "mjomba",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "b", "j", "o", "a"},
+                    clusters=set(),
+                    cluster_patterns={ClusterPattern.PRENASALISED_M},
+                    whole_words=set(),
+                ),
+                True,
+            ),
+            (
+                "nje",
+                KiswahiliStudentKnowledge(
+                    graphemes={"n", "j", "e"},
+                    clusters=set(),
+                    cluster_patterns=set(),
                     whole_words=set(),
                 ),
                 True,
