@@ -34,12 +34,10 @@ from mistralai.exceptions import MistralAPIException, MistralConnectionException
 from openai import APIError as OpenAIAPIError
 
 from phonics_benchmark.config import (
-    DECODABILITY_TASK,
     BenchmarkRunConfig,
     ConfigError,
     config_identity_sha256,
     effective_max_tokens,
-    load_run_config,
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
@@ -75,35 +73,6 @@ class _ModelRunOutput(TypedDict):
 class _PreparedItem(TypedDict):
     item: dict[str, Any]
     prompt: str
-
-
-def run_from_config_file(
-    config_path: str | Path,
-    *,
-    task: str | None = None,
-    default_prompt_name: str | None = None,
-    evaluator: Callable[
-        [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
-    ]
-    | None = None,
-    item_loader: ItemLoader | None = None,
-    prompt_builder: PromptBuilder | None = None,
-    on_artifact_write: ArtifactWriteHook | None = None,
-) -> RunOutput:
-    """Load a run config file and execute it without downloading model config."""
-
-    config = load_run_config(
-        config_path,
-        task=task or DECODABILITY_TASK,
-        default_prompt_name=default_prompt_name,
-    )
-    return execute_run(
-        config,
-        evaluator=evaluator,
-        item_loader=item_loader,
-        prompt_builder=prompt_builder,
-        on_artifact_write=on_artifact_write,
-    )
 
 
 def execute_run(
