@@ -265,6 +265,31 @@ def test_resume_guards_reject_config_and_items_mismatches(tmp_path: Path) -> Non
         _validate_resume_snapshot(config, snapshot_path)
 
 
+def test_resume_guard_uses_injected_item_loader(tmp_path: Path) -> None:
+    """A custom item loader supplies the items hash the guard compares."""
+
+    config = _build_config(tmp_path)
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "config_id": config_identity_sha256(config),
+                "resolved_config": {"items_sha256": "custom-items-sha"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded_paths: list[Path] = []
+
+    def item_loader(items_path: Path) -> tuple[list[dict], str]:
+        loaded_paths.append(items_path)
+        return [], "custom-items-sha"
+
+    _validate_resume_snapshot(config, snapshot_path, item_loader=item_loader)
+
+    assert loaded_paths == [config.items_path]
+
+
 def test_resume_guard_accepts_initial_raw_config(tmp_path: Path) -> None:
     config = _build_config(tmp_path)
     raw_config_path = tmp_path / "config.json"
