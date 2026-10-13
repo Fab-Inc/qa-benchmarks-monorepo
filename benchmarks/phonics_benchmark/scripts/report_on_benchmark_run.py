@@ -22,9 +22,11 @@ Run from the repository root, e.g.:
 Writes, into `{run directory}/report`:
 
 - ``results_with_scoring.csv`` — every model/item row with its confusion counts
-- ``summary_by_model.csv`` — one row per model
-- ``bootstrap_ci.csv`` — per-model accuracy, pooled F1 and pooled F2 with
-  confidence intervals, skipped by ``--n-bootstrap 0``
+- ``summary_by_model.csv`` — one row per model, plus an ``is_baseline`` row each
+  for a classifier that flags every word non-decodable and one that flags none
+- ``bootstrap_ci.csv`` — per-model accuracy, pooled precision, recall, F1 and F2
+  with confidence intervals, plus the same two ``is_baseline`` rows, skipped by
+  ``--n-bootstrap 0``
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
@@ -175,7 +177,7 @@ def warn_about_exclusions(excluded: pd.DataFrame) -> None:
     typer.secho(breakdown.to_string(), fg=typer.colors.YELLOW, err=True)
 
 
-def load_run_items(resolved_config: dict) -> pd.DataFrame:
+def load_run_items_from_config(resolved_config: dict) -> pd.DataFrame:
     """Load the exact item set the run was executed against.
 
     Warns if the file's bytes don't hash to the ``items_sha256`` recorded at
@@ -228,6 +230,12 @@ def report_on_run(
         file_okay=False,
         help="Where --run-id is looked up. Defaults to the package's outputs/ folder.",
     ),
+    benchmark_items_path: Path = typer.Option(
+        None,
+        "--benchmark-items-path",
+        help="Path to the benchmark items JSONL file, if overriding the one specified "
+        "in the run config.",
+    ),
     inspect_sample_size: int | None = typer.Option(
         None,
         "--inspect-sample-size",
@@ -263,7 +271,8 @@ def report_on_run(
     resolved_config = read_run_snapshot(run_dir)
     language = resolved_config["language"]
 
-    responses, excluded = split_scorable_responses(load_run_responses(run_dir))
+    all_responses = load_run_responses(run_dir)
+    responses, excluded = split_scorable_responses(all_responses)
     written: list[str] = []
     if not excluded.empty:
         warn_about_exclusions(excluded)
@@ -273,7 +282,13 @@ def report_on_run(
             "not be parsed."
         )
 
-    items = load_run_items(resolved_config)
+    if benchmark_items_path is not None:
+        items = pd.read_json(benchmark_items_path, lines=True)
+        assert set(items.benchmark_item_id).issuperset(
+            set(all_responses.benchmark_item_id)
+        )
+    else:
+        items = load_run_items_from_config(resolved_config)
 
     results = responses.merge(
         items[ITEM_METADATA_COLUMNS], on="benchmark_item_id", how="left"
@@ -292,8 +307,10 @@ def report_on_run(
     results.to_csv(scored_path, index=False)
     written.append(scored_path.name)
 
-    # Per-model accuracy + pooled word-level confusion (precision/recall/f1).
-    summary = summarize_by_model(results)
+    # Per-model accuracy + pooled word-level confusion (precision/recall/f1),
+    # with the two trivial classifiers appended as reference rows.
+    summary = summarize_by_model(results, add_baseline=True, language=language)
+
     typer.echo(f"\nPer-model summary for {resolved_config['run_id']}:")
     typer.echo(summary.to_string(index=False))
     summary.to_csv(report_dir / "summary_by_model.csv", index=False)
@@ -307,6 +324,8 @@ def report_on_run(
             n_bootstrap=n_bootstrap,
             ci_level=ci_level,
             seed=seed,
+            add_baseline=True,
+            language=language,
         )
         typer.echo(
             f"\nBootstrap {ci_level:.0%} CIs from {n_bootstrap} replicates, "

@@ -6,7 +6,36 @@ import numpy as np
 import pandas as pd
 import pytest
 from phonics_benchmark.bootstrap import bootstrap_metric_cis
-from phonics_benchmark.scoring import summarize_by_model
+from phonics_benchmark.scoring import (
+    BASELINE_FLAG_ALL,
+    BASELINE_FLAG_NONE,
+    add_per_item_confusion_matrix,
+    summarize_by_model,
+)
+
+BASELINE_INPUT = pd.DataFrame(
+    {
+        "model": ["m1", "m1", "m2", "m2"],
+        "benchmark_item_id": ["p1_t1", "p1_t2", "p1_t1", "p1_t2"],
+        "content": [
+            "Mama na paka soko.",
+            "Kuku soko kaka.",
+            "Mama na paka soko.",
+            "Kuku soko kaka.",
+        ],
+        "nondecodable_words": [["soko"], [], ["soko"], []],
+        "response_parsed": [["soko"], [], [], ["kuku"]],
+    }
+)
+
+
+@pytest.fixture
+def baseline_report(n_bootstrap: int = 100) -> pd.DataFrame:
+    """CI table for BASELINE_INPUT with the two reference rows appended."""
+    scored = add_per_item_confusion_matrix(BASELINE_INPUT, "sw")
+    return bootstrap_metric_cis(
+        scored, n_bootstrap=n_bootstrap, add_baseline=True, language="sw"
+    )
 
 
 def scored_frame(rows: list[dict]) -> pd.DataFrame:
@@ -120,7 +149,7 @@ def test_point_estimates_match_summarize_by_model() -> None:
     """
     frame = scored_frame(TWO_MODEL_ROWS)
 
-    summary = summarize_by_model(frame).set_index("model_name")
+    summary = summarize_by_model(frame, "sw").set_index("model_name")
     report = bootstrap_metric_cis(frame, n_bootstrap=50).set_index("model")
 
     for model in ("m1", "m2"):
@@ -343,3 +372,38 @@ def test_one_item_per_model_does_not_raise() -> None:
     for model, metric in undefined:
         assert np.isnan(by_model.loc[model, f"{metric}_ci_low"]), f"{model} {metric}"
         assert np.isnan(by_model.loc[model, f"{metric}_ci_high"]), f"{model} {metric}"
+
+
+def test_add_baseline_appends_the_two_reference_rows_last(baseline_report) -> None:
+    """Baselines come out flagged and below the models, whatever they scored.
+
+    flag-none outscores m2 on accuracy here and still sorts last: the rows are a
+    reference floor, not entries in the ranking.
+    """
+    assert len(baseline_report) == 4
+    assert set(baseline_report["model"]) == {
+        "m1",
+        "m2",
+        BASELINE_FLAG_ALL,
+        BASELINE_FLAG_NONE,
+    }
+    assert baseline_report.loc[
+        baseline_report["model"] == BASELINE_FLAG_ALL, "is_baseline"
+    ].all()
+
+
+def test_baseline_flag_raises_when_language_not_specified() -> None:
+    """Adding baselines without specifying a language should raise a ValueError."""
+    scored = scored_frame(TWO_MODEL_ROWS)
+    with pytest.raises(ValueError, match="language must be specified"):
+        bootstrap_metric_cis(scored, n_bootstrap=20, add_baseline=True)
+
+
+def test_no_baseline_column_when_baselines_are_not_asked_for() -> None:
+    """The default output is unchanged: no `is_baseline`, models only."""
+    report = bootstrap_metric_cis(
+        scored_frame(TWO_MODEL_ROWS), n_bootstrap=20, language="sw"
+    )
+
+    assert "is_baseline" not in report.columns
+    assert list(report["model"]) == ["m1", "m2"]

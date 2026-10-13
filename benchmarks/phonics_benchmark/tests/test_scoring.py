@@ -4,8 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from phonics_benchmark.scoring import (
+    BASELINE_FLAG_ALL,
+    BASELINE_FLAG_NONE,
     accuracy_by_nondecodable_count,
     add_per_item_confusion_matrix,
+    build_baseline_results,
     pooled_fbeta,
     summarize_by_model,
 )
@@ -15,6 +18,22 @@ ITEMS = pd.DataFrame(
         "benchmark_item_id": ["p1_t1", "p1_t2"],
         "content": ["Mama na paka soko.", "Kuku soko kaka."],
         "nondecodable_ratio": [0.25, 0.33],
+    }
+)
+
+BASELINE_INPUT = pd.DataFrame(
+    {
+        "model": ["m1", "m1", "m2", "m2"],
+        "benchmark_item_id": ["p1_t1", "p1_t2", "p1_t1", "p1_t2"],
+        "content": [
+            "Mama na paka soko.",
+            "Kuku soko kaka.",
+            "Mama na paka soko.",
+            "Kuku soko kaka.",
+        ],
+        # p1_t1 has one non-decodable word of four; p1_t2 has none at all.
+        "nondecodable_words": [["soko"], [], ["soko"], []],
+        "response_parsed": [[], [], [], []],
     }
 )
 
@@ -141,7 +160,7 @@ def test_summarize_by_model_pools_counts_and_derives_rates() -> None:
         }
     )
 
-    summary = summarize_by_model(results).set_index("model_name")
+    summary = summarize_by_model(results, language="sw").set_index("model_name")
 
     assert summary.loc["m1", "n_items"] == 2
     assert summary.loc["m1", "accuracy"] == 0.5
@@ -179,7 +198,7 @@ def test_summarize_by_model_restricts_each_macro_metric_to_its_support() -> None
         }
     )
 
-    summary = summarize_by_model(test_results).set_index("model_name")
+    summary = summarize_by_model(test_results, language="sw").set_index("model_name")
 
     assert summary.loc["m1", "n_items"] == 4
     assert summary.loc["m1", "n_items_not_fully_decodable"] == 2  # i1, i2
@@ -217,7 +236,7 @@ def test_summarize_by_model_reports_undefined_rather_than_perfect_precision() ->
         }
     )
 
-    summary = summarize_by_model(results).set_index("model_name")
+    summary = summarize_by_model(results, language="sw").set_index("model_name")
 
     assert pd.isna(summary.loc["null_model", "macro_precision"])
     assert pd.isna(summary.loc["null_model", "pooled_precision"])
@@ -249,7 +268,7 @@ def test_summarize_by_model_leaves_f_scores_undefined_with_no_pooled_words() -> 
         }
     )
 
-    summary = summarize_by_model(results).set_index("model_name")
+    summary = summarize_by_model(results, language="sw").set_index("model_name")
 
     assert pd.isna(summary.loc["silent", "pooled_f1"])
     assert pd.isna(summary.loc["silent", "pooled_f2"])
@@ -292,3 +311,67 @@ def test_add_per_item_confusion_matrix_names_the_column_it_needs() -> None:
 
     with pytest.raises(ValueError, match="response_parsed"):
         add_per_item_confusion_matrix(results, "sw")
+
+
+def test_build_baseline_results_scores_one_row_per_item_per_baseline() -> None:
+    """Both baselines cover the deduplicated item set, not the response rows."""
+    baselines = build_baseline_results(BASELINE_INPUT, "sw")
+
+    assert set(baselines["model"]) == {BASELINE_FLAG_ALL, BASELINE_FLAG_NONE}
+    assert len(baselines) == 4  # 2 items x 2 baselines
+    counts = baselines.groupby("model")["benchmark_item_id"].nunique()
+    assert counts[BASELINE_FLAG_ALL] == 2
+    assert counts[BASELINE_FLAG_NONE] == 2
+
+
+def test_build_baseline_results_flags_all_words_or_none() -> None:
+    """flag-all predicts the whole vocabulary; flag-none predicts nothing."""
+    baselines = build_baseline_results(BASELINE_INPUT, "sw").set_index(
+        ["model", "benchmark_item_id"]
+    )
+
+    flag_all = baselines.loc[(BASELINE_FLAG_ALL, "p1_t1")]
+    assert set(flag_all["response_parsed"]) == {"mama", "na", "paka", "soko"}
+    # Every actual non-decodable word is caught, and every other word is an FP.
+    assert flag_all["tp_count"] == 1
+    assert flag_all["fp_count"] == 3
+    assert flag_all["fn_count"] == 0
+    assert flag_all["recall"] == 1.0
+
+    flag_none = baselines.loc[(BASELINE_FLAG_NONE, "p1_t1")]
+    assert flag_none["response_parsed"] == []
+    assert flag_none["tp_count"] == 0
+    assert flag_none["fp_count"] == 0
+    assert flag_none["fn_count"] == 1
+
+
+def test_baseline_summary_reports_the_recall_and_accuracy_floors() -> None:
+    """The floors the models are read against, once summarized.
+
+    flag-all trades perfect pooled recall for precision equal to the base rate
+    of non-decodable words; flag-none scores the share of fully decodable items
+    on accuracy and nothing else.
+    """
+    results = add_per_item_confusion_matrix(BASELINE_INPUT, "sw")
+    summary = summarize_by_model(results, language="sw", add_baseline=True).set_index(
+        "model_name"
+    )
+
+    # 1 non-decodable word out of 7 words across the two items.
+    assert summary.loc[BASELINE_FLAG_ALL, "pooled_recall"] == 1.0
+    assert summary.loc[BASELINE_FLAG_ALL, "pooled_precision"] == 1 / 7
+    assert summary.loc[BASELINE_FLAG_ALL, "false_alarm_rate_fully_decodable"] == 1.0
+
+    # p1_t2 is fully decodable, so predicting nothing is right half the time.
+    assert summary.loc[BASELINE_FLAG_NONE, "accuracy"] == 0.5
+    assert summary.loc[BASELINE_FLAG_NONE, "pooled_recall"] == 0.0
+    assert pd.isna(summary.loc[BASELINE_FLAG_NONE, "pooled_precision"])
+    assert summary.loc[BASELINE_FLAG_NONE, "false_alarm_rate_fully_decodable"] == 0.0
+
+
+def test_build_baseline_results_names_the_columns_it_needs() -> None:
+    """The vocabulary comes from `content`, so a frame without it must fail."""
+    results = BASELINE_INPUT.drop(columns=["content"])
+
+    with pytest.raises(ValueError, match="content"):
+        build_baseline_results(results, "sw")
