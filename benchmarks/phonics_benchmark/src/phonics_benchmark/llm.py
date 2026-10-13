@@ -42,10 +42,14 @@ def call_llm(
 
     if outmsg is None:
         response_text = ""
-        tokens_used_completion = None
+        tokens_used = tokens_used_completion = tokens_used_reasoning = None
+        model_version = None
     else:
         response_text = outmsg.Message or ""
+        tokens_used = outmsg.TokensUsed
         tokens_used_completion = outmsg.TokensUsedCompletion
+        tokens_used_reasoning = outmsg.TokensUsedReasoning
+        model_version = getattr(outmsg, "ModelVersion", None)
 
     timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
 
@@ -55,9 +59,12 @@ def call_llm(
         "prompt": prompt,
         "timestamp_utc": timestamp_utc,
         "max_tokens": max_tokens,
+        "tokens_used": tokens_used,
         "tokens_used_completion": tokens_used_completion,
+        "tokens_used_reasoning": tokens_used_reasoning,
         "latency_seconds": latency_seconds,
         "response_text": response_text,
+        "model_version": model_version,
     }
 
     if should_log and log_base_dir:

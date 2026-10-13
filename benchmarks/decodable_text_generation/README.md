@@ -15,8 +15,8 @@ item schema, and the data pipeline.
 
 ## Pipeline
 
-Profiles are pre-built JSONL artifacts. Find them in GCS (or ask Justin) and place in
-`data/<benchmark>/<language>/` (`child_adapted` / `curriculum_aligned`).
+Profiles are pre-built JSONL artifacts. Find them in GCS under the `text-generation-benchmark` folder. (or ask Justin) and place in
+`data/<child_adapted or curriculum_aligned>/<language>/` .
 
 The following command converts them into benchmark items with prompts:
 
@@ -25,22 +25,11 @@ uv run --package decodable-text-generation python \
     benchmarks/decodable_text_generation/scripts/build_generation_items.py \
     --language english --benchmark child
 ```
+(or `curriculum`)
 
-This writes `benchmark_items.jsonl` next to the profiles.
+This writes `benchmark_items.jsonl` next to the profiles. (Pre-built profiles are in GCS under the `text-generation-benchmark` folder.)
 
 - `--prompt-name` selects a non-default template key from `prompts.yaml`
-- `--scenarios` limits which scenario ids get built (e.g. `-s story`)
-
-## Running
-
-```bash
-decodable-text-generation run-generation-child --config path/to/run.json
-decodable-text-generation run-generation-curriculum --config path/to/run.json
-```
-
-The same config format and execution flags as `phonics-benchmark run-decodability` apply
-(see `benchmarks/phonics_benchmark/README.md`); `prompt_name` defaults to
-`decodable_text_generation` / `decodable_text_generation_curriculum`.
 
 ## Prompt system
 
@@ -69,5 +58,11 @@ Each line of `benchmark_items.jsonl` (English example):
 }
 ```
 
-`prompt` is baked at build time. `target_knowledge` is required on curriculum items and
+`target_knowledge` is required on curriculum items and
 absent/ignored for child items.
+
+## Running
+
+```bash
+decodable-text-generation run-generation --config path/to/run.json
+```

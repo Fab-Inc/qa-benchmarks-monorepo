@@ -1,5 +1,6 @@
 """Command-line interface for the decodable text generation benchmarks."""
 
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from phonics_benchmark.cmd import (
 from phonics_benchmark.config import (
     DEFAULT_CHUNK_SIZE,
     DEFAULT_MODEL_WORKERS,
+    DEFAULT_PROMPT_NAME,
+    ConfigError,
     apply_execution_overrides,
     build_run_config,
 )
@@ -30,14 +33,6 @@ from decodable_text_generation.prompts import prompt_from_item
 GENERATION_CHILD_TASK = "generation-child"
 GENERATION_CURRICULUM_TASK = "generation-curriculum"
 
-# The same callbacks are registered under one name per benchmark; the invoked
-# command name selects the task recorded on every result row.
-_TASK_BY_COMMAND = {
-    "run-generation-child": GENERATION_CHILD_TASK,
-    "run-generation-curriculum": GENERATION_CURRICULUM_TASK,
-    "run-generation-child-cloud": GENERATION_CHILD_TASK,
-    "run-generation-curriculum-cloud": GENERATION_CURRICULUM_TASK,
-}
 
 # Curriculum items carry a `target` object and are prompted with the
 # {target}-bearing template; child items use the plain generation template.
@@ -67,12 +62,27 @@ def setup(ctx: typer.Context) -> None:
         raise typer.Exit()
 
 
-def _task_for(ctx: typer.Context) -> str:
-    return _TASK_BY_COMMAND[ctx.info_name or ""]
-
-
 def _item_loader_for(task: str):
     return partial(load_generation_items, curriculum=_IS_CURRICULUM[task])
+
+
+def _infer_task(items_path: Path) -> str:
+    """Select the task from the items' ``target_knowledge``.
+
+    Curriculum items carry the knowledge currently being taught; child items
+    don't. A file mixing the two is ambiguous — likely a malformed items file —
+    so it fails rather than silently picking a task.
+    """
+    items, _ = load_generation_items(items_path)
+    targets = [bool(item.get("target_knowledge")) for item in items]
+    if all(targets):
+        return GENERATION_CURRICULUM_TASK
+    if not any(targets):
+        return GENERATION_CHILD_TASK
+    raise ConfigError(
+        f"Benchmark items in {items_path} mix 'target_knowledge' presence; "
+        "expected all items or none to carry it."
+    )
 
 
 def run_generation_cmd(
@@ -199,14 +209,12 @@ def run_generation_cmd(
 ) -> None:
     """Run a decodable text generation benchmark from a config file or CLI options."""
 
-    task = _task_for(ctx)
-    item_loader = _item_loader_for(task)
     try:
         if config is not None:
             run_config = _load_local_run_config(
                 config,
-                task=task,
-                default_prompt_name=DEFAULT_PROMPT_NAMES[task],
+                task=GENERATION_CHILD_TASK,
+                default_prompt_name=DEFAULT_PROMPT_NAME,
             )
             run_config = apply_execution_overrides(
                 run_config,
@@ -226,9 +234,9 @@ def run_generation_cmd(
                 output_dir=output_dir,
                 models=model_names,
                 base_dir=Path.cwd(),
-                task=task,
+                task=GENERATION_CHILD_TASK,
                 items_path=items_path,
-                prompt_name=prompt_name or DEFAULT_PROMPT_NAMES[task],
+                prompt_name=prompt_name or DEFAULT_PROMPT_NAME,
                 env_path=env_path,
                 custom_models_path=custom_models_path,
                 max_tokens=max_tokens,
@@ -243,11 +251,23 @@ def run_generation_cmd(
                 results_dest=results_dest,
             )
 
+        task = _infer_task(run_config.items_path)
+        # An explicit prompt_name (CLI flag or config file) wins; an unset
+        # one falls back to the inferred task's default.
+        if run_config.prompt_name == DEFAULT_PROMPT_NAME:
+            run_config = replace(
+                run_config,
+                task=task,
+                prompt_name=DEFAULT_PROMPT_NAMES[task],
+            )
+        else:
+            run_config = replace(run_config, task=task)
+
         if not skip_models_download:
             download_default_custom_models()
         output = _execute_with_optional_sync(
             run_config,
-            item_loader=item_loader,
+            item_loader=_item_loader_for(task),
             prompt_builder=prompt_from_item,
         )
     except EXPECTED_CLI_ERRORS as e:
@@ -281,14 +301,22 @@ def run_generation_cloud_cmd(
 ) -> None:
     """Fetch a GCS config and items, then execute a continuously synced run."""
 
-    task = _task_for(ctx)
     try:
         run_config = _load_cloud_run_config(
             config,
             workdir=workdir,
-            task=task,
-            default_prompt_name=DEFAULT_PROMPT_NAMES[task],
+            task=GENERATION_CHILD_TASK,
+            default_prompt_name=DEFAULT_PROMPT_NAME,
         )
+        task = _infer_task(run_config.items_path)
+        if run_config.prompt_name == DEFAULT_PROMPT_NAME:
+            run_config = replace(
+                run_config,
+                task=task,
+                prompt_name=DEFAULT_PROMPT_NAMES[task],
+            )
+        else:
+            run_config = replace(run_config, task=task)
         if not skip_models_download:
             download_default_custom_models(run_config.custom_models_path)
         output = _execute_with_optional_sync(
@@ -305,17 +333,8 @@ def run_generation_cloud_cmd(
         raise typer.Exit(1)
 
 
-for _command_name in (
-    "run-generation-child",
-    "run-generation-curriculum",
-):
-    app.command(_command_name)(run_generation_cmd)
-
-for _command_name in (
-    "run-generation-child-cloud",
-    "run-generation-curriculum-cloud",
-):
-    app.command(_command_name)(run_generation_cloud_cmd)
+app.command("run-generation")(run_generation_cmd)
+app.command("run-generation-cloud")(run_generation_cloud_cmd)
 
 # The GCS sync commands are task-agnostic; reuse the phonics ones unchanged.
 app.command("upload-results")(upload_results_cmd)

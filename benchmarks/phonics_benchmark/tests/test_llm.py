@@ -33,7 +33,10 @@ def test_call_llm_returns_metadata_and_logs_response(
     caller = Mock()
     caller.call.return_value = SimpleNamespace(
         Message=response_text,
+        TokensUsed=50,
         TokensUsedCompletion=17,
+        TokensUsedReasoning=0,
+        ModelVersion="test-model-2026",
     )
     get_caller = Mock(return_value=caller)
     monkeypatch.setattr(llm, "get_caller", get_caller)
@@ -84,7 +87,16 @@ def test_call_llm_bypass_does_not_create_a_caller(monkeypatch):
     ("response", "expected_tokens"),
     [
         (None, None),
-        (SimpleNamespace(Message="", TokensUsedCompletion=0), 0),
+        (
+            SimpleNamespace(
+                Message="",
+                TokensUsed=0,
+                TokensUsedCompletion=0,
+                TokensUsedReasoning=0,
+                ModelVersion=None,
+            ),
+            0,
+        ),
     ],
 )
 def test_call_llm_returns_empty_responses(
