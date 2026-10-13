@@ -38,7 +38,6 @@ from phonics_benchmark.config import (
     ConfigError,
     config_identity_sha256,
     effective_max_tokens,
-    load_run_config,
 )
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.llm import call_llm
@@ -60,6 +59,8 @@ SYSTEM_PROMPT: str | None = None
 
 RunOutput = dict[str, Any]
 ArtifactWriteHook = Callable[[Path], None]
+ItemLoader = Callable[[str | Path], tuple[list[dict[str, Any]], str]]
+PromptBuilder = Callable[[str, Mapping[str, Any], str], str]
 
 
 class _ModelRunOutput(TypedDict):
@@ -74,25 +75,6 @@ class _PreparedItem(TypedDict):
     prompt: str
 
 
-def run_from_config_file(
-    config_path: str | Path,
-    *,
-    evaluator: Callable[
-        [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
-    ]
-    | None = None,
-    on_artifact_write: ArtifactWriteHook | None = None,
-) -> RunOutput:
-    """Load a run config file and execute it without downloading model config."""
-
-    config = load_run_config(config_path)
-    return execute_run(
-        config,
-        evaluator=evaluator,
-        on_artifact_write=on_artifact_write,
-    )
-
-
 def execute_run(
     config: BenchmarkRunConfig,
     *,
@@ -100,6 +82,8 @@ def execute_run(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    item_loader: ItemLoader | None = None,
+    prompt_builder: PromptBuilder | None = None,
     on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunOutput:
     """Prepare provenance and model state, then execute a validated run config."""
@@ -114,6 +98,10 @@ def execute_run(
         "evaluator": evaluator,
         "model_configs": model_configs,
     }
+    if item_loader is not None:
+        run_kwargs["item_loader"] = item_loader
+    if prompt_builder is not None:
+        run_kwargs["prompt_builder"] = prompt_builder
     if on_artifact_write is not None:
         run_kwargs["on_artifact_write"] = on_artifact_write
     return run_benchmark(config, **run_kwargs)
@@ -127,6 +115,8 @@ def run_benchmark(
         [BenchmarkRunConfig, str, Mapping[str, Any], str], dict[str, Any]
     ]
     | None = None,
+    item_loader: ItemLoader | None = None,
+    prompt_builder: PromptBuilder | None = None,
     model_configs: Mapping[str, Any] | None = None,
     on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunOutput:
@@ -140,13 +130,20 @@ def run_benchmark(
 
     if evaluator is None:
         evaluator = evaluate_item_with_fdllm
+    if item_loader is None:
+        item_loader = load_benchmark_items
+    if prompt_builder is None:
+        prompt_builder = build_decodability_prompt
 
     custom_models_path = _resolve_custom_models_path(config.custom_models_path)
     code_git_hash = git_hash()
     code_git_dirty = git_dirty()
-    items, items_sha256 = load_benchmark_items(config.items_path)
+    items, items_sha256 = item_loader(config.items_path)
     prepared_items = _prepare_items(
-        items, language=config.language, prompt_name=config.prompt_name
+        items,
+        language=config.language,
+        prompt_name=config.prompt_name,
+        prompt_builder=prompt_builder,
     )
     provider_groups = _provider_groups_for_models(custom_models_path, config.models)
     resolved_config = config.to_resolved_dict()
@@ -227,13 +224,14 @@ def _prepare_items(
     *,
     language: str,
     prompt_name: str,
+    prompt_builder: PromptBuilder = build_decodability_prompt,
 ) -> list[_PreparedItem]:
     """Validate and render every item before any model execution starts."""
 
     return [
         {
             "item": item,
-            "prompt": build_decodability_prompt(prompt_name, item, language),
+            "prompt": prompt_builder(prompt_name, item, language),
         }
         for item in items
     ]
