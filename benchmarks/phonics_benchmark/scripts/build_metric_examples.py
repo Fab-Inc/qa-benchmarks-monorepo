@@ -371,7 +371,7 @@ def check_artists(checks, fig, name, scores, lows, highs, labels):
             )
 
 
-def plotting_examples(checks):
+def plotting_examples(checks, *, render_figures=False):
     colors = {"Synthetic": "#376b94"}
     frame = pd.DataFrame(
         {
@@ -422,11 +422,15 @@ def plotting_examples(checks):
         == ["80.0%", "40.0%", "40.0%", "F2"],
     )
     checks.true("F2 plot: input unchanged", eligible.equals(original))
-    f2_html = figure_html(
-        fig,
-        "Production F2 renderer: ties, exclusion at exactly 90%, "
-        "and intervals aligned with their models.",
-    )
+    f2_html = ""
+    if render_figures:
+        f2_html = figure_html(
+            fig,
+            "Production F2 renderer: ties, exclusion at exactly 90%, "
+            "and intervals aligned with their models.",
+        )
+    else:
+        plt.close(fig)
     adjusted = eligible.copy()
     adjusted["score"] = [50.0, 0.0, -40.0]
     adjusted["ci_low"] = [20.0, -20.0, -80.0]
@@ -463,11 +467,15 @@ def plotting_examples(checks):
         == ["50.0", "0.0", "-40.0", "Adj. BA"],
     )
     checks.true("Adjusted BA plot: input unchanged", adjusted.equals(before))
-    adjusted_html = figure_html(
-        fig,
-        "Production adjusted BA renderer: negative scores and interval tails "
-        "remain visible; annotations use points.",
-    )
+    adjusted_html = ""
+    if render_figures:
+        adjusted_html = figure_html(
+            fig,
+            "Production adjusted BA renderer: negative scores and interval tails "
+            "remain visible; annotations use points.",
+        )
+    else:
+        plt.close(fig)
     return (
         "<h2>Plotting and eligibility</h2><p>The following are supplied plot inputs, "
         "independent of the scoring examples above. They test the same F2 and adjusted "
@@ -498,7 +506,9 @@ def plotting_examples(checks):
 def build(output):
     checks = Checks()
     sections = (
-        worked_cases(checks) + pooled_and_missing(checks) + plotting_examples(checks)
+        worked_cases(checks)
+        + pooled_and_missing(checks)
+        + plotting_examples(checks, render_figures=True)
     )
     status = "PASS" if not checks.failures else "FAIL"
     results = table(

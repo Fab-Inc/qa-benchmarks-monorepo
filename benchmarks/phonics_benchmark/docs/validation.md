@@ -8,7 +8,7 @@ code:
 - Executable metric examples: handwritten expectations, computed results, and production
   leaderboard figures in one standalone HTML file.
 
-## Run the metric examples
+## Create the metric examples HTML locally
 
 From the repository root:
 
@@ -33,11 +33,16 @@ rendered report. Unexpected execution errors also fail the command, but may prev
 report from being written. Plot checks inspect data and labels rather than pixel
 snapshots; visual inspection remains useful for layout and readability.
 
-The **Phonics validation examples** GitHub Actions workflow runs these examples on
-relevant PRs, including PRs targeting branches other than `main`, and on `main` updates.
-Download its **phonics-metric-examples** artifact to review the HTML from that commit.
-Artifacts are retained for 30 days. The same command regenerates the report locally. The
-workflow publishes no website and needs no GCS credentials.
+The normal test suite runs the same numerical and plotting checks without writing HTML
+or image files. To run just these tests locally:
+
+```sh
+uv run --frozen --package phonics-benchmark pytest -q \
+  benchmarks/phonics_benchmark/tests/test_metric_examples.py
+```
+
+CI runs the tests through the existing test workflow. Generate the HTML manually with
+the `build_metric_examples.py` command above; CI does not create or upload the report.
 
 ## Reproduce the historical audit
 

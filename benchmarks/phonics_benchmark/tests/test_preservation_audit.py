@@ -140,18 +140,3 @@ def test_hash_verification_rejects_modified_archived_files(tmp_path):
     write_rows(path, [response(output='["dog"]')])
     with pytest.raises(ValueError, match="Hash mismatch"):
         checker.check_hash(path, expected)
-
-
-def test_metric_report_fails_and_keeps_diagnostics_for_wrong_expectation(
-    tmp_path, monkeypatch
-):
-    examples = importlib.import_module("build_metric_examples")
-    name, prediction, counts, _, explanation = examples.CASES[0]
-    changed = (name, prediction, counts, (0, 1, 1, 100), explanation)
-    monkeypatch.setattr(examples, "CASES", [changed, *examples.CASES[1:]])
-    output = tmp_path / "examples.html"
-    assert examples.build(output) is False
-    html = output.read_text()
-    assert "<strong>FAIL</strong>" in html
-    assert "Perfect: four metrics" in html
-    assert "data:image/png;base64," in html
