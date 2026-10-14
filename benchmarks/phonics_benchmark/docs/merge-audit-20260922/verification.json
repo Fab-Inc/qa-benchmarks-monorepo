@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "bundle": "phonics-unified-leaderboard-20260922",
+  "languages": {
+    "english": {
+      "raw_rows": 62595,
+      "full_rows": 60197,
+      "full_items": 1610,
+      "selected_rows": 36444,
+      "selected_items": 991,
+      "conflicting_success_calls": 1724,
+      "retained": 35542,
+      "outside_selection": 23753,
+      "identical_copy": 242,
+      "superseded_response": 2156,
+      "dropped_model": 902,
+      "added": 368,
+      "later_not_incorporated": 345,
+      "unified_rows": 35910,
+      "call_failed": 380,
+      "parse_failed": 93,
+      "scorable_rows": 35437
+    },
+    "kiswahili": {
+      "raw_rows": 110611,
+      "full_rows": 103811,
+      "full_items": 2592,
+      "selected_rows": 40220,
+      "selected_items": 1000,
+      "conflicting_success_calls": 60,
+      "retained": 40072,
+      "outside_selection": 63591,
+      "superseded_response": 112,
+      "identical_copy": 6688,
+      "dropped_model": 148,
+      "added": 452,
+      "unified_rows": 40524,
+      "call_failed": 253,
+      "parse_failed": 21,
+      "scorable_rows": 40250
+    }
+  },
+  "verified_files": 715,
+  "audit_script_sha256": "c195e27acc1f2678b77f60b69afb98702139a5d191f90dca72689a4547d48d64",
+  "ledger": "merge-audit-final-rows.csv.gz",
+  "ledger_sha256": "923e7ba26bce0f7326485e6c6dacf44f8c408a05866924fe915754393f168dfa"
+}

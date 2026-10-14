@@ -1,0 +1,53 @@
+name: Phonics validation examples
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/phonics_benchmark/**"
+      - "packages/decodability/**"
+      - "packages/primerpro/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/phonics-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "benchmarks/phonics_benchmark/**"
+      - "packages/decodability/**"
+      - "packages/primerpro/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/phonics-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.20"
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+      - name: Check audit rejection cases
+        run: >
+          uv run --frozen --package phonics-benchmark pytest -q
+          benchmarks/phonics_benchmark/tests/test_preservation_audit.py
+      - name: Check and render metric examples
+        run: >
+          uv run --frozen --package phonics-benchmark python
+          benchmarks/phonics_benchmark/scripts/build_metric_examples.py
+          --output outputs/metric-examples.html
+      - name: Attach the worked examples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phonics-metric-examples
+          path: outputs/metric-examples.html
+          if-no-files-found: warn
+          retention-days: 30

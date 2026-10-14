@@ -5,6 +5,9 @@ versions of the scripts used for the latest corrected-gold reports. They read lo
 merged data; they make no model calls or GCS writes. Generated datasets, reports and
 historical reproduction copies remain under ignored `outputs/`.
 
+See [validation reports](validation.md) for the historical preservation audit and
+executable, hand-calculated metric examples with plotting checks.
+
 ## Refresh English gold while retaining the selected IDs
 
 Start with a freshly downloaded, fully merged source snapshot and the previous selected

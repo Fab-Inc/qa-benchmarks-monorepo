@@ -17,6 +17,56 @@ import pandas as pd
 from matplotlib.ticker import FuncFormatter, StrMethodFormatter
 
 
+def plot_adjusted_leaderboard(table, colors, language, required, gold_note):
+    """Plot saved adjusted-BA points, retaining negative scores and CI tails."""
+    from plot_report_f2_leaderboards import plot_leaderboard
+
+    plot_table = table.copy()
+    plot_table[["score", "ci_low", "ci_high"]] /= 100
+    fig = plot_leaderboard(plot_table, colors, language)
+    ax = fig.axes[0]
+    ax.set_xlim(min(-0.025, float(table.ci_low.min()) / 100 - 0.01), 1)
+    ax.set_xticks(np.linspace(0, 1, 6))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda value, pos: f"{value * 100:.0f}"))
+    ax.set_xlabel("Adjusted balanced accuracy (0 = chance; 100 = perfect)")
+    ax.set_title(
+        f"{language.title()} decodability · Adjusted balanced "
+        f"accuracy\nLeaderboard · >90% coverage · ≥{required:,} evaluated items",
+        loc="left",
+        fontsize=12,
+        fontweight="semibold",
+        pad=35,
+    )
+    labels = [
+        label
+        for label in ax.texts
+        if label.get_position()[0] == 1.02 and label.get_text() != "F2"
+    ]
+    assert len(labels) == len(table)
+    for label, value in zip(labels, table.score, strict=True):
+        label.set_text(f"{value:.1f}")
+    for label in ax.texts:
+        if label.get_text() == "F2":
+            label.set_text("Adj. BA")
+        elif label.get_text().startswith("Items = scorable"):
+            label.set_text(
+                "Adjusted BA = 100 × (2 × BA − 1). Dashed line = chance / "
+                "flag-all / flag-none (0); negative values are retained."
+            )
+    ax.axvline(0, color="#454545", ls="--", lw=1, zorder=5)
+    ax.annotate(
+        gold_note,
+        (0, 0),
+        xytext=(0, -57),
+        xycoords="axes fraction",
+        textcoords="offset points",
+        fontsize=8,
+        color="#52514e",
+        va="top",
+    )
+    return fig
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
@@ -75,52 +125,7 @@ def main():
         )
         required = hardware.minimum_scorable_items(size, 700, 0.9)
         assert table.n_items.ge(required).all()
-        plot_table = table.copy()
-        plot_table[["score", "ci_low", "ci_high"]] /= 100
-        fig = plot_leaderboard(plot_table, colors, lang)
-        ax = fig.axes[0]
-        # Show any negative interval tails; do not clip scores or intervals at zero.
-        ax.set_xlim(min(-0.025, float(table.ci_low.min()) / 100 - 0.01), 1)
-        ax.set_xticks(np.linspace(0, 1, 6))
-        ax.xaxis.set_major_formatter(
-            FuncFormatter(lambda value, pos: f"{value * 100:.0f}")
-        )
-        ax.set_xlabel("Adjusted balanced accuracy (0 = chance; 100 = perfect)")
-        ax.set_title(
-            f"{lang.title()} decodability · Adjusted balanced "
-            f"accuracy\nLeaderboard · >90% coverage · ≥{required:,} evaluated items",
-            loc="left",
-            fontsize=12,
-            fontweight="semibold",
-            pad=35,
-        )
-        labels = [
-            label
-            for label in ax.texts
-            if label.get_position()[0] == 1.02 and label.get_text() != "F2"
-        ]
-        assert len(labels) == len(table)
-        for label, value in zip(labels, table.score, strict=True):
-            label.set_text(f"{value:.1f}")
-        for label in ax.texts:
-            if label.get_text() == "F2":
-                label.set_text("Adj. BA")
-            elif label.get_text().startswith("Items = scorable"):
-                label.set_text(
-                    "Adjusted BA = 100 × (2 × BA − 1). Dashed line = chance / "
-                    "flag-all / flag-none (0); negative values are retained."
-                )
-        ax.axvline(0, color="#454545", ls="--", lw=1, zorder=5)
-        ax.annotate(
-            gold_note,
-            (0, 0),
-            xytext=(0, -57),
-            xycoords="axes fraction",
-            textcoords="offset points",
-            fontsize=8,
-            color="#52514e",
-            va="top",
-        )
+        fig = plot_adjusted_leaderboard(table, colors, lang, required, gold_note)
         stem = out / f"{lang}_adjusted_balanced_accuracy_leaderboard_coverage_gt90"
         for ext in ("png", "pdf"):
             path = stem.with_suffix(f".{ext}")
