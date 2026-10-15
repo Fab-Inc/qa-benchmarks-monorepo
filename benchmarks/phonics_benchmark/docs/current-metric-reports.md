@@ -1,149 +1,130 @@
-# Current F1, F2 and balanced-accuracy reports
+# Scoring and plotting benchmark runs
 
-Run from the repository root on `add-phonics-local-merge`. These are the reusable
-versions of the scripts used for the latest corrected-gold reports. They read local
-merged data; they make no model calls or GCS writes. Generated datasets, reports and
-historical reproduction copies remain under ignored `outputs/`.
+Two commands handle ongoing reporting. Both work locally, make no model calls, and write
+no cloud objects. Historical merging and gold refreshes are separate workflows; a normal
+runner run needs only its config, target dataset and response files.
 
-See [validation reports](validation.md) for the historical preservation audit and
-executable, hand-calculated metric examples with plotting checks.
+## Score a run and generate its report
 
-## Refresh English gold while retaining the selected IDs
-
-Start with a freshly downloaded, fully merged source snapshot and the previous selected
-dataset. See `local-merged-analysis.md` for the downloader and merger. Download the
-corrected gold separately, or include it as a download-only dataset in your source
-manifest. Do not add it alongside conflicting older gold overlays in the merger: this
-step applies the new file as the authoritative replacement.
-
-The current source manifest applies corrected Kiswahili gold to the full pool during the
-merge. To update an older snapshot, download and merge into a new root first; rerunning
-reports alone cannot update its labels. The English refresh below retains the corrected
-Kiswahili labels from that new full pool while selecting the previous IDs.
-
-```sh
-PHONICS_SCRIPTS=benchmarks/phonics_benchmark/scripts
-PHONICS_DOWNLOAD=outputs/NEW_DOWNLOAD
-PHONICS_PREVIOUS=outputs/PREVIOUS_ANALYSIS/selections/fixed-991-en-1000-sw
-PHONICS_SNAPSHOT=outputs/NEW_ANALYSIS
-PHONICS_GOLD="$PHONICS_DOWNLOAD/sources/datasets/phonics-datasets-english_991_with_corrected_gold.jsonl"
-
-uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/apply_refreshed_gold.py" \
-  --parent-full "$PHONICS_DOWNLOAD/full" \
-  --parent-selection "$PHONICS_PREVIOUS" \
-  --gold "$PHONICS_GOLD" \
-  --gold-uri gs://phonics-benchmark/phonics/datasets/english/phonics-datasets-english_991_with_corrected_gold.jsonl \
-  --selection-name fixed-991-en-1000-sw \
-  --output-root "$PHONICS_SNAPSHOT"
-
-PHONICS_ANALYSIS="$PHONICS_SNAPSHOT/selections/fixed-991-en-1000-sw"
-```
-
-Replace the placeholder paths with your local snapshots. `--output-root` must be new.
-The gold file must cover exactly the previous English selection with unique IDs and
-unchanged text/knowledge. Gold is applied to the full pool first; the previous English
-and Kiswahili IDs are then selected from it, keeping the fresh responses. There is no
-redistribution by the updated gold ratios. The selection name is configurable and
-defaults to the previous directory name; counts are read from the datasets, not from the
-name.
-
-## Create the latest reports
-
-If you already have corrected, merged datasets, set `PHONICS_ANALYSIS` to their selected
-root and run only the following commands, in order:
+From the repository root:
 
 ```sh
 uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/run_f2_analysis.py" \
-  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.9
-
-uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/plot_report_f1_leaderboards.py" \
-  --root "$PHONICS_ANALYSIS" --min-items 700 --min-coverage 0.9 --hardware-tiers
-
-uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/run_balanced_accuracy_reports.py" --root "$PHONICS_ANALYSIS"
-
-uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/plot_adjusted_balanced_accuracy.py" --root "$PHONICS_ANALYSIS"
-
-uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/finalize_phonics_refresh.py" --root "$PHONICS_ANALYSIS"
+  benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+  --run-id YOUR_RUN_ID --inspect-sample-size 10
 ```
 
-The BA drivers intentionally use the latest report policy: **strictly >90% of target
-items and at least 700 successfully scored items**. This requires 892/991 English and
-901/1,000 Kiswahili items. The denominator includes unanswered items. They check that
-the eligible models match the F1/F2 reports. Hardware comparisons exclude Workstation
-and average up to ten highest-scoring models per group. Group means have no group-level
-CIs.
+The existing `--run-id` and `--output-root` interface is preserved. The default root is
+`benchmarks/phonics_benchmark/outputs`. Alternatively, pass `--run-dir PATH` directly.
+Reports default to `RUN/report/`; `--output-dir PATH` selects a separate destination.
+Original config, item and response files are read only and checked unchanged.
+
+The report contains:
+
+- `results_with_scoring.csv` and `summary_by_model.csv`: per-item scoring and the
+  existing per-model metrics, including pooled F1 and F2.
+- `bootstrap_ci.csv`: accuracy and pooled precision/recall/F1/F2 intervals.
+- `balanced_accuracy_summary.csv` and `balanced_accuracy_item_counts.csv`:
+  fixed-vocabulary BA, adjusted BA and out-of-text prediction counts.
+- `coverage_by_model.csv`: scorable, failed, unparseable and missing responses for every
+  configured model, including those with no responses.
+- `model_summary_all_scored.csv` and `model_summary_eligible.csv`: combined metrics,
+  confidence bounds and the coverage gate.
+- F1, F2, BA and adjusted-BA leaderboards in PNG, PDF and CSV, plus accuracy against
+  item difficulty and a `README.md` index.
+- `baseline_comparison.csv` and `baseline_counts.csv`: eligible models below, at or
+  above the BA chance baseline, with interval comparisons.
+- `report_config.json`: input hashes, bootstrap settings and coverage policy.
+- `sampled_items_for_inspection.csv` when requested.
+
+All scored models enter the summary. By default, figures require at least one scorable
+item. For the September leaderboard policy, use `--min-items 700 --min-coverage 0.9`:
+the count floor is inclusive and the coverage threshold is strictly greater than 90%.
+That means 892/991 English or 901/1,000 Kiswahili items. Models failing the gate remain
+in the all-model summary and coverage table. Undefined metrics have no plotted bar.
+
+## Bootstrap semantics and units
+
+All metrics resample **whole target items with replacement**, using the same sorted item
+IDs and seeded draws across models and metrics. Every draw has the original number of
+target items. Missing model/item responses contribute no confusion counts; they are not
+scored as incorrect. Undefined bootstrap replicates are skipped when computing
+percentile bounds. The default is 1,000 draws, seed 0 and 95% intervals;
+`--n-bootstrap`, `--seed` and `--ci-level` override those settings.
+
+Earlier F1/F2 reports sampled the union of observed item IDs, whereas BA used the full
+target dataset. The consolidated reporter uses the full target dataset for both. This
+leaves point scores unchanged but can change intervals when an item has no scorable
+response from any model. The low-level `bootstrap_metric_cis` API still supports omitted
+`item_ids` for callers that only have an observed score table; reporting always supplies
+the full target IDs.
 
 BA averages pooled recall and specificity over each item's unique vocabulary.
-Out-of-text predictions are audited separately. Its 95% CIs use 1,000 shared
-item-bootstrap draws, seed 0. **Adjusted BA = 100 × (2 × BA − 1)**, with chance at 0,
-perfect at 100 and inverted predictions at −100. All adjusted scores and CIs in CSVs use
-points; negative values are retained. F1, F2 and ordinary BA retain their 0–1 units.
-Adjusted BA preserves BA rankings and transforms the saved CIs.
+Out-of-text predictions contribute to F1/F2 false positives and are audited separately
+for BA. **Adjusted BA = 100 × (2 × BA − 1)**: chance is 0, perfect is 100 and inverted
+predictions score −100. Adjusted scores and intervals are saved in points; F1/F2/BA use
+fractions from 0 to 1. Negative adjusted scores and interval tails remain visible.
 
-The finalizer writes `model_summary_all_scored.csv` and
-`model_summary_coverage_gt90.csv`, combining F1/F2/BA/adjusted-BA scores and CIs. It
-also creates a report index linking the leaderboards and hardware plots. PNG, PDF and
-CSV outputs are under each language's `report/`, `balanced_accuracy/`,
-`adjusted_balanced_accuracy/` and `hardware_tiers/METRIC/coverage_gt90/`. Rerunning
-replaces derived reports, while merged inputs are checked unchanged.
+`--n-bootstrap 0` produces point estimates and plots without intervals. `--no-plots`
+scores and saves tables only; it does not disable bootstrapping.
 
-For a before/after comparison, replace the final command above with:
+## Multiple runs and optional hardware comparisons
+
+Repeat `--run-dir` or `--run-id` to process multiple runs. With `--output-dir`, each run
+gets its own subdirectory and a collection-level index and combined summary:
 
 ```sh
 uv run --frozen --package phonics-benchmark python \
-  "$PHONICS_SCRIPTS/finalize_phonics_refresh.py" \
-  --root "$PHONICS_ANALYSIS" \
-  --previous-root "$PHONICS_PREVIOUS" \
-  --output-dir "$PHONICS_SNAPSHOT" \
-  --download-root "$PHONICS_DOWNLOAD" \
-  --gold "$PHONICS_GOLD"
+  benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+  --run-dir outputs/MY_SNAPSHOT/english \
+  --run-dir outputs/MY_SNAPSHOT/kiswahili \
+  --output-dir outputs/MY_SNAPSHOT/reports \
+  --metadata benchmarks/phonics_benchmark/scripts/f2_plot_metadata \
+  --min-items 700 --min-coverage 0.9 --hardware-tiers
 ```
 
-This also creates `model_metric_changes.csv` and audits changes to labels and responses.
-The comparison requires matching item IDs. It accepts previous adjusted scores in either
-fractions or points, converting them to points before subtracting. Changes combine gold
-edits and any refreshed responses; they do not isolate the effect of gold alone. No run
-count, model name, generation, date or number of changed labels is hardcoded.
+Display metadata is optional: without it, model IDs are labels and a default colour is
+used. The metadata folder contains `models.csv`, `providers.csv`, and optionally
+`display_overrides.json`. The historical `f2_plot_metadata` bundle preserves the
+September labels, colours and model specifications; it is not required for new runs.
 
-Optionally save `gcloud storage ls -L GOLD_URI` output and pass that file using
-`--gold-metadata`. The finalizer verifies its MD5 against `--gold` and reports whether
-its update date is today/yesterday in London. This is a check of saved metadata;
-rerunning the local report does not check the latest remote generation.
+`--hardware-tiers` requires metadata and an explicit output directory. Hardware
+comparisons support one English and/or one Kiswahili report with a common coverage
+policy. They retain the access/parameter-size classification, exclude Workstation, and
+show medians and means of up to `--top-n` models (default 10) per group. Group means
+have no group confidence intervals. Unknown model specifications remain in the
+classification audit but do not enter a hardware group. Outputs are under
+`OUTPUT/hardware_tiers/METRIC/`.
 
-## Source files for the current report workflow
-
-New files needed for a commit, relative to `benchmarks/phonics_benchmark/`:
-
-- `scripts/apply_refreshed_gold.py`
-- `scripts/run_balanced_accuracy_reports.py`
-- `scripts/plot_adjusted_balanced_accuracy.py`
-- `scripts/finalize_phonics_refresh.py`
-- `scripts/analyze_balanced_accuracy.py`
-- `scripts/plot_report_f1_leaderboards.py`
-- `tests/test_balanced_accuracy.py`
-- `tests/test_current_report_scripts.py`
-- `docs/current-metric-reports.md`
-
-Include the pending current-report changes to `scripts/run_f2_analysis.py`,
-`scripts/plot_report_f2_leaderboards.py`, `scripts/analyze_phonics_hardware_tiers.py`,
-`tests/test_f2_analysis.py`, `tests/test_phonics_hardware_tiers.py` and
-`docs/f2-reports-slack.md`. The existing metadata bundle, scorer, merger and selector
-are already tracked. Source-manifest updates are separate from these report changes.
-
-The current workflow does not import the older MCC, baseline, item-weighting,
-ratio-band, `finalize_merged_reports.py` or `plot_balanced_accuracy_leaderboards.py`
-scripts. Those historical experiments are not needed for this commit.
+## Redraw figures without rescoring
 
 ```sh
-uv run --frozen --package phonics-benchmark pytest \
-  benchmarks/phonics_benchmark/tests/test_balanced_accuracy.py \
-  benchmarks/phonics_benchmark/tests/test_current_report_scripts.py \
-  benchmarks/phonics_benchmark/tests/test_f2_analysis.py \
-  benchmarks/phonics_benchmark/tests/test_phonics_hardware_tiers.py -q
+uv run --frozen --package phonics-benchmark python \
+  benchmarks/phonics_benchmark/scripts/plot_benchmark_report.py \
+  --report-dir outputs/MY_SNAPSHOT/reports/english
 ```
+
+This reads the saved combined tables and configuration, with no response parsing,
+scoring or bootstrapping. Repeat `--report-dir` for multiple reports. `--output-dir`
+keeps the figures separate from their source reports. Optional
+`--hardware-metadata PATH/TO/models.csv` and `--output-dir` recreate hardware
+comparisons from saved tables.
+
+## Code and review guides
+
+Scripts only dispatch to `phonics_benchmark` modules. `scoring.py` and
+`balanced_accuracy.py` define metrics, `bootstrap.py` owns item resampling, `plots.py`
+renders leaderboards, `hardware.py` handles hardware comparisons, and `reporting.py`
+loads runs and exports reports. `report_cli.py` owns command options. No package module
+imports a script.
+
+The separate F1/F2/BA/adjusted-BA drivers are superseded. Two import-only compatibility
+files (`analyze_balanced_accuracy.py` and `plot_report_f2_leaderboards.py`) remain for
+historical analysis consumers; they delegate to package modules and are not reporting
+commands. Existing item-distribution plots remain supported.
+
+- [Metric examples and plotting checks](validation.md)
+- [Refactor scope and local comparison results](reporting-refactor-review.md)
+- [Historical gold refresh and comparison](historical-report-refresh.md)
+- [Historical merge workflow](local-merged-analysis.md)
+- [Unified-run packaging and equality checks](unified-leaderboard-runs.md)

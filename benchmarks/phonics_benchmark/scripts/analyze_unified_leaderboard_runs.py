@@ -14,10 +14,11 @@ import json
 import tempfile
 from pathlib import Path
 
-import analyze_balanced_accuracy as ba
 import numpy as np
 import pandas as pd
 from merge_local_benchmark_runs import digest, read_jsonl, verify_artifacts, write_json
+from phonics_benchmark import balanced_accuracy as ba
+from phonics_benchmark.bootstrap import summarize_balanced_accuracy
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.scoring import add_per_item_confusion_matrix
 
@@ -85,7 +86,7 @@ def score_one(run: Path, language: str) -> tuple[pd.DataFrame, dict]:
     if len(frame) != len(scorable):
         raise ValueError(f"Unknown item IDs in responses: {run}")
     scored = add_per_item_confusion_matrix(frame, language)
-    summary, _ = ba.summarize(
+    summary, _ = summarize_balanced_accuracy(
         scored[
             [
                 "model",

@@ -1,5 +1,8 @@
 # F2 reports: commit scope and run guide
 
+Historical September report notes. The commands below describe the previous workflow;
+use [current reporting](current-metric-reports.md) for supported commands.
+
 For the current F1/F2/BA/adjusted-BA workflow, gold refresh and combined summaries, see
 [current-metric-reports.md](current-metric-reports.md). It also lists the current report
 files to include in a commit.

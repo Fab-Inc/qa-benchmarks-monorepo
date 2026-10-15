@@ -11,10 +11,8 @@ Neither response scoring nor the per-model bootstrap is rerun.
 
 from __future__ import annotations
 
-import argparse
 import json
 from fractions import Fraction
-from hashlib import sha256
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -159,7 +157,6 @@ def build_audit(
     coverage = read_csv(run / "coverage_by_model.csv")
     if not coverage.expected_items.eq(denominator).all():
         raise ValueError("Coverage denominator disagrees with dataset size")
-    required_items = minimum_scorable_items(denominator, min_items, min_coverage)
     if metric == "balanced_accuracy":
         summary = read_csv(run.parent / "balanced_accuracy" / f"{run.name}_summary.csv")
         summary = summary.rename(columns={"n_scorable": "n_items"})
@@ -194,13 +191,36 @@ def build_audit(
         table[metric], table[f"{metric}_bootstrap"], rtol=0, atol=1e-14, equal_nan=True
     )
     table = table.drop(columns=f"{metric}_bootstrap")
+    return audit_models(
+        table,
+        specs,
+        denominator,
+        run.name,
+        metric,
+        min_items=min_items,
+        min_coverage=min_coverage,
+    )
+
+
+def audit_models(
+    table,
+    specs,
+    denominator,
+    language,
+    metric="pooled_f2",
+    *,
+    min_items=700,
+    min_coverage=None,
+):
+    """Classify already scored models; unknown specifications stay in the audit."""
+    required_items = minimum_scorable_items(denominator, min_items, min_coverage)
     rows = []
     for row in table.to_dict(orient="records"):
         spec = specs.get(row["model"])
         row.update(assign_hardware(spec))
         row.update(
             {
-                "language": run.name,
+                "language": language,
                 "metric": metric,
                 "coverage_denominator": denominator,
                 "minimum_scorable_items": required_items,
@@ -276,7 +296,7 @@ def summarize_tiers(
     return (
         pd.DataFrame(medians),
         pd.DataFrame(means),
-        pd.concat(selected, ignore_index=True),
+        pd.concat(selected, ignore_index=True) if selected else eligible.copy(),
     )
 
 
@@ -292,6 +312,7 @@ def plot_dumbbell(
     gold_note: str = "",
     min_items: int = 700,
     min_coverage: float | None = None,
+    point_units: bool = False,
 ):
     metric_label = metric_label[0].lower() + metric_label[1:]
     tiers = [t for t in TIER_ORDER if t in set(stats.hardware_tier)]
@@ -334,7 +355,7 @@ def plot_dumbbell(
             others = [v for lang, v in points.items() if lang != language]
             left = bool(others) and score <= min(others)
             ax.annotate(
-                f"{score:.1f}%",
+                f"{score:.1f}" + ("" if point_units else "%"),
                 (score, point_y[language]),
                 xytext=(-14 if left else 14, 0),
                 textcoords="offset points",
@@ -389,12 +410,17 @@ def plot_dumbbell(
                 fontsize=size,
                 color=color,
             )
-    ax.set_xlim(0, 112)
+    ax.set_xlim(
+        min(-2.5, float(stats[value].min()) * 100 - 10) if point_units else 0, 112
+    )
+    if point_units:
+        ax.axvline(0, color=SECONDARY, ls="--", lw=1)
     ax.set_xticks([0, 20, 40, 60, 80, 100])
     ax.set_ylim(-0.85, len(tiers) - 0.45)
     ax.set_yticks([])
     ax.set_xlabel(
-        f"{'Median' if value.startswith('median') else 'Mean'} {metric_label} (%)",
+        f"{'Median' if value.startswith('median') else 'Mean'} "
+        f"{metric_label} ({'points' if point_units else '%'})",
         fontsize=12,
         color=MUTED,
     )
@@ -437,21 +463,19 @@ def plot_dumbbell(
         fontsize=12,
         labelcolor=SECONDARY,
     )
-    eligibility = (
-        f"≥{min_items:,} scorable items per model "
-        f"(English: {denominators['english']:,} target items; "
-        f"Kiswahili: {denominators['kiswahili']:,})"
+    targets = "; ".join(
+        f"{lang.title()}: {size:,} target items" for lang, size in denominators.items()
     )
+    eligibility = f"≥{min_items:,} scorable items per model ({targets})"
     if min_coverage is not None:
         thresholds = {
             lang: minimum_scorable_items(size, min_items, min_coverage)
             for lang, size in denominators.items()
         }
         eligibility = f">{100 * min_coverage:g}% coverage"
-        eligibility += (
-            f"; minimum scored items: English {thresholds['english']:,}"
-            f"/{denominators['english']:,}, "
-            f"Kiswahili {thresholds['kiswahili']:,}/{denominators['kiswahili']:,}"
+        eligibility += "; minimum scored items: " + ", ".join(
+            f"{lang.title()} {thresholds[lang]:,}/{size:,}"
+            for lang, size in denominators.items()
         )
     note = (
         f"Eligibility: {eligibility}.\n"
@@ -472,197 +496,94 @@ def plot_dumbbell(
     return fig
 
 
-def main(
-    root: Path,
-    top_n: int,
-    denominators: dict,
-    metric: str = "pooled_f2",
-    *,
-    gold_note: str = "",
-    min_items: int = 700,
-    min_coverage: float | None = None,
-) -> None:
-    if min_items < 1:
-        raise ValueError("min_items must be positive")
-    suffix = coverage_suffix(min_coverage)
-    out = root / "hardware_tiers" / metric
-    if suffix:
-        out = out / suffix.lstrip("_")
-    out.mkdir(parents=True, exist_ok=True)
-    metadata = root / "plot_metadata/models.csv"
-    inputs = [metadata]
-    for language in SERIES:
-        inputs.extend(
-            [
-                root / language / "report/summary_by_model.csv",
-                root / language / "report/bootstrap_ci.csv",
-                root / language / "coverage_by_model.csv",
-            ]
-        )
-        if metric == "balanced_accuracy":
-            inputs.append(root / "balanced_accuracy" / f"{language}_summary.csv")
-    hashes = {
-        str(p.relative_to(root)): sha256(p.read_bytes()).hexdigest() for p in inputs
-    }
-    specs = load_metadata(metadata)
-    audits = []
-    for language, denominator in denominators.items():
-        audit = build_audit(
-            root / language,
-            specs,
-            denominator,
-            metric,
-            min_items=min_items,
-            min_coverage=min_coverage,
-        )
-        audit.to_csv(out / f"hardware_tiers_{language}_audit.csv", index=False)
-        audit[audit.included].to_csv(
-            out / f"hardware_tiers_{language}.csv", index=False
-        )
-        audits.append(audit)
-    audit = pd.concat(audits, ignore_index=True)
-    medians, means, selected = summarize_tiers(audit, top_n, metric)
-    medians.to_csv(out / "hardware_tiers_medians.csv", index=False)
-    means.to_csv(out / f"hardware_tiers_top{top_n}_mean.csv", index=False)
-    selected.to_csv(out / f"hardware_tiers_top{top_n}_models.csv", index=False)
-    slide = means[means.hardware_tier.isin(["Cloud", "Mobile + Tablet"])]
-    slide.to_csv(out / f"hardware_tiers_top{top_n}_mean_slide.csv", index=False)
-    gaps = []
-    for language in SERIES:
-        group = means[means.language.eq(language)].set_index("hardware_tier")
-        if {"Cloud", "Mobile + Tablet"} <= set(group.index):
-            cloud, small = group.loc["Cloud"], group.loc["Mobile + Tablet"]
-            gaps.append(
-                {
-                    "language": language,
-                    "metric": metric,
-                    f"frontier_mean_{metric}": cloud[f"top_n_mean_{metric}"],
-                    f"small_mean_{metric}": small[f"top_n_mean_{metric}"],
-                    "frontier_minus_small_percentage_points": (
-                        cloud[f"top_n_mean_{metric}"] - small[f"top_n_mean_{metric}"]
-                    )
-                    * 100,
-                    "frontier_models_used": int(cloud.n_used),
-                    "small_models_used": int(small.n_used),
-                }
-            )
-    pd.DataFrame(gaps).to_csv(out / "frontier_small_gaps.csv", index=False)
-    metric_description = METRICS[metric][0].lower() + METRICS[metric][1:]
-    title = "How well do models identify\nnon-decodable words?"
-    figures = [
+def report_hardware(report_dirs, metadata, destination, *, top_n=10, make_plots=True):
+    """Export optional hardware comparisons using only saved report tables."""
+    from phonics_benchmark.plots import METRIC_SPECS
+
+    specs = load_metadata(Path(metadata))
+    reports = [
         (
-            medians,
-            f"median_{metric}",
-            "hardware_tiers_medians",
-            f"Median {metric_description} of eligible models in each hardware tier.",
-            False,
-        ),
-        (
-            means,
-            f"top_n_mean_{metric}",
-            f"hardware_tiers_top{top_n}_mean",
-            f"Mean {metric_description} of up to {top_n} highest-scoring "
-            "eligible models per tier.",
-            False,
-        ),
-        (
-            slide,
-            f"top_n_mean_{metric}",
-            f"hardware_tiers_top{top_n}_mean_slide",
-            f"Mean {metric_description} of up to {top_n} highest-scoring "
-            "eligible models per group.",
-            True,
-        ),
+            read_csv(path / "model_summary_all_scored.csv"),
+            json.loads((path / "report_config.json").read_text()),
+            read_csv(path / "coverage_by_model.csv"),
+        )
+        for path in report_dirs
     ]
-    for stats, value, stem, subtitle, slide_view in figures:
-        fig = plot_dumbbell(
-            stats,
-            value,
-            title,
-            subtitle,
-            denominators,
-            slide=slide_view,
-            metric_label=METRICS[metric],
-            gold_note=gold_note,
-            min_items=min_items,
-            min_coverage=min_coverage,
-        )
-        try:
-            for fmt in ("png", "pdf"):
-                fig.savefig(out / f"{stem}.{fmt}", dpi=250, facecolor=SURFACE)
-        finally:
-            plt.close(fig)
-    for path, digest in hashes.items():
-        if sha256((root / path).read_bytes()).hexdigest() != digest:
-            raise ValueError("Saved report inputs changed during analysis")
-    record = {
-        "metric": metric,
-        "comparison_tiers": TIER_ORDER,
-        "reference_url": REFERENCE_URL,
-        "reference_commit": REFERENCE_COMMIT,
-        "reference_source_sha256": REFERENCE_SOURCE_SHA256,
-        "input_sha256": hashes,
-        "script_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
-        "coverage_denominators": denominators,
-        "coverage_comparison": (
-            "scorable_items >= min_items and "
-            "scorable_items / expected_items > min_coverage"
-            if min_coverage is not None
-            else "scorable_items >= min_items"
-        ),
-        "minimum_coverage_exclusive": min_coverage,
-        "minimum_scorable_items": {
-            lang: minimum_scorable_items(size, min_items, min_coverage)
-            for lang, size in denominators.items()
-        },
-        "tier_max_parameters": dict(TIER_MAX_PARAMS),
-        "precision_band": PRECISION_BAND,
-        "top_n": top_n,
-        "included_models": audit[audit.included].groupby("language").size().to_dict(),
-        "scores_recomputed": False,
-        "group_confidence_intervals": (
-            "not calculated; original script compares point estimates; "
-            "saved per-model bootstrap bounds are retained in the audit tables"
-        ),
+    languages = [config["language"] for _, config, _ in reports]
+    if len(set(languages)) != len(languages):
+        raise ValueError("Hardware comparisons require one report per language")
+    if not set(languages) <= set(SERIES):
+        raise ValueError("Hardware plots currently support English and Kiswahili")
+    policies = {
+        (config["min_items"], config["min_coverage"]) for _, config, _ in reports
     }
-    (out / "manifest.json").write_text(json.dumps(record, indent=2) + "\n")
-    print(medians.to_string(index=False))
-    print(means.drop(columns="models_used").to_string(index=False))
-    print(pd.DataFrame(gaps).to_string(index=False))
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--root", type=Path, default=Path("outputs/phonics-merged-20260918")
-    )
-    parser.add_argument(
-        "--metrics", nargs="+", choices=list(METRICS), default=["pooled_f2"]
-    )
-    parser.add_argument("--top-n", type=int, default=10)
-    parser.add_argument("--min-items", type=int, default=700)
-    parser.add_argument(
-        "--min-coverage",
-        type=float,
-        help="Require coverage > this fraction (e.g. 0.9); save separate outputs.",
-    )
-    args = parser.parse_args()
-    denominators = {}
-    for language in SERIES:
-        items = pd.read_json(args.root / language / "benchmark_items.jsonl", lines=True)
-        if not items.benchmark_item_id.is_unique:
-            parser.error(f"Duplicate item IDs in {language}")
-        denominators[language] = len(items)
-    if min(args.top_n, args.min_items, *denominators.values()) < 1:
-        parser.error("top-n, min-items and dataset sizes must be positive")
-    if args.min_coverage is not None and not 0 <= args.min_coverage < 1:
-        parser.error("--min-coverage must be in [0, 1)")
-    for metric in args.metrics:
-        main(
-            args.root,
-            args.top_n,
-            denominators,
-            metric,
-            min_items=args.min_items,
-            min_coverage=args.min_coverage,
-        )
+    if len(policies) != 1:
+        raise ValueError("Hardware comparisons require the same coverage policy")
+    min_items, min_coverage = policies.pop()
+    denominators = {
+        config["language"]: config["expected_items"] for _, config, _ in reports
+    }
+    # The presentation supports either language alone as well as both together.
+    for metric, spec in METRIC_SPECS.items():
+        audits = []
+        output = Path(destination) / metric
+        output.mkdir(parents=True, exist_ok=True)
+        for summary, config, coverage in reports:
+            extra = [
+                column
+                for column in summary
+                if column not in coverage or column == "model"
+            ]
+            table = coverage.merge(
+                summary[extra], on="model", how="left", validate="one_to_one"
+            )
+            audit = audit_models(
+                table,
+                specs,
+                config["expected_items"],
+                config["language"],
+                metric,
+                min_items=min_items,
+                min_coverage=min_coverage,
+            )
+            audit.to_csv(
+                output / f"hardware_tiers_{config['language']}_audit.csv", index=False
+            )
+            audit[audit.included].to_csv(
+                output / f"hardware_tiers_{config['language']}.csv", index=False
+            )
+            audits.append(audit)
+        audit = pd.concat(audits, ignore_index=True)
+        medians, means, selected = summarize_tiers(audit, top_n, metric)
+        selected.to_csv(output / f"hardware_tiers_top{top_n}_models.csv", index=False)
+        for stats, value, stem in (
+            (medians, f"median_{metric}", "hardware_tiers_medians"),
+            (means, f"top_n_mean_{metric}", f"hardware_tiers_top{top_n}_mean"),
+        ):
+            stats.to_csv(output / f"{stem}.csv", index=False)
+            if stats.empty or not make_plots:
+                continue
+            plot_stats = stats.copy()
+            plot_stats[value] /= spec.scale
+            for slide in (False, True):
+                fig = plot_dumbbell(
+                    plot_stats,
+                    value,
+                    spec.label + " by hardware tier",
+                    "Group point estimates; no group confidence intervals.",
+                    denominators,
+                    metric_label=spec.label,
+                    slide=slide,
+                    min_items=min_items,
+                    min_coverage=min_coverage,
+                    point_units=spec.scale == 100,
+                )
+                try:
+                    for extension in ("png", "pdf"):
+                        fig.savefig(
+                            output / f"{stem}{'_slide' if slide else ''}.{extension}",
+                            dpi=150,
+                            bbox_inches="tight",
+                        )
+                finally:
+                    plt.close(fig)

@@ -14,6 +14,8 @@ import google_crc32c
 import pandas as pd
 import pytest
 from google.api_core.exceptions import PreconditionFailed
+from phonics_benchmark import reporting as report
+from phonics_benchmark import reporting_inputs as f2
 from phonics_benchmark import runner
 from phonics_benchmark.config import build_run_config, config_identity_sha256
 
@@ -21,10 +23,10 @@ SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 builder = importlib.import_module("build_unified_leaderboard_runs")
 analysis = importlib.import_module("analyze_unified_leaderboard_runs")
-report = importlib.import_module("report_on_benchmark_run")
+
 publisher = importlib.import_module("publish_unified_leaderboard_runs")
 downloader = importlib.import_module("download_unified_leaderboard_runs")
-f2 = importlib.import_module("run_f2_analysis")
+
 FIXTURE = Path(__file__).parent / "fixtures/completed_benchmark_items.jsonl"
 
 

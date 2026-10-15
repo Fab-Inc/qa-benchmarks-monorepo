@@ -1,24 +1,16 @@
 """Guard portable reporting inputs, dynamic denominators and metadata integrity."""
 
-import importlib.util
 import json
 from hashlib import sha256
-from pathlib import Path
 
-import pandas as pd
 import pytest
 
 
 @pytest.fixture
-def analysis(monkeypatch):
-    scripts = Path(__file__).parents[1] / "scripts"
-    monkeypatch.syspath_prepend(str(scripts))
-    spec = importlib.util.spec_from_file_location(
-        "f2_analysis", scripts / "run_f2_analysis.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def analysis():
+    from phonics_benchmark import reporting_inputs
+
+    return reporting_inputs
 
 
 @pytest.fixture
@@ -110,88 +102,3 @@ def test_manifest_cannot_read_outside_root(analysis, tmp_path):
     )
     with pytest.raises(ValueError, match="leaves the input root"):
         analysis.verify_merge(tmp_path)
-
-
-def test_bundled_metadata_supports_new_qwen_alias(analysis):
-    specs = analysis.hardware.load_metadata(analysis.DEFAULT_METADATA / "models.csv")
-    assert specs["qwen3-8b-alibaba"]["size"] == 8e9
-    assert (
-        analysis.hardware.assign_hardware(specs["qwen3-8b-alibaba"])["hardware_tier"]
-        == "Mobile + Tablet"
-    )
-    models = pd.read_csv(analysis.DEFAULT_METADATA / "models.csv")
-    providers = pd.read_csv(analysis.DEFAULT_METADATA / "providers.csv")
-    assert models.model_id.is_unique and providers.provider.is_unique
-    assert set(models.provider) <= set(providers.provider)
-
-
-def test_leaderboard_filter_counts_successes_and_preserves_intervals(analysis):
-    table = pd.DataFrame(
-        {
-            "model": ["below", "exact", "above"],
-            "scorable_items": [699, 700, 701],
-            "response_rows": [991, 991, 991],
-            "score": [0.95, 0.9, 0.8],
-            "ci_low": [0.94, 0.89, 0.79],
-            "ci_high": [0.96, 0.91, 0.81],
-        }
-    )
-    filtered = analysis.leaderboard.eligible_models(table)
-    pd.testing.assert_frame_equal(
-        filtered, table.iloc[1:].reset_index(drop=True), check_exact=True
-    )
-    assert analysis.leaderboard.eligible_models(table, 701).model.tolist() == ["above"]
-
-
-def test_nonpositive_threshold_rejected(analysis):
-    with pytest.raises(ValueError, match="positive"):
-        analysis.leaderboard.eligible_models(pd.DataFrame(), 0)
-
-
-def test_coverage_plot_preserves_default_and_minimum_item_outputs(
-    analysis, tmp_path, monkeypatch
-):
-    run = tmp_path / "english"
-    report = run / "report"
-    report.mkdir(parents=True)
-    for suffix in ("", "_min700"):
-        for ext in ("png", "pdf", "csv"):
-            (report / f"pooled_f2_leaderboard{suffix}.{ext}").write_bytes(b"existing")
-    table = pd.DataFrame(
-        {
-            "model": ["below", "eligible"],
-            "display_name": ["Below", "Eligible"],
-            "scorable_items": [891, 892],
-            "n_items": [891, 892],
-            "expected_items": [991, 991],
-            "provider": ["test", "test"],
-            "color": ["#2a78d6", "#2a78d6"],
-            "score": [0.95, 0.9],
-            "ci_low": [0.94, 0.89],
-            "ci_high": [0.96, 0.91],
-            "ci_level": [0.95, 0.95],
-            "n_bootstrap": [1000, 1000],
-        }
-    )
-    monkeypatch.setattr(
-        analysis.leaderboard,
-        "load_plot_table",
-        lambda *_: (table, {"test": "#2a78d6"}),
-    )
-    analysis.save_leaderboards(
-        run,
-        table,
-        "English gold: 991 corrected items.",
-        892,
-        output_suffix="_coverage_gt90",
-        eligibility_label=">90% coverage",
-    )
-    saved = analysis.leaderboard.read_csv(
-        report / "pooled_f2_leaderboard_coverage_gt90.csv"
-    )
-    pd.testing.assert_frame_equal(saved, table.iloc[1:].reset_index(drop=True))
-    for suffix in ("", "_min700"):
-        for ext in ("png", "pdf", "csv"):
-            assert (
-                report / f"pooled_f2_leaderboard{suffix}.{ext}"
-            ).read_bytes() == b"existing"

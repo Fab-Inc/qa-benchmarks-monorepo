@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from phonics_benchmark import balanced_accuracy as ba
 
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 finalize = importlib.import_module("finalize_phonics_refresh")
-ba = importlib.import_module("analyze_balanced_accuracy")
 
 
 @pytest.mark.parametrize(
@@ -75,8 +75,7 @@ def test_vocabulary_loader_preserves_unique_words_and_normalizes_gold(tmp_path):
 def test_importing_drivers_does_not_run_an_analysis():
     for name in (
         "apply_refreshed_gold",
-        "run_balanced_accuracy_reports",
-        "plot_adjusted_balanced_accuracy",
+        "report_on_benchmark_run",
         "finalize_phonics_refresh",
     ):
         module = importlib.import_module(name)
@@ -116,51 +115,3 @@ def test_gold_refresh_accepts_new_gate_column_but_rejects_changed_counts(tmp_pat
     frame.to_csv(current, index=False)
     with pytest.raises(AssertionError):
         refresh.verify_coverage_unchanged(previous, current)
-
-
-@pytest.mark.parametrize(
-    "total,counts,expected",
-    [(991, [891, 892], [False, True]), (1000, [900, 901], [False, True])],
-)
-def test_balanced_report_uses_strict_90_percent_gate(
-    tmp_path, monkeypatch, total, counts, expected
-):
-    driver = importlib.import_module("run_balanced_accuracy_reports")
-    models = ["below", "eligible"]
-    metadata = pd.DataFrame(
-        {
-            "model": models,
-            "n_items": counts,
-            "expected_items": total,
-            "score": 0.8,
-            "ci_low": 0.7,
-            "ci_high": 0.9,
-            "n_bootstrap": 1000,
-            "ci_level": 0.95,
-        }
-    )
-    saved = pd.DataFrame(
-        {
-            "model": models,
-            "n_scorable": counts,
-            "expected_items": total,
-            "recall": 0.8,
-            "specificity": 0.8,
-            "balanced_accuracy": 0.8,
-            "balanced_accuracy_ci_low": 0.7,
-            "balanced_accuracy_ci_high": 0.9,
-            "n_bootstrap": 1000,
-            "ci_level": 0.95,
-            "passes_90_percent_gate": expected,
-        }
-    )
-    monkeypatch.setattr(driver, "load_plot_table", lambda *_: (metadata, {}))
-    monkeypatch.setattr(driver, "read_csv", lambda *_: saved)
-    table, _ = driver.load_balanced_table(tmp_path, "english")
-    assert (
-        table.set_index("model").loc[models, "passes_90_percent_gate"].tolist()
-        == expected
-    )
-    saved["passes_90_percent_gate"] = True
-    with pytest.raises(ValueError, match="Coverage gate"):
-        driver.load_balanced_table(tmp_path, "english")

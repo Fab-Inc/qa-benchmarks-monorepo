@@ -1,15 +1,8 @@
 """Check tier gates, the inclusive item-count threshold and top-N aggregation."""
 
-import importlib.util
-from pathlib import Path
-
 import pandas as pd
 import pytest
-
-SCRIPT = Path(__file__).parents[1] / "scripts/analyze_phonics_hardware_tiers.py"
-SPEC = importlib.util.spec_from_file_location("phonics_hardware", SCRIPT)
-hardware = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(hardware)
+from phonics_benchmark import hardware
 
 
 @pytest.mark.parametrize(

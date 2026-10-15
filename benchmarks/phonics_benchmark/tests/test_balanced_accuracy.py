@@ -1,20 +1,10 @@
 """Verify fixed-vocabulary scoring and constant-prediction baselines."""
 
-import importlib.util
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
-
-SCRIPTS = Path(__file__).parents[1] / "scripts"
-sys.path.insert(0, str(SCRIPTS))
-SPEC = importlib.util.spec_from_file_location(
-    "ba", SCRIPTS / "analyze_balanced_accuracy.py"
-)
-ba = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(ba)
+from phonics_benchmark import balanced_accuracy as ba
+from phonics_benchmark.bootstrap import summarize_balanced_accuracy
 
 
 @pytest.mark.parametrize("totals", [[7, 0, 0, 13, 0], [0, 7, 13, 0, 0]])
@@ -58,7 +48,7 @@ def test_all_words_bootstrap_stays_at_half_with_missing_responses():
             "fp_count": [8, 10],
         }
     )
-    summary, _ = ba.summarize(scored, items, n_bootstrap=100)
+    summary, _ = summarize_balanced_accuracy(scored, items, n_bootstrap=100)
     row = summary.iloc[0]
     assert row.n_scorable == 2
     assert row.balanced_accuracy == 0.5
@@ -100,7 +90,7 @@ def test_adjusted_bootstrap_bounds_are_in_points_without_clipping():
             "fp_count": [0, 15, 10],
         }
     )
-    summary, _ = ba.summarize(scored, items, n_bootstrap=100, seed=0)
+    summary, _ = summarize_balanced_accuracy(scored, items, n_bootstrap=100, seed=0)
     row = summary.iloc[0]
     assert row.adjusted_balanced_accuracy_scale == 100
     assert row.adjusted_balanced_accuracy < 0

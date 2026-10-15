@@ -159,22 +159,23 @@ downloaded runs are kept under `gcs/`. The manifest covers the downloaded and re
 files. It does not link back to the 22 September selection. The download time is written
 outside the seal, so the same generations give the same manifest.
 
-Then run the committed report scripts on that root, in the original order:
+Generate reports from the rebuilt runs with the consolidated reporter:
 
 ```sh
-ROOT=outputs/phonics-gold-leaderboard-20260922-from-gcs
-SCRIPTS=benchmarks/phonics_benchmark/scripts
-PY="uv run --frozen --package phonics-benchmark python"
-$PY $SCRIPTS/run_f2_analysis.py --root $ROOT --min-coverage 0.9
-$PY $SCRIPTS/plot_report_f1_leaderboards.py --root $ROOT --min-coverage 0.9 --hardware-tiers
-$PY $SCRIPTS/run_balanced_accuracy_reports.py --root $ROOT
-$PY $SCRIPTS/plot_adjusted_balanced_accuracy.py --root $ROOT
-$PY $SCRIPTS/finalize_phonics_refresh.py --root $ROOT
+PHONICS_ROOT=outputs/phonics-gold-leaderboard-20260922-from-gcs
+uv run --frozen --package phonics-benchmark python \
+  benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+  --run-dir "$PHONICS_ROOT/english" --run-dir "$PHONICS_ROOT/kiswahili" \
+  --output-dir "$PHONICS_ROOT/reports" \
+  --metadata benchmarks/phonics_benchmark/scripts/f2_plot_metadata \
+  --min-items 700 --min-coverage 0.9 --hardware-tiers
 ```
 
-`run_f2_analysis.py` copies its plot metadata from `scripts/f2_plot_metadata/`. The
-committed metadata adds `gpt-6-astra-medium` and matches the 23 September report's copy.
-Without that entry, Astra has no display name or hardware tier.
+The supplied metadata preserves September display names, provider colours and hardware
+classifications. See [current reporting](current-metric-reports.md) for the new output
+layout and [refactor review notes](reporting-refactor-review.md) for its comparison with
+saved results. The following records the original September workflow and its historical
+file layout.
 
 On 28 September this ran on the runs with the Astra responses, using this metadata, and
 was compared with the 23 September selection. Of its 80 CSV files, 30 were
