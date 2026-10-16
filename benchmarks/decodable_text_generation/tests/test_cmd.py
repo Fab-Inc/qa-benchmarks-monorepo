@@ -8,8 +8,8 @@ import pytest
 from decodable_text_generation.cmd import app
 from decodable_text_generation.items import load_generation_items
 from decodable_text_generation.prompts import prompt_from_item
-from phonics_benchmark.config import ConfigError
-from phonics_benchmark.runner import run_from_config_file
+from phonics_benchmark.config import ConfigError, load_run_config
+from phonics_benchmark.runner import execute_run
 from typer.testing import CliRunner
 
 FIXTURE = Path(__file__).parent / "fixtures" / "generation_benchmark_items.jsonl"
@@ -187,10 +187,12 @@ def test_run_end_to_end_with_fake_evaluator(tmp_path: Path) -> None:
         prompts_seen.append(prompt)
         return {"output": "<text>the cat sat</text>"}
 
-    output = run_from_config_file(
-        config_path,
-        task="generation-child",
-        default_prompt_name="decodable_text_generation",
+    output = execute_run(
+        load_run_config(
+            config_path,
+            task="generation-child",
+            default_prompt_name="decodable_text_generation",
+        ),
         evaluator=evaluator,
         item_loader=load_generation_items,
         prompt_builder=prompt_from_item,
