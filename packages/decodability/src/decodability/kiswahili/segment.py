@@ -74,7 +74,8 @@ class ClusterSpan(Span):
 
     @field_validator("text")
     def check_cluster_length(cls, value: str) -> str:  # noqa: N805
-        if len(value) < 2:
+        graphemes = get_grapheme_spans(value)
+        if len(graphemes) < 2:
             raise ValueError("A cluster must consist of at least two characters.")
         return value
 
@@ -82,6 +83,11 @@ class ClusterSpan(Span):
     def check_all_consonants(cls, value: str) -> str:  # noqa: N805
         assert all(grapheme.is_consonant for grapheme in get_grapheme_spans(value))
         return value
+
+    @property
+    def grapheme_spans(self) -> list[GraphemeSpan]:
+        """Return the individual grapheme spans that make up this cluster."""
+        return get_grapheme_spans(self.text)
 
     def to_span(self) -> Span:
         """Return a plain :class:`Span` with the same text and range."""

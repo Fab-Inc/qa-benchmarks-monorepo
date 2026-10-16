@@ -179,6 +179,14 @@ def ok_to_ungate(
     for cluster_span in word_decomposition.clusters:
         # iterate through all consonant clusters in the potential word to ungate
         if is_syllabic_nasal(word_decomposition, cluster_span):
+            rest = cluster_span.grapheme_spans[1:]
+            if (
+                len(rest) > 1
+                and "".join([g.symbol for g in rest]) not in profile.all_known_clusters
+            ):
+                # if the remaining part of the cluster is a cluster itself
+                # and is unknown to the student, then it's not decodable
+                return False
             ungate_word = True
         elif cluster_span.normalised not in profile.all_known_clusters:
             # student doesn't know this cluster, so we can't ungate the word

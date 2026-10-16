@@ -918,11 +918,42 @@ class TestKiswahiliSyllabicNasalUngating:
                 True,
             ),
             (
+                # the "m" + consonant pattern covers mb, so the word can be ungated
+                "mjomba",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "b", "j", "o", "a"},
+                    clusters={"mb"},
+                    cluster_patterns=set(),
+                    whole_words=set(),
+                ),
+                True,
+            ),
+            (
                 "nje",
                 KiswahiliStudentKnowledge(
                     graphemes={"n", "j", "e"},
                     clusters=set(),
                     cluster_patterns=set(),
+                    whole_words=set(),
+                ),
+                True,
+            ),
+            (
+                "mchwa",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "ch", "w", "a"},
+                    clusters=set(),
+                    cluster_patterns=set(),
+                    whole_words=set(),
+                ),
+                False,
+            ),
+            (
+                "mchwa",
+                KiswahiliStudentKnowledge(
+                    graphemes={"m", "ch", "w", "a"},
+                    clusters=set(),
+                    cluster_patterns={ClusterPattern.LABIALISED_GLIDE},
                     whole_words=set(),
                 ),
                 True,
