@@ -1,0 +1,64 @@
+model_id,provider,open,url,size,display_name
+gpt-4.1-nano,OpenAI,False,https://platform.openai.com/docs/models/gpt-4.1-nano,,GPT-4.1 Nano
+gpt-4.1-mini,OpenAI,False,https://platform.openai.com/docs/models/gpt-4.1-mini,,GPT-4.1 Mini
+gpt-4.1,OpenAI,False,https://platform.openai.com/docs/models/gpt-4.1,,GPT-4.1
+o3-2025-04-16,OpenAI,False,https://platform.openai.com/docs/models/o3,,o3
+o4-mini-2025-04-16,OpenAI,False,https://platform.openai.com/docs/models/o4-mini,,o4-Mini
+fw-gpt-oss-120b,OpenAI,True,https://huggingface.co/openai/gpt-oss-120b,120000000000.0,gpt-oss 120B
+gpt-5-nano-2025-08-07-medium,OpenAI,False,https://platform.openai.com/docs/models/gpt-5-nano,,GPT-5 Nano (Medium)
+gpt-5.4-2026-03-05-medium,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.4,,GPT-5.4 (Medium)
+gpt-5.4-nano-2026-03-17,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.4-nano,,GPT-5.4 Nano
+llama-4-scout-instruct-basic,Meta,True,https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct,109000000000.0,Llama-4 Scout
+llama-v3p2-1b-instruct-bf16,Meta,True,https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct,1000000000.0,Llama-3.2 1B
+llama-v3p2-3b-instruct-bf16,Meta,True,https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct,3000000000.0,Llama-3.2 3B
+claude-haiku-4-5-20251001,Anthropic,False,https://docs.claude.com/en/docs/about-claude/models/overview#model-comparison-table,,Claude Haiku 4.5
+claude-sonnet-4-6,Anthropic,False,https://docs.claude.com/en/docs/about-claude/models/overview#model-comparison-table,,Claude Sonnet 4.6
+gemma-3-27b,Google,True,https://huggingface.co/google/gemma-3-27b-it,27000000000.0,Gemma-3 27B
+gemini-3-flash-preview,Google,False,https://ai.google.dev/gemini-api/docs/models#gemini-3-flash,,Gemini-3 Flash
+gemini-3.1-pro-preview,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview,,Gemini-3.1 Pro
+gemini-3.1-flash-lite-preview,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview,,Gemini-3.1 Flash-Lite
+gemma-4-31b-it,Google,True,https://huggingface.co/google/gemma-4-31B-it,31000000000.0,Gemma-4 31B
+gemma-4-26b-a4b-it,Google,True,https://huggingface.co/google/gemma-4-26B-A4B-it,26000000000.0,Gemma-4 26B A4B
+hf-gemma-4-e2b-it-gguf-bf16,Google,True,https://huggingface.co/google/gemma-4-E2B-it,5100000000.0,Gemma-4 E2B
+mistral-nemo-instruct-2407-fp8,Mistral,True,https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407,12000000000.0,Mistral Nemo
+mistral-large-3-2512,Mistral,False,https://docs.mistral.ai/models/mistral-large-3-25-12,,Mistral Large 3
+ministral-3-8b-2512,Mistral,True,https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512,8000000000.0,Ministral 3 8B
+ministral-3-3b-2512,Mistral,True,https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512,3000000000.0,Ministral 3 3B
+mistral-small-2603,Mistral,True,https://huggingface.co/mistralai/Mistral-Small-4-119B-2603,119000000000.0,Mistral Small 4
+qwen-3-14b,Alibaba,True,https://huggingface.co/Qwen/Qwen3-14B,14000000000.0,Qwen-3 14B
+hf-qwen3-0-6b,Alibaba,True,https://huggingface.co/Qwen/Qwen3-0.6B,600000000.0,Qwen-3 0.6B
+hf-qwen3-1-7b,Alibaba,True,https://huggingface.co/Qwen/Qwen3-1.7B,1700000000.0,Qwen-3 1.7B
+hf-qwen3-4b,Alibaba,True,https://huggingface.co/Qwen/Qwen3-4B,4000000000.0,Qwen-3 4B
+qwen3-235b-a22b-thinking-2507,Alibaba,True,https://huggingface.co/Qwen/Qwen3-235B-A22B-Thinking-2507,235000000000.0,Qwen-3 235B A22B Thinking
+qwen3.5-397b-a17b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.5-397B-A17B,397000000000.0,Qwen3.5 397B A17B
+qwen3.5-flash-02-23,Alibaba,False,https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=doc#/doc/?type=model&url=2840914_2&modelId=group-qwen3.5-flash,,Qwen3.5 Flash
+qwen3.5-plus-02-15,Alibaba,False,https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=doc#/doc/?type=model&url=2840914_2&modelId=group-qwen3.5-plus,,Qwen3.5 Plus
+qwen3.5-122b-a10b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.5-122B-A10B,122000000000.0,Qwen3.5 122B A10B
+qwen3.5-27b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.5-27B,27000000000.0,Qwen3.5 27B
+qwen3.5-9b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.5-9B,9000000000.0,Qwen3.5 9B
+kimi-k2.5,Moonshot AI,True,https://huggingface.co/moonshotai/Kimi-K2.5,1000000000000.0,Kimi K2.5
+kimi-k2.6,Moonshot AI,True,https://huggingface.co/moonshotai/Kimi-K2.6,1000000000000.0,Kimi K2.6
+glm-4.6v,Z.ai,True,https://huggingface.co/zai-org/GLM-4.6V,106000000000.0,GLM-4.6V
+gpt-5.5-2026-04-23-medium,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.5,,GPT-5.5
+deepseek-v4-pro,DeepSeek-AI,True,https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro,1600000000000.0,Deepseek V4 Pro
+mimo-v2.5,Xiaomi,True,https://huggingface.co/XiaomiMiMo/MiMo-V2.5,310000000000.0,MiMo-V2.5
+mimo-v2.5-pro,Xiaomi,True,https://huggingface.co/XiaomiMiMo/MiMo-V2.5-Pro,1020000000000.0,MiMo-V2.5 Pro
+qwen3.6-27b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.6-27B,27000000000.0,Qwen3.6 27B
+qwen3.6-35b-a3b,Alibaba,True,https://huggingface.co/Qwen/Qwen3.6-35B-A3B,35000000000.0,Qwen3.6 35B A3B
+qwen3.6-flash,Alibaba,False,https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3.6-flash,,Qwen3.6 Flash
+mistral-medium-3-5,Mistral,False,https://docs.mistral.ai/models/model-cards/mistral-medium-3-5-26-04,,Mistral Medium 3.5
+gemini-3.5-flash,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash,,Gemini-3.5 Flash
+claude-fable-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview#model-comparison-table,,Claude Fable 5
+claude-sonnet-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,,Claude Sonnet 5
+grok-4.5,xAI,False,https://docs.x.ai/developers/models/grok-4.5,,Grok-4.5
+gpt-5.6-sol,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-sol,,GPT-5.6 Sol
+gpt-5.6-terra,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-terra,,GPT-5.6 Terra
+gpt-5.6-luna,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-5.6-luna,,GPT-5.6 Luna
+inkling,Thinking Machines,True,https://huggingface.co/thinkingmachines/Inkling,975000000000.0,Inkling
+gemini-3.6-flash,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash,,Gemini-3.6 Flash
+gemini-3.5-flash-lite,Google,False,https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite,,Gemini-3.5 Flash-Lite
+claude-opus-5,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,,Claude Opus 5
+hf-gemma-4-12b-it,Google,True,https://huggingface.co/google/gemma-4-12B-it,12000000000.0,Gemma-4 12B
+qwen3-8b-alibaba,Alibaba,True,https://huggingface.co/Qwen/Qwen3-8B,8000000000.0,Qwen-3 8B
+gpt-6-astra-medium,OpenAI,False,,,GPT-6 Astra (Medium)
+claude-opus-5-5-medium,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,,Claude Opus 5.5 (Medium)

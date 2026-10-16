@@ -1,0 +1,8 @@
+{
+  "gpt-6-astra-medium": {
+    "display_name": "GPT-6 Astra (Medium)",
+    "provider": "OpenAI",
+    "source": "sources/runs/sw-tusome-clusters-additional-20260916-a/config.json",
+    "note": "Run config records Api_Model_Name=gpt-6-astra, reasoning_effort=medium, group=OpenAIBenchmrks."
+  }
+}
