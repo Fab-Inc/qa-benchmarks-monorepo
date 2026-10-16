@@ -117,21 +117,19 @@ def build_items(
     items = []
     for profile in profiles:
         for scenario_id in scenario_ids:
-            item = GenerationBenchmarkItem(
-                benchmark_item_id=(f"{profile.student_knowledge_id}_{scenario_id}"),
-                student_knowledge_id=profile.student_knowledge_id,
-                scenario_id=scenario_id,
-                language_iso_code=profile.language_iso_code,
-                is_jagged=profile.is_jagged,
-                student_knowledge=profile.student_knowledge,
-                target_knowledge=profile.target_knowledge,
-                # Rendered last so a bad prompt fails before the item exists.
-                prompt="pending",
+            fields = {
+                "benchmark_item_id": f"{profile.student_knowledge_id}_{scenario_id}",
+                "student_knowledge_id": profile.student_knowledge_id,
+                "scenario_id": scenario_id,
+                "language_iso_code": profile.language_iso_code,
+                "is_jagged": profile.is_jagged,
+                "student_knowledge": profile.student_knowledge,
+                "target_knowledge": profile.target_knowledge,
+            }
+            fields["prompt"] = build_generation_prompt(
+                prompt_name, fields, profile.language_iso_code
             )
-            item.prompt = build_generation_prompt(
-                prompt_name, item.model_dump(), profile.language_iso_code
-            )
-            items.append(item)
+            items.append(GenerationBenchmarkItem(**fields))
     return items
 
 
