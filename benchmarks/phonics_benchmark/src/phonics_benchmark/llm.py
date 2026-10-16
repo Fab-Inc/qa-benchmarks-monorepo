@@ -49,7 +49,7 @@ def call_llm(
         tokens_used = outmsg.TokensUsed
         tokens_used_completion = outmsg.TokensUsedCompletion
         tokens_used_reasoning = outmsg.TokensUsedReasoning
-        model_version = getattr(outmsg, "ModelVersion", None)
+        model_version = getattr(outmsg, "ResponseModel", None)
 
     timestamp_utc: str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
 

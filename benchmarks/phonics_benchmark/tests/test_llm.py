@@ -36,7 +36,7 @@ def test_call_llm_returns_metadata_and_logs_response(
         TokensUsed=50,
         TokensUsedCompletion=17,
         TokensUsedReasoning=0,
-        ModelVersion="test-model-2026",
+        ResponseModel="test-model-2026",
     )
     get_caller = Mock(return_value=caller)
     monkeypatch.setattr(llm, "get_caller", get_caller)
@@ -93,7 +93,7 @@ def test_call_llm_bypass_does_not_create_a_caller(monkeypatch):
                 TokensUsed=0,
                 TokensUsedCompletion=0,
                 TokensUsedReasoning=0,
-                ModelVersion=None,
+                ResponseModel=None,
             ),
             0,
         ),
