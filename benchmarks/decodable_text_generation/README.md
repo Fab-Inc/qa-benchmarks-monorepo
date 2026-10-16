@@ -15,7 +15,8 @@ item schema, and the data pipeline.
 
 ## Pipeline
 
-Profiles are pre-built JSONL artifacts. Find them in GCS under the `text-generation-benchmark` folder. (or ask Justin) and place in
+Profiles are pre-built JSONL artifacts. Find them in GCS under the
+`text-generation-benchmark` folder. (or ask Justin) and place in
 `data/<child_adapted or curriculum_aligned>/<language>/` .
 
 The following command converts them into benchmark items with prompts:
@@ -25,9 +26,11 @@ uv run --package decodable-text-generation python \
     benchmarks/decodable_text_generation/scripts/build_generation_items.py \
     --language english --benchmark child
 ```
+
 (or `curriculum`)
 
-This writes `benchmark_items.jsonl` next to the profiles. (Pre-built profiles are in GCS under the `text-generation-benchmark` folder.)
+This writes `benchmark_items.jsonl` next to the profiles. (Pre-built profiles are in GCS
+under the `text-generation-benchmark` folder.)
 
 - `--prompt-name` selects a non-default template key from `prompts.yaml`
 
@@ -58,8 +61,7 @@ Each line of `benchmark_items.jsonl` (English example):
 }
 ```
 
-`target_knowledge` is required on curriculum items and
-absent/ignored for child items.
+`target_knowledge` is required on curriculum items and absent/ignored for child items.
 
 ## Running
 
