@@ -432,6 +432,25 @@ class TestSuffixedSFallback:
         assert score_known_gpcs_english("hap's", student) == 1.0
 
 
+class TestPronunciationDedup:
+    """Distinct ARPABET variants can normalize to the same ``Pronunciation`` —
+    stress-level swaps (``AE1/AY2`` vs ``AE2/AY1``), ``ER0`` vs a spelled-out
+    ``AH0 R``, and ``IH R`` undone to ``IY R`` — so the dedup happens after
+    normalization, not just on the raw ARPABET tuples."""
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "advertised",  # AE1/AY2 vs AE2/AY1 stress swap
+            "disarray",  # ER0 vs AH0 R
+            "disappear",  # IH1 R vs IY1 R
+        ],
+    )
+    def test_no_duplicate_pronunciations(self, word: str):
+        variants = get_word_phonemes(word)
+        assert len(variants) == len(set(variants))
+
+
 class TestGPCValidation:
     @pytest.mark.parametrize(
         "grapheme, phonemes",
@@ -1011,6 +1030,52 @@ class TestSharedLetters:
             gpcs=[("p", "p"), ("l", "l"), ("a_e", "eɪ"), ("-ed", "t")]
         )
         assert score_known_gpcs_english("placed", student) == 0.0
+
+    def test_judged_ed_shares_the_dge_e(self):
+        """``judged`` parses as ``j`` + ``u`` + ``dge`` + ``-ed`` — the
+        suffix's first letter is the trigraph's last."""
+        _, parses = _parse_corpus_word("judged")
+        assert any(
+            [(m.gpc.grapheme, m.letter_positions) for m in parse]
+            == [
+                ("j", (0,)),
+                ("u", (1,)),
+                ("dge", (2, 3, 4)),
+                ("-ed", (4, 5)),
+            ]
+            for _, parse in parses
+        )
+
+    def test_judged_needs_the_dge_trigraph_not_ge(self):
+        """The ``d`` before ``g`` has no other /dʒ/ correspondence, so every
+        parse goes through ``dge`` — ``ge`` → /dʒ/ is unreachable here."""
+        _, parses = _parse_corpus_word("judged")
+        assert parses, "judged should parse under the full UFLI inventory"
+        for _, parse in parses:
+            graphemes = [m.gpc.grapheme for m in parse]
+            assert "dge" in graphemes
+            assert "ge" not in graphemes
+
+    def test_judged_scores_end_to_end(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("j", "dʒ"), ("u", "ʌ"), ("dge", "dʒ"), ("-ed", "d")]
+        )
+        assert score_known_gpcs_english("judged", student) == 1.0
+
+    def test_ge_alone_does_not_unlock_judged(self):
+        """Taught ``ge`` → /dʒ/ (and even ``g`` → /dʒ/) can't substitute for
+        the trigraph — ``dge`` is atomic, not ``d`` + ``ge``."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("j", "dʒ"),
+                ("u", "ʌ"),
+                ("d", "d"),
+                ("ge", "dʒ"),
+                ("g", "dʒ"),
+                ("-ed", "d"),
+            ]
+        )
+        assert score_known_gpcs_english("judged", student) == 0.0
 
 
 class TestProductiveSpellingAndPronunciationRules:
