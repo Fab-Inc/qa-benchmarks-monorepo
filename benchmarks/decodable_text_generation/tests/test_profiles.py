@@ -115,3 +115,37 @@ def test_validate_target_uses_language_model() -> None:
 def test_validate_target_unknown_language() -> None:
     with pytest.raises(ValueError, match="No student_knowledge validator"):
         validate_target({"gpcs": []}, "xx", profile_id="p1")
+
+
+def test_validate_target_description_requires_valid_rule() -> None:
+    """A description alone is unmeasurable — it must name a checkable rule."""
+    with pytest.raises(ValueError, match="'description' requires"):
+        validate_target({"description": "Doubling rule"}, "en", profile_id="p1")
+    with pytest.raises(ValueError, match="'description' requires"):
+        validate_target(
+            {"gpcs": [["n", "n"]], "description": "a note"}, "en", profile_id="p1"
+        )
+    with pytest.raises(ValueError, match="unknown rules"):
+        validate_target(
+            {"description": "Doubling rule", "rules": ["not_a_rule"]},
+            "en",
+            profile_id="p1",
+        )
+    # description + a registered rule passes
+    validate_target(
+        {"description": "VC & CVC practice", "rules": ["vc_cvc"]},
+        "en",
+        profile_id="p1",
+    )
+
+
+def test_validate_target_sw_description_requires_valid_rule() -> None:
+    """Kiswahili has no registered rules, so a description always fails."""
+    with pytest.raises(ValueError, match="'description' requires"):
+        validate_target(
+            {"graphemes": ["a"], "description": "Nasal cluster practice"},
+            "sw",
+            profile_id="p1",
+        )
+    # sw targets without a description are unaffected
+    validate_target({"graphemes": ["a"], "clusters": []}, "sw", profile_id="p1")

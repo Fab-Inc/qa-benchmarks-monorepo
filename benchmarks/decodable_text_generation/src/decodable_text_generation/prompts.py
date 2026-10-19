@@ -73,6 +73,7 @@ _TARGET_FIELD_LABELS = {
     "clusters": "Target clusters",
     "cluster_patterns": "Target cluster patterns",
     "whole_words": "Target whole words",
+    "description": "Practice goal",
 }
 
 
@@ -81,14 +82,22 @@ def render_target(target: Mapping[str, Any]) -> str:
 
     Pair-valued fields (e.g. ``gpcs``) render as ``grapheme -> /phoneme/`` —
     the same notation ``EnglishStudentKnowledge.__str__`` uses for the
-    STUDENT KNOWLEDGE block; plain word/symbol lists render comma-separated.
+    STUDENT KNOWLEDGE block; plain word/symbol lists render comma-separated;
+    scalar fields such as ``description`` render verbatim. Empty fields are
+    omitted entirely.
     """
     lines = []
     for field, values in target.items():
+        if field == "rules":
+            continue  # rule ids are evaluation internals, not prompt content
+        label = _TARGET_FIELD_LABELS.get(field, f"Target {field}")
+        if isinstance(values, str):
+            if values.strip():
+                lines.append(f"- {label}: {values.strip()}")
+            continue
         items = list(values)
         if not items:
             continue
-        label = _TARGET_FIELD_LABELS.get(field, f"Target {field}")
         if isinstance(items[0], (list, tuple)):
             rendered = "; ".join(f"{g} -> /{p}/" for g, p in items)
         else:

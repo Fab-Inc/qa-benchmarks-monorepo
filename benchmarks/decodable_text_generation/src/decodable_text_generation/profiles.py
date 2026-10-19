@@ -56,10 +56,16 @@ def validate_target(
 
     A target is a partial student_knowledge (same field names, e.g. ``gpcs``
     or ``sight_words`` for English), so the existing per-language model
-    validates it; absent fields just take their defaults. The exception is
-    Kiswahili: a target is a curriculum *diff* — e.g. newly taught clusters
-    whose graphemes were learned earlier — so ``KiswahiliStudentKnowledge``'s
-    cross-field checks don't apply and each field is validated on its own.
+    validates it; absent fields just take their defaults. ``description`` is
+    a free-text field (not part of the knowledge model) for targets that are
+    rules rather than codeable units — e.g. "double the final consonant
+    before -er/-est". A ``description`` alone is unmeasurable, so it must
+    be accompanied by at least one valid rule id in ``rules``. A target
+    must populate at least one field.
+    The exception is Kiswahili: a target is a curriculum *diff* — e.g. newly
+    taught clusters whose graphemes were learned earlier — so
+    ``KiswahiliStudentKnowledge``'s cross-field checks don't apply and each
+    field is validated on its own.
     """
     if language_iso_code == "sw":
         _validate_kiswahili_target(target, profile_id=profile_id)
@@ -69,6 +75,26 @@ def validate_target(
         raise ValueError(
             f"No student_knowledge validator registered for language "
             f"'{language_iso_code}' (student_knowledge_id '{profile_id}')"
+        )
+    error = f"Invalid target_knowledge for student_knowledge_id '{profile_id}'"
+    if not any(v for v in target.values()):
+        raise ValueError(f"{error}: no populated fields")
+    description = target.get("description")
+    if description is not None and not (
+        isinstance(description, str) and description.strip()
+    ):
+        raise ValueError(f"{error}: 'description' must be a non-empty string")
+    from decodable_text_generation.rules import rule_ids
+
+    known = rule_ids(language_iso_code)
+    rules = target.get("rules") or []
+    if not isinstance(rules, list) or any(not isinstance(r, str) for r in rules):
+        raise ValueError(f"{error}: 'rules' must be a list of strings")
+    if unknown := [r for r in rules if r not in known]:
+        raise ValueError(f"{error}: unknown rules {unknown}; known: {sorted(known)}")
+    if description is not None and not rules:
+        raise ValueError(
+            f"{error}: 'description' requires at least one valid rule in 'rules'"
         )
     knowledge_model: type[BaseModel] = language_integration["student_knowledge_model"]
     try:
@@ -86,6 +112,22 @@ def _validate_kiswahili_target(
 ) -> None:
     """Field-level validation for a Kiswahili target_knowledge diff."""
     error = f"Invalid target_knowledge for student_knowledge_id '{profile_id}'"
+    if not any(v for v in target.values()):
+        raise ValueError(f"{error}: no populated fields")
+    if description := target.get("description"):
+        if not isinstance(description, str):
+            raise ValueError(f"{error}: 'description' must be a string")
+        from decodable_text_generation.rules import rule_ids
+
+        rules = target.get("rules") or []
+        if not isinstance(rules, list) or any(not isinstance(r, str) for r in rules):
+            raise ValueError(f"{error}: 'rules' must be a list of strings")
+        if unknown := [r for r in rules if r not in rule_ids("sw")]:
+            raise ValueError(f"{error}: unknown rules {unknown}")
+        if not rules:
+            raise ValueError(
+                f"{error}: 'description' requires at least one valid rule in 'rules'"
+            )
     graphemes = [str(g) for g in target.get("graphemes") or []]
     if bad := [g for g in graphemes if g not in VALID_GRAPHEMES]:
         raise ValueError(f"{error}: graphemes not in VALID_GRAPHEMES: {bad}")
