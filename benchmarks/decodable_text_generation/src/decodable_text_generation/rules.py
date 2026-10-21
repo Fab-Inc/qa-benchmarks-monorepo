@@ -55,6 +55,62 @@ def _is_english_word(word: str) -> bool:
         return False
 
 
+def _pronunciations(word: str) -> set[tuple[str, ...]]:
+    """IPA shapes for ``word``; empty when absent from the dictionary."""
+    try:
+        return {
+            tuple(p.ipa for p in variant.phonemes)
+            for variant in get_word_phonemes(word)
+        }
+    except KeyError:
+        return set()
+
+
+# Suffix allomorphs as IPA tails. A word pronounced as ``stem + allomorph``
+# is regular inflection — used both to reject would-be drop-e bases that
+# are only dictionary junk (``walke`` is a homophone of ``walk``, so
+# ``walked`` is walk + /t/, not walke minus e + -ed) and to keep junk stems
+# (``toda`` the acronym) from making compounds like ``today`` = to + day
+# look inflected.
+_SUFFIX_ALLOMORPHS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "ed": (("t",), ("d",), ("ɪ", "d"), ("ə", "d")),
+    "er": (("ə", "r"),),
+    "es": (("ə", "z"), ("ɪ", "z"), ("s",), ("z",)),
+    "est": (("ɪ", "s", "t"), ("ə", "s", "t")),
+    "ing": (("ɪ", "ŋ"), ("ə", "ŋ")),
+    "ly": (("l", "i"),),
+    "s": (("s",), ("z",), ("ə", "z"), ("ɪ", "z")),
+    "y": (("i",),),
+}
+
+
+def _plain_inflection(word: str, base: str, suffix: str) -> bool:
+    """``word`` can be pronounced as ``base`` + a suffix allomorph."""
+    base_prons = _pronunciations(base)
+    if not base_prons:
+        return False
+    return any(
+        word_pron == base_pron + tail
+        for word_pron in _pronunciations(word)
+        for base_pron in base_prons
+        for tail in _SUFFIX_ALLOMORPHS[suffix]
+    )
+
+
+def _is_inflected_form(word: str, stem: str, suffix: str) -> bool:
+    """``stem`` is a plausible word and ``word`` sounds like ``stem`` + suffix.
+
+    A dictionary hit alone isn't proof — when the word has a pronunciation,
+    require it to decompose into ``stem`` + a suffix allomorph. Words with
+    no dictionary entry keep the old orthographic verdict.
+    """
+    if not _is_compound_half(stem):
+        return False
+    if not _pronunciations(word):
+        return True
+    return _plain_inflection(word, stem, suffix)
+
+
 def _doubling_match(word: str, suffixes: tuple[str, ...]) -> bool:
     """word = stem + suffix where the stem ends in a doubled consonant.
 
@@ -75,13 +131,18 @@ def _drop_e_match(word: str) -> bool:
     """word = base minus silent e + vowel suffix (``baking`` <- ``bake``).
 
     The base must end in a consonant (so ``being`` <- be doesn't count) and
-    ``base + e`` must be a dictionary word (so ``cats`` doesn't).
+    ``base + e`` must be a dictionary word (so ``cats`` doesn't). A word
+    pronounced as plain ``base + suffix`` is regular inflection, not a
+    dropped silent e — ``walked`` is walk + /t/ even though ``walke`` is a
+    dictionary entry.
     """
     for sfx in _DROP_E_SUFFIXES:
         if not word.endswith(sfx) or len(word) <= len(sfx) + 1:
             continue
         base = word[: -len(sfx)]
-        if base[-1] in _DOUBLING_CONSONANTS and _is_english_word(base + "e"):
+        if base[-1] not in _DOUBLING_CONSONANTS:
+            continue
+        if _is_english_word(base + "e") and not _plain_inflection(word, base, sfx):
             return True
     return False
 
@@ -129,19 +190,28 @@ def _is_compound_half(chunk: str) -> bool:
 def _looks_inflected(word: str) -> bool:
     """word = stem + grammatical suffix (want+ed, hot+test, bake+s).
 
-    True when stripping a suffix leaves a word — with doubling (``hott``→
-    ``hot``) or drop-e restoration (``bak``→``bake``) — so inflected forms
-    aren't mistaken for compounds.
+    True when stripping a suffix leaves a plausible stem — with doubling
+    (``hott``→``hot``) or drop-e restoration (``bak``→``bake``) — so
+    inflected forms aren't mistaken for compounds. When the word has a
+    dictionary pronunciation it must also sound like ``stem + suffix``:
+    CMU lists junk like the acronym ``toda``, which alone would make
+    ``today`` look inflected rather than to + day.
     """
     for sfx in ("ing", "est", "ed", "er", "es", "ly", "y", "s"):
         if not word.endswith(sfx) or len(word) <= len(sfx) + 2:
             continue
         stem = word[: -len(sfx)]
-        if _is_compound_half(stem):
+        if _is_inflected_form(word, stem, sfx):
             return True
-        if len(stem) >= 2 and stem[-1] == stem[-2] and _is_compound_half(stem[:-1]):
+        if (
+            len(stem) >= 2
+            and stem[-1] == stem[-2]
+            and _is_inflected_form(word, stem[:-1], sfx)
+        ):
             return True  # doubling: hottest <- hot
-        if stem[-1] in _DOUBLING_CONSONANTS and _is_compound_half(stem + "e"):
+        if stem[-1] in _DOUBLING_CONSONANTS and _is_inflected_form(
+            word, stem + "e", sfx
+        ):
             return True  # drop-e: baked <- bake
     return False
 

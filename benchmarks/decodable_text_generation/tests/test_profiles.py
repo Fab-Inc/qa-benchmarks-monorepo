@@ -117,6 +117,74 @@ def test_validate_target_unknown_language() -> None:
         validate_target({"gpcs": []}, "xx", profile_id="p1")
 
 
+def test_read_profiles_skips_blank_lines(tmp_path: Path) -> None:
+    path = _write_profiles(
+        tmp_path / "p.jsonl",
+        [
+            {
+                "student_knowledge_id": "p1",
+                "language_iso_code": "en",
+                "is_jagged": True,
+                "student_knowledge": {"gpcs": [["a", "æ"]], "sight_words": []},
+            }
+        ],
+    )
+    path.write_text("\n" + path.read_text() + "\n\n", encoding="utf-8")
+    (profile,) = read_generation_profiles(path)
+    assert profile.student_knowledge_id == "p1"
+
+
+def test_read_profiles_empty_file_raises(tmp_path: Path) -> None:
+    path = _write_profiles(tmp_path / "p.jsonl", [])
+    with pytest.raises(ValueError, match="No student knowledge profiles found"):
+        read_generation_profiles(path)
+
+
+def test_validate_target_en_field_errors() -> None:
+    with pytest.raises(ValueError, match="no populated fields"):
+        validate_target({"gpcs": []}, "en", profile_id="p1")
+    with pytest.raises(ValueError, match="'description' must be a non-empty"):
+        validate_target(
+            {"gpcs": [["n", "n"]], "description": "   "}, "en", profile_id="p1"
+        )
+    with pytest.raises(ValueError, match="'description' must be a non-empty"):
+        validate_target({"gpcs": [["n", "n"]], "description": 5}, "en", profile_id="p1")
+    with pytest.raises(ValueError, match="'rules' must be a list of strings"):
+        validate_target(
+            {"gpcs": [["n", "n"]], "rules": "vc_cvc"}, "en", profile_id="p1"
+        )
+    with pytest.raises(ValueError, match="'rules' must be a list of strings"):
+        validate_target({"gpcs": [["n", "n"]], "rules": [1]}, "en", profile_id="p1")
+
+
+def test_validate_target_sw_field_errors() -> None:
+    with pytest.raises(ValueError, match="no populated fields"):
+        validate_target({"graphemes": []}, "sw", profile_id="p1")
+    with pytest.raises(ValueError, match="not in VALID_GRAPHEMES"):
+        validate_target({"graphemes": ["bogus"]}, "sw", profile_id="p1")
+    with pytest.raises(ValueError, match="non-lowercase whole_words"):
+        validate_target({"whole_words": ["Ana"]}, "sw", profile_id="p1")
+    with pytest.raises(ValueError, match="unknown cluster pattern"):
+        validate_target({"cluster_patterns": ["bogus"]}, "sw", profile_id="p1")
+    # A registered cluster pattern passes field validation
+    validate_target({"cluster_patterns": ["prenasalised"]}, "sw", profile_id="p1")
+    # Kiswahili has no registered rules: any description fails validation
+    with pytest.raises(ValueError, match="unknown rules"):
+        validate_target(
+            {"graphemes": ["a"], "description": "note", "rules": ["vc_cvc"]},
+            "sw",
+            profile_id="p1",
+        )
+    with pytest.raises(ValueError, match="'rules' must be a list of strings"):
+        validate_target(
+            {"graphemes": ["a"], "description": "note", "rules": "x"},
+            "sw",
+            profile_id="p1",
+        )
+    with pytest.raises(ValueError, match="'description' must be a string"):
+        validate_target({"graphemes": ["a"], "description": 5}, "sw", profile_id="p1")
+
+
 def test_validate_target_description_requires_valid_rule() -> None:
     """A description alone is unmeasurable — it must name a checkable rule."""
     with pytest.raises(ValueError, match="'description' requires"):

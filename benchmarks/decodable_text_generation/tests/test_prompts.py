@@ -8,6 +8,7 @@ from decodable_text_generation.prompts import (
     get_decoding_rules,
     get_scenario,
     load_scenarios,
+    prompt_from_item,
     render_target,
 )
 from phonics_benchmark.config import ConfigError
@@ -144,3 +145,22 @@ def test_render_target_formats_pairs_and_words() -> None:
     assert "- Target sight words: was" in rendered
 
     assert render_target({"graphemes": ["b", "a"]}) == "- Target graphemes: a, b"
+
+
+def test_render_target_description_and_rules() -> None:
+    """Scalar fields render verbatim; rule ids are not prompt content."""
+    rendered = render_target({"description": "VC & CVC practice", "rules": ["vc_cvc"]})
+    assert rendered == "- Practice goal: VC & CVC practice"
+
+
+def test_render_target_blank_scalar_falls_back() -> None:
+    assert render_target({"description": "   "}) == "- Nothing new this week"
+
+
+def test_prompt_from_item_requires_prompt() -> None:
+    with pytest.raises(ConfigError, match="has no 'prompt'"):
+        prompt_from_item(
+            "decodable_text_generation",
+            {"benchmark_item_id": "b1", "prompt": "  "},
+            "en",
+        )
