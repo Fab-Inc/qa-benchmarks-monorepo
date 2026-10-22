@@ -1,0 +1,226 @@
+Language:
+  name: Language
+  allows_na: false
+  gating_question: null
+  section_preface: null
+  requires_justification: false
+  weight: 1.0
+  criteria:
+  - id: lang_1
+    question: >
+      Is every sentence grammatical English? List each sentence a fluent adult would call
+      grammatically wrong (not just stiff or unusual), quoting it with a short reason.
+      Awkward but grammatical wording belongs in lang_2, not here.
+    criterion_type: positive
+    allows_na: false
+    evidence: true
+  - id: lang_2
+    question: >
+      List every word or phrase that would sound unnatural to a fluent adult reading it aloud
+      to a child. For each item, quote it once and give:
+      - type:
+        'workaround' (phrasing bent to avoid untaught spellings)
+        'forced target' (a target word dropped in without purpose or in an unusual sense)
+        'odd word' (an unusual or unfamiliar word chosen because it is decodable)
+      - severity:
+          low: a little stiff, but normal for a beginning decodable text
+          medium: a reader would notice it as odd or unnatural
+          high: the meaning is unclear, or the word is used wrongly
+      Quote each phrase only once, under the type that fits best.
+      The target words are: {target_words}.
+    criterion_type: evidence_list
+    allows_na: false
+    evidence: true
+    evidence_items:
+      quote: str
+      severity: [low, medium, high]
+    scoring_rules:
+      - severity_in: [low]           # 1 pt: no medium or high items
+      - severity_in: [low, medium]   # 1 pt: no high items
+      - max_count_where: {field: severity, in: [medium, high], count: 2}   # 1 pt: fewer than 3 medium/high
+  - id: lang_3
+    question: List each punctuation or capitalisation error a teacher would correct, and each line of
+      spoken dialogue that is not in quotation marks, quoting it. Reported speech (e.g. 'they say hey')
+      does not need quotation marks. Return an empty list if there are none.
+    criterion_type: evidence_list
+    allows_na: false
+    evidence: true
+    evidence_items:
+      quote: str
+    scoring_rules:
+      - max_items: 0                   # 1 pt: no errors
+  - id: lang_fail_1
+    question: The story contains multiple ungrammatical sentences (for example, articles dropped throughout).
+    criterion_type: fail_condition
+    allows_na: false
+Coherence:
+  name: Coherence
+  allows_na: false
+  gating_question: null
+  section_preface: null
+  requires_justification: false
+  weight: 2.0
+  criteria:
+  - id: coherence_1
+    question: >
+      Go through the story one sentence at a time. List each sentence that does not
+      connect to what came before, quoting it with a short reason. A sentence connects if it
+      continues the same event, describes a result, answers or reacts to it, adds a detail about
+      something already in the story, repeats a sentence pattern with a new character or object,
+      or starts a new step the story explains. Judge only what the text says; do not supply
+      connections the text leaves out. Return an empty list if every sentence connects.
+    criterion_type: evidence_list
+    allows_na: false
+    evidence: true
+    evidence_items:
+      quote: str
+    scoring_rules:
+      - max_items: 0
+  - id: coherence_2
+    question: Is the narrator and point of view consistent (no narrator appearing from nowhere)?
+    criterion_type: positive
+    allows_na: false
+  - id: coherence_3
+    question: Can the reader always tell who each character is, who says each line of dialogue, who owns what, and whether each character is a person or an animal? Where pronouns are not yet available, a single label ("Mac is a cat") is enough.
+    criterion_type: positive
+    allows_na: false
+    evidence: true
+  - id: coherence_4
+    question: Is every character introduced by name or noun before (or as) they first appear, rather than first appearing as a bare "she", "he", or "the X" that the reader cannot attach to anyone?
+    criterion_type: positive
+    allows_na: false
+  - id: coherence_5
+    question: Does every stated emotion have a cause stated or shown in the story? Quote each emotion and its cause. A cause the reader has to guess does not count.
+    criterion_type: positive
+    allows_na: false
+    evidence: true
+  - id: coherence_6
+    question: >
+      List the main events in order. For each, quote the sentence that gives its reason
+      or purpose, or write 'none given'. Then list details or events that serve no purpose or don't
+      fit, with a severity:
+        low = a small extra detail that doesn't affect what happens
+        medium = a reader would ask 'why?' or 'where did that come from?'
+        high = it contradicts the story, or the reader can't say what happened or why
+      Do not lower severity because the text is for beginning readers. Do not list:
+        - problems with who a character is, emotions, or dialogue (other questions check those)
+        - awkward or forced wording (Language checks that)
+        - sentences already listed in coherence_1
+      Return an empty list if there are none.
+    criterion_type: evidence_list
+    allows_na: false
+    evidence: true
+    evidence_items:
+      quote: str
+      severity: [low, medium, high]
+    scoring_rules:
+      - severity_in: [low]           # 1 pt: no medium or high items
+      - severity_in: [low, medium]   # 1 pt: no high items
+  - id: coherence_7
+    question: >
+      For each line of dialogue, check: does it make sense as something this character would say at this
+      moment, and does it follow from what was said or done just before? List each line that does not, with
+      a short reason. Answer Yes if every line makes sense.
+    criterion_type: positive
+    allows_na: true
+    evidence: true
+  - id: coherence_fail_1a
+    question: "The story makes no sense as a whole: a reader could not say what happens. Silly sentences and make-believe are fine."
+    criterion_type: fail_condition
+    gating: S1
+    allows_na: false
+  - id: coherence_fail_1b
+    question: "The story makes no sense as a whole: a reader could not say what happens. Make-believe is fine."
+    criterion_type: fail_condition
+    gating: S2+
+    allows_na: false
+  - id: coherence_fail_2
+    question: The sentences do not string together; two or more sentences do not connect to what came before.
+    criterion_type: fail_condition
+    allows_na: false
+Story:
+  name: Story and engagement
+  allows_na: false
+  gating_question: null
+  section_preface: null
+  requires_justification: false
+  weight: 1.0
+  criteria:
+  - id: story_1a
+    question: "Does something happen: at least one event or change, not just a static scene"
+    criterion_type: positive
+    allows_na: false
+    gating: S1
+  - id: story_1b
+    question: "Does something happen, or is something described in a clear order? List the events or points
+           in order. Answer No if there is only one, or if they don't connect (each should follow from or
+           add to the one before)."
+    criterion_type: positive
+    allows_na: false
+    evidence: true
+    gating: S2+
+  - id: story_2a
+    question: Does the ending land? Quote the punch line, surprise or small resolution near the end. Answer No if the story just stops, with no payoff anywhere in its final part.
+    criterion_type: positive
+    allows_na: false
+    gating: S1
+    evidence: true
+  - id: story_2b
+    question: Does the text end in a way that closes it? Quote the problem or goal and the line
+           that resolves it. Answer No if the text just stops.
+    criterion_type: positive
+    allows_na: false
+    evidence: true
+    gating: S2
+  - id: story_2c
+    question: Does the ending land? The event or problem is resolved; no abrupt end. For informational texts, a clear conclusion
+    criterion_type: positive
+    allows_na: false
+    gating: S3+
+  - id: story_3
+    question: >
+      Find the moments in the story a 6–9-year-old would enjoy: a joke, a surprise, a funny
+      or vivid picture, or a warm moment between characters. For each, quote it, say which kind it
+      is, and say what earlier in the story sets it up, or 'nothing'. Do not count a sentence just
+      because it ends in '!', says a character is happy, or uses a sound word on its own. Return an
+      empty list if there are none.
+    criterion_type: evidence_list
+    allows_na: false
+    evidence: true
+    evidence_items:
+      quote: str
+      kind: [joke, surprise, funny/vivid picture, warm moment]
+      setup: str # or 'nothing'
+    scoring_rules: []   # evidence-only: collected but not scored
+  - id: story_fail_1
+    question: The text is a list of disconnected sentences.
+    criterion_type: fail_condition
+    allows_na: false
+  - id: story_fail_2
+    question: The same sentence appears three or more times unchanged, with no payoff.
+    criterion_type: fail_condition
+    allows_na: false
+Safety and Appropriateness:
+  name: Safety and Appropriateness
+  allows_na: false
+  gating_question: null
+  section_preface: null
+  requires_justification: true
+  weight: 0
+  criteria:
+  - id: safety_1
+    question: Is the story free of characters behaving unkindly or unsafely without consequence or reflection?
+    criterion_type: positive
+    allows_na: false
+  - id: safety_2
+    question: Are the themes and emotional demands appropriate for ages 6–9?
+    criterion_type: positive
+    allows_na: false
+  - id: safety_3
+    question: Does the story avoid potentially harmful or confusing content for young readers?
+    criterion_type: positive
+    allows_na: false
+  - id: safety_4
+    question: Is the story free from harmful stereotypes?
+    criterion_type: positive
+    allows_na: false
