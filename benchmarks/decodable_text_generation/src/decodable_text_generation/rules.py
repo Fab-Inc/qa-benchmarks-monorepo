@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from functools import cache
 
 from decodability.english.extract_phonemes import get_word_phonemes
 
@@ -47,6 +48,7 @@ _DOUBLING_SUFFIXES = {
 _DOUBLING_CONSONANTS = "bcdfghjklmnpqrstvwxz"
 
 
+@cache
 def _is_english_word(word: str) -> bool:
     try:
         get_word_phonemes(word)
@@ -55,11 +57,23 @@ def _is_english_word(word: str) -> bool:
         return False
 
 
+def _fold_phonemes(ipa: tuple[str, ...]) -> tuple[str, ...]:
+    """Normalize a pronunciation for stem/halves comparison.
+
+    ``ʌ`` folds to ``ə`` so reduced halves compare equal (``upon`` =
+    up /ʌp/ + on); unstressed ``i`` folds to ``ɪ`` (any+body ==
+    /ɛnɪbɑdi/); adjacent identical phonemes collapse (can+not ==
+    /kænɑt/, not /kænnɑt/)."""
+    folded = ["ə" if p == "ʌ" else "ɪ" if p == "i" else p for p in ipa]
+    return tuple(p for i, p in enumerate(folded) if i == 0 or p != folded[i - 1])
+
+
+@cache
 def _pronunciations(word: str) -> set[tuple[str, ...]]:
     """IPA shapes for ``word``; empty when absent from the dictionary."""
     try:
         return {
-            tuple(p.ipa for p in variant.phonemes)
+            _fold_phonemes(tuple(p.ipa for p in variant.phonemes))
             for variant in get_word_phonemes(word)
         }
     except KeyError:
@@ -74,13 +88,13 @@ def _pronunciations(word: str) -> set[tuple[str, ...]]:
 # look inflected.
 _SUFFIX_ALLOMORPHS: dict[str, tuple[tuple[str, ...], ...]] = {
     "ed": (("t",), ("d",), ("ɪ", "d"), ("ə", "d")),
-    "er": (("ə", "r"),),
+    "er": (("ə", "r"), ("ɚ",)),
     "es": (("ə", "z"), ("ɪ", "z"), ("s",), ("z",)),
-    "est": (("ɪ", "s", "t"), ("ə", "s", "t")),
-    "ing": (("ɪ", "ŋ"), ("ə", "ŋ")),
-    "ly": (("l", "i"),),
+    "est": (("ɪ", "s", "t"), ("ə", "s", "t"), ("ɛ", "s", "t")),
+    "ing": (("ɪ", "ŋ"), ("ə", "ŋ"), ("i", "ŋ")),
+    "ly": (("l", "i"), ("l", "ɪ")),
     "s": (("s",), ("z",), ("ə", "z"), ("ɪ", "z")),
-    "y": (("i",),),
+    "y": (("i",), ("ɪ",)),
 }
 
 
@@ -149,6 +163,8 @@ def _drop_e_match(word: str) -> bool:
 
 # Function words short enough to appear as compound halves (into, today,
 # outside, someone) but not themselves in junk-heavy dictionary lookups.
+# "be" and "as" are excluded on purpose: nearly every be-/as- split is a
+# prefix word, not a compound (began, behind, because, asleep).
 _SHORT_COMPOUND_HALVES = frozenset(
     {
         "in",
@@ -162,18 +178,46 @@ _SHORT_COMPOUND_HALVES = frozenset(
         "my",
         "by",
         "do",
-        "be",
         "we",
         "he",
         "me",
         "at",
         "is",
         "it",
-        "as",
         "if",
-        "us",
         "am",
-        "an",
+    }
+)
+
+
+# Dictionary junk that passes the sound check anyway (``almost`` splits
+# alm+ost, /ɑlm/ + /oʊst/ = /ɑlmoʊst/). These are acronym/proper-noun
+# entries, not words a child would read as a compound half.
+_JUNK_COMPOUND_HALVES = frozenset(
+    {
+        "alm",
+        "ost",
+        "aga",
+        "mon",
+        "dow",
+        "ain",
+        "gan",
+        "ide",
+        "ins",
+        "ote",
+        "cam",
+        "pus",
+        "imp",
+        "ort",
+        "tux",
+        "edo",
+        "org",
+        "ob",
+        "unt",
+        "bel",
+        "ong",
+        "beco",
+        "dise",
     }
 )
 
@@ -183,49 +227,105 @@ def _is_compound_half(chunk: str) -> bool:
     (smaller entries are too noisy: ``ba``/``th``/``ed`` are all in CMUdict)
     or a known short function word."""
     return (
-        len(chunk) >= 3 and _is_english_word(chunk)
+        len(chunk) >= 3
+        and chunk not in _JUNK_COMPOUND_HALVES
+        and _is_english_word(chunk)
     ) or chunk in _SHORT_COMPOUND_HALVES
 
 
-def _looks_inflected(word: str) -> bool:
-    """word = stem + grammatical suffix (want+ed, hot+test, bake+s).
+def _inflection_stems(word: str) -> list[str]:
+    """Stems that make ``word`` a grammatical inflection (want+ed,
+    hot+test, bake+s).
 
-    True when stripping a suffix leaves a plausible stem — with doubling
-    (``hott``→``hot``) or drop-e restoration (``bak``→``bake``) — so
-    inflected forms aren't mistaken for compounds. When the word has a
-    dictionary pronunciation it must also sound like ``stem + suffix``:
-    CMU lists junk like the acronym ``toda``, which alone would make
-    ``today`` look inflected rather than to + day.
+    A stem can hide a doubled consonant (``hott``→``hot``) or a dropped
+    silent e (``bak``→``bake``). When the word has a dictionary
+    pronunciation it must also sound like ``stem + suffix``: CMU lists
+    junk like the acronym ``toda``, which alone would make ``today``
+    look inflected rather than to + day.
     """
+    stems = []
     for sfx in ("ing", "est", "ed", "er", "es", "ly", "y", "s"):
         if not word.endswith(sfx) or len(word) <= len(sfx) + 2:
             continue
         stem = word[: -len(sfx)]
         if _is_inflected_form(word, stem, sfx):
-            return True
+            stems.append(stem)
         if (
             len(stem) >= 2
             and stem[-1] == stem[-2]
             and _is_inflected_form(word, stem[:-1], sfx)
         ):
-            return True  # doubling: hottest <- hot
+            stems.append(stem[:-1])  # doubling: hottest <- hot
         if stem[-1] in _DOUBLING_CONSONANTS and _is_inflected_form(
             word, stem + "e", sfx
         ):
-            return True  # drop-e: baked <- bake
-    return False
+            stems.append(stem + "e")  # drop-e: baked <- bake
+    return stems
+
+
+_VOWEL_CHARS = frozenset("aeiouæɑɔəɜɛɪʊʌɚɝ")
+# Vowels that can be reduced further in an unstressed compound half.
+_REDUCED_VOWELS = frozenset({"ə", "ɪ", "ʊ", "ɚ"})
+
+
+def _halves_pron(
+    word_pron: tuple[str, ...], a_pron: tuple[str, ...], b_pron: tuple[str, ...]
+) -> bool:
+    """One pronunciation triple matches, modulo natural compound drift.
+
+    Exact match after folding — or vowel drift confined to the *second*
+    half, where compounds deaccent (``fireman`` /mən/ != man, ``anybody``
+    /ə/ != body). First-half vowels carry the compound's main stress, so
+    drift there means it isn't a compound (``betray`` /bɪ/ != bet)."""
+    combo = _fold_phonemes(a_pron + b_pron)
+    if word_pron == combo or len(word_pron) != len(combo):
+        return word_pron == combo
+    # A boundary geminate absorbs one phoneme off ``a``'s end.
+    cut = len(a_pron) - (a_pron[-1:] == b_pron[:1])
+    diffs = [i for i, (w, c) in enumerate(zip(word_pron, combo)) if w != c]
+    return all(
+        i >= cut and word_pron[i] in _REDUCED_VOWELS and set(combo[i]) & _VOWEL_CHARS
+        for i in diffs
+    )
+
+
+def _sounds_like_compound(word: str, a: str, b: str) -> bool:
+    """``word`` can be pronounced as ``a`` + ``b``.
+
+    Orthographic splits that don't sound out are not compounds —
+    ``betray`` is /bɪtreɪ/, not /bɛt/ + /reɪ/. When the word or a half has
+    no dictionary pronunciation, keep the orthographic verdict (same
+    convention as ``_is_inflected_form``)."""
+    word_prons = _pronunciations(word)
+    if not word_prons:
+        return True
+    a_prons, b_prons = _pronunciations(a), _pronunciations(b)
+    if not a_prons or not b_prons:
+        return True
+    return any(
+        _halves_pron(wp, ap, bp)
+        for wp in word_prons
+        for ap in a_prons
+        for bp in b_prons
+    )
 
 
 def _compound_match(word: str) -> bool:
     """word = two real words joined (``sunshine`` = sun + shine).
 
-    Both halves must be plausible words and the word must not just be an
-    inflected stem (``hottest`` = hot+test is a letter-level coincidence).
+    Both halves must be plausible words, the word must not just be an
+    inflected stem (``hottest`` = hot+test is a letter-level coincidence),
+    and the halves must sound out as the word (``betray`` != bet + ray).
     """
-    if _looks_inflected(word):
-        return False
+    stems = _inflection_stems(word)
+    if stems:
+        # An inflected surface form still exercises the compound rule
+        # when its stem is itself a compound: sometimes = sometime + -s.
+        return any(_compound_match(stem) for stem in stems)
     return any(
-        _is_compound_half(word[:i]) and _is_compound_half(word[i:])
+        _is_compound_half(word[:i])
+        and _is_compound_half(word[i:])
+        and _sounds_like_compound(word, word[:i], word[i:])
         for i in range(2, len(word) - 1)
     )
 
