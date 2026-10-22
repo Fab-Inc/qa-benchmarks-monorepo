@@ -171,6 +171,16 @@ def test_drop_e(word: str, expected: bool) -> None:
         ("makes", False),
         ("horses", False),
         ("sunny", False),
+        # Prefix words, not compounds — be-/as- splits are excluded halves
+        ("before", False),
+        ("because", False),
+        ("belong", False),
+        ("began", False),
+        ("asleep", False),
+        # Dictionary junk halves (acronyms/proper nouns), not real compounds
+        ("almost", False),
+        ("tuxedo", False),
+        ("import", False),
         # Single words with no real-word split
         ("cat", False),
         ("yesterday", False),
