@@ -8,18 +8,21 @@ opportunity-weighted: a model that saw more words in a bin counts for more.
 Writes error_analysis/{fp,fn}_rate_by_word_length_<language>.{csv,png,pdf} next to the
 hardware-tier outputs.
 
-How to run (from the repo root). Run analyze_phonics_hardware_tiers.py on the same
---root first, since this script reads its hardware_tiers_top{N}_models.csv:
+How to run (from the repo root). Run report_on_benchmark_run.py --hardware-tiers on
+the same --root first, since this script reads its hardware_tiers_top{N}_models.csv.
+Pass the same --min-coverage the reports were made with: outputs made with a
+coverage floor live in a coverage_gt<N> subfolder, which is only found when the
+flag is given:
 
     uv run --frozen --package phonics-benchmark python \\
       benchmarks/phonics_benchmark/scripts/plot_error_rate_by_word_length.py \\
       --root $ROOT \\
+      --min-coverage 0.9 \\
       --error fp
 
 Omit --error to make both plots. Both languages are plotted unless --language
 english or --language kiswahili is given. Other options: --top-n (default 10),
---metric (ranking metric, default pooled_f2) and --min-coverage (e.g. 0.9, to use the
-coverage-filtered hardware-tier outputs).
+--metric (ranking metric, default pooled_f2) and --min-coverage (see above).
 """
 
 from __future__ import annotations

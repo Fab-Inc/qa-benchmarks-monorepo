@@ -1,7 +1,7 @@
 """Shared helpers for the hardware-tier error analyses.
 
 Used by plot_error_rate_by_word_length.py and plot_calibration.py. Both read the
-top-N models per hardware tier chosen by analyze_phonics_hardware_tiers.py
+top-N models per hardware tier chosen by report_on_benchmark_run.py --hardware-tiers
 (hardware_tiers_top{N}_models.csv) and the word-level scoring in each run's
 report/results_with_scoring.csv. No model calls and no rescoring.
 """
@@ -12,13 +12,13 @@ import argparse
 import ast
 from pathlib import Path
 
-import analyze_phonics_hardware_tiers as hardware
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import PercentFormatter
+from phonics_benchmark import hardware
 
 # Copied from HARDWARE_TIER_COLORS in
 # linguistic_knowledge_benchmark/scripts/hardware_tiers.py, so tiers look the same
@@ -92,7 +92,7 @@ def load_top_models(
     )
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found; run analyze_phonics_hardware_tiers.py first"
+            f"{path} not found; run report_on_benchmark_run.py --hardware-tiers first"
         )
     selected = pd.read_csv(path)
     selected = selected[selected.language.eq(language)]
