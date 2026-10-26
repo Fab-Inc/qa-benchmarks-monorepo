@@ -18,16 +18,14 @@ import json
 import re
 from collections import Counter
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 from typing import Any
 
+from decodability import DECODABILITY_REGISTRY, annotate_words
 from decodability.english.definitions import normalize_gpc_grapheme
-from phonics_benchmark.labeling import (
-    DECODABILITY_REGISTRY,
-    get_decodability_config,
-    score_text_decodability,
-)
+from phonics_benchmark.labeling import resolve_decodability_config
 
 from decodable_text_generation.judge.knowledge_units import (
     PROFILE_BUILDERS,
@@ -42,6 +40,95 @@ from decodable_text_generation.rules import rule_exercised
 
 DATA_PACKAGE = "decodable_text_generation.judge.data"
 REFERENCE_FILE = "english_reference.json"
+
+# Default decodability configs per language. ``score_column`` picks which
+# aggregation output decides decodability, and so differs by language.
+DECODABILITY_CONFIGS: dict[str, dict] = {
+    "sw": {
+        "scoring_methods": [
+            "score_known_graphemes_kiswahili",
+            "score_known_clusters_and_patterns_kiswahili",
+            "score_whole_words_kiswahili",
+        ],
+        "aggregations": {
+            "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
+        },
+        "score_column": "kenya_tusome_score",
+    },
+    "en": {
+        "scoring_methods": [
+            "score_known_gpcs_english",
+            "score_sight_words_english",
+        ],
+        "aggregations": {
+            "ufli_score": {"name": "ufli_curriculum_aggregator"},
+        },
+        "score_column": "ufli_score",
+    },
+}
+
+
+def get_decodability_config(language: str) -> tuple[dict, str]:
+    """Default (config, score_column) for a language's decodability scoring."""
+    config = DECODABILITY_CONFIGS[language]
+    return config, config["score_column"]
+
+
+@dataclass(frozen=True)
+class ScoredText:
+    """Decodability scores for the words of a text."""
+
+    words: tuple[str, ...]
+    unique_words: tuple[str, ...]
+    n_words: int
+    n_unique_words: int
+    n_nondecodable_words: int
+    n_unique_nondecodable_words: int
+    unique_nondecodable_words: tuple[str, ...]
+
+
+def score_text_decodability(
+    text: str,
+    student_knowledge: dict,
+    config: dict,
+    language: str,
+    *,
+    score_column: str,
+) -> ScoredText:
+    """Score every word of ``text`` and return token/unique decodability stats.
+
+    ``score_column`` names the aggregation output that decides decodability;
+    words scoring 0.0 there count as non-decodable.
+    """
+    objs = DECODABILITY_REGISTRY[language]
+    words = [w.lower() for w in objs["extract_words"](text)]
+    if not words:
+        return ScoredText((), (), 0, 0, 0, 0, ())
+
+    scoring_methods, aggregations = resolve_decodability_config(config, language)
+    if score_column not in aggregations:
+        raise ValueError(
+            f"score_column '{score_column}' is not one of the config's aggregation "
+            f"outputs: {sorted(aggregations)}"
+        )
+    knowledge = objs["student_knowledge_model"].model_validate(student_knowledge)
+    label_df = annotate_words(
+        sorted(set(words)),
+        scoring_methods=scoring_methods,
+        student_knowledge=knowledge,
+        aggregations=aggregations,
+    )
+
+    nondecodable = set(label_df["word"][label_df[score_column] == 0.0])
+    return ScoredText(
+        words=tuple(words),
+        unique_words=tuple(sorted(set(words))),
+        n_words=len(words),
+        n_unique_words=len(set(words)),
+        n_nondecodable_words=sum(1 for w in words if w in nondecodable),
+        n_unique_nondecodable_words=len(nondecodable),
+        unique_nondecodable_words=tuple(sorted(nondecodable)),
+    )
 
 
 @lru_cache(maxsize=1)
