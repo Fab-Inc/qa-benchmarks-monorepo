@@ -93,12 +93,14 @@ def judge_stories(
     config_models = json.loads(config_path.read_text())["models"]
     gen_models = [m.strip() for m in models.split(",")] if models else config_models
 
-    # human reference stories: first row per profile
+    # human reference stories: first row per profile (skip the header and
+    # TSV rows for lessons that have no student-knowledge profile)
     stories: dict[str, dict[str, str]] = {}
     for line in stories_path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
+        if line.strip() and not line.startswith("profile_id\t"):
             pid, story = line.split("\t", 1)
-            stories.setdefault(pid, {}).setdefault("human", story)
+            if pid in all_profiles:
+                stories.setdefault(pid, {}).setdefault("human", story)
 
     # (pid, model) -> story text from successful responses
     for model in gen_models:
