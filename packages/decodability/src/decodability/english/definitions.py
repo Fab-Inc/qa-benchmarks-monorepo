@@ -11,6 +11,8 @@
   (joined-IPA form).
 """
 
+from dataclasses import dataclass, field
+
 ARPABET_TO_IPA = {
     "AA": "ɑ",
     "AE": "æ",
@@ -59,182 +61,245 @@ ARPABET_TO_IPA = {
 VOWEL_INITIALS = set("aeiouæɑɔɛɪʊʌəɚɝ")
 VOWEL_LETTERS = set("aeiou")
 
-UFLI_GPC_INVENTORY: list[tuple[str, str, tuple[str, ...]]] = [
-    ("G001", "a", ("æ",)),
-    ("G002", "m", ("m",)),
-    ("G003", "s", ("s",)),
-    ("G004", "t", ("t",)),
-    ("G005", "p", ("p",)),
-    ("G006", "f", ("f",)),
-    ("G007", "i", ("ɪ",)),
-    ("G008", "n", ("n",)),
-    ("G010", "o", ("ɑ",)),
-    ("G011", "d", ("d",)),
-    ("G012", "c", ("k",)),
-    ("G013", "u", ("ʌ",)),
-    ("G014", "g", ("g",)),
-    ("G015", "b", ("b",)),
-    ("G016", "e", ("ɛ",)),
-    ("G017", "-s", ("s",)),
-    ("G018", "s", ("z",)),
-    ("G019", "k", ("k",)),
-    ("G020", "h", ("h",)),
-    ("G021", "r", ("r",)),
-    ("G022", "l", ("l",)),
-    ("G023", "w", ("w",)),
-    ("G024", "j", ("dʒ",)),
-    ("G025", "y", ("j",)),
-    ("G026", "x", ("k", "s")),
-    ("G027", "qu", ("k", "w")),
-    ("G028", "v", ("v",)),
-    ("G029", "z", ("z",)),
-    ("G030", "ff", ("f",)),
-    ("G031", "ll", ("l",)),
-    ("G032", "ss", ("s",)),
-    ("G033", "zz", ("z",)),
-    ("G034", "all", ("ɔ", "l")),
-    ("G035", "oll", ("oʊ", "l")),
-    ("G036", "ull", ("ʊ", "l")),
-    ("G037", "ck", ("k",)),
-    ("G038", "sh", ("ʃ",)),
-    ("G039", "th", ("ð",)),
-    ("G040", "th", ("θ",)),
-    ("G041", "ch", ("tʃ",)),
-    ("G042", "wh", ("w",)),
-    ("G043", "ph", ("f",)),
-    ("G044", "ng", ("ŋ",)),
-    ("G045", "nk", ("ŋ", "k")),
-    ("G046", "a-e", ("eɪ",)),  # split digraph
-    ("G047", "i-e", ("aɪ",)),  # split digraph
-    ("G048", "o-e", ("oʊ",)),  # split digraph
-    ("G049", "e-e", ("i",)),  # split digraph
-    ("G050", "u-e", ("u",)),  # split digraph
-    ("G051", "u-e", ("j", "u")),  # split digraph (yod)
-    ("G052", "ce", ("s",)),  # soft c + silent e (_ce)
-    ("G053", "ge", ("dʒ",)),  # soft g + silent e (_ge)
-    ("G054", "-ve", ("v",)),  # words don't end in v (-ve)
-    ("G055", "-es", ("ə", "z")),
-    ("G056", "-ed", ("t",)),
-    ("G057", "-ed", ("d",)),
-    ("G058", "-ed", ("ə", "d")),
-    ("G059", "-ing", ("ɪ", "ŋ")),
-    ("G060", "a", ("eɪ",)),  # open syllable
-    ("G061", "e", ("i",)),  # open syllable
-    ("G062", "i", ("aɪ",)),  # open syllable
-    ("G063", "o", ("oʊ",)),  # open syllable
-    ("G064", "u", ("j", "u")),  # open syllable
-    ("G065", "u", ("u",)),  # open syllable
-    ("G066", "tch", ("tʃ",)),
-    ("G067", "dge", ("dʒ",)),
-    ("G068", "ild", ("aɪ", "l", "d")),
-    ("G069", "old", ("oʊ", "l", "d")),
-    ("G070", "ind", ("aɪ", "n", "d")),
-    ("G071", "olt", ("oʊ", "l", "t")),
-    ("G072", "ost", ("oʊ", "s", "t")),
-    ("G073", "y", ("aɪ",)),
-    ("G074", "y", ("i",)),
-    ("G075", "-le", ("ə", "l")),  # -le syllable ending
-    ("G076", "ar", ("ɑ", "r")),
-    ("G077", "or", ("ɔ", "r")),
-    ("G078", "ore", ("ɔ", "r")),
-    ("G079", "er", ("ə", "r")),
-    ("G080", "ir", ("ə", "r")),
-    ("G081", "ur", ("ə", "r")),
-    ("G082", "or", ("ə", "r")),  # or after w (unstressed)
-    ("G083", "ai", ("eɪ",)),
-    ("G084", "ay", ("eɪ",)),
-    ("G085", "ee", ("i",)),
-    ("G086", "ea", ("i",)),
-    ("G087", "ey", ("i",)),
-    ("G088", "oa", ("oʊ",)),
-    ("G089", "ow", ("oʊ",)),
-    ("G090", "oe", ("oʊ",)),
-    ("G091", "ie", ("aɪ",)),
-    ("G092", "igh", ("aɪ",)),
-    ("G093", "u", ("ʊ",)),
-    ("G094", "oo", ("ʊ",)),
-    ("G095", "oo", ("u",)),
-    ("G096", "ew", ("u",)),
-    ("G097", "ui", ("u",)),
-    ("G098", "ue", ("u",)),
-    ("G099", "au", ("ɔ",)),
-    ("G100", "aw", ("ɔ",)),
-    ("G101", "augh", ("ɔ",)),
-    ("G102", "ea", ("ɛ",)),
-    ("G103", "a", ("ɑ",)),  # a after w/qu
-    ("G104", "oi", ("ɔɪ",)),
-    ("G105", "oy", ("ɔɪ",)),
-    ("G106", "ou", ("aʊ",)),
-    ("G107", "ow", ("aʊ",)),
-    ("G108", "kn", ("n",)),
-    ("G109", "wr", ("r",)),
-    ("G110", "mb", ("m",)),
-    ("G111", "-er", ("ə", "r")),
-    ("G112", "-est", ("ə", "s", "t")),
-    ("G113", "-ly", ("l", "i")),
-    ("G114", "-less", ("l", "ə", "s")),
-    ("G115", "-ful", ("f", "ə", "l")),
-    ("G116", "un-", ("ʌ", "n")),
-    ("G117", "pre-", ("p", "r", "i")),
-    ("G118", "re-", ("r", "i")),
-    ("G119", "dis-", ("d", "ɪ", "s")),
-    ("G120", "-ied", ("aɪ", "d")),
-    ("G121", "-ies", ("aɪ", "z")),
-    ("G122", "-ies", ("i", "z")),
-    ("G123", "ar", ("ə", "r")),  # unstressed ar: beggar, dollar
-    ("G125", "air", ("ɛ", "r")),
-    ("G126", "are", ("ɛ", "r")),
-    ("G127", "ear", ("ɛ", "r")),
-    ("G128", "ear", ("ɪ", "r")),
-    ("G129", "ei", ("eɪ",)),
-    ("G130", "eigh", ("eɪ",)),
-    ("G131", "ey", ("eɪ",)),
-    ("G132", "ea", ("eɪ",)),
-    ("G133", "aigh", ("eɪ",)),
-    ("G134", "ew", ("j", "u")),
-    ("G135", "eu", ("j", "u")),
-    ("G136", "ue", ("j", "u")),
-    ("G137", "ou", ("u",)),
-    ("G138", "ough", ("ɔ",)),
-    ("G139", "ough", ("oʊ",)),
-    ("G140", "c", ("s",)),  # c before e, i, y
-    ("G141", "g", ("dʒ",)),  # g before e, i, y
-    ("G142", "ch", ("ʃ",)),
-    ("G143", "ch", ("k",)),
-    ("G144", "gn", ("n",)),
-    ("G145", "gh", ("g",)),
-    ("G146", "st", ("s",)),  # silent t
-    ("G147", "-tion", ("ʃ", "ə", "n")),
-    ("G148", "-sion", ("ʒ", "ə", "n")),
-    ("G149", "-sion", ("ʃ", "ə", "n")),
-    ("G150", "-ture", ("tʃ", "ə", "r")),
-    ("G151", "-ist", ("ɪ", "s", "t")),
-    ("G152", "-ish", ("ɪ", "ʃ")),
-    ("G153", "-ness", ("n", "ə", "s")),
-    ("G154", "-ment", ("m", "ə", "n", "t")),
-    ("G155", "-able", ("ə", "b", "ə", "l")),
-    ("G156", "-ible", ("ə", "b", "ə", "l")),
-    ("G157", "bi-", ("b", "aɪ")),
-    ("G158", "tri-", ("t", "r", "aɪ")),
-    ("G159", "uni-", ("j", "u", "n", "i")),
-    ("G160", "bb", ("b",)),
-    ("G161", "cc", ("k",)),
-    ("G162", "dd", ("d",)),
-    ("G163", "gg", ("g",)),
-    ("G164", "mm", ("m",)),
-    ("G165", "nn", ("n",)),
-    ("G166", "pp", ("p",)),
-    ("G167", "tt", ("t",)),
-    ("G168", "o", ("ɔ",)),
-    ("G169", "au", ("ɑ",)),
-    ("G170", "augh", ("ɑ",)),
-    ("G171", "ough", ("ɑ",)),  # resolve cot-caught merger
-    ("G172", "ssion", ("ʃ", "ə", "n")),
-    ("G173", "o-e", ("ʌ",)),
-    ("G174", "rr", ("r",)),
-    ("G175", "-ier", ("i", "ə", "r")),  # comparative suffix: happier
-    ("G176", "-iest", ("i", "ə", "s", "t")),  # superlative suffix: happiest
-]
+
+@dataclass(frozen=True)
+class GPC:
+    """One licensed correspondence, including multi-phoneme and split units.
+
+    A hyphen at the *edge* of the grapheme is a positional marker, not a
+    split: a leading ``-`` marks a word-final unit (``-ed``, ``-ing``,
+    ``-ve``), a trailing ``-`` a word-initial one (``pre-``, ``un-``). The
+    marker is stripped from ``symbol`` and recorded as ``is_suffix`` /
+    ``is_prefix``; suffix matching is position-agnostic — a medial
+    occurrence (the ``ve`` in ``gives``) is the same correspondence — but
+    a prefix only matches at the word start. A medial hyphen remains a
+    split digraph (``a-e``).
+
+    ``lesson`` is the UFLI lesson at which the correspondence is officially
+    introduced; ``decode_lesson``, when set, is the earlier lesson at which
+    it becomes decodable (``-ed→əd`` decodes at 18 though ``-ed`` is
+    introduced at 64). Both are set only on inventory entries — synthesized
+    matches (``REDUCED_*``, ``SILENT_*``, ``DERIVED_*``) leave them ``None``.
+    """
+
+    id: str
+    grapheme: str
+    phonemes: tuple[str, ...]
+    lesson: int | None = field(default=None, repr=False)
+    decode_lesson: int | None = field(default=None, repr=False)
+    # Derived at construction.
+    symbol: str = field(init=False, repr=False, compare=False)
+    is_split: bool = field(init=False, repr=False, compare=False)
+    split_head: str = field(init=False, repr=False, compare=False)
+    split_tail: str = field(init=False, repr=False, compare=False)
+    is_prefix: bool = field(init=False, repr=False, compare=False)
+    is_suffix: bool = field(init=False, repr=False, compare=False)
+    is_reduced_vowel: bool = field(init=False, repr=False, compare=False)
+    is_silent: bool = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.grapheme or (
+            not self.phonemes and not self.id.startswith("SILENT_")
+        ):
+            raise ValueError("a GPC needs a grapheme and at least one phoneme")
+        folded = self.grapheme.casefold()
+        is_suffix = len(folded) > 1 and folded.startswith("-")
+        is_prefix = len(folded) > 1 and not is_suffix and folded.endswith("-")
+        symbol = folded[1:] if is_suffix else folded[:-1] if is_prefix else folded
+        if symbol.count("-") > 1:
+            raise ValueError("the prototype supports two-part split graphemes only")
+        head, hyphen, tail = symbol.partition("-")
+        if hyphen and not (head and tail):
+            raise ValueError("a split grapheme needs letters on both sides of the '-'")
+        object.__setattr__(self, "symbol", symbol)
+        object.__setattr__(self, "is_split", bool(hyphen))
+        object.__setattr__(self, "split_head", head)
+        object.__setattr__(self, "split_tail", tail)
+        object.__setattr__(self, "is_prefix", is_prefix)
+        object.__setattr__(self, "is_suffix", is_suffix)
+        object.__setattr__(self, "is_reduced_vowel", self.id.startswith("REDUCED_"))
+        object.__setattr__(self, "is_silent", self.id.startswith("SILENT_"))
+
+
+UFLI_GPC_INVENTORY: tuple[GPC, ...] = (
+    GPC("G001", "a", ("æ",), lesson=1),
+    GPC("G002", "m", ("m",), lesson=2),
+    GPC("G003", "s", ("s",), lesson=3),
+    GPC("G004", "t", ("t",), lesson=4),
+    GPC("G005", "p", ("p",), lesson=6),
+    GPC("G006", "f", ("f",), lesson=7),
+    GPC("G007", "i", ("ɪ",), lesson=8),
+    GPC("G008", "n", ("n",), lesson=9),
+    GPC("G010", "o", ("ɑ",), lesson=12),
+    GPC("G011", "d", ("d",), lesson=13),
+    GPC("G012", "c", ("k",), lesson=14),
+    GPC("G013", "u", ("ʌ",), lesson=15),
+    GPC("G014", "g", ("g",), lesson=16),
+    GPC("G015", "b", ("b",), lesson=17),
+    GPC("G016", "e", ("ɛ",), lesson=18),
+    GPC("G017", "-s", ("s",), lesson=20),
+    GPC("G018", "s", ("z",), lesson=21),
+    GPC("G019", "k", ("k",), lesson=22),
+    GPC("G020", "h", ("h",), lesson=23),
+    GPC("G021", "r", ("r",), lesson=24),
+    GPC("G022", "l", ("l",), lesson=26),
+    GPC("G023", "w", ("w",), lesson=28),
+    GPC("G024", "j", ("dʒ",), lesson=29),
+    GPC("G025", "y", ("j",), lesson=30),
+    GPC("G026", "x", ("k", "s"), lesson=31),
+    GPC("G027", "qu", ("k", "w"), lesson=32),
+    GPC("G028", "v", ("v",), lesson=33),
+    GPC("G029", "z", ("z",), lesson=34),
+    GPC("G030", "ff", ("f",), lesson=42),
+    GPC("G031", "ll", ("l",), lesson=42),
+    GPC("G032", "ss", ("s",), lesson=42),
+    GPC("G033", "zz", ("z",), lesson=42),
+    GPC("G034", "all", ("ɔ", "l"), lesson=43),
+    GPC("G035", "oll", ("oʊ", "l"), lesson=43),
+    GPC("G036", "ull", ("ʊ", "l"), lesson=43),
+    GPC("G037", "ck", ("k",), lesson=44),
+    GPC("G038", "sh", ("ʃ",), lesson=45),
+    GPC("G039", "th", ("ð",), lesson=46),
+    GPC("G040", "th", ("θ",), lesson=47),
+    GPC("G041", "ch", ("tʃ",), lesson=48),
+    GPC("G042", "wh", ("w",), lesson=50),
+    GPC("G043", "ph", ("f",), lesson=50),
+    GPC("G044", "ng", ("ŋ",), lesson=51),
+    GPC("G045", "nk", ("ŋ", "k"), lesson=52),
+    GPC("G046", "a-e", ("eɪ",), lesson=54),  # split digraph
+    GPC("G047", "i-e", ("aɪ",), lesson=55),  # split digraph
+    GPC("G048", "o-e", ("oʊ",), lesson=56),  # split digraph
+    GPC("G049", "e-e", ("i",), lesson=57),  # split digraph
+    GPC("G050", "u-e", ("u",), lesson=58),  # split digraph
+    GPC("G051", "u-e", ("j", "u"), lesson=58),  # split digraph (yod)
+    GPC("G052", "ce", ("s",), lesson=60),  # soft c + silent e (_ce)
+    GPC("G053", "ge", ("dʒ",), lesson=61),  # soft g + silent e (_ge)
+    GPC("G054", "-ve", ("v",), lesson=62),  # words don't end in v (-ve)
+    GPC("G055", "-es", ("ə", "z"), lesson=63, decode_lesson=21),
+    GPC("G056", "-ed", ("t",), lesson=64),
+    GPC("G057", "-ed", ("d",), lesson=64),
+    GPC("G058", "-ed", ("ə", "d"), lesson=64, decode_lesson=18),
+    GPC("G059", "-ing", ("ɪ", "ŋ"), lesson=65, decode_lesson=51),
+    GPC("G060", "a", ("eɪ",), lesson=68),  # open syllable
+    GPC("G061", "e", ("i",), lesson=68),  # open syllable
+    GPC("G062", "i", ("aɪ",), lesson=68),  # open syllable
+    GPC("G063", "o", ("oʊ",), lesson=68),  # open syllable
+    GPC("G064", "u", ("j", "u"), lesson=68),  # open syllable
+    GPC("G065", "u", ("u",), lesson=68),  # open syllable
+    GPC("G066", "tch", ("tʃ",), lesson=69),
+    GPC("G067", "dge", ("dʒ",), lesson=70),
+    GPC("G068", "ild", ("aɪ", "l", "d"), lesson=72),
+    GPC("G069", "old", ("oʊ", "l", "d"), lesson=72),
+    GPC("G070", "ind", ("aɪ", "n", "d"), lesson=72),
+    GPC("G071", "olt", ("oʊ", "l", "t"), lesson=72),
+    GPC("G072", "ost", ("oʊ", "s", "t"), lesson=72),
+    GPC("G073", "y", ("aɪ",), lesson=73),
+    GPC("G074", "y", ("i",), lesson=74),
+    GPC("G075", "-le", ("ə", "l"), lesson=75),  # -le syllable ending
+    GPC("G076", "ar", ("ɑ", "r"), lesson=77),
+    GPC("G077", "or", ("ɔ", "r"), lesson=78),
+    GPC("G078", "ore", ("ɔ", "r"), lesson=78),
+    GPC("G079", "er", ("ə", "r"), lesson=80),
+    GPC("G080", "ir", ("ə", "r"), lesson=81),
+    GPC("G081", "ur", ("ə", "r"), lesson=81),
+    GPC("G082", "or", ("ə", "r"), lesson=82),  # or after w (unstressed)
+    GPC("G083", "ai", ("eɪ",), lesson=84),
+    GPC("G084", "ay", ("eɪ",), lesson=84),
+    GPC("G085", "ee", ("i",), lesson=85),
+    GPC("G086", "ea", ("i",), lesson=85),
+    GPC("G087", "ey", ("i",), lesson=85),
+    GPC("G088", "oa", ("oʊ",), lesson=86),
+    GPC("G089", "ow", ("oʊ",), lesson=86),
+    GPC("G090", "oe", ("oʊ",), lesson=86),
+    GPC("G091", "ie", ("aɪ",), lesson=87),
+    GPC("G092", "igh", ("aɪ",), lesson=87),
+    GPC("G093", "u", ("ʊ",), lesson=89),
+    GPC("G094", "oo", ("ʊ",), lesson=89),
+    GPC("G095", "oo", ("u",), lesson=90),
+    GPC("G096", "ew", ("u",), lesson=91),
+    GPC("G097", "ui", ("u",), lesson=91),
+    GPC("G098", "ue", ("u",), lesson=91),
+    GPC("G099", "au", ("ɔ",), lesson=93),
+    GPC("G100", "aw", ("ɔ",), lesson=93),
+    GPC("G101", "augh", ("ɔ",), lesson=93),
+    GPC("G102", "ea", ("ɛ",), lesson=94),
+    GPC("G103", "a", ("ɑ",), lesson=94),  # a after w/qu
+    GPC("G104", "oi", ("ɔɪ",), lesson=95),
+    GPC("G105", "oy", ("ɔɪ",), lesson=95),
+    GPC("G106", "ou", ("aʊ",), lesson=96),
+    GPC("G107", "ow", ("aʊ",), lesson=96),
+    GPC("G108", "kn", ("n",), lesson=98),
+    GPC("G109", "wr", ("r",), lesson=98),
+    GPC("G110", "mb", ("m",), lesson=98),
+    GPC("G111", "-er", ("ə", "r"), lesson=100, decode_lesson=80),
+    GPC("G112", "-est", ("ə", "s", "t"), lesson=100, decode_lesson=18),
+    GPC("G113", "-ly", ("l", "i"), lesson=101, decode_lesson=74),
+    GPC("G114", "-less", ("l", "ə", "s"), lesson=102, decode_lesson=42),
+    GPC("G115", "-ful", ("f", "ə", "l"), lesson=102, decode_lesson=26),
+    GPC("G116", "un-", ("ʌ", "n"), lesson=103, decode_lesson=15),
+    GPC("G117", "pre-", ("p", "r", "i"), lesson=104, decode_lesson=66),
+    GPC("G118", "re-", ("r", "i"), lesson=104, decode_lesson=66),
+    GPC("G119", "dis-", ("d", "ɪ", "s"), lesson=105, decode_lesson=13),
+    GPC("G120", "-ied", ("aɪ", "d"), lesson=110, decode_lesson=87),
+    GPC("G121", "-ies", ("aɪ", "z"), lesson=110, decode_lesson=87),
+    GPC("G122", "-ies", ("i", "z"), lesson=110),
+    GPC("G123", "ar", ("ə", "r"), lesson=111),  # unstressed ar: beggar, dollar
+    GPC("G125", "air", ("ɛ", "r"), lesson=112),
+    GPC("G126", "are", ("ɛ", "r"), lesson=112),
+    GPC("G127", "ear", ("ɛ", "r"), lesson=112),
+    GPC("G128", "ear", ("ɪ", "r"), lesson=113),
+    GPC("G129", "ei", ("eɪ",), lesson=114),
+    GPC("G130", "eigh", ("eɪ",), lesson=114),
+    GPC("G131", "ey", ("eɪ",), lesson=114),
+    GPC("G132", "ea", ("eɪ",), lesson=114),
+    GPC("G133", "aigh", ("eɪ",), lesson=114),
+    GPC("G134", "ew", ("j", "u"), lesson=115),
+    GPC("G135", "eu", ("j", "u"), lesson=115),
+    GPC("G136", "ue", ("j", "u"), lesson=115),
+    GPC("G137", "ou", ("u",), lesson=115),
+    GPC("G138", "ough", ("ɔ",), lesson=116),
+    GPC("G139", "ough", ("oʊ",), lesson=116),
+    GPC("G140", "c", ("s",), lesson=117),  # c before e, i, y
+    GPC("G141", "g", ("dʒ",), lesson=117),  # g before e, i, y
+    GPC("G142", "ch", ("ʃ",), lesson=118),
+    GPC("G143", "ch", ("k",), lesson=118),
+    GPC("G144", "gn", ("n",), lesson=118),
+    GPC("G145", "gh", ("g",), lesson=118),
+    GPC("G146", "st", ("s",), lesson=118),  # silent t
+    GPC("G147", "-tion", ("ʃ", "ə", "n"), lesson=119),
+    GPC("G148", "-sion", ("ʒ", "ə", "n"), lesson=119),
+    GPC("G149", "-sion", ("ʃ", "ə", "n"), lesson=119),
+    GPC("G150", "-ture", ("tʃ", "ə", "r"), lesson=120),
+    GPC("G151", "-ist", ("ɪ", "s", "t"), lesson=121),
+    GPC("G152", "-ish", ("ɪ", "ʃ"), lesson=122),
+    GPC("G153", "-ness", ("n", "ə", "s"), lesson=124),
+    GPC("G154", "-ment", ("m", "ə", "n", "t"), lesson=125),
+    GPC("G155", "-able", ("ə", "b", "ə", "l"), lesson=126),
+    GPC("G156", "-ible", ("ə", "b", "ə", "l"), lesson=126),
+    GPC("G157", "bi-", ("b", "aɪ"), lesson=127, decode_lesson=66),
+    GPC("G158", "tri-", ("t", "r", "aɪ"), lesson=127, decode_lesson=66),
+    GPC("G159", "uni-", ("j", "u", "n", "ɪ"), lesson=127, decode_lesson=66),
+    GPC("G160", "bb", ("b",), lesson=67),
+    GPC("G161", "cc", ("k",), lesson=67),
+    GPC("G162", "dd", ("d",), lesson=67),
+    GPC("G163", "gg", ("g",), lesson=67),
+    GPC("G164", "mm", ("m",), lesson=67),
+    GPC("G165", "nn", ("n",), lesson=67),
+    GPC("G166", "pp", ("p",), lesson=67),
+    GPC("G167", "tt", ("t",), lesson=67),
+    GPC("G168", "o", ("ɔ",), lesson=12),
+    GPC("G169", "au", ("ɑ",), lesson=93),
+    GPC("G170", "augh", ("ɑ",), lesson=93),
+    GPC("G171", "ough", ("ɑ",), lesson=116),  # resolve cot-caught merger
+    GPC("G172", "ssion", ("ʃ", "ə", "n"), lesson=119),
+    GPC("G173", "o-e", ("ʌ",), lesson=62),
+    GPC("G174", "rr", ("r",), lesson=67),
+    GPC("G175", "-ier", ("i", "ə", "r"), lesson=110),  # comparative suffix: happier
+    GPC(
+        "G176", "-iest", ("i", "ə", "s", "t"), lesson=110
+    ),  # superlative suffix: happiest
+    GPC("G177", "-ied", ("i", "d"), lesson=110),  # y-to-i past tense: carried, studied
+)
 
 
 def normalize_gpc_grapheme(grapheme: str) -> str:
@@ -257,197 +322,9 @@ def normalize_gpc_grapheme(grapheme: str) -> str:
 # in student profiles. Used by ``EnglishStudentKnowledge`` validation and by
 # the scorer to check parser matches against the student's taught set.
 UFLI_GPC_PAIRS_FLAT: frozenset[tuple[str, str]] = frozenset(
-    (normalize_gpc_grapheme(grapheme), "".join(phonemes))
-    for _, grapheme, phonemes in UFLI_GPC_INVENTORY
+    (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
+    for gpc in UFLI_GPC_INVENTORY
 )
-
-
-# UFLI lesson (1-128) at which each inventory GPC is taught, transcribed from
-# the "GPC progression" sheet of the UFLI decodability knowledge model
-# workbook by (grapheme, phoneme) correspondence — the workbook's G### ids
-# have drifted from this inventory's, so ids can't be used as the join key.
-# Entries the workbook doesn't list (G160+) are package additions and take
-# the lesson of their equivalent correspondence: doubled consonants share
-# the assumed-doubling lesson (L67, workbook "Assumed correspondences" AC01),
-# the cot-caught merger alternates share their grapheme's taught lesson,
-# "ssion" follows "-sion" (L119), and "-ier"/"-iest" follow the Y-to-I
-# spelling-rule chunks (L110).
-UFLI_GPC_LESSONS: dict[str, int] = {
-    "G001": 1,
-    "G002": 2,
-    "G003": 3,
-    "G004": 4,
-    "G005": 6,
-    "G006": 7,
-    "G007": 8,
-    "G008": 9,
-    "G010": 12,
-    "G011": 13,
-    "G012": 14,
-    "G013": 15,
-    "G014": 16,
-    "G015": 17,
-    "G016": 18,
-    "G017": 20,
-    "G018": 21,
-    "G019": 22,
-    "G020": 23,
-    "G021": 24,
-    "G022": 26,
-    "G023": 28,
-    "G024": 29,
-    "G025": 30,
-    "G026": 31,
-    "G027": 32,
-    "G028": 33,
-    "G029": 34,
-    "G030": 42,
-    "G031": 42,
-    "G032": 42,
-    "G033": 42,
-    "G034": 43,
-    "G035": 43,
-    "G036": 43,
-    "G037": 44,
-    "G038": 45,
-    "G039": 46,
-    "G040": 47,
-    "G041": 48,
-    "G042": 50,
-    "G043": 50,
-    "G044": 51,
-    "G045": 52,
-    "G046": 54,
-    "G047": 55,
-    "G048": 56,
-    "G049": 57,
-    "G050": 58,
-    "G051": 58,
-    "G052": 60,
-    "G053": 61,
-    "G054": 62,
-    "G055": 63,
-    "G056": 64,
-    "G057": 64,
-    "G058": 64,
-    "G059": 65,
-    "G060": 68,
-    "G061": 68,
-    "G062": 68,
-    "G063": 68,
-    "G064": 68,
-    "G065": 68,
-    "G066": 69,
-    "G067": 70,
-    "G068": 72,
-    "G069": 72,
-    "G070": 72,
-    "G071": 72,
-    "G072": 72,
-    "G073": 73,
-    "G074": 74,
-    "G075": 75,
-    "G076": 77,
-    "G077": 78,
-    "G078": 78,
-    "G079": 80,
-    "G080": 81,
-    "G081": 81,
-    "G082": 82,
-    "G083": 84,
-    "G084": 84,
-    "G085": 85,
-    "G086": 85,
-    "G087": 85,
-    "G088": 86,
-    "G089": 86,
-    "G090": 86,
-    "G091": 87,
-    "G092": 87,
-    "G093": 89,
-    "G094": 89,
-    "G095": 90,
-    "G096": 91,
-    "G097": 91,
-    "G098": 91,
-    "G099": 93,
-    "G100": 93,
-    "G101": 93,
-    "G102": 94,
-    "G103": 94,
-    "G104": 95,
-    "G105": 95,
-    "G106": 96,
-    "G107": 96,
-    "G108": 98,
-    "G109": 98,
-    "G110": 98,
-    "G111": 100,
-    "G112": 100,
-    "G113": 101,
-    "G114": 102,
-    "G115": 102,
-    "G116": 103,
-    "G117": 104,
-    "G118": 104,
-    "G119": 105,
-    "G120": 110,
-    "G121": 110,
-    "G122": 110,
-    "G123": 111,
-    "G125": 112,
-    "G126": 112,
-    "G127": 112,
-    "G128": 113,
-    "G129": 114,
-    "G130": 114,
-    "G131": 114,
-    "G132": 114,
-    "G133": 114,
-    "G134": 115,
-    "G135": 115,
-    "G136": 115,
-    "G137": 115,
-    "G138": 116,
-    "G139": 116,
-    "G140": 117,
-    "G141": 117,
-    "G142": 118,
-    "G143": 118,
-    "G144": 118,
-    "G145": 118,
-    "G146": 118,
-    "G147": 119,
-    "G148": 119,
-    "G149": 119,
-    "G150": 120,
-    "G151": 121,
-    "G152": 122,
-    "G153": 124,
-    "G154": 125,
-    "G155": 126,
-    "G156": 126,
-    "G157": 127,
-    "G158": 127,
-    "G159": 127,
-    "G160": 67,
-    "G161": 67,
-    "G162": 67,
-    "G163": 67,
-    "G164": 67,
-    "G165": 67,
-    "G166": 67,
-    "G167": 67,
-    "G168": 12,
-    "G169": 93,
-    "G170": 93,
-    "G171": 116,
-    "G172": 119,
-    "G173": 62,
-    "G174": 67,
-    "G175": 110,
-    "G176": 110,
-}
 
 
 # UFLI lesson (1-128) at which each sight (heart) word is introduced, from the

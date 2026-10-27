@@ -130,22 +130,34 @@ class TestScorers:
         """An inflected sight word passes when its affix was taught."""
         knowledge = EnglishStudentKnowledge(
             affixes={"-s", "-ed", "-ing", "-ies"},
-            sight_words={"friend", "walk", "cry", "make"},
+            sight_words={"friend", "walk", "cry", "make", "want"},
         )
         assert score_sight_words_english("friends", knowledge) == 1.0
-        assert score_sight_words_english("walked", knowledge) == 1.0
         assert score_sight_words_english("walking", knowledge) == 1.0
+        # the taught affix unit covers all of -ed's allomorphs
+        assert score_sight_words_english("wanted", knowledge) == 1.0
+        assert score_sight_words_english("walked", knowledge) == 1.0
+        # a correspondence pair licenses the same ending before the affix
+        # is introduced — but -ed→əd only reads it after t/d stems; the
+        # silent-e /d/,/t/ readings need their own pair
+        ed_schwa = EnglishStudentKnowledge(
+            gpcs=[("ed", "əd")], sight_words={"want", "walk"}
+        )
+        assert score_sight_words_english("wanted", ed_schwa) == 1.0
+        assert score_sight_words_english("walked", ed_schwa) == 0.0
         # cry -> cries via the -ies unit (the ie letters spell the stem's y)
         assert score_sight_words_english("cries", knowledge) == 1.0
         # silent-e restoration: make + s
         assert score_sight_words_english("makes", knowledge) == 1.0
 
-        # letter GPCs alone don't unlock inflections — the affix must be taught
+        # a taught correspondence pair licenses the matching ending before
+        # its affix is officially introduced: s→z reads friend + s and
+        # ed→t reads walk + ed
         no_affixes = EnglishStudentKnowledge(
             gpcs=[("s", "z"), ("ed", "t")], sight_words={"friend", "walk"}
         )
-        assert score_sight_words_english("friends", no_affixes) == 0.0
-        assert score_sight_words_english("walked", no_affixes) == 0.0
+        assert score_sight_words_english("friends", no_affixes) == 1.0
+        assert score_sight_words_english("walked", no_affixes) == 1.0
 
         # and the stem must be a known sight word
         unknown_stem = EnglishStudentKnowledge(affixes={"-s"}, sight_words={"pal"})
@@ -509,13 +521,14 @@ class TestGPCValidation:
         medial = parse_gpcs("sings", _say("s", "ɪ", "ŋ", "s"), inventory)
         assert medial and medial[0][1].gpc.id == "ING"
 
-    def test_prefix_gpc_matches_medially(self):
-        """``pre-`` likewise matches wherever the ``pre`` chunk appears."""
+    def test_prefix_gpc_matches_at_word_start_only(self):
+        """``pre-`` anchors to the word start — the ``re`` inside ``pre`` is
+        not a prefix, unlike suffixes which match medially."""
         inventory = (GPC("S", "s", ("s",)), GPC("PRE", "pre-", ("p", "r", "i")))
         parses = parse_gpcs("pre", _say("p", "r", "i"), inventory)
         assert parses and parses[0][0].gpc.id == "PRE"
         medial = parse_gpcs("spre", _say("s", "p", "r", "i"), inventory)
-        assert medial and medial[0][1].gpc.id == "PRE"
+        assert not medial or all(match.gpc.id != "PRE" for match in medial[0])
 
     @pytest.mark.parametrize(
         "word, gpcs, expected",
@@ -1081,6 +1094,26 @@ class TestSharedLetters:
 class TestProductiveSpellingAndPronunciationRules:
     def test_positional_final_e_is_silent_after_a_consonant(self):
         student = EnglishStudentKnowledge(gpcs=[("h", "h"), ("ou", "aʊ"), ("s", "s")])
+        assert score_known_gpcs_english("house", student) == 0.0
+        # Once the silent-e family is fully taught (UFLI lesson 62), the
+        # trailing-e convention unlocks and the same parse decodes.
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("h", "h"),
+                ("ou", "aʊ"),
+                ("s", "s"),
+                ("a-e", "eɪ"),
+                ("i-e", "aɪ"),
+                ("o-e", "oʊ"),
+                ("e-e", "i"),
+                ("u-e", "u"),
+                ("u-e", "ju"),
+                ("ce", "s"),
+                ("ge", "dʒ"),
+                ("ve", "v"),
+                ("o-e", "ʌ"),
+            ]
+        )
         assert score_known_gpcs_english("house", student) == 1.0
 
     def test_final_e_does_not_turn_bare_u_into_the_ue_vowel_team(self):
@@ -1153,15 +1186,30 @@ class TestProductiveSpellingAndPronunciationRules:
     def test_letter_name_initialisms_use_known_constituent_letters(self):
         assert (
             score_known_gpcs_english(
-                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+                "TV", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
             )
             == 1.0
         )
         assert (
             score_known_gpcs_english(
-                "ok", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
+                "OK", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
             )
             == 1.0
+        )
+
+    def test_letter_name_readings_require_all_caps_spelling(self):
+        assert (
+            score_known_gpcs_english(
+                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+            )
+            == 0.0
+        )
+        assert (
+            score_known_gpcs_english(
+                "am",
+                EnglishStudentKnowledge(gpcs=[("a", "eɪ"), ("m", "m")]),
+            )
+            == 0.0
         )
 
     def test_taught_digraph_is_not_reinterpreted_as_an_initialism(self):

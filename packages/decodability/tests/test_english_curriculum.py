@@ -52,7 +52,8 @@ def load_stories() -> dict[str, tuple[str, ...]]:
     stories = {}
     for row in rows:
         words = tuple(row["words"].split("|"))
-        assert words and all(word == word.lower() for word in words)
+        # words are lowercase, except all-caps initialisms like "OK"/"TV"
+        assert words and all(word == word.lower() or word.isupper() for word in words)
         assert len(words) == len(set(words))
         assert row["story_id"] not in stories
         stories[row["story_id"]] = words
@@ -87,7 +88,7 @@ def load_profiles() -> dict[str, EnglishStudentKnowledge]:
         len(final_profile.gpcs),
         len(final_profile.sight_words),
         len(final_profile.affixes),
-    ) == (165, 121, 31)
+    ) == (168, 121, 33)
     return profiles
 
 

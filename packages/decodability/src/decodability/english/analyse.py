@@ -15,7 +15,6 @@ from functools import cache
 from pydantic import BaseModel, ConfigDict
 
 from decodability.english.definitions import (
-    UFLI_GPC_LESSONS,
     UFLI_SIGHT_WORD_LESSONS,
     normalize_gpc_grapheme,
 )
@@ -126,21 +125,37 @@ class EnglishWordAnalysis(BaseModel):
         return [parse for parse in self.candidate_parses if not parse.untaught]
 
     @property
+    def earliest_decodable_parses(self) -> list[ParseAssessment]:
+        """The parses that decode at ``earliest_decodable_lesson``.
+
+        Empty when the earliest route is not a GPC parse — e.g. when the
+        sight-word route decodes the word before any parse does.
+        """
+        return [
+            parse
+            for parse in self.candidate_parses
+            if parse.decodable_at_lesson == self.earliest_decodable_lesson
+        ]
+
+    @property
     def display_parse(self) -> ParseAssessment | None:
         """The single parse a consumer should surface.
 
         Ranking, in order:
-        1. fewest untaught matches for this student — the least-blocked parse;
-        2. parses using taught-as-unit affixes (edge-marked graphemes like
+        1. a parse attaining ``earliest_decodable_lesson`` — the
+           curriculum-canonical reading — when one exists; otherwise all
+           candidate parses are considered (e.g. when the earliest route is
+           the sight-word route and produces no parse);
+        2. fewest untaught matches for this student — the least-blocked parse;
+        3. parses using taught-as-unit affixes (edge-marked graphemes like
            ``-ing``, ``un-``) preferred over letter-by-letter decompositions —
            so "wishing" displays ``-ing`` as one morpheme rather than shredding
            it into ``i`` + ``ng``;
-        3. earliest UFLI lesson at which the parse fully decodes — so "kate"
-           surfaces the a-e split digraph (lesson 54) over the open-syllable
-           long-a parse (lesson 68).
+        4. earliest UFLI lesson at which the parse fully decodes.
         """
         if not self.candidate_parses:
             return None
+        candidates = self.earliest_decodable_parses or self.candidate_parses
 
         def key(p: ParseAssessment) -> tuple[int, bool, float | int]:
             has_affix = any(
@@ -155,7 +170,7 @@ class EnglishWordAnalysis(BaseModel):
                 else float("inf"),
             )
 
-        return min(self.candidate_parses, key=key)
+        return min(candidates, key=key)
 
 
 @cache
@@ -170,7 +185,7 @@ def _curriculum_steps() -> tuple[
     """
     by_lesson: dict[int, list[tuple[str, str]]] = {}
     for gpc in GPC_INVENTORY:
-        by_lesson.setdefault(UFLI_GPC_LESSONS[gpc.id], []).append(
+        by_lesson.setdefault(gpc.decode_lesson or gpc.lesson, []).append(
             (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
         )
 
@@ -210,12 +225,11 @@ def _curriculum_profiles() -> tuple[tuple[int, EnglishStudentKnowledge], ...]:
     gpcs_by_lesson: dict[int, list[tuple[str, str]]] = {}
     affixes_by_lesson: dict[int, list[str]] = {}
     for gpc in GPC_INVENTORY:
-        lesson = UFLI_GPC_LESSONS[gpc.id]
-        gpcs_by_lesson.setdefault(lesson, []).append(
+        gpcs_by_lesson.setdefault(gpc.decode_lesson or gpc.lesson, []).append(
             (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
         )
         if gpc.is_prefix or gpc.is_suffix:
-            affixes_by_lesson.setdefault(lesson, []).append(gpc.grapheme)
+            affixes_by_lesson.setdefault(gpc.lesson, []).append(gpc.grapheme)
     sight_words_by_lesson: dict[int, list[str]] = {}
     for sight_word, lesson in UFLI_SIGHT_WORD_LESSONS.items():
         sight_words_by_lesson.setdefault(lesson, []).append(sight_word)
@@ -288,7 +302,7 @@ def analyse_word_english(
                     is_monosyllabic=variant.is_monosyllabic,
                 )
             )
-            for parse in parse_gpcs(lowered, variant, GPC_INVENTORY):
+            for parse in parse_gpcs(word, variant, GPC_INVENTORY):
                 matches = [
                     GPCUse(
                         gpc_id=match.gpc.id,
