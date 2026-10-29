@@ -1,9 +1,12 @@
 """Check tier gates, the inclusive item-count threshold and top-N aggregation."""
 
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from phonics_benchmark import hardware
+
+matplotlib.use("Agg")
 
 
 @pytest.mark.parametrize("slide", [False, True])
