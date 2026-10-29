@@ -10,14 +10,14 @@ outputs.
 
 How to run (from the repo root). Run report_on_benchmark_run.py --hardware-tiers on
 the same --root first, since this script reads its hardware_tiers_top{N}_models.csv.
-Pass the same --min-coverage the reports were made with: outputs made with a
-coverage floor live in a coverage_gt<N> subfolder, which is only found when the
-flag is given:
+--root is the run folder that holds reports/ (reports/<language>/ and
+reports/hardware_tiers/<metric>/). Only pass --min-coverage when the hardware-tier
+outputs sit in a coverage_gt<N> subfolder of reports/hardware_tiers/<metric>/; the
+gold leaderboard runs keep them directly in <metric>/, so omit it there:
 
     uv run --frozen --package phonics-benchmark python \\
       benchmarks/phonics_benchmark/scripts/plot_calibration.py \\
-      --root $ROOT \\
-      --min-coverage 0.9
+      --root $ROOT
 
 Both languages are plotted unless --language english or --language kiswahili is
 given. Other options: --top-n (default 10), --metric (ranking metric, default
@@ -88,10 +88,27 @@ def plot(table: pd.DataFrame, title_suffix: str, ranking: str, path) -> None:
     common.style_axes(ax)
     ax.set_xlabel("Actual % non-decodable words")
     ax.set_ylabel("Predicted % non-decodable words")
-    # Region labels are neutral so they are not read as belonging to one tier.
-    ax.text(6, 91, "over-flagging\n(predicted > actual)", color="#52514e", fontsize=9)
-    ax.text(58, 19, "under-flagging\n(predicted < actual)", color="#52514e", fontsize=9)
-    ax.legend(frameon=False, loc="lower right")
+    # Region labels are neutral so they are not read as belonging to one tier. They sit
+    # in the corners, clear of the lines: under-flagging tiers can run along the lower
+    # half, so the label is pinned to the bottom-right corner and the legend moves up.
+    ax.text(
+        4,
+        80,
+        "over-flagging\n(predicted > actual)",
+        color="#52514e",
+        fontsize=9,
+        va="top",
+    )
+    ax.text(
+        97,
+        4,
+        "under-flagging\n(predicted < actual)",
+        color="#52514e",
+        fontsize=9,
+        ha="right",
+        va="bottom",
+    )
+    ax.legend(frameon=False, loc="upper left")
     ax.set_title(
         f"Calibration: predicted vs actual non-decodable ratio\n{title_suffix}",
         fontweight="bold",

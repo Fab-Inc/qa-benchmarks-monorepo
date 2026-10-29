@@ -2,8 +2,8 @@
 
 Used by plot_error_rate_by_word_length.py and plot_calibration.py. Both read the
 top-N models per hardware tier chosen by report_on_benchmark_run.py --hardware-tiers
-(hardware_tiers_top{N}_models.csv) and the word-level scoring in each run's
-report/results_with_scoring.csv. No model calls and no rescoring.
+(hardware_tiers_top{N}_models.csv) and the word-level scoring in each language's
+reports/<language>/results_with_scoring.csv. No model calls and no rescoring.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         "--root",
         type=Path,
         required=True,
-        help="Analysis root holding <language>/ runs and hardware_tiers/.",
+        help="Run folder holding reports/<language>/ and reports/hardware_tiers/.",
     )
     parser.add_argument(
         "--language",
@@ -78,7 +78,7 @@ def ranking_phrase(metric: str, language: str) -> str:
 
 
 def tier_dir(root: Path, metric: str, min_coverage: float | None) -> Path:
-    path = root / "hardware_tiers" / metric
+    path = root / "reports" / "hardware_tiers" / metric
     suffix = hardware.coverage_suffix(min_coverage)
     return path / suffix.lstrip("_") if suffix else path
 
@@ -103,7 +103,7 @@ def load_top_models(
 
 def load_scored_items(root: Path, language: str, models: pd.DataFrame) -> pd.DataFrame:
     """One row per (model, item) with parsed word sets, for the selected models."""
-    path = root / language / "report/results_with_scoring.csv"
+    path = root / "reports" / language / "results_with_scoring.csv"
     usecols = ["model", "benchmark_item_id", "success", "parse_ok", *WORD_COLUMNS]
     scored = pd.read_csv(path, usecols=usecols)
     # Failed calls and unparseable outputs carry no word labels, so they are skipped.

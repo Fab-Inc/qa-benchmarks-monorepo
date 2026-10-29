@@ -105,3 +105,38 @@ def test_language_defaults_to_all_languages():
     assert parser.parse_args(["--root", "x", "--language", "english"]).language == [
         "english"
     ]
+
+
+def test_inputs_are_read_from_the_reports_folder(tmp_path):
+    # Gold leaderboard runs keep everything under <root>/reports/.
+    tiers = tmp_path / "reports" / "hardware_tiers" / "pooled_f2"
+    tiers.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "model": ["a", "b"],
+            "language": ["english", "kiswahili"],
+            "hardware_tier": ["Cloud", "Cloud"],
+        }
+    ).to_csv(tiers / "hardware_tiers_top10_models.csv", index=False)
+    scoring = tmp_path / "reports" / "english"
+    scoring.mkdir()
+    pd.DataFrame(
+        {
+            "model": ["a", "a", "other"],
+            "benchmark_item_id": ["i1", "i2", "i1"],
+            "success": [True, True, True],
+            "parse_ok": [True, False, True],
+            "tp": ["{'jump'}", "set()", "set()"],
+            "fp": ["set()", "set()", "set()"],
+            "fn": ["{'saw'}", "set()", "set()"],
+            "tn": ["{'at'}", "set()", "set()"],
+        }
+    ).to_csv(scoring / "results_with_scoring.csv", index=False)
+
+    assert common.tier_dir(tmp_path, "pooled_f2", None) == tiers
+    models = common.load_top_models(tmp_path, "english", 10, "pooled_f2", None)
+    assert models.model.tolist() == ["a"]
+    scored = common.load_scored_items(tmp_path, "english", models)
+    # Unselected models and unparseable responses are dropped.
+    assert scored.benchmark_item_id.tolist() == ["i1"]
+    assert scored.tp.iloc[0] == {"jump"}
