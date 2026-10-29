@@ -1,8 +1,56 @@
 """Check tier gates, the inclusive item-count threshold and top-N aggregation."""
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 from phonics_benchmark import hardware
+
+
+@pytest.mark.parametrize("slide", [False, True])
+@pytest.mark.parametrize("point_units", [False, True])
+def test_plot_dumbbell_renders_tiers_and_eligibility(slide, point_units):
+    stats = pd.DataFrame(
+        [
+            {
+                "hardware_tier": tier,
+                "language": language,
+                "median_pooled_f2": score,
+                "n_used": count,
+                "n_available": count + 1,
+            }
+            for tier, scores in [
+                ("Mobile + Tablet", {"english": 0.80, "kiswahili": 0.82}),
+                ("Cloud", {"english": 0.50, "kiswahili": 0.80}),
+            ]
+            for language, score in scores.items()
+            for count in [1 if language == "english" else 2]
+        ]
+    )
+
+    fig = hardware.plot_dumbbell(
+        stats,
+        "median_pooled_f2",
+        "Hardware tiers",
+        "Comparison",
+        {"english": 991, "kiswahili": 1000},
+        slide=slide,
+        gold_note="Gold note",
+        min_coverage=0.8,
+        point_units=point_units,
+    )
+    try:
+        ax = fig.axes[0]
+        assert len(ax.collections) == 4
+        assert len(ax.lines) == (3 if point_units else 2)
+        assert ax.get_xlabel() == (
+            f"Median pooled F2 ({'points' if point_units else '%'})"
+        )
+        tier_labels = [text.get_text() for text in ax.texts]
+        assert ("Small models" if slide else "Mobile + tablet") in tier_labels
+        assert any("minimum scored items" in text.get_text() for text in fig.texts)
+        assert any("Gold note" in text.get_text() for text in fig.texts)
+    finally:
+        plt.close(fig)
 
 
 @pytest.mark.parametrize(
