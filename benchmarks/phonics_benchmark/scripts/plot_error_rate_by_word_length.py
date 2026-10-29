@@ -82,7 +82,8 @@ def plot(
     common.style_axes(ax)
     ax.set_xlabel("word length (letters)")
     ax.set_ylabel(f"{label} (%)")
-    ax.legend(frameon=False, loc="upper left" if error == "fp" else "upper right")
+    # Fixed position, shared with the calibration plot, so it never moves between plots.
+    ax.legend(frameon=False, loc="upper left")
     ax.set_title(f"Average {label} by word length\n{title_suffix}", fontweight="bold")
     abbreviation = error.upper()
     common.finish(
