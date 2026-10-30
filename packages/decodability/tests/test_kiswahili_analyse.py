@@ -163,20 +163,21 @@ class TestKenyaTusomeRule:
         assert is_decodable_kenya_tusome("ng'ombe", knowledge) is False
         assert is_decodable_kenya_tusome_lenient("ng'ombe", knowledge) is True
 
-    def test_a_decomposable_cluster_blocks_strictly_but_not_leniently(self):
-        """The bw left by the syllabic reading of mbwa decomposes into
-        graphemes, so the word is decodable leniently with graphemes alone."""
+    def test_the_syllabic_reading_still_leaves_a_cluster_that_blocks(self):
+        """The bw left by the syllabic reading of mbwa is itself a cluster
+        that must be taught, so the word is non-decodable with graphemes
+        alone — the syllabic reading only helps when it leaves no cluster."""
         knowledge = KiswahiliStudentKnowledge.model_validate(
             dict(graphemes={"m", "b", "w", "a"})
         )
 
         analysis = analyse_word_kiswahili("mbwa", knowledge)
 
-        assert analysis.ambiguous_boundaries == [Span(text="mb", start=0, end=2)]
-        assert analysis.unknown_clusters == [Span(text="mb", start=0, end=2)]
-        assert analysis.lenient_unknown_clusters == []
+        assert analysis.ambiguous_boundaries == [Span(text="mbw", start=0, end=3)]
+        assert analysis.unknown_clusters == [Span(text="mbw", start=0, end=3)]
+        assert analysis.lenient_unknown_clusters == [Span(text="mbw", start=0, end=3)]
         assert assess_decodability_kenya_tusome(analysis) is False
-        assert assess_decodability_kenya_tusome_lenient(analysis) is True
+        assert assess_decodability_kenya_tusome_lenient(analysis) is False
 
     def test_an_untaught_fused_onset_still_blocks_leniently(self):
         """mw is a fused nasal onset, so it cannot be decomposed: mwembamba is

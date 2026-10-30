@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated
@@ -127,17 +127,6 @@ class NasalBoundary:
         return self.nasal.start == 0
 
     @property
-    def preceded_by_vowel(self) -> bool:
-        """Whether the grapheme before the nasal is a vowel."""
-        return self.index > 0 and not self.graphemes[self.index - 1].is_consonant
-
-    @property
-    def followed_by_vowel(self) -> bool:
-        """Whether the grapheme after the follower is a vowel."""
-        after = self.index + 2
-        return after < len(self.graphemes) and not self.graphemes[after].is_consonant
-
-    @property
     def vowels_after(self) -> int:
         """Number of vowel graphemes after the nasal.
 
@@ -169,7 +158,6 @@ def _initial_n_before_monosyllabic_root_is_syllabic(
     if (
         boundary.word_initial
         and boundary.nasal.symbol == "n"
-        and boundary.follower.symbol in {"d", "j", "z"}
         and boundary.vowels_after == 1
     ):
         return NasalReading.SYLLABIC
@@ -245,85 +233,66 @@ def _consonant_runs(graphemes: Sequence[GraphemeSpan]) -> Iterator[list[int]]:
         yield run
 
 
-def _nasal_verdicts(
-    graphemes: Sequence[GraphemeSpan],
-    run: Sequence[int],
-    rules: Sequence[NasalRule],
-) -> dict[int, NasalReading]:
-    """Map run-local positions that head a nasal boundary to their reading."""
-    graphemes_tuple = tuple(graphemes)
-    verdicts: dict[int, NasalReading] = {}
-    for pos, grapheme_index in enumerate(run):
-        if pos + 1 >= len(run):
-            continue
-        if graphemes[grapheme_index].symbol in _NASAL_CLUSTER_FOLLOWERS:
-            verdicts[pos] = _nasal_reading(
-                NasalBoundary(graphemes=graphemes_tuple, index=grapheme_index),
-                rules,
-            )
-    return verdicts
+def _nasal_verdict(
+    graphemes: Sequence[GraphemeSpan], run: Sequence[int]
+) -> NasalReading | None:
+    """The reading of the run's opening nasal boundary, if it has one.
+
+    Only the first consonant of a run can head a nasal onset: a nasal later
+    in the run sits inside a loan cluster (e.g. the "nd" of "blnd"), which is
+    gated as a unit rather than split off as a taught onset.
+    """
+    if len(run) < 2 or graphemes[run[0]].symbol not in _NASAL_CLUSTER_FOLLOWERS:
+        return None
+    return _nasal_reading(
+        NasalBoundary(graphemes=tuple(graphemes), index=run[0]), NASAL_RULES
+    )
 
 
-def _pair_span(nasal: GraphemeSpan, follower: GraphemeSpan) -> Span:
-    """The cluster span covering a nasal and its following consonant."""
-    return Span(text=nasal.text + follower.text, start=nasal.start, end=follower.end)
+def _run_span(
+    graphemes: Sequence[GraphemeSpan], run: Sequence[int], pos: int
+) -> Span | None:
+    """The cluster covering ``run[pos:]``, if two or more consonants remain.
+
+    A consonant run is one cluster — a fused onset cannot decompose into its
+    parts, so "ndw", "ndr" and "mbw" are emitted whole rather than "nd" plus
+    a loose consonant. A lone consonant is not a cluster.
+    """
+    if len(run) - pos < 2:
+        return None
+    return Span(
+        text="".join(graphemes[i].text for i in run[pos:]),
+        start=graphemes[run[pos]].start,
+        end=graphemes[run[-1]].end,
+    )
 
 
 def _clusterings_of_run(
     graphemes: Sequence[GraphemeSpan],
     run: Sequence[int],
-    verdicts: Mapping[int, NasalReading],
+    verdict: NasalReading | None,
 ) -> list[list[Span]]:
     """Enumerate every viable clustering of one consonant run.
 
-    Variants are ordered fused-first: each ambiguous boundary branches into a
-    fused reading (nasal + consonant emitted as a cluster span) and a syllabic
-    reading (nasal skipped, read as the bare grapheme), with the fused branch
-    explored first.
+    A run has at most one nasal boundary — its opening position — so each
+    verdict maps to a fixed shape: the whole run is one cluster, and a
+    syllabic leading nasal simply drops out of it. An ambiguous boundary
+    yields both readings, fused first.
     """
 
-    def rec(pos: int, acc: list[Span]) -> list[list[Span]]:
-        while pos < len(run):
-            verdict = verdicts.get(pos)
-            if verdict is NasalReading.AMBIGUOUS:
-                fused = rec(
-                    pos + 2,
-                    acc + [_pair_span(graphemes[run[pos]], graphemes[run[pos + 1]])],
-                )
-                syllabic = rec(pos + 1, acc)
-                return fused + syllabic
-            if verdict is NasalReading.FUSED:
-                acc = acc + [_pair_span(graphemes[run[pos]], graphemes[run[pos + 1]])]
-                pos += 2
-                continue
-            if verdict is NasalReading.SYLLABIC:
-                pos += 1
-                continue
-            # Non-nasal stretch. A trailing nasal (not followed by a consonant)
-            # belongs to the stretch: e.g. the "sm" of rasmi is a consonant + m
-            # cluster. The stretch breaks before any nasal that heads a
-            # boundary, whatever its reading.
-            end = pos
-            while end < len(run) and end not in verdicts:
-                end += 1
-            if end - pos >= 2:
-                acc = acc + [
-                    Span(
-                        text="".join(graphemes[i].text for i in run[pos:end]),
-                        start=graphemes[run[pos]].start,
-                        end=graphemes[run[end - 1]].end,
-                    )
-                ]
-            pos = end
-        return [acc]
+    def clustering(start: int) -> list[Span]:
+        span = _run_span(graphemes, run, start)
+        return [] if span is None else [span]
 
-    return rec(0, [])
+    if verdict is NasalReading.AMBIGUOUS:
+        return [clustering(0), clustering(1)]
+    if verdict is NasalReading.SYLLABIC:
+        return [clustering(1)]
+    return [clustering(0)]
 
 
 def find_clustering_variants(
     graphemes: Sequence[GraphemeSpan],
-    *,
-    rules: Sequence[NasalRule] = NASAL_RULES,
 ) -> list[list[Span]]:
     """Enumerate every viable clustering of an already-decomposed word.
 
@@ -335,63 +304,35 @@ def find_clustering_variants(
     """
     variants: list[list[Span]] = [[]]
     for run in _consonant_runs(graphemes):
-        verdicts = _nasal_verdicts(graphemes, run, rules)
-        run_variants = _clusterings_of_run(graphemes, run, verdicts)
+        run_variants = _clusterings_of_run(
+            graphemes, run, _nasal_verdict(graphemes, run)
+        )
         variants = [prefix + suffix for prefix in variants for suffix in run_variants]
     return variants
 
 
-def find_ambiguous_boundaries(
-    graphemes: Sequence[GraphemeSpan],
-    *,
-    rules: Sequence[NasalRule] = NASAL_RULES,
-) -> list[Span]:
+def find_ambiguous_boundaries(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
     """Locate nasal + consonant boundaries the rules could not resolve.
 
-    Each returned span covers the nasal and its following consonant — the fused
-    cluster the boundary becomes under a fused reading.
+    Each returned span covers the whole run the boundary heads — the cluster
+    it becomes under a fused reading.
     """
-    boundaries: list[Span] = []
-    for run in _consonant_runs(graphemes):
-        for pos, reading in _nasal_verdicts(graphemes, run, rules).items():
-            if reading is NasalReading.AMBIGUOUS:
-                boundaries.append(
-                    _pair_span(graphemes[run[pos]], graphemes[run[pos + 1]])
-                )
-    return boundaries
+    return [
+        span
+        for run in _consonant_runs(graphemes)
+        if _nasal_verdict(graphemes, run) is NasalReading.AMBIGUOUS
+        if (span := _run_span(graphemes, run, 0)) is not None
+    ]
 
 
-def find_fused_cluster_spans(
-    graphemes: Sequence[GraphemeSpan],
-    *,
-    rules: Sequence[NasalRule] = NASAL_RULES,
-) -> list[Span]:
-    """Locate the clusters the rules resolved as fused nasal onsets.
-
-    These are the clusters that must be taught as units under any reading —
-    they appear in every viable clustering. Every other cluster a variant can
-    produce (an ambiguous boundary read as fused, or a non-nasal stretch such
-    as "bl" or "st") is decomposable: it may be read as its component
-    graphemes.
-    """
-    fused: list[Span] = []
-    for run in _consonant_runs(graphemes):
-        for pos, reading in sorted(_nasal_verdicts(graphemes, run, rules).items()):
-            if reading is NasalReading.FUSED:
-                fused.append(_pair_span(graphemes[run[pos]], graphemes[run[pos + 1]]))
-    return fused
-
-
-def find_cluster_spans(
-    graphemes: Sequence[GraphemeSpan],
-    *,
-    rules: Sequence[NasalRule] = NASAL_RULES,
-) -> list[Span]:
+def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
     """Locate the consonant clusters in an already-decomposed word.
 
     A cluster is a run of two or more consecutive consonant graphemes, except
     that a syllabic nasal (m or n + consonant other than the taught onsets mb,
-    mv, mw, my and nd, nj, nz, nw) is not part of a cluster.
+    mv, mw, my and nd, nj, nz, nw) is not part of a cluster. A run is emitted
+    as one span — a fused onset cannot decompose into its parts, so "ndw" is
+    one cluster rather than "nd" followed by a loose "w".
 
     Ambiguous nasal boundaries are resolved as fused, so the result is the
     maximal set of clusters — every cluster that any viable reading of the
@@ -399,7 +340,7 @@ def find_cluster_spans(
     of readings and :func:`find_ambiguous_boundaries` for the boundaries the
     rules left unresolved.
     """
-    return find_clustering_variants(graphemes, rules=rules)[0]
+    return find_clustering_variants(graphemes)[0]
 
 
 def get_grapheme_symbols(word: str) -> list[str]:
@@ -426,7 +367,6 @@ __all__ = [
     "decompose_word",
     "find_clustering_variants",
     "find_ambiguous_boundaries",
-    "find_fused_cluster_spans",
     "find_cluster_spans",
     "get_grapheme_symbols",
     "get_clusters",

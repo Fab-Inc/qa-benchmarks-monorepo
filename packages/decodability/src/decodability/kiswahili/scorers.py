@@ -1,9 +1,7 @@
 from decodability.kiswahili.segment import (
-    Span,
     decompose_word,
     find_cluster_spans,
     find_clustering_variants,
-    find_fused_cluster_spans,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
@@ -60,35 +58,21 @@ def score_known_clusters_and_patterns_lenient_kiswahili(
 ) -> float:
     """Score a word leniently on whether the student knows all its clusters.
 
-    The score is 1.0 if any viable clustering of the word contains no cluster
-    the student cannot decode. A cluster is decodable when the student knows it
-    (directly or via a known cluster pattern) or when it can be decomposed —
-    read as its component graphemes, all of which must be taught. Only the
-    fused nasal onsets (see :func:`find_fused_cluster_spans`) cannot be
-    decomposed; every other cluster — an ambiguous boundary read as fused, or a
-    non-nasal stretch like "bl" or "st" — may be sounded out grapheme by
-    grapheme.
+    The score is 1.0 if some viable clustering of the word contains only
+    clusters the student knows (directly or via a known cluster pattern).
+    This is the strict rule relaxed in exactly one way: an ambiguous nasal
+    boundary may be read syllabically, so the cluster that boundary would
+    form under the fused reading is not required. Every cluster that a
+    reading produces — a fused onset, a composite like "ndw", or a stretch
+    like "bl" or the "dw" left by a syllabic nasal — must be taught.
 
     If the word doesn't contain any cluster, the score is 1.0, since the student
     doesn't need to know any clusters to decode it.
     """
     taught_clusters = student_knowledge.all_known_clusters
-    taught_graphemes = student_knowledge.graphemes
 
-    graphemes = decompose_word(word)
-    fused_clusters = set(find_fused_cluster_spans(graphemes))
-
-    def cluster_is_decodable(span: Span) -> bool:
-        if span.normalised in taught_clusters:
-            return True
-        if span in fused_clusters:
-            return False
-        return all(
-            symbol in taught_graphemes for symbol in get_grapheme_symbols(span.text)
-        )
-
-    for clustering in find_clustering_variants(graphemes):
-        if all(cluster_is_decodable(span) for span in clustering):
+    for clustering in find_clustering_variants(decompose_word(word)):
+        if all(span.normalised in taught_clusters for span in clustering):
             return 1.0
 
     return 0.0

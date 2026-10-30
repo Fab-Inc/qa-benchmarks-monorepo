@@ -69,7 +69,7 @@ binary definition of decodability. Four binary scorers feed the final score:
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `score_known_graphemes_kiswahili`                     | every grapheme in the word has been taught                                                                                                                |
 | `score_known_clusters_and_patterns_kiswahili`         | every cluster under the fused resolution is known directly or by pattern (strict: ambiguous nasal boundaries count as fused clusters that must be taught) |
-| `score_known_clusters_and_patterns_lenient_kiswahili` | some viable clustering of the word has no cluster that is neither taught nor decomposable into taught graphemes — only untaught fused nasal onsets block  |
+| `score_known_clusters_and_patterns_lenient_kiswahili` | same as the strict cluster score, but ambiguous nasal boundaries may be read syllabically instead of fusing                                               |
 | `score_whole_words_kiswahili`                         | the word has been taught as a whole word                                                                                                                  |
 
 `aggregate_scores_kenya_tusome` combines the strict cluster score with the grapheme and
@@ -82,13 +82,16 @@ cluster score.
 onset (the taught mb, mv, mw, my and nd, nj, nz, nw) or a syllabic consonant that reads
 as the bare grapheme. `segment.py` resolves each nasal + consonant boundary through an
 ordered rule list (`NASAL_RULES`) returning FUSED, SYLLABIC, or AMBIGUOUS; ambiguous
-boundaries produce alternative *clusterings* of the word (`find_clustering_variants`).
-The strict scorer — the default — counts every ambiguous boundary as a fused cluster
-that must be taught. The lenient scorer accepts a word when some viable clustering
-leaves no cluster the student can't decode: a cluster is decodable when taught or when
-it can be decomposed into taught graphemes, and only the fused nasal onsets
-(`find_fused_cluster_spans`) cannot be decomposed. The provisional rule marks every m +
-b/v boundary ambiguous (the syllabic m- marker vs the fused onset); further linguist
+boundaries produce alternative *clusterings* of the word (`find_clustering_variants`). A
+fused onset closed by a glide forms a single *composite* cluster (`ndw`, `mbw`), emitted
+as one span rather than `nd` followed by a loose `w`. Every cluster — composite or plain
+stretch — is a unit that must be taught: knowing `nd` + `w` does not decode `ndw`, and
+knowing `d` + `w` does not decode the `dw` left behind by a syllabic nasal. The strict
+scorer — the default — counts every ambiguous boundary as a fused cluster that must be
+taught. The lenient scorer accepts a word when some viable clustering has every cluster
+taught — i.e. it relaxes exactly the ambiguous boundaries, letting them resolve
+syllabically to produce fewer or no clusters. The provisional rule marks every m + b/v
+boundary ambiguous (the syllabic m- marker vs the fused onset); further linguist
 decision trees slot in as additional rules.
 
 The grapheme, cluster, and whole-word scorers must all be listed in `scoring_methods`;
