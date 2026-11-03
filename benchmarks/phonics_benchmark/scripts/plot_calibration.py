@@ -6,9 +6,10 @@ equal-width bins of actual ratio (0-10%, ..., 90-100%) and each bin plots the me
 actual against the mean predicted ratio over the selected models in the tier.
 Points below the diagonal mean the models under-flag; above, they over-flag.
 Each line gets a shaded confidence band for the predicted ratio from an item-level
-bootstrap (1,000 replicates, 95% by default; --n-bootstrap 0 turns it off). Writes
-error_analysis/calibration_<language>.{csv,png,pdf} next to the hardware-tier
-outputs.
+bootstrap (1,000 replicates, 95% by default; --n-bootstrap 0 turns it off).
+
+Plots are saved to <root>/reports/hardware_tiers/<metric>/error_analysis/
+calibration_<language>.{csv,png,pdf}.
 
 How to run (from the repo root). Run report_on_benchmark_run.py --hardware-tiers on
 the same --root first, since this script reads its hardware_tiers_top{N}_models.csv.

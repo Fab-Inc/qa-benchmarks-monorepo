@@ -6,9 +6,10 @@
 Counts are pooled over every selected model in a tier, so each rate is
 opportunity-weighted: a model that saw more words in a bin counts for more.
 Each line gets a shaded confidence band from an item-level bootstrap (1,000
-replicates, 95% by default; --n-bootstrap 0 turns it off). Writes
-error_analysis/{fp,fn}_rate_by_word_length_<language>.{csv,png,pdf} next to the
-hardware-tier outputs.
+replicates, 95% by default; --n-bootstrap 0 turns it off).
+
+Plots are saved to <root>/reports/hardware_tiers/<metric>/error_analysis/
+{fp,fn}_rate_by_word_length_<language>.{csv,png,pdf}.
 
 How to run (from the repo root). Run report_on_benchmark_run.py --hardware-tiers on
 the same --root first, since this script reads its hardware_tiers_top{N}_models.csv.
