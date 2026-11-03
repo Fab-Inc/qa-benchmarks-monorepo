@@ -13,7 +13,8 @@ Prerequisite:
     ```
 
 Usage:
-    python benchmarks/phonics_benchmark/scripts/review_difficult_items.py \
+    uv run --frozen --package phonics-benchmark python \
+        benchmarks/phonics_benchmark/scripts/review_difficult_items.py \
         --language <language> \
         --target <target_directory>
 
@@ -348,9 +349,11 @@ if __name__ == "__main__":
     all_wrong_words = all_wrong_words_mask[all_wrong_words_mask].index.tolist()
     logging.info(f"Words that all models got wrong: \n{all_wrong_words}")
 
-    all_wrong_top10_models_words_mask = ~words.groupby(["benchmark_item_id", "word"])[
-        "correct"
-    ].any()
+    all_wrong_top10_models_words_mask = (
+        ~words[words["model"].isin(top10_models)]
+        .groupby(["benchmark_item_id", "word"])["correct"]
+        .any()
+    )
     all_wrong_top10_models_words = all_wrong_top10_models_words_mask[
         all_wrong_top10_models_words_mask
     ].index.tolist()
