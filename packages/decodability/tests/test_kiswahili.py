@@ -100,6 +100,7 @@ class TestKiswahiliDefinition:
             ("ndizi", [["nd"]]),
             ("mtoto", [[]]),
             ("mstatili", [["st"]]),
+            ("kompyuta", [["py"]]),
             # nzi's initial n is syllabic (monosyllabic root) — no cluster.
             ("nzi", [[]]),
             # nziwa's root has two vowels, so nz stays fused.
@@ -135,10 +136,14 @@ class TestKiswahiliDefinition:
             ("mwembamba", [("mb", 3), ("mb", 6)]),
             # nd is unambiguously fused, mt unambiguously syllabic.
             ("ndizi", []),
+            ("bendera", []),
             ("mtoto", []),
             # nzi's n is resolved syllabic by rule, not left ambiguous.
             ("nzi", []),
             ("baba", []),
+            # "mb" in a 3+ consonant cluster, unless in a monosyllabic
+            # word, is unambiguously fused.
+            ("mbwea", [("mbw", 0)]),
         ],
     )
     def test_find_ambiguous_boundaries(self, word, expected_boundaries):
@@ -526,6 +531,7 @@ class TestScorers:
             # Syllabic nasals need no cluster knowledge at all.
             ("mtoto", {"m", "t", "o"}, set(), 1.0),
             ("nchi", {"n", "ch", "i"}, set(), 1.0),
+            ("nne", {"n", "e"}, set(), 1.0),
             ("ndizi", {"n", "d", "i", "z"}, set(), 0.0),
             ("ndizi", {"n", "d", "i", "z"}, {"nd"}, 1.0),
             # nzi's initial n is syllabic (one-vowel root): no cluster to know.
