@@ -108,7 +108,12 @@ def rate_interval(
 
 
 def plot(
-    table: pd.DataFrame, error: str, title_suffix: str, ranking: str, path
+    table: pd.DataFrame,
+    error: str,
+    language: str,
+    title_suffix: str,
+    ranking: str,
+    path,
 ) -> None:
     _, _, label = ERRORS[error]
     x = np.arange(len(BIN_LABELS))
@@ -150,7 +155,10 @@ def plot(
     ax.set_ylabel(f"{label} (%)")
     # Fixed position, shared with the calibration plot, so it never moves between plots.
     ax.legend(frameon=False, loc="upper left")
-    ax.set_title(f"Average {label} by word length\n{title_suffix}", fontweight="bold")
+    ax.set_title(
+        f"Average {label} by word length ({language.title()})\n{title_suffix}",
+        fontweight="bold",
+    )
     note = (
         f"{error.upper()} rate averaged (opportunity-weighted) across the {ranking} "
         "in each hardware tier."
@@ -186,7 +194,7 @@ def main() -> None:
             stem = f"{error}_rate_by_word_length_{language}"
             table.to_csv(out / f"{stem}.csv", index=False)
             title = common.tier_title(models)
-            plot(table, error, title, ranking, out / f"{stem}.png")
+            plot(table, error, language, title, ranking, out / f"{stem}.png")
             print(table.to_string(index=False))
 
 

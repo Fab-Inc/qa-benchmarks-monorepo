@@ -120,7 +120,9 @@ def mean_interval(
     return pd.DataFrame(columns, index=index).reset_index()
 
 
-def plot(table: pd.DataFrame, title_suffix: str, ranking: str, path) -> None:
+def plot(
+    table: pd.DataFrame, language: str, title_suffix: str, ranking: str, path
+) -> None:
     has_ci = "mean_predicted_ci_low" in table
     fig, ax = plt.subplots(figsize=(7.5, 7.5))
     ax.plot([0, 100], [0, 100], "--", color="#898781", linewidth=1.5, zorder=1)
@@ -177,7 +179,8 @@ def plot(table: pd.DataFrame, title_suffix: str, ranking: str, path) -> None:
     )
     ax.legend(frameon=False, loc="upper left")
     ax.set_title(
-        f"Calibration: predicted vs actual non-decodable ratio\n{title_suffix}",
+        f"Calibration ({language.title()}): predicted vs actual non-decodable ratio\n"
+        f"{title_suffix}",
         fontweight="bold",
     )
     note = f"Restricted to the {ranking} per hardware tier."
@@ -206,7 +209,7 @@ def main() -> None:
         stem = f"calibration_{language}"
         table.to_csv(out / f"{stem}.csv", index=False)
         ranking = common.ranking_phrase(args.metric, language)
-        plot(table, common.tier_title(models), ranking, out / f"{stem}.png")
+        plot(table, language, common.tier_title(models), ranking, out / f"{stem}.png")
         print(table.to_string(index=False))
 
 
