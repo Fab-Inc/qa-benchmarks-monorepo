@@ -121,11 +121,15 @@ def item_count_array(
 def bootstrap_totals(counts: np.ndarray, n_bootstrap: int, seed: int) -> np.ndarray:
     """Item-level bootstrap totals of per-item counts.
 
-    ``counts`` has items on axis 0. Each replicate draws as many items as there are,
-    with replacement, and sums their counts, giving (n_bootstrap, ...) totals. A
-    multinomial draw of item multiplicities is the same as drawing items with
-    replacement, and it turns every replicate into one matrix product. The draw is
-    shared by everything in ``counts``, so tiers and bins are resampled together.
+    ``counts`` has shape (n_items, n_tiers, n_bins, n_columns), holding each item's
+    totals per tier and bin.
+
+    For each replicate we draw how many times every item is picked, from a
+    multinomial distribution over the items with equal probability. This gives an
+    (n_bootstrap, n_items) array, with replicates on axis 0 and items on axis 1.
+    Matrix-multiplying it with ``counts`` gives n_bootstrap replicates of n_items
+    items sampled with replacement, summed into (n_bootstrap, ...) totals. The same
+    draw is applied to all of ``counts``, so tiers and bins are resampled together.
     """
     n_items = counts.shape[0]
     rng = np.random.default_rng(seed)
