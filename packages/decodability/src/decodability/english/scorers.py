@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from decodability.english.definitions import (
     UFLI_GPC_INVENTORY,
     normalize_gpc_grapheme,
@@ -247,17 +249,14 @@ _ED_SCHWA_PAIR = ("ed", "əd")
 # taught pair unlocks the same ending on a sight-word stem:
 # ``("ing", "ɪŋ")`` at lesson 51 reads ``walk`` + ``ing`` well before the
 # ``-ing`` affix is introduced at 65.
+_PAIRS_BY_SYMBOL: dict[str, set[tuple[str, str]]] = defaultdict(set)
+for gpc in GPC_INVENTORY:
+    _PAIRS_BY_SYMBOL[gpc.symbol].add((gpc.symbol, "".join(gpc.phonemes)))
+
 _AFFIX_PAIRS: dict[str, frozenset[tuple[str, str]]] = {
-    grapheme: frozenset(
-        (gpc.symbol, "".join(gpc.phonemes))
-        for gpc in GPC_INVENTORY
-        if gpc.symbol == symbol
-    )
-    for grapheme, symbol in {
-        (gpc.grapheme, gpc.symbol)
-        for gpc in GPC_INVENTORY
-        if gpc.is_suffix or gpc.is_prefix
-    }
+    gpc.grapheme: frozenset(_PAIRS_BY_SYMBOL[gpc.symbol])
+    for gpc in GPC_INVENTORY
+    if gpc.is_suffix or gpc.is_prefix
 }
 _ALL_AFFIX_PAIRS = frozenset().union(*_AFFIX_PAIRS.values())
 
