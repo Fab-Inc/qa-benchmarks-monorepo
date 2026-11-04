@@ -223,4 +223,4 @@ def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
                 is_monosyllabic=count_syllables(arpabet_variant) == 1,
             )
         )
-    return tuple(pronunciations)
+    return tuple(dict.fromkeys(pronunciations))
