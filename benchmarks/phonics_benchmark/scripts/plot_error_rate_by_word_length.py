@@ -1,10 +1,11 @@
-"""Average false positive or false negative rate by word length, per hardware tier.
+"""Pooled false positive or false negative rate by word length, per hardware tier.
 
 --error fp: share of decodable words wrongly flagged as non-decodable, FP / (FP + TN).
 --error fn: share of non-decodable words the model missed, FN / (FN + TP).
 
-Counts are pooled over every selected model in a tier, so each rate is
-opportunity-weighted: a model that saw more words in a bin counts for more.
+Counts are pooled over every selected model in a tier: each rate is the summed errors
+divided by the summed words that could have been errors, not a mean of per-model
+rates. A model that saw more words in a bin counts for more.
 Each line gets a shaded confidence band from an item-level bootstrap (1,000
 replicates, 95% by default; --n-bootstrap 0 turns it off).
 
@@ -156,13 +157,10 @@ def plot(
     # Fixed position, shared with the calibration plot, so it never moves between plots.
     ax.legend(frameon=False, loc="upper left")
     ax.set_title(
-        f"Average {label} by word length ({language.title()})\n{title_suffix}",
+        f"Pooled {label} by word length ({language.title()})\n{title_suffix}",
         fontweight="bold",
     )
-    note = (
-        f"{error.upper()} rate averaged (opportunity-weighted) across the {ranking} "
-        "in each hardware tier."
-    )
+    note = f"{error.upper()} rate pooled across the {ranking} in each hardware tier"
     if has_ci:
         n_bootstrap, ci_level = table.n_bootstrap.iloc[0], table.ci_level.iloc[0]
         note += "\n" + common.ci_note(int(n_bootstrap), float(ci_level))
