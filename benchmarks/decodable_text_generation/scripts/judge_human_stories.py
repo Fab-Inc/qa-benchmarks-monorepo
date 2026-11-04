@@ -28,6 +28,7 @@ from decodable_text_generation.judge.resume import (
 )
 from decodable_text_generation.judge.rubric import (
     derive_tags,
+    language_name_for_profile,
     load_rubric,
     packaged_rubric_path,
     rubric_sha256,
@@ -60,12 +61,16 @@ def input_tokens(model: str, call: dict) -> int | None:
     return total - completion - extra
 
 
+_LANGUAGE_DIRS = {"en": "english", "sw": "kiswahili"}
+
+
 def judge_stories(
     stories_path: Path = DEFAULT_STORIES,
     data_root: Path = DEFAULT_DATA_ROOT,
     outdir: Path = DEFAULT_OUTDIR,
     judges: str = "gemini-3.5-flash,claude-opus-5",
     limit: int | None = None,
+    language: str = "en",
     fresh: bool = False,
 ) -> None:
     rows = [
@@ -76,7 +81,7 @@ def judge_stories(
     profiles_path = (
         data_root
         / "curriculum_aligned"
-        / "english"
+        / _LANGUAGE_DIRS[language]
         / "student_knowledge_profiles.jsonl"
     )
     profiles = {
@@ -157,6 +162,7 @@ def judge_stories(
                     student_knowledge_id=pid,
                     student_knowledge=profile["student_knowledge"],
                     target_knowledge=profile["target_knowledge"],
+                    language=language,
                 )
                 tags = derive_tags(
                     pid,
@@ -167,8 +173,9 @@ def judge_stories(
                     max_frame_repeats=metrics.get("max_frame_repeats") or 0,
                 )
                 nondecodable = metrics["unique_nondecodable_words"]
+                curriculum = "Tusome" if language == "sw" else "UFLI"
                 context = (
-                    f"Student profile: {pid} (UFLI).\n"
+                    f"Student profile: {pid} ({curriculum}).\n"
                     "Words not decodable for this student: "
                     f"{', '.join(nondecodable) if nondecodable else 'none'}."
                 )
@@ -190,6 +197,12 @@ def judge_stories(
                             metrics.get("target_rule_words") or {}
                         ).items()
                     ]
+                    + [
+                        f"{unit}: {', '.join(words)}"
+                        for unit, words in (
+                            metrics.get("target_unit_words") or {}
+                        ).items()
+                    ]
                     + (metrics.get("target_sight_words_used") or [])
                 )
                 if target_parts:
@@ -202,6 +215,7 @@ def judge_stories(
                     set().union(
                         *(metrics.get("target_gpc_words") or {}).values(),
                         *(metrics.get("target_rule_words") or {}).values(),
+                        *(metrics.get("target_unit_words") or {}).values(),
                     )
                     | set(metrics.get("target_sight_words_used") or [])
                 )
@@ -222,6 +236,7 @@ def judge_stories(
                     placeholders={
                         "target_words": ", ".join(target_word_list),
                         "repetition_example": metrics.get("frame_example") or "",
+                        "language": language_name_for_profile(pid),
                     },
                 )
                 judgment = (
