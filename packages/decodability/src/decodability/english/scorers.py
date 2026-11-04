@@ -1,19 +1,38 @@
+from collections import defaultdict
+
 from decodability.english.definitions import (
     UFLI_GPC_INVENTORY,
     normalize_gpc_grapheme,
 )
 from decodability.english.extract_phonemes import get_word_phonemes
-from decodability.english.gpc_parser import GPC, GPCMatch, parse_gpcs
+from decodability.english.gpc_parser import GPCMatch, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 
-GPC_INVENTORY = tuple(
-    GPC(gpc_id, grapheme, phonemes) for gpc_id, grapheme, phonemes in UFLI_GPC_INVENTORY
-)
+GPC_INVENTORY = UFLI_GPC_INVENTORY
 
 # Teaching any of these doubled consonants (lesson 67) introduces the
 # general doubling convention, unlocking DERIVED_DOUBLE_/
 # DERIVED_REPEAT_FINAL_ matches for all consonants.
 _DOUBLING_CONSONANTS = frozenset({"bb", "cc", "dd", "gg", "mm", "nn", "pp", "rr", "tt"})
+
+# The silent-e family: split digraphs, soft c/g before silent e, -ve, and
+# short-u o-e. The last of these is taught at lesson 62, when the
+# silent-final-e convention counts as established — before then, a student
+# cannot be assumed to read a trailing e as silent.
+_SILENT_E_FAMILY = frozenset(
+    {
+        ("a-e", "eɪ"),
+        ("i-e", "aɪ"),
+        ("o-e", "oʊ"),
+        ("e-e", "i"),
+        ("u-e", "u"),
+        ("u-e", "ju"),
+        ("ce", "s"),
+        ("ge", "dʒ"),
+        ("ve", "v"),
+        ("o-e", "ʌ"),
+    }
+)
 
 
 def normalize_taught_gpcs(
@@ -30,6 +49,8 @@ def normalize_taught_gpcs(
 
 
 def _is_taught_match(match: GPCMatch, taught_set: set, taught_graphemes: set) -> bool:
+    if match.gpc.id == "SILENT_FINAL_E":
+        return _SILENT_E_FAMILY <= taught_set
     if match.gpc.is_silent:
         return True
     if match.gpc.id == "REDUCED_YOD_U":
@@ -110,14 +131,14 @@ def score_known_gpcs_english(
         return 0.0
 
     try:
-        variants = get_word_phonemes(word.lower())
+        variants = get_word_phonemes(word)
     except KeyError:
         return 0.0
 
     taught_set, taught_graphemes = normalize_taught_gpcs(taught_gpcs)
 
     for variant in variants:
-        for parse in parse_gpcs(word.lower(), variant, GPC_INVENTORY):
+        for parse in parse_gpcs(word, variant, GPC_INVENTORY):
             if all(
                 _is_taught_match(match, taught_set, taught_graphemes) for match in parse
             ):
@@ -173,8 +194,11 @@ def score_sight_words_english(
     ):
         return 1.0
 
+    taught_pairs, _ = normalize_taught_gpcs(student_knowledge.gpcs)
     if (
-        _sight_word_stem(word.lower(), taught_sight_words, student_knowledge.affixes)
+        _sight_word_stem(
+            word.lower(), taught_sight_words, student_knowledge.affixes, taught_pairs
+        )
         is not None
     ):
         return 1.0
@@ -207,6 +231,34 @@ _SUFFIX_MORPHEMES: tuple[tuple[str, frozenset[str]], ...] = (
     ("ible", frozenset({"-ible"})),
     ("s", frozenset({"-s"})),
 )
+
+
+# The ``-ed`` affix unit (taught at lesson 18) covers only the /əd/
+# allomorph — the e is pronounced after t/d stems (``needed``). After other
+# stems the e is silent (``walked`` /t/, ``saved`` /d/), which relies on the
+# silent-e convention — those endings need the taught -ed→d / -ed→t pair
+# (lesson 64), not the affix alone.
+_ED_SCHWA_STEM_FINALS = frozenset("td")
+_ED_SILENT_E_PAIRS = frozenset({("ed", "d"), ("ed", "t")})
+_ED_SCHWA_PAIR = ("ed", "əd")
+
+# Every affix string → the normalized (symbol, phonemes) pairs that license
+# it — including unmarked siblings, since the marker doesn't change the
+# correspondence (``s → z`` reads the ``-s`` ending in ``friends``). A
+# correspondence decodes before the affix unit is officially taught, so a
+# taught pair unlocks the same ending on a sight-word stem:
+# ``("ing", "ɪŋ")`` at lesson 51 reads ``walk`` + ``ing`` well before the
+# ``-ing`` affix is introduced at 65.
+_PAIRS_BY_SYMBOL: dict[str, set[tuple[str, str]]] = defaultdict(set)
+for gpc in GPC_INVENTORY:
+    _PAIRS_BY_SYMBOL[gpc.symbol].add((gpc.symbol, "".join(gpc.phonemes)))
+
+_AFFIX_PAIRS: dict[str, frozenset[tuple[str, str]]] = {
+    gpc.grapheme: frozenset(_PAIRS_BY_SYMBOL[gpc.symbol])
+    for gpc in GPC_INVENTORY
+    if gpc.is_suffix or gpc.is_prefix
+}
+_ALL_AFFIX_PAIRS = frozenset().union(*_AFFIX_PAIRS.values())
 
 
 # Word openings a taught prefix unit unlocks on a sight-word stem. Prefixes
@@ -252,6 +304,7 @@ def _sight_word_stem(
     word: str,
     sight_words: set[str],
     affixes: set[str],
+    taught_pairs: set[tuple[str, str]],
     *,
     _depth: int = 2,
 ) -> str | None:
@@ -264,14 +317,31 @@ def _sight_word_stem(
     can carry one affix at each edge (``unfriendly`` → ``un-`` + ``friend``
     + ``-ly``) but no more.
     """
-    if not affixes or _depth <= 0:
+    if _depth <= 0 or not (affixes or taught_pairs & _ALL_AFFIX_PAIRS):
         return None
     for stem, morphemes in (*_suffix_stems(word), *_prefix_stems(word)):
-        if not morphemes & affixes:
+        if "-ed" in morphemes:
+            # The /əd/ reading (e pronounced, t/d stems) is licensed by the
+            # -ed affix or the -ed→əd pair; the silent-e /d/,/t/ readings
+            # need the -ed affix or an -ed→d/-ed→t pair.
+            ed_pairs = (
+                _ED_SILENT_E_PAIRS | {_ED_SCHWA_PAIR}
+                if stem[-1:] in _ED_SCHWA_STEM_FINALS
+                else _ED_SILENT_E_PAIRS
+            )
+            licensed = "-ed" in affixes or bool(taught_pairs & ed_pairs)
+        else:
+            licensed = bool(morphemes & affixes) or any(
+                taught_pairs & _AFFIX_PAIRS.get(morpheme, frozenset())
+                for morpheme in morphemes
+            )
+        if not licensed:
             continue
         if stem in sight_words:
             return stem
-        inner = _sight_word_stem(stem, sight_words, affixes, _depth=_depth - 1)
+        inner = _sight_word_stem(
+            stem, sight_words, affixes, taught_pairs, _depth=_depth - 1
+        )
         if inner is not None:
             return inner
     return None
@@ -299,7 +369,12 @@ def _compound_segments(
     def _is_sight_form(chunk: str) -> bool:
         if chunk in sight_words:
             return True
-        stem = _sight_word_stem(chunk, sight_words, student_knowledge.affixes)
+        stem = _sight_word_stem(
+            chunk,
+            sight_words,
+            student_knowledge.affixes,
+            normalize_taught_gpcs(student_knowledge.gpcs)[0],
+        )
         return stem is not None and (len(stem) >= 3 or "'" in chunk)
 
     for split in range(2, len(word) - 1):
