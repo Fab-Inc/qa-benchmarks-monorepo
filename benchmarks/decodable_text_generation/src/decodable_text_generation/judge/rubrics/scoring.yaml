@@ -1,19 +1,36 @@
 stages:
-  S1:
-    lesson_min: 1
-    length: [20, 80]
-    target_words_min: 2
-    decodable_floor: 85.0
-    decodable_ceiling: 100.0
-  S2:
-    lesson_min: 20
-    length: [50, 120]
-    target_words_min: 2
-    decodable_floor: 85.0
-    decodable_ceiling: 100.0
-  S3:
-    lesson_min: 84
-    length: [100, 200]
-    target_words_min: 4
-    decodable_floor: 85.0
-    decodable_ceiling: 100.0
+  English:
+    S1:
+      lesson_min: 1
+      length: [20, 80]
+      target_words_min: 2
+      decodable_floor: 85.0
+      decodable_ceiling: 100.0
+    S2:
+      lesson_min: 20
+      length: [50, 120]
+      target_words_min: 2
+      decodable_floor: 85.0
+      decodable_ceiling: 100.0
+    S3:
+      lesson_min: 84
+      length: [100, 200]
+      target_words_min: 4
+      decodable_floor: 85.0
+      decodable_ceiling: 100.0
+  Kiswahili:
+    S1:
+      lesson_min: G1W1
+      length: [5,50]
+      decodable_floor: 80.0
+      decodable_ceiling: 95.0
+    S2:
+      lesson_min: G1W7
+      length: [25,70]
+      decodable_floor: 80.0
+      decodable_ceiling: 95.0
+    S3:
+      lesson_min: G1W18
+      length: [45,120]
+      decodable_floor: 80.0
+      decodable_ceiling: 95.0

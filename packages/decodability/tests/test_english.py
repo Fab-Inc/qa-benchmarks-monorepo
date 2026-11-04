@@ -381,13 +381,27 @@ class TestSuffixedSFallback:
         assert variants == (_say("h", "ɪ", "s"),)
 
     def test_fallback_uses_override_for_base(self, monkeypatch):
-        """An override for the base also serves its ``s``-suffixed form."""
+        """An override for the base also serves its ``s``-suffixed form.
+
+        ``es``-ending words additionally get the syllabic plural allomorphs
+        /əz/ and /ɪz/, so ``zzzbases`` gets all four suffixes of ``zzzbase``.
+        """
         monkeypatch.setitem(CMUDICT_OVERRIDES, "zzzbase", [["Z", "IY1"]])
         variants = get_word_phonemes("zzzbases")
-        assert variants == (
-            _say("z", "i", "s"),
-            _say("z", "i", "z"),
-        )
+        assert sorted(tuple(p.ipa for p in v.phonemes) for v in variants) == [
+            ("z", "i", "s"),
+            ("z", "i", "z"),
+            ("z", "i", "ə", "z"),
+            ("z", "i", "ɪ", "z"),
+        ]
+
+    def test_es_plural_variants_for_oov_word(self):
+        """``munches`` is OOV but ``munch`` is not — the -es fallback should
+        produce the syllabic-plural variants the parser can match."""
+        variants = get_word_phonemes("munches")
+        ipas = {tuple(p.ipa for p in v.phonemes) for v in variants}
+        assert ("m", "ʌ", "n", "tʃ", "ə", "z") in ipas
+        assert ("m", "ʌ", "n", "tʃ", "ɪ", "z") in ipas
 
     @pytest.mark.parametrize("word", ["zzznotaword", "zzznotawords"])
     def test_still_raises_when_no_base_available(self, word: str):
@@ -1501,7 +1515,6 @@ class TestRegressionNormalizePhonemesOnCorpusWords:
             ("deer", "G085"),  # ultimate_phonics: ee → i
             ("beer", "G085"),  # ultimate_phonics: ee → i
             ("cheer", "G085"),  # ultimate_phonics: ee → i
-            ("year", "G086"),  # ultimate_phonics: ea → i
         ],
     )
     def test_pre_r_laxing_reversal_lets_ee_ea_parse(
@@ -1519,6 +1532,30 @@ class TestRegressionNormalizePhonemesOnCorpusWords:
             any(match.gpc.id == expected_vowel_gpc for match in parse)
             for _, parse in parses
         ), f"{word} should parse via {expected_vowel_gpc}"
+
+    def test_pre_r_laxing_reversal_keeps_lax_variant_for_ear(self):
+        """``ear`` spellings keep the lax reading alongside the tense one.
+
+        The curriculum teaches ear → /ɪr/ (``hear``, ``year``), so
+        ``get_word_phonemes`` emits both the un-laxed /i r/ variant
+        (``ea → i`` + ``r``) and the original lax /ɪ r/ variant
+        (``ear → ɪr``).
+        """
+        variants, parses = _parse_corpus_word("year")
+        assert any(
+            tuple(p.ipa for p in v.phonemes) == ("j", "ɪ", "r") for v in variants
+        )
+        assert any(
+            tuple(p.ipa for p in v.phonemes) == ("j", "i", "r") for v in variants
+        )
+        assert any(
+            any(match.gpc.id == "G128" for match in parse)  # ear → ɪr
+            for _, parse in parses
+        )
+        assert any(
+            any(match.gpc.id == "G086" for match in parse)  # ea → i
+            for _, parse in parses
+        )
 
     def test_pre_r_laxing_reversal_preserves_prevocalic_ir(self):
         """A pre-vocalic /ɪ r/ (``lyric`` /lɪrɪk/) is left alone — the fixup

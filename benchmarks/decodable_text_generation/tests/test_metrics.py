@@ -44,13 +44,13 @@ def _knowledge(**kw):
 
 
 class TestStoryMetrics:
-    def test_non_english_returns_empty(self):
+    def test_unsupported_language_returns_empty(self):
         assert (
             story_metrics(
                 "the cat",
                 student_knowledge_id="tusome-ke-l001",
                 student_knowledge=_knowledge(),
-                language="sw",
+                language="fr",
             )
             == {}
         )

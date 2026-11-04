@@ -163,6 +163,7 @@ def test_drop_e(word: str, expected: bool) -> None:
         # "toda" is a CMU entry, but "today" doesn't sound like toda + -y
         ("today", True),
         ("anybody", True),
+        ("yesterday", True),
         # Inflected forms are not compounds
         ("hottest", False),
         ("walked", False),
@@ -183,7 +184,6 @@ def test_drop_e(word: str, expected: bool) -> None:
         ("import", False),
         # Single words with no real-word split
         ("cat", False),
-        ("yesterday", False),
     ],
 )
 def test_compound(word: str, expected: bool) -> None:

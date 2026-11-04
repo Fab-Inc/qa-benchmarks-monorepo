@@ -8,7 +8,7 @@ Language:
   criteria:
   - id: lang_1
     question: >
-      Is every sentence grammatical English? List each sentence a fluent adult would call
+      Is every sentence grammatical {language}? List each sentence a fluent adult would call
       grammatically wrong (not just stiff or unusual), quoting it with a short reason.
       Awkward but grammatical wording belongs in lang_2, not here.
     criterion_type: positive

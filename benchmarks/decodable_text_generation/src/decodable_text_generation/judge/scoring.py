@@ -48,7 +48,9 @@ import yaml
 
 from decodable_text_generation.judge.rubric import (
     STORY_LEVEL_BANDS,
+    language_for_profile,
     load_scoring_config,
+    stage_config,
 )
 
 TEXT_MEASURES_SECTION = "Text measures"
@@ -56,16 +58,17 @@ TEXT_MEASURES_WEIGHT = 2.0
 
 
 def text_measure_scores(
-    metrics: dict[str, Any], story_level: str | None
+    metrics: dict[str, Any],
+    story_level: str | None,
+    language: str = "en",
 ) -> dict[str, float | None]:
     """Deterministic Text measures sub-scores from stored metrics.
 
-    Floors, ceilings, and per-band caps come from ``rubrics/scoring.yaml``
-    (see ``report_reference_stats.py`` for suggested values).
+    Floors, ceilings, and per-band caps come from the language's section
+    of ``rubrics/scoring.yaml``.
     """
     metrics = metrics or {}
-    cfg = load_scoring_config()
-    stage = (cfg.get("stages") or {}).get(story_level or "") or {}
+    stage = stage_config(language, story_level, load_scoring_config())
     pct = metrics.get("pct_decodable_words")
     floor = stage.get("decodable_floor", 70.0)
     ceiling = stage.get("decodable_ceiling", 90.0)
@@ -113,11 +116,13 @@ def _text_measures_gated(metrics: dict[str, Any]) -> bool:
 
 
 def text_measures_section_score(
-    metrics: dict[str, Any] | None, story_level: str | None
+    metrics: dict[str, Any] | None,
+    story_level: str | None,
+    language: str = "en",
 ) -> float | None:
     """The Text measures section score, including hard-fail gates."""
     metrics = metrics or {}
-    measures = text_measure_scores(metrics, story_level)
+    measures = text_measure_scores(metrics, story_level, language)
     present = [v for v in measures.values() if v is not None]
     if not present:
         return None
@@ -240,9 +245,14 @@ def score_judgment(
     tags = judgment.get("tags") or []
     level_names = [name for name, _ in STORY_LEVEL_BANDS]
     story_level = next((t for t in tags if t in level_names), None)
+    language = language_for_profile(judgment.get("profile_id") or "")
 
-    measures = text_measure_scores(judgment.get("metrics"), story_level)
-    measures_score = text_measures_section_score(judgment.get("metrics"), story_level)
+    measures = text_measure_scores(
+        judgment.get("metrics"), story_level, language
+    )
+    measures_score = text_measures_section_score(
+        judgment.get("metrics"), story_level, language
+    )
     if measures_score is not None:
         weight = float(overrides.get(TEXT_MEASURES_SECTION, TEXT_MEASURES_WEIGHT))
         section_scores[TEXT_MEASURES_SECTION] = {

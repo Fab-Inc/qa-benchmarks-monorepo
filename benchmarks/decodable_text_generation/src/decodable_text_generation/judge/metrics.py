@@ -1,15 +1,16 @@
 """Deterministic story metrics attached to judge judgments.
 
-English-only, curriculum-aligned scope — same as the rubric judge. Most
-data lives in the packaged ``english_reference.json`` written by
-``make_profiles/build_judge_reference_data.py``:
+Curriculum-aligned scope — same as the rubric judge. Most data lives in
+the packaged ``english_reference.json`` written by
+``make_profiles/build_judge_reference_data.py`` (English/UFLI only):
 
 - ``recent_gpcs`` / ``recent_sight_words``: units introduced in the most
   recent ``recent_window`` lessons of each level — the numerators for
   ``recent_pattern_share`` and ``pattern_spread``.
 
 Length bounds come from the manually-set ``rubrics/scoring.yaml`` (band
-``length`` range), not the reference data.
+``length`` range), not the reference data, and apply to any profile that
+carries a level tag (UFLI lessons and Tusome weeks).
 """
 
 from __future__ import annotations
@@ -33,8 +34,8 @@ from decodable_text_generation.judge.knowledge_units import (
 )
 from decodable_text_generation.judge.rubric import (
     lesson_for_profile,
-    level_for_lesson,
-    load_scoring_config,
+    level_tag_for_profile,
+    stage_config,
 )
 from decodable_text_generation.rules import rule_exercised
 
@@ -47,11 +48,13 @@ DECODABILITY_CONFIGS: dict[str, dict] = {
     "sw": {
         "scoring_methods": [
             "score_known_graphemes_kiswahili",
-            "score_known_clusters_and_patterns_kiswahili",
+            "score_known_clusters_and_patterns_lenient_kiswahili",
             "score_whole_words_kiswahili",
         ],
         "aggregations": {
-            "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
+            "kenya_tusome_score": {
+                "name": "kiswahili_kenya_tusome_lenient_aggregator"
+            },
         },
         "score_column": "kenya_tusome_score",
     },
@@ -240,8 +243,15 @@ def story_metrics(
     - ``recent_gpc_words`` / ``recent_heartwords_used`` /
       ``target_units_missing``: the words/units behind those counts, for
       auditability
+
+    For Kiswahili (``language="sw"``) the result carries the same core
+    keys — decodability, length bounds, ``includes_target`` /
+    ``n_target_words`` / ``target_unit_words`` / ``target_units_missing``
+    from the profile's ``target_knowledge`` graphemes and clusters — but
+    none of the UFLI-only fields (recent-pattern share, sight words,
+    spelling rules).
     """
-    if language != "en" or not student_knowledge:
+    if language not in DECODABILITY_CONFIGS or not student_knowledge:
         return {}
 
     config, score_column = get_decodability_config(language)
@@ -266,33 +276,36 @@ def story_metrics(
     metrics["max_frame_repeats"] = frame_n
     metrics["frame_example"] = frame_example
 
+    band = level_tag_for_profile(student_knowledge_id)
+    if band:
+        length_range = stage_config(language, band).get("length")
+        bounds = tuple(length_range) if length_range else None
+        metrics["reference_words_min"] = bounds[0] if bounds else None
+        metrics["reference_words_max"] = bounds[1] if bounds else None
+        metrics["length_in_range"] = (
+            bounds[0] <= scored.n_words <= bounds[1] if bounds else None
+        )
+        if bounds:
+            lo, hi = bounds
+            n = scored.n_words
+            metrics["length_score"] = (
+                max(0.0, (n - lo / 2) / (lo / 2))
+                if n < lo
+                else 1.0
+                if n <= hi
+                else max(0.0, 1.0 - (n - hi) / hi)
+            )
+        else:
+            metrics["length_score"] = None
+
+    if language != "en":
+        return _kiswahili_target_metrics(metrics, scored, target_knowledge)
+
     lesson = lesson_for_profile(student_knowledge_id)
     if lesson is None:
         return metrics
 
     data = load_reference_data()
-    band = level_for_lesson(lesson)
-    length_range = ((load_scoring_config().get("stages") or {}).get(band) or {}).get(
-        "length"
-    )
-    bounds = tuple(length_range) if length_range else None
-    metrics["reference_words_min"] = bounds[0] if bounds else None
-    metrics["reference_words_max"] = bounds[1] if bounds else None
-    metrics["length_in_range"] = (
-        bounds[0] <= scored.n_words <= bounds[1] if bounds else None
-    )
-    if bounds:
-        lo, hi = bounds
-        n = scored.n_words
-        metrics["length_score"] = (
-            max(0.0, (n - lo / 2) / (lo / 2))
-            if n < lo
-            else 1.0
-            if n <= hi
-            else max(0.0, 1.0 - (n - hi) / hi)
-        )
-    else:
-        metrics["length_score"] = None
 
     # Reference GPCs carry workbook edge markers ("-er", "pre-"); word units
     # use the parser's stripped symbols, so normalize before comparing.
@@ -426,5 +439,74 @@ def story_metrics(
         target_units_missing=sorted(f"gpc:{g}-{p}" for g, p in target_gpcs - hit_gpcs)
         + [f"sight:{w}" for w in sorted(target_sight - hit_sight)]
         + [f"rule:{r}" for r in sorted(set(target_rules) - hit_rules)],
+    )
+    return metrics
+
+
+# --- Kiswahili targets -------------------------------------------------------
+#
+# Tusome ``target_knowledge`` carries ``graphemes`` and ``clusters`` (and
+# optionally ``whole_words``). A word exercises a target unit when it
+# contains that grapheme/cluster — Kiswahili's shallow orthography makes
+# substring matching adequate, unlike the English GPC-parse credit.
+
+
+def _kiswahili_target_units(target_knowledge: Mapping[str, Any] | None) -> set[str]:
+    tk = target_knowledge or {}
+    units = {t.lower() for t in tk.get("graphemes") or []}
+    units |= {t.lower() for t in tk.get("clusters") or []}
+    units |= {str(w).lower() for w in tk.get("whole_words") or []}
+    return units
+
+
+def _kiswahili_target_description(
+    target_knowledge: Mapping[str, Any] | None,
+) -> str | None:
+    tk = target_knowledge or {}
+    parts = [
+        f"{name}: {', '.join(tk[name])}"
+        for name in ("graphemes", "clusters", "whole_words")
+        if tk.get(name)
+    ]
+    return "; ".join(parts) or None
+
+
+def _kiswahili_target_metrics(
+    metrics: dict[str, Any],
+    scored: ScoredText,
+    target_knowledge: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Target metrics for Kiswahili stories — same shape as the en block."""
+    metrics["target_description"] = _kiswahili_target_description(target_knowledge)
+    targets = _kiswahili_target_units(target_knowledge)
+
+    unit_words: dict[str, list[str]] = {}
+    for word in scored.unique_words:
+        for unit in targets:
+            if unit in word:
+                unit_words.setdefault(unit, []).append(word)
+    hit = set(unit_words)
+    n_target = len(targets)
+    # Unique words carrying any target unit — 0→0.0, 1→0.5, 2+→1.0.
+    target_word_count = (
+        len(set().union(*unit_words.values())) if n_target else None
+    )
+    metrics.update(
+        n_target_units=n_target,
+        n_target_units_in_story=len(hit),
+        includes_target=(len(hit) / n_target if n_target else None),
+        n_target_words=target_word_count,
+        target_practice=(
+            min(1.0, target_word_count / 2)
+            if target_word_count is not None
+            else None
+        ),
+        target_unit_words={
+            unit: sorted(ws) for unit, ws in sorted(unit_words.items())
+        },
+        target_words=sorted(set().union(*unit_words.values()))
+        if unit_words
+        else [],
+        target_units_missing=sorted(targets - hit),
     )
     return metrics

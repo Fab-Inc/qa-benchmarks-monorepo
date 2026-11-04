@@ -20,7 +20,9 @@ from decodable_text_generation.judge.rubric import (
 
 
 class TestLevelBands:
-    """Stages from scoring.yaml: S1 = lessons 1-19, S2 = 20-83, S3 = 84+."""
+    """UFLI stages from scoring.yaml: S1 = lessons 1-19, S2 = 20-83,
+    S3 = 84+. Tusome weeks band separately: g1 wk01-06 = S1, wk07-17 = S2,
+    wk18+ and any grade >=2 = S3."""
 
     @pytest.mark.parametrize(
         ("lesson", "expected"),
@@ -48,6 +50,17 @@ class TestLevelBands:
         assert level_tag_for_profile("ufli-en-l067") == "S2"
         assert level_tag_for_profile("ufli-en-l109") == "S3"
         assert level_tag_for_profile("ufli-en-j05") is None
+
+    def test_level_tag_for_profile_tusome(self):
+        assert level_tag_for_profile("tusome-ke-g1-wk01") == "S1"
+        assert level_tag_for_profile("tusome-ke-g1-wk06") == "S1"
+        assert level_tag_for_profile("tusome-ke-g1-wk07") == "S2"
+        assert level_tag_for_profile("tusome-ke-g1-wk17") == "S2"
+        assert level_tag_for_profile("tusome-ke-g1-wk18") == "S3"
+        assert level_tag_for_profile("tusome-ke-g1-wk30") == "S3"
+        # grade-2 profiles follow the grade-1 sequence: always S3
+        assert level_tag_for_profile("tusome-ke-g2-wk03") == "S3"
+        assert level_tag_for_profile("tusome-ke-l005") is None
 
 
 class TestCriterionApplies:
@@ -90,6 +103,7 @@ class TestCriterionApplies:
 class TestDeriveTags:
     def test_level_tag_from_profile(self):
         assert derive_tags("ufli-en-l109") == {"S3"}
+        assert derive_tags("tusome-ke-g1-wk10") == {"S2"}
         assert derive_tags("ufli-en-j05") == set()
 
     def test_ed_taught_from_affixes(self):
