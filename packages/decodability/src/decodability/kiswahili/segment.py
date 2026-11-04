@@ -294,7 +294,7 @@ def _clusterings_of_run(
 def find_clustering_variants(
     graphemes: Sequence[GraphemeSpan],
 ) -> list[list[Span]]:
-    """Enumerate every viable clustering of an already-decomposed word.
+    """Enumerate every viable consonant clustering of an already-decomposed word.
 
     Each variant is the list of cluster spans under one resolution of the
     ambiguous nasal boundaries. Variants are ordered fused-first: index 0 is
