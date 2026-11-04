@@ -28,7 +28,8 @@ Writes, into `{run directory}/report`:
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``irt_item_estimates.csv`` — Rasch difficulty per item
 - ``irt_model_capability.csv`` — Rasch capability per model
-- ``irt_item_difficulty.png`` — estimated difficulty against item composition
+- ``item_discrimination.csv`` — proportion correct and item-rest discrimination
+  per item, items least like the rest of the test first
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -42,6 +43,7 @@ import pandas as pd
 import typer
 from phonics_benchmark.bootstrap import bootstrap_metric_cis
 from phonics_benchmark.irt import IRTFitError, fit_rasch, fit_warnings
+from phonics_benchmark.item_statistics import simple_difficulty_and_discrimination
 from phonics_benchmark.parsing import parse_word_list
 from phonics_benchmark.plots import (
     save_accuracy_by_nondecodable_count_plot,
@@ -264,6 +266,48 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
     return [items_path.name, models_path.name, difficulty_plot_path.name]
 
 
+def write_item_discrimination(
+    scored_results: pd.DataFrame, report_dir: Path, seed: int
+) -> list[str]:
+    """Compute and write simple difficulty and discrimination per item.
+    Simple difficulty and discrimination are defined as
+        - difficulty: proportion of models that answered the item correctly.
+        - discrimination: point-biserial correlation between
+            - response to the item
+            - total score of the other items
+
+    Items are sorted so the ones least like the rest of the test come first:
+    lowest permutation p-value, then hardest. Items no model (or every model)
+    got right have no discrimination and sort last.
+
+    Returns the filenames written, or an empty list if the run has too few
+    models.
+    """
+    answered = scored_results[scored_results["call_status"] != CALL_STATUS_ERROR]
+    try:
+        items = simple_difficulty_and_discrimination(answered, seed=seed)
+    except IRTFitError as e:
+        typer.secho(
+            f"\nSkipping item discrimination: {e}", fg=typer.colors.YELLOW, err=True
+        )
+        return []
+
+    items = items.sort_values(
+        ["p_value_low_discrimination", "proportion_correct"], na_position="last"
+    )
+    path = report_dir / "item_discrimination.csv"
+    items.to_csv(path, index=False)
+
+    flagged = int((items["p_value_low_discrimination"] < 0.05).sum())
+    typer.echo(
+        f"\nItem discrimination* by {len(items)} items: {flagged} items have "
+        "lower discrimination than chance at p < 0.05 (one-sided, uncorrected).\n"
+        "*Item discrimination is computed as the correlation (point-biserial) of "
+        "each item's responses with the total score of the other items.\n"
+    )
+    return [path.name]
+
+
 def report_on_run(
     run_id: str = typer.Option(
         ...,
@@ -301,7 +345,10 @@ def report_on_run(
     seed: int = typer.Option(
         0,
         "--seed",
-        help="Bootstrap seed. Fixed by default so reruns give the same interval.",
+        help=(
+            "Seed for the bootstrap and the discrimination permutation tests. "
+            "Fixed by default so reruns give the same results."
+        ),
     ),
 ) -> None:
     """Report on a benchmark run and write its per-model summary and plots."""
@@ -374,6 +421,9 @@ def report_on_run(
     irt_files = write_irt_estimates(results, report_dir)
 
     written.extend(irt_files)
+
+    # Which items do the stronger models not do better on?
+    written.extend(write_item_discrimination(results, report_dir, seed))
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:
