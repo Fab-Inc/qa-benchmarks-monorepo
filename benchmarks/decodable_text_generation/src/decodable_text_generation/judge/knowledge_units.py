@@ -107,7 +107,9 @@ def word_units_english(word: str, profile: EnglishUnitsProfile) -> set[tuple]:
     units: set[tuple] = set()
     if lowered in profile.sight_words:
         units.add(("sight", lowered))
-    stem = _sight_word_stem(lowered, profile.sight_words, profile.affixes)
+    stem = _sight_word_stem(
+        lowered, profile.sight_words, profile.affixes, profile.taught_set
+    )
     if stem is not None:
         units.add(("sight", stem))
 
