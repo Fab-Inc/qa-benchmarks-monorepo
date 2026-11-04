@@ -46,8 +46,8 @@ def test_child_prompt_renders_all_sections() -> None:
     assert "DECODING RULES" in prompt
     assert "sight word" in prompt  # en decoding rules wording
     assert "English" in prompt
-    assert "- Known GPCs: a -> /æ/" in prompt
-    assert "- Known sight words: the" in prompt
+    assert '- Known GPCs: "a" → "æ"' in prompt
+    assert '- Known sight words: "the"' in prompt
     assert "Generate a list of 20 words" in prompt
     assert "<text>" in prompt
     assert "TARGET" not in prompt
@@ -65,8 +65,8 @@ def test_prompt_surfaces_known_affixes() -> None:
     }
     prompt = build_generation_prompt("decodable_text_generation", item, "en")
 
-    assert "- Known affixes: -ed, un-" in prompt
-    assert "ed -> /t/" in prompt  # stripped pair still listed as letter knowledge
+    assert '- Known affixes: "-ed", "un-"' in prompt
+    assert '"-ed" → "t"' in prompt  # pair still listed as letter knowledge
 
 
 def test_sw_prompt_uses_swahili_rules_and_knowledge() -> None:
@@ -85,8 +85,8 @@ def test_curriculum_prompt_renders_target() -> None:
     prompt = build_generation_prompt("decodable_text_generation_curriculum", item, "en")
 
     assert "TARGET" in prompt
-    assert "- Target GPCs: n -> /n/" in prompt
-    assert "- Target sight words: was" in prompt
+    assert '- Target GPCs: "n" → "n"' in prompt
+    assert '- Target sight words: "was"' in prompt
 
 
 def test_curriculum_prompt_without_target_fails() -> None:
@@ -141,10 +141,10 @@ def test_get_decoding_rules_unknown_language() -> None:
 
 def test_render_target_formats_pairs_and_words() -> None:
     rendered = render_target({"gpcs": [["n", "n"]], "sight_words": ["was"]})
-    assert "- Target GPCs: n -> /n/" in rendered
-    assert "- Target sight words: was" in rendered
+    assert '- Target GPCs: "n" → "n"' in rendered
+    assert '- Target sight words: "was"' in rendered
 
-    assert render_target({"graphemes": ["b", "a"]}) == "- Target graphemes: a, b"
+    assert render_target({"graphemes": ["b", "a"]}) == '- Target graphemes: "a", "b"'
 
 
 def test_render_target_description_and_rules() -> None:

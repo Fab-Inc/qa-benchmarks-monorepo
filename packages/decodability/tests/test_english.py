@@ -62,18 +62,19 @@ class TestEnglishStudentKnowledgeModel:
             ),
             (
                 {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
-                "- Known GPCs: c -> /k/; a -> /æ/; t -> /t/\n- Known sight words: None",
+                '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"\n'
+                "- Known sight words: None",
             ),
             (
                 {"sight_words": {"The", "and"}},
-                "- Known GPCs: None\n- Known sight words: and, the",
+                '- Known GPCs: None\n- Known sight words: "and", "the"',
             ),
             (
                 {
                     "gpcs": [("th", "ð"), ("th", "θ")],
                     "sight_words": {"the"},
                 },
-                "- Known GPCs: th -> /ð/; th -> /θ/\n- Known sight words: the",
+                '- Known GPCs: "th" → "ð"; "th" → "θ"\n- Known sight words: "the"',
             ),
         ],
     )

@@ -53,8 +53,8 @@ class EnglishStudentKnowledge(BaseModel):
 
     def __str__(self) -> str:
         """Return a string representation of the EnglishStudentKnowledge instance."""
-        gpcs = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in self.gpcs)
-        sight_words = ", ".join(sorted(self.sight_words))
+        gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
+        sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
 
         return "\n".join(
             [
