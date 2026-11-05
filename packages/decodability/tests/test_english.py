@@ -62,6 +62,36 @@ class TestEnglishStudentKnowledgeModel:
             ),
             (
                 {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
+                '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"\n'
+                "- Known sight words: None",
+            ),
+            (
+                {"sight_words": {"The", "and"}},
+                '- Known GPCs: None\n- Known sight words: "and", "the"',
+            ),
+            (
+                {
+                    "gpcs": [("th", "ð"), ("th", "θ")],
+                    "sight_words": {"the"},
+                },
+                '- Known GPCs: "th" → "ð"; "th" → "θ"\n- Known sight words: "the"',
+            ),
+        ],
+    )
+    def test_english_student_knowledge_str(self, kwargs: dict, expected_str: str):
+        """Test the string representation of EnglishStudentKnowledge."""
+        assert str(EnglishStudentKnowledge(**kwargs)) == expected_str
+        assert EnglishStudentKnowledge(**kwargs).render("quoted") == expected_str
+
+    @pytest.mark.parametrize(
+        "kwargs, expected_plain",
+        [
+            (
+                {},
+                "- Known GPCs: None\n- Known sight words: None",
+            ),
+            (
+                {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
                 "- Known GPCs: c -> /k/; a -> /æ/; t -> /t/\n- Known sight words: None",
             ),
             (
@@ -77,9 +107,21 @@ class TestEnglishStudentKnowledgeModel:
             ),
         ],
     )
-    def test_english_student_knowledge_str(self, kwargs: dict, expected_str: str):
-        """Test the string representation of EnglishStudentKnowledge."""
-        assert str(EnglishStudentKnowledge(**kwargs)) == expected_str
+    def test_english_student_knowledge_render_plain(
+        self, kwargs: dict, expected_plain: str
+    ):
+        """The "plain" notation used by decodable text generation."""
+        assert EnglishStudentKnowledge(**kwargs).render("plain") == expected_plain
+
+    def test_english_student_knowledge_render_omits_affixes(self):
+        """Affixes stay out of the rendered block; generation adds its own line."""
+        knowledge = EnglishStudentKnowledge(gpcs=[("-ed", "t")], affixes={"-ed"})
+        for fmt in ("quoted", "plain"):
+            assert "affix" not in knowledge.render(fmt).lower()
+
+    def test_english_student_knowledge_render_rejects_unknown_formats(self):
+        with pytest.raises(ValueError, match="Unknown knowledge format 'v2'"):
+            EnglishStudentKnowledge().render("v2")  # type: ignore[arg-type]
 
 
 class TestScorers:
