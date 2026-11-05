@@ -74,21 +74,27 @@ def _add_cot_caught_variants(
     extra pronunciation variant lets a student taught only the merged reading
     still match the word.
 
+    The merger does not apply before /r/ — ``for`` /fɔr/ and ``far`` /fɑr/
+    stay distinct even for merged speakers — so an ``AO`` immediately
+    followed by ``R`` is left alone.
+
     Runs on ARPABET, before ``convert_arpabet_to_phoneme``, so the new variant
     goes through the same stress handling and normalization as CMU's own.
-    Stress digits are preserved (``AO1`` -> ``AA1``); every AO in a variant is
-    swapped; duplicates collapse in first-seen order.
+    Stress digits are preserved (``AO1`` -> ``AA1``); duplicates collapse in
+    first-seen order.
     """
     expanded: list[list[str]] = []
     for variant in arpabet_variants:
         expanded.append(list(variant))
-        if any(token.rstrip(STRESS_DIGITS) == "AO" for token in variant):
-            expanded.append(
-                [
-                    "AA" + token[2:] if token.rstrip(STRESS_DIGITS) == "AO" else token
-                    for token in variant
-                ]
-            )
+        merged = [
+            "AA" + token[2:]
+            if token.rstrip(STRESS_DIGITS) == "AO"
+            and (i + 1 == len(variant) or variant[i + 1].rstrip(STRESS_DIGITS) != "R")
+            else token
+            for i, token in enumerate(variant)
+        ]
+        if merged != variant:
+            expanded.append(merged)
     return [list(v) for v in dict.fromkeys(tuple(v) for v in expanded)]
 
 
@@ -150,6 +156,26 @@ def _suffixed_s_variants(key: str) -> list[list[str]] | None:
     return [variant + [suffix] for variant in base_variants for suffix in ("S", "Z")]
 
 
+def _add_contraction_variants(
+    key: str, arpabet_variants: list[list[str]]
+) -> list[list[str]]:
+    """Add the common syllabic-/n/ reading of ``n't`` contractions.
+
+    CMUdict transcribes an explicit unstressed vowel in forms such as
+    ``isn't`` and ``wasn't``. Ordinary speech also permits /n/ to carry that
+    syllable, so the spelling's ``n`` can align directly without inventing an
+    unspelled schwa. This is productive for ``n't``, not a word override.
+    """
+    expanded = [list(variant) for variant in arpabet_variants]
+    if not key.endswith("n't"):
+        return expanded
+    for variant in arpabet_variants:
+        for index in range(1, len(variant) - 1):
+            if variant[index] in {"AH0", "IH0"} and variant[index + 1] == "N":
+                expanded.append([*variant[:index], *variant[index + 1 :]])
+    return [list(v) for v in dict.fromkeys(tuple(v) for v in expanded)]
+
+
 def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
     """Return every pronunciation variant for a word.
 
@@ -168,14 +194,28 @@ def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
     should try every variant and accept a match on any one.
     """
     key = word.lower()
-    word_variants = (
-        CMUDICT_OVERRIDES.get(key) or _cmudict().get(key) or _suffixed_s_variants(key)
-    )
+    direct_variants = CMUDICT_OVERRIDES.get(key) or _cmudict().get(key)
+    suffix_variants = _suffixed_s_variants(key)
+    if direct_variants:
+        max_direct_syllables = max(map(count_syllables, direct_variants))
+        suffix_variants = [
+            variant
+            for variant in suffix_variants or []
+            if count_syllables(variant) > max_direct_syllables
+        ]
+    word_variants = [
+        list(variant)
+        for variant in dict.fromkeys(
+            tuple(variant)
+            for variant in [*(direct_variants or []), *(suffix_variants or [])]
+        )
+    ]
     if not word_variants:
         raise KeyError(f"{word!r} not in CMUdict")
 
     pronunciations: list[Pronunciation] = []
-    for arpabet_variant in _add_cot_caught_variants(word_variants):
+    contraction_variants = _add_contraction_variants(key, word_variants)
+    for arpabet_variant in _add_cot_caught_variants(contraction_variants):
         phonemes = tuple(convert_arpabet_to_phoneme(t) for t in arpabet_variant)
         pronunciations.append(
             Pronunciation(
@@ -183,4 +223,4 @@ def get_word_phonemes(word: str) -> tuple[Pronunciation, ...]:
                 is_monosyllabic=count_syllables(arpabet_variant) == 1,
             )
         )
-    return tuple(pronunciations)
+    return tuple(dict.fromkeys(pronunciations))

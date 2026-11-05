@@ -28,12 +28,14 @@ members = [
   "packages/decodability",
   "benchmarks/phonics_benchmark",
   "benchmarks/linguistic_knowledge_benchmark",
+  "benchmarks/decodable_text_generation",
 ]
 
 [tool.uv.sources]
 fab-benchmark-publisher = { workspace = true }
 primerpro = { workspace = true }
 decodability = { workspace = true }
+phonics-benchmark = { workspace = true }
 fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "main" }
 
 [tool.coverage.report]
@@ -57,3 +59,6 @@ select = ["E", "F", "W", "I", "N", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/scripts/*" = ["F401"]
+# The linguistic-knowledge analysis/EDA scripts favour long plotting and f-string
+# lines and single-letter loop vars (A-D letters); exempt those cosmetic rules here.
+"benchmarks/linguistic_knowledge_benchmark/scripts/*" = ["F401", "E501", "E741"]

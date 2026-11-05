@@ -12,11 +12,9 @@ from pathlib import Path
 
 from decodability.english.definitions import UFLI_GPC_INVENTORY
 from decodability.english.extract_phonemes import get_word_phonemes
-from decodability.english.gpc_parser import GPC, parse_gpcs
+from decodability.english.gpc_parser import parse_gpcs
 
-INVENTORY = tuple(
-    GPC(gpc_id, grapheme, phonemes) for gpc_id, grapheme, phonemes in UFLI_GPC_INVENTORY
-)
+INVENTORY = UFLI_GPC_INVENTORY
 
 _WORD_LISTS_PATH = (
     Path(__file__).resolve().parents[1]
@@ -29,7 +27,7 @@ _WORD_LISTS_PATH = (
 
 
 def main() -> None:
-    with open(_WORD_LISTS_PATH) as f:
+    with open(_WORD_LISTS_PATH, encoding="utf-8") as f:
         gpc_ids: dict[str, list[str]] = json.load(f)
 
     for gpc in gpc_ids:

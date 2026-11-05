@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from threading import Barrier, Lock
 from time import sleep
+from typing import Any
 from unittest.mock import ANY, patch
 
 import httpx
@@ -33,7 +34,6 @@ from phonics_benchmark.runner import (
     git_hash,
     prepare_fdllm_for_run,
     run_benchmark,
-    run_from_config_file,
     snapshot_model_configs,
 )
 
@@ -195,6 +195,71 @@ def test_load_benchmark_items_rejects_duplicate_ids(tmp_path: Path) -> None:
         load_benchmark_items(items_path)
 
 
+def test_load_benchmark_items_supports_task_specific_fields(tmp_path: Path) -> None:
+    """Custom field contracts let other tasks reuse the same loader."""
+
+    items_path = tmp_path / "items.jsonl"
+    items_path.write_text(
+        json.dumps(
+            {
+                "benchmark_item_id": "item-1",
+                "sentence": "The cat sat.",
+                "grade": 2,
+                "dataset_note": "dropped",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    items, _items_sha256 = load_benchmark_items(
+        items_path,
+        required_fields={"sentence": str},
+        extra_fields=["grade"],
+    )
+
+    assert items == [
+        {
+            "benchmark_item_id": "item-1",
+            "sentence": "The cat sat.",
+            "grade": 2,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("record", "required_fields", "error"),
+    [
+        (
+            {"benchmark_item_id": "item-1", "sentence": "  "},
+            {"sentence": str},
+            "sentence must be a non-empty",
+        ),
+        (
+            {"benchmark_item_id": "item-1", "rubric": "not-an-object"},
+            {"rubric": dict},
+            "rubric must be an object",
+        ),
+        (
+            {"benchmark_item_id": "item-1", "attempts": "two"},
+            {"attempts": int},
+            "attempts has the wrong type",
+        ),
+    ],
+)
+def test_load_benchmark_items_enforces_custom_required_fields(
+    tmp_path: Path,
+    record: dict,
+    required_fields: dict[str, type],
+    error: str,
+) -> None:
+    items_path = tmp_path / "items.jsonl"
+    items_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match=error):
+        load_benchmark_items(items_path, required_fields=required_fields)
+
+
 def test_execute_run_owns_identity_and_default_model_setup(tmp_path: Path) -> None:
     """The orchestration boundary prepares FDLLM and run provenance."""
 
@@ -247,6 +312,28 @@ def test_execute_run_skips_fdllm_setup_for_supplied_evaluator(
     assert run.call_args.kwargs["model_configs"] is None
 
 
+def test_execute_run_forwards_injected_item_loader_and_prompt_builder(
+    tmp_path: Path,
+) -> None:
+    """Task injection points reach run_benchmark unchanged."""
+
+    config = load_run_config(_write_config(tmp_path))
+    evaluator = lambda *_args: {"output": "first"}  # noqa: E731
+    item_loader = lambda _path: ([], "sha")  # noqa: E731
+    prompt_builder = lambda *_args: "prompt"  # noqa: E731
+
+    with patch("phonics_benchmark.runner.run_benchmark", return_value={}) as run:
+        execute_run(
+            config,
+            evaluator=evaluator,
+            item_loader=item_loader,
+            prompt_builder=prompt_builder,
+        )
+
+    assert run.call_args.kwargs["item_loader"] is item_loader
+    assert run.call_args.kwargs["prompt_builder"] is prompt_builder
+
+
 def test_run_from_config_file_uses_completed_jsonl(tmp_path: Path) -> None:
     """The runner loads every completed JSONL item in artifact order."""
 
@@ -269,10 +356,53 @@ def test_run_from_config_file_uses_completed_jsonl(tmp_path: Path) -> None:
         seen_items.append(item["benchmark_item_id"])
         return {"output": "[]"}
 
-    output = run_from_config_file(config_path, evaluator=evaluator)
+    output = _run_from_config_file(config_path, evaluator=evaluator)
 
     assert output["total_expected_results"] == 2
     assert seen_items == ["item-1", "item-2"]
+
+
+def test_run_from_config_file_uses_injected_item_loader_and_prompt_builder(
+    tmp_path: Path,
+) -> None:
+    """A custom loader and prompt builder drive items, prompts, and hashing."""
+
+    config_path = _write_config(tmp_path, models=["model-a"])
+    loaded_paths: list[str] = []
+    seen_items: list[dict] = []
+
+    def item_loader(items_path: Path) -> tuple[list[dict], str]:
+        loaded_paths.append(Path(items_path).name)
+        return (
+            [{"benchmark_item_id": "custom-1", "sentence": "Hi there."}],
+            "custom-items-sha",
+        )
+
+    def prompt_builder(prompt_name: str, item: dict, language: str) -> str:
+        return f"{prompt_name}:{language}:{item['sentence']}"
+
+    def evaluator(
+        _config: BenchmarkRunConfig,
+        _model: str,
+        item: dict,
+        prompt: str,
+    ) -> dict:
+        seen_items.append(item)
+        return {"output": prompt}
+
+    output = _run_from_config_file(
+        config_path,
+        evaluator=evaluator,
+        item_loader=item_loader,
+        prompt_builder=prompt_builder,
+    )
+
+    rows = _read_all_results(output["results_paths"])
+    assert loaded_paths == ["items.jsonl"]
+    assert seen_items == [{"benchmark_item_id": "custom-1", "sentence": "Hi there."}]
+    assert [row["prompt"] for row in rows] == ["decodability_evaluation:sw:Hi there."]
+    snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
+    assert snapshot["resolved_config"]["items_sha256"] == "custom-items-sha"
 
 
 def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
@@ -301,7 +431,7 @@ def test_run_from_config_file_writes_linked_results(tmp_path: Path) -> None:
         patch("phonics_benchmark.runner.git_hash", return_value="abc123"),
         patch("phonics_benchmark.runner.git_dirty", return_value=True),
     ):
-        output = run_from_config_file(
+        output = _run_from_config_file(
             config_path,
             evaluator=fake_evaluator,
         )
@@ -399,7 +529,7 @@ def test_run_from_config_file_parallelizes_models_not_items(tmp_path: Path) -> N
             first_call_barrier.wait()
         return {"output": f"{model_name}:{item['benchmark_item_id']}"}
 
-    output = run_from_config_file(config_path, evaluator=evaluator)
+    output = _run_from_config_file(config_path, evaluator=evaluator)
 
     assert output["executed_count"] == 4
     assert output["error_count"] == 0
@@ -436,7 +566,7 @@ def test_models_in_one_provider_group_do_not_overlap(tmp_path: Path) -> None:
             active_calls -= 1
         return {"output": "[]"}
 
-    output = run_from_config_file(config_path, evaluator=evaluator)
+    output = _run_from_config_file(config_path, evaluator=evaluator)
 
     assert output["executed_count"] == 2
     assert maximum_active_calls == 1
@@ -463,7 +593,7 @@ def test_model_workers_caps_active_provider_groups(tmp_path: Path) -> None:
             active_calls -= 1
         return {"output": "[]"}
 
-    output = run_from_config_file(config_path, evaluator=evaluator)
+    output = _run_from_config_file(config_path, evaluator=evaluator)
 
     assert output["executed_count"] == 3
     assert maximum_active_calls == 2
@@ -497,7 +627,7 @@ def test_selected_models_require_one_provider_group(
     )
 
     with pytest.raises(ConfigError, match=error):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda *_args: {"output": "unexpected"},
         )
@@ -514,7 +644,7 @@ def test_prompts_are_rendered_once_per_item_before_workers(tmp_path: Path) -> No
         "phonics_benchmark.runner.build_decodability_prompt",
         wraps=build_decodability_prompt,
     ) as build_prompt:
-        output = run_from_config_file(
+        output = _run_from_config_file(
             config_path,
             evaluator=lambda *_args: {"output": "[]"},
         )
@@ -535,7 +665,7 @@ def test_unknown_language_fails_before_model_execution(tmp_path: Path) -> None:
     calls = []
 
     with pytest.raises(ConfigError, match="Unknown language registry key 'xx'"):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda *_args: calls.append("called") or {"output": "[]"},
         )
@@ -552,7 +682,7 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
 
-    output = run_from_config_file(
+    output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -565,7 +695,7 @@ def test_run_from_config_file_skips_existing_successes(tmp_path: Path) -> None:
     ) -> dict:
         raise AssertionError("successful rows should be skipped")
 
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=fail_if_called,
     )
@@ -587,7 +717,7 @@ def test_run_from_config_file_adding_model_keeps_existing_model_cache(
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
 
-    first_output = run_from_config_file(
+    first_output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -607,7 +737,7 @@ def test_run_from_config_file_adding_model_keeps_existing_model_cache(
         called_models.append(model_name)
         return {"output": f"{model_name}:second"}
 
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=evaluator,
     )
@@ -633,7 +763,7 @@ def test_run_from_config_file_provenance_change_keeps_model_cache(
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
 
-    first_output = run_from_config_file(
+    first_output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -651,7 +781,7 @@ def test_run_from_config_file_provenance_change_keeps_model_cache(
     ) -> dict:
         raise AssertionError("provenance-only changes should use cached rows")
 
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=fail_if_called,
     )
@@ -671,7 +801,7 @@ def test_benchmark_item_id_is_call_identity_and_requires_recomputation(
         models=["model-a"],
         items=[{"id": "old-item-id", "text": "Mama."}],
     )
-    first_output = run_from_config_file(
+    first_output = _run_from_config_file(
         config_path,
         evaluator=lambda *_args: {"output": "first"},
     )
@@ -681,7 +811,7 @@ def test_benchmark_item_id_is_call_identity_and_requires_recomputation(
         tmp_path,
         [{"id": "new-item-id", "text": "Mama."}],
     )
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=lambda *_args: {"output": "second"},
     )
@@ -727,7 +857,7 @@ def test_run_from_config_file_saves_provider_errors(
     def evaluator(*_args) -> dict:
         raise provider_error
 
-    output = run_from_config_file(config_path, evaluator=evaluator)
+    output = _run_from_config_file(config_path, evaluator=evaluator)
 
     rows = _read_jsonl(output["results_paths"]["model-a"])
     assert output["executed_count"] == 1
@@ -746,7 +876,7 @@ def test_run_from_config_file_saves_empty_responses_as_errors(tmp_path: Path) ->
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
 
-    output = run_from_config_file(
+    output = _run_from_config_file(
         config_path,
         evaluator=lambda *_args: {
             "output": "",
@@ -785,7 +915,7 @@ def test_run_from_config_file_propagates_unexpected_evaluator_errors(
     )
 
     with pytest.raises(type(unexpected_error), match="programming error"):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda *_args: (_ for _ in ()).throw(unexpected_error),
         )
@@ -821,7 +951,7 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         patch("phonics_benchmark.runner.git_hash", return_value="first123"),
         patch("phonics_benchmark.runner.git_dirty", return_value=False),
     ):
-        first_output = run_from_config_file(
+        first_output = _run_from_config_file(
             config_path,
             evaluator=first_evaluator,
         )
@@ -851,7 +981,7 @@ def test_run_from_config_file_retries_only_cached_errors(tmp_path: Path) -> None
         patch("phonics_benchmark.runner.git_hash", return_value="second456"),
         patch("phonics_benchmark.runner.git_dirty", return_value=True),
     ):
-        second_output = run_from_config_file(
+        second_output = _run_from_config_file(
             config_path,
             evaluator=retry_evaluator,
         )
@@ -883,7 +1013,7 @@ def test_retry_errors_rejects_uncached_items_before_starting_workers(
         items=[{"id": "item-1", "text": "A cat sat."}],
         model_workers=2,
     )
-    run_from_config_file(
+    _run_from_config_file(
         config_path,
         evaluator=lambda _config, model, _item, _prompt: {"output": model},
     )
@@ -906,7 +1036,7 @@ def test_retry_errors_rejects_uncached_items_before_starting_workers(
         ConfigError,
         match=r"missing calls by model: model-a \(1\), model-b \(1\)",
     ):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda _config, model, _item, _prompt: (
                 called_models.append(model) or {"output": "unexpected"}
@@ -955,7 +1085,7 @@ def test_retry_errors_rejects_invalid_cached_call_status(tmp_path: Path) -> None
         models=["model-a"],
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
-    output = run_from_config_file(
+    output = _run_from_config_file(
         config_path,
         evaluator=lambda *_args: {"output": "first"},
     )
@@ -969,7 +1099,7 @@ def test_retry_errors_rejects_invalid_cached_call_status(tmp_path: Path) -> None
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     with pytest.raises(ConfigError, match="invalid call_status"):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda *_args: {"output": "unexpected"},
         )
@@ -985,7 +1115,7 @@ def test_retry_errors_preflights_every_model_before_starting_workers(
         models=["model-a"],
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
-    run_from_config_file(
+    _run_from_config_file(
         config_path,
         evaluator=lambda *_args: (_ for _ in ()).throw(
             MistralConnectionException("transient")
@@ -1000,7 +1130,7 @@ def test_retry_errors_preflights_every_model_before_starting_workers(
     called_models = []
 
     with pytest.raises(FileNotFoundError, match="model-b"):
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda _config, model, _item, _prompt: (
                 called_models.append(model) or {"output": "unexpected"}
@@ -1020,7 +1150,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
         models=["model-a"],
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
-    first_output = run_from_config_file(
+    first_output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -1040,7 +1170,7 @@ def test_run_from_config_file_recomputes_when_model_call_inputs_change(
         calls.append((config.max_tokens, item["benchmark_item_id"]))
         return {"output": "second"}
 
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=evaluator,
     )
@@ -1064,7 +1194,7 @@ def test_explicit_default_max_tokens_keeps_model_cache(tmp_path: Path) -> None:
         models=["model-a"],
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
-    first_output = run_from_config_file(
+    first_output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -1077,7 +1207,7 @@ def test_explicit_default_max_tokens_keeps_model_cache(tmp_path: Path) -> None:
     def fail_if_called(*_args) -> dict:
         raise AssertionError("equivalent effective max_tokens should use the cache")
 
-    second_output = run_from_config_file(
+    second_output = _run_from_config_file(
         config_path,
         evaluator=fail_if_called,
     )
@@ -1098,7 +1228,7 @@ def test_run_from_config_file_uses_safe_model_result_filename(tmp_path: Path) ->
         items=[{"id": "item-1", "text": "A cat sat."}],
     )
 
-    output = run_from_config_file(
+    output = _run_from_config_file(
         config_path,
         evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
     )
@@ -1501,7 +1631,7 @@ def test_run_from_config_file_saves_through_result_function(tmp_path: Path) -> N
     )
 
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
-        run_from_config_file(
+        _run_from_config_file(
             config_path,
             evaluator=lambda _config, _model, _item, _prompt: {"output": "first"},
         )
@@ -1526,7 +1656,7 @@ def test_run_from_config_file_checkpoints_after_each_chunk(tmp_path: Path) -> No
     )
 
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
-        output = run_from_config_file(
+        output = _run_from_config_file(
             config_path,
             evaluator=lambda _config, _model, item, _prompt: {
                 "output": item["benchmark_item_id"]
@@ -1555,7 +1685,7 @@ def test_run_from_config_file_can_save_once_per_model(tmp_path: Path) -> None:
     )
 
     with patch("phonics_benchmark.runner.save_results", wraps=save_results) as save:
-        output = run_from_config_file(
+        output = _run_from_config_file(
             config_path,
             evaluator=lambda _config, _model, item, _prompt: {
                 "output": item["benchmark_item_id"]
@@ -1608,6 +1738,12 @@ def test_artifact_hook_fires_after_each_durable_write_in_run_order(
         "write:responses_model-a.jsonl",
         "write:log.json",
     ]
+
+
+def _run_from_config_file(config_path: Path, **kwargs: Any) -> dict[str, Any]:
+    """Load a run config file and execute it with injected test doubles."""
+
+    return execute_run(load_run_config(config_path), **kwargs)
 
 
 def _write_config(

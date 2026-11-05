@@ -5,11 +5,13 @@ benchmarks.
 
 It contains:
 
-- `packages/fab_benchmark_publisher`: shared result contracts, result JSON helpers, and
-  a small GCS upload helper.
+- `packages/fab_benchmark_publisher`: shared result contracts, result JSON helpers, the
+  leaderboard bundle builder, and a small GCS upload helper.
 - `packages/decodability`: standalone scaffolding for language-specific decodability
   tooling.
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
+- `benchmarks/decodable_text_generation`: the decodable text generation benchmarks
+  (child and curriculum), reusing the phonics run harness.
 - `benchmarks/linguistic_knowledge_benchmark`: benchmark-specific package for the
   linguistic knowledge benchmark.
 
@@ -121,6 +123,138 @@ publish_records(
 ```
 
 This writes to `gs://$BUCKET_NAME/$FILE_PREFIX/PHONICS/leaderboard_data.json`.
+
+### Publishing to the leaderboard website
+
+The website reads five JSON files. We build four of them: `configmeta`, `data`,
+`data-costfrontier` and `data-sizefrontier`. Each of these covers every benchmark ×
+language pair. The fifth file, `providermeta`, comes from somewhere else. See below.
+
+Publishing has two stages:
+
+1. Each benchmark turns its own results into a small **records file**.
+1. One shared command reads all the records files and builds the four JSON files.
+
+```
+LK      summary CSVs   ─┐
+                         ├─▶  leaderboard_records_<pair>.json  ─▶  the 4 JSON files
+phonics summary CSVs   ─┘              (stage 1)                        (stage 2)
+```
+
+Run all commands from the repo root, after `uv sync --all-packages`.
+
+**About `models.csv` and `providers.csv`.** These two files list every model's provider,
+price, size and colour. They are not committed to the repo. They are downloaded from the
+`fab-open-configs` bucket, so a fresh checkout does not have them. Stage 2 downloads
+them for you if they are missing, so usually there is nothing to do. LK's stage 1 script
+is the exception: it expects the files to be there already. Run any LK command once to
+download them, for example `uv run linguistic-knowledge-benchmark run-bench --help`.
+Phonics' stage 1 does not need either file.
+
+**About `providermeta.json`.** This file is the leaderboard's catalogue of models and
+providers. It holds each provider's colour and logo, and each model's display name,
+price, size and release date. Every benchmark on the site shares it, and we do not build
+or upload it. It lives in the public `ai-for-ed-public` container on Azure:
+
+```
+https://fabdatastorage.blob.core.windows.net/ai-for-ed-public/providermeta.json
+```
+
+We need it because our `data` rows only contain ids, like
+`{"modelId": "303", "providerId": "0", "accuracy": 71.2}`. The website looks up each id
+in `providermeta` to find the model's name and price. The ids are row numbers in
+`models.csv` and `providers.csv`. They match because `providermeta` is built from those
+same two files.
+
+Stage 2 downloads `providermeta` and checks every model in the bundle against it. If a
+model is not in the file, stage 2 drops it and prints a warning. Without this check, the
+website would show a row with no name and no price. If a model you scored gets dropped,
+ask for `providermeta` to be updated — it is usually behind `models.csv`.
+
+You do not need credentials, because the container is public. If that changes, set
+`AZURE_SAS_TOKEN` in the repo-root `.env`.
+
+#### Stage 1 — one records file per benchmark × language pair
+
+A records file holds one score per model for one pair, and says which run the scores
+came from.
+
+**Coming soon:** records files will be downloaded from GCS, so you will be able to build
+a bundle without running anyone else's benchmark. For now each benchmark builds its own
+file locally. Each one has a `results_for_website.py` script that reads its own summary
+CSV:
+
+```bash
+# LK Kiswahili + LK English, from the summary CSVs pinned in the script's SOURCES table
+uv run --package linguistic-knowledge-benchmark python benchmarks/linguistic_knowledge_benchmark/scripts/results_for_website.py
+
+# DA English + DA Kiswahili, every pair the phonics run reported
+uv run --package phonics-benchmark python benchmarks/phonics_benchmark/scripts/results_for_website.py --run-id run-test
+```
+
+Each script writes `leaderboard_records_<pair>.json` into its own benchmark's
+`results/web/` folder. It overwrites the previous file, so the folder always holds the
+latest scores. That is why stage 2 can simply read the folder.
+
+**Only write your own benchmark's records file.** This is what lets two people publish
+separately. Your file is not changed by their run, so a rebuild always picks up the
+newest version of both.
+
+#### Stage 2 — build the four JSON files
+
+```bash
+uv run fab-leaderboard publish --records-dir benchmarks/linguistic_knowledge_benchmark/results/web --records-dir benchmarks/phonics_benchmark/results/web --outdir results/web
+```
+
+This command is the only place the bundle is built. It knows nothing about any
+individual benchmark: it reads the records files and `leaderboard_pairs.json`, and
+nothing else. It writes to `results/web/<timestamp>/`:
+
+| File                                           | Pushed to Azure?                                              |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| `<timestamp>_<cluster>_configmeta.json`        | yes                                                           |
+| `<timestamp>_<cluster>_data.json`              | yes                                                           |
+| `<timestamp>_<cluster>_data-costfrontier.json` | yes                                                           |
+| `<timestamp>_<cluster>_data-sizefrontier.json` | yes                                                           |
+| `benchmark_default_models.json`                | no — a record of which models got pre-selected                |
+| `manifest.json`                                | no — which records file fed each column, and what was dropped |
+
+`leaderboard_pairs.json` in the repo root lists the expected columns and the order they
+appear in on the website. Listing them explicitly, rather than reading whatever files
+happen to be in a folder, gives two benefits. The column order never changes by
+accident. And if a pair's records file is missing, the command reports it as `MISSING`
+instead of silently leaving that column off the site.
+
+**A model can have a score and still not be published.** This happens for two reasons:
+the model is not in `models.csv`, or it is not in Azure's `providermeta`. Both cases
+print a warning and are written to `manifest.json` under `dropped`. The manifest is the
+only record of this, because a dropped model leaves no trace on the website.
+
+#### Stage 3 — push to Azure
+
+Not built yet. For now the four JSON files are written locally and uploaded by hand to
+the `ai-for-ed-public` container. The API reads them from there and publishes them to
+the website.
+
+#### Adding a new benchmark × language pair
+
+1. Add a row to `leaderboard_pairs.json` with `benchmark_domain` (for example `DA-sw`)
+   and the `display_name` the site shows. The pair reports as `MISSING` until a records
+   file exists, which is expected.
+1. Make that benchmark write `leaderboard_records_DA-sw.json`. Copy the closest
+   `results_for_website.py`. Each one is about 100 lines, and most of that is reading
+   one CSV.
+
+#### One thing to keep in mind when comparing columns
+
+The columns do not all measure the same thing. Linguistic knowledge reports accuracy,
+which is the plain proportion of correct answers. Phonics reports an adjusted balanced
+accuracy, which averages recall and specificity after adjusting for vocabulary coverage.
+Both appear on the same axis, labelled accuracy.
+
+`bad_format` is also different. It is a real measurement for LK, but phonics has no
+equivalent, so it is published as `0.0`. That looks like a perfect score when it
+actually means "not measured". Mention this whenever you present the leaderboard.
 
 ### GCP local setup
 

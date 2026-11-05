@@ -108,6 +108,34 @@ def extract_gpc_pairs(value: str) -> list[tuple[str, str]]:
     return list(dict.fromkeys(pairs))
 
 
+def extract_affixes(value: str) -> list[str]:
+    """Collect marker-bearing graphemes (affixes and positional graphemes).
+
+    Reads the same ``grapheme /phoneme/`` cell as ``extract_gpc_pairs`` but
+    keeps the grapheme exactly as written, edge marker included, for items
+    where the marker sits at the start or end (``-ed``, ``pre-``, ``_ce``,
+    ``-le``). A medial underscore (``a_e``) marks a split digraph, not an
+    affix, so it is skipped. Duplicates are dropped, keeping first-seen order.
+
+    Example: ``"ing /ɪŋ/, -ed /d/, _ce /s/, a_e /eɪ/"`` -> ``["-ed", "_ce"]``
+    for the marked items only; unmarked ``ing`` is not an affix here.
+    """
+    marked = []
+    for item in split_list(value):
+        grapheme = item.partition("/")[0].strip()
+        if grapheme and (
+            grapheme[0] in _POSITIONAL_MARKERS or grapheme[-1] in _POSITIONAL_MARKERS
+        ):
+            marked.append(grapheme)
+    return list(dict.fromkeys(marked))
+
+
+# Fields parsed from a workbook column other than their own name. ``affixes``
+# has no column of its own: it is derived from the GPC cell, where the marker
+# is written before ``extract_gpc_pairs`` strips it.
+FIELD_SOURCE_COLUMNS: dict[str, str] = {"affixes": "gpcs"}
+
+
 # Registry: maps language_iso_code to the fields that belong in student_knowledge
 # and how to parse each one from a workbook cell string.
 # Add a new entry here when adding support for a new language.
@@ -121,6 +149,7 @@ STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
     "en": {
         "gpcs": extract_gpc_pairs,
         "sight_words": split_list,
+        "affixes": extract_affixes,
     },
 }
 
@@ -203,7 +232,7 @@ def extract_student_profiles(
             language_iso_code=str(row.language_iso_code),
             jagged=is_jagged_profile(str(getattr(row, PROFILE_TYPE_COLUMN))),
             student_knowledge={
-                field: parser(str(getattr(row, field)))
+                field: parser(str(getattr(row, FIELD_SOURCE_COLUMNS.get(field, field))))
                 for field, parser in fields.items()
             },
         )
@@ -260,7 +289,7 @@ def ingest_benchmark_data(
     student_df = preprocess_sheet_data(
         student_df,
         {"student_knowledge_id", "language_iso_code", PROFILE_TYPE_COLUMN}
-        | set(student_fields.keys()),
+        | {FIELD_SOURCE_COLUMNS.get(field, field) for field in student_fields},
         "student_knowledge_id",
         f"'{STUDENT_PROFILES_SHEET}' sheet",
     )

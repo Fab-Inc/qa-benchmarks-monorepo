@@ -7,8 +7,38 @@ outputs/
 data/raw/
 data/interim/
 data/processed/
+
+# LKB's cache of run-bench/judge-bench responses -- local scratch, not committed.
 benchmarks/linguistic_knowledge_benchmark/cache/
+# Phonics' default output_dir (config.py's "results"): one folder per run_id, holding
+# responses/, config.json and log.json. The durable copy lives in GCS via results_dest.
+benchmarks/phonics_benchmark/results/
+# Cluster-wide leaderboard bundles from `fab-leaderboard publish`, one folder per run.
+# Leading slash: the benchmarks' own results/ trees are tracked in part, this one is not.
+/results/
+# Synced from fab-open-configs at runtime (see cmd.py's _download_shared_configs),
+# not committed.
 custom_models.yaml
+models.csv
+providers.csv
+
+# Post-analysis/plotting outputs -- all one-command-regenerable
+benchmarks/linguistic_knowledge_benchmark/results/analysis
+benchmarks/linguistic_knowledge_benchmark/results/web
+benchmarks/linguistic_knowledge_benchmark/results/validation
+benchmarks/linguistic_knowledge_benchmark/results/consistency
+benchmarks/linguistic_knowledge_benchmark/results/paper_figures
+# scripts/workflow/check_supported_models.py.
+benchmarks/linguistic_knowledge_benchmark/check_full.csv
+## Gitignored to avoid leaking any dataset content besides the subsets on HuggingFace.
+benchmarks/linguistic_knowledge_benchmark/results/summary_linguistic-knowledge_*_detailed.csv
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_*_[0-9]*x.json
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_english.json
+benchmarks/linguistic_knowledge_benchmark/data/linguistic_knowledge_eval_kiswahili.json
+# Contains selected_dataset*.json -- literal copies of real question items from the
+# IRT item-selection pipeline, same leakage concern as the full eval datasets above.
+benchmarks/linguistic_knowledge_benchmark/results/irt/
+
 .vscode/
 
 # Benchmark data is not committed: the repo is to be open sourced, and part of the

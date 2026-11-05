@@ -37,6 +37,8 @@ from phonics_benchmark.config import (
 from phonics_benchmark.items import load_benchmark_items
 from phonics_benchmark.runner import (
     CUSTOM_MODELS_FILE_NAME,
+    ItemLoader,
+    PromptBuilder,
     RunOutput,
     download_default_custom_models,
     execute_run,
@@ -334,18 +336,33 @@ def run_cloud_cmd(
         raise typer.Exit(1)
 
 
-def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:
+def _execute_with_optional_sync(
+    run_config: BenchmarkRunConfig,
+    *,
+    item_loader: ItemLoader | None = None,
+    prompt_builder: PromptBuilder | None = None,
+) -> RunOutput:
     """Execute locally, or wrap execution in the generation-safe sync lifecycle."""
+
+    execute_kwargs: dict[str, Any] = {}
+    if item_loader is not None:
+        execute_kwargs["item_loader"] = item_loader
+    if prompt_builder is not None:
+        execute_kwargs["prompt_builder"] = prompt_builder
 
     run_dir = run_config.output_dir / run_config.run_id
     if run_config.results_dest is None:
-        _validate_resume_snapshot(run_config, run_dir / "config.json")
-        return execute_run(run_config)
+        _validate_resume_snapshot(
+            run_config, run_dir / "config.json", item_loader=item_loader
+        )
+        return execute_run(run_config, **execute_kwargs)
 
     sync = RunSync(run_dir, run_config.results_dest)
     typer.echo(f"Reading existing results from {run_config.results_dest}")
     sync.pull()
-    _validate_resume_snapshot(run_config, run_dir / "config.json")
+    _validate_resume_snapshot(
+        run_config, run_dir / "config.json", item_loader=item_loader
+    )
     typer.echo(f"Writing results to {run_config.results_dest}")
 
     def push_with_warning(local_path: Path) -> None:
@@ -363,6 +380,7 @@ def _execute_with_optional_sync(run_config: BenchmarkRunConfig) -> RunOutput:
         output = execute_run(
             run_config,
             on_artifact_write=push_with_warning,
+            **execute_kwargs,
         )
     except BaseException:
         try:
@@ -399,6 +417,8 @@ def _finalize_sync(sync: RunSync, run_dir: Path) -> None:
 def _validate_resume_snapshot(
     run_config: BenchmarkRunConfig,
     snapshot_path: Path,
+    *,
+    item_loader: ItemLoader | None = None,
 ) -> None:
     """Reject a reused run whose semantic inputs have changed."""
 
@@ -428,7 +448,9 @@ def _validate_resume_snapshot(
     if not isinstance(resolved_config, dict):
         raise ConfigError("Existing run config snapshot lacks resolved_config")
     remote_items_sha256 = resolved_config.get("items_sha256")
-    _items, local_items_sha256 = load_benchmark_items(run_config.items_path)
+    _items, local_items_sha256 = (item_loader or load_benchmark_items)(
+        run_config.items_path
+    )
     if remote_items_sha256 != local_items_sha256:
         raise ConfigError(
             "Existing run items_sha256 does not match the local items artifact: "
@@ -436,18 +458,28 @@ def _validate_resume_snapshot(
         )
 
 
-def _load_local_run_config(config_path: Path) -> BenchmarkRunConfig:
+def _load_local_run_config(
+    config_path: Path,
+    *,
+    task: str = DECODABILITY_TASK,
+    default_prompt_name: str | None = None,
+) -> BenchmarkRunConfig:
     """Load a local config, materializing a GCS items source when configured."""
 
     source_config_path = config_path.expanduser().resolve()
     raw_config = _read_config_object(source_config_path, description="config file")
     items_source_uri = _items_source_uri(raw_config, use_metadata_fallback=False)
     if items_source_uri is None:
-        return load_run_config(source_config_path, task=DECODABILITY_TASK)
+        return load_run_config(
+            source_config_path,
+            task=task,
+            default_prompt_name=default_prompt_name,
+        )
 
     preliminary_config = load_run_config(
         source_config_path,
-        task=DECODABILITY_TASK,
+        task=task,
+        default_prompt_name=default_prompt_name,
     )
     inputs_root = (
         preliminary_config.inputs_dir
@@ -458,6 +490,8 @@ def _load_local_run_config(config_path: Path) -> BenchmarkRunConfig:
         source_config_path=source_config_path,
         inputs_dir=inputs_root / preliminary_config.run_id,
         use_metadata_fallback=False,
+        task=task,
+        default_prompt_name=default_prompt_name,
     )
 
 
@@ -465,6 +499,8 @@ def _load_cloud_run_config(
     config_uri: str,
     *,
     workdir: Path,
+    task: str = DECODABILITY_TASK,
+    default_prompt_name: str | None = None,
 ) -> BenchmarkRunConfig:
     """Download and pre-process a cloud config into the normal local contract."""
 
@@ -512,6 +548,8 @@ def _load_cloud_run_config(
         source_config_path=downloaded_config_path,
         inputs_dir=inputs_dir / _parse_run_id(raw_config.get("run_id")),
         use_metadata_fallback=True,
+        task=task,
+        default_prompt_name=default_prompt_name,
     )
 
 
@@ -521,6 +559,8 @@ def _materialize_run_config(
     source_config_path: Path,
     inputs_dir: Path,
     use_metadata_fallback: bool,
+    task: str = DECODABILITY_TASK,
+    default_prompt_name: str | None = None,
 ) -> BenchmarkRunConfig:
     """Turn a local or GCS items source into the runner's local-file contract."""
 
@@ -555,7 +595,11 @@ def _materialize_run_config(
         json.dumps(processed_config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    config = load_run_config(processed_config_path, task=DECODABILITY_TASK)
+    config = load_run_config(
+        processed_config_path,
+        task=task,
+        default_prompt_name=default_prompt_name,
+    )
     return replace(
         config,
         raw_config=snapshot_config,

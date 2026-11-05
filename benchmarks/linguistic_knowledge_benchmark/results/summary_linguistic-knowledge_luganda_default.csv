@@ -1,2 +1,0 @@
-model,accuracy,scored_count,unscored_count,accuracy_mcq,accuracy_short_form,responses_timestamp-utc,responses_git-hash,responses_retry_timestamp-utc,responses_retry_git-hash,responses_judged_timestamp-utc,responses_judged_git-hash,responses_judged_fallback_timestamp-utc,responses_judged_fallback_git-hash
-claude-haiku-4-5-20251001,69.35,124,2,86.36,50.0,2026-06-19T21:50:45.064640+00:00,1a01bf9,,,2026-06-19T21:55:18.751555+00:00,1a01bf9,2026-06-19T21:57:46.203832+00:00,1a01bf9

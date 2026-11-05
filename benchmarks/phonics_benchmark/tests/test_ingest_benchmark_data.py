@@ -30,6 +30,13 @@ BENCHMARK_ROOT = Path(__file__).parents[1]
 SCRIPT_PATH = BENCHMARK_ROOT / "scripts" / "ingest_benchmark_data.py"
 TEMPLATE_DIR = BENCHMARK_ROOT / "data" / "kiswahili" / "templates"
 KISWAHILI_TEMPLATE_PATH = TEMPLATE_DIR / "benchmark_data_template_kiswahili.xlsx"
+ENGLISH_TEMPLATE_PATH = (
+    BENCHMARK_ROOT
+    / "data"
+    / "english"
+    / "templates"
+    / "benchmark_data_template_english.xlsx"
+)
 
 # Same data that makes upfixtures/completed_benchmark_items.jsonl,
 # but keyed by benchmark_item_id for easy lookup.
@@ -91,6 +98,160 @@ SW_EXPECTED_TEXTS = {
         "Mama anaona kuku na paka. Kaka akaamua kukaa. Kuku akamuuma kaka. "
         "Mama akaamua kukaa na kuku. Kaka anaona soko kuu."
     ),
+}
+
+EN_EXPECTED_PROFILES = {
+    "ufli-en-us-week-06": {
+        "gpcs": [
+            ["a", "æ"],
+            ["m", "m"],
+            ["s", "s"],
+            ["t", "t"],
+            ["p", "p"],
+        ],
+        "sight_words": ["the", "a", "I", "said", "was", "of"],
+        "affixes": [],
+    },
+    "ufli-en-l068": {
+        "gpcs": [
+            ["a", "æ"],
+            ["m", "m"],
+            ["s", "s"],
+            ["t", "t"],
+            ["p", "p"],
+            ["f", "f"],
+            ["i", "ɪ"],
+            ["n", "n"],
+            ["o", "ɑ"],
+            ["d", "d"],
+            ["c", "k"],
+            ["u", "ʌ"],
+            ["g", "g"],
+            ["b", "b"],
+            ["e", "ɛ"],
+            ["s", "z"],
+            ["k", "k"],
+            ["h", "h"],
+            ["r", "r"],
+            ["l", "l"],
+            ["w", "w"],
+            ["j", "dʒ"],
+            ["y", "j"],
+            ["x", "ks"],
+            ["qu", "kw"],
+            ["v", "v"],
+            ["z", "z"],
+            ["ff", "f"],
+            ["ll", "l"],
+            ["ss", "s"],
+            ["zz", "z"],
+            ["all", "ɔl"],
+            ["oll", "oʊl"],
+            ["ull", "ʊl"],
+            ["ck", "k"],
+            ["sh", "ʃ"],
+            ["th", "ð"],
+            ["th", "θ"],
+            ["ch", "tʃ"],
+            ["wh", "w"],
+            ["ph", "f"],
+            ["ng", "ŋ"],
+            ["nk", "ŋk"],
+            ["a-e", "eɪ"],
+            ["i-e", "aɪ"],
+            ["o-e", "oʊ"],
+            ["e-e", "i"],
+            ["u-e", "u"],
+            ["u-e", "ju"],
+            ["ce", "s"],
+            ["ge", "dʒ"],
+            ["ve", "v"],
+            ["o-e", "ʌ"],
+            ["es", "əz"],
+            ["ed", "t"],
+            ["ed", "d"],
+            ["ed", "əd"],
+            ["ing", "ɪŋ"],
+            ["a", "eɪ"],
+            ["e", "i"],
+            ["i", "aɪ"],
+            ["o", "oʊ"],
+            ["u", "ju"],
+            ["u", "u"],
+            ["bb", "b"],
+            ["cc", "k"],
+            ["dd", "d"],
+            ["gg", "g"],
+            ["mm", "m"],
+            ["nn", "n"],
+            ["pp", "p"],
+            ["rr", "r"],
+            ["tt", "t"],
+        ],
+        "sight_words": [
+            "the",
+            "I",
+            "and",
+            "a",
+            "is",
+            "as",
+            "said",
+            "to",
+            "do",
+            "of",
+            "see",
+            "he",
+            "be",
+            "me",
+            "from",
+            "look",
+            "book",
+            "are",
+            "was",
+            "you",
+            "what",
+            "have",
+            "your",
+            "want",
+            "go",
+            "no",
+            "so",
+            "goes",
+            "says",
+            "she",
+            "we",
+            "they",
+            "their",
+            "were",
+            "talk",
+            "walk",
+            "could",
+            "would",
+            "should",
+            "or",
+            "for",
+            "there",
+            "where",
+            "who",
+            "by",
+            "my",
+            "one",
+            "once",
+            "two",
+            "does",
+            "any",
+            "many",
+            "been",
+            "into",
+            "friend",
+            "because",
+        ],
+        "affixes": ["-s", "_ce", "_ge", "-ve", "-es", "-ed", "-ing"],
+    },
+}
+
+EN_EXPECTED_TEXTS = {
+    "EN-US-W6": ("Sam can hop on the mat. Sam has a big fan. Sam and the fan chat."),
 }
 
 
@@ -180,3 +341,119 @@ class TestKiswahiliTemplateIngest:
 
         assert {t.text_id: t.content for t in texts} == SW_EXPECTED_TEXTS
         assert {t.language_iso_code for t in texts} == {"sw"}
+
+
+@pytest.fixture(scope="module")
+def script() -> ModuleType:
+    """The ingest script module, loaded once for the unit tests below."""
+    return _load_script()
+
+
+@pytest.fixture(scope="class")
+def en_ingested(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the script on the committed English template into a throwaway root."""
+    assert ENGLISH_TEMPLATE_PATH.exists(), (
+        f"Missing committed template: {ENGLISH_TEMPLATE_PATH}"
+    )
+
+    script = _load_script()
+    app = typer.Typer()
+    app.command()(script.ingest_benchmark_data)
+
+    data_root = tmp_path_factory.mktemp("en_data_root")
+    result = CliRunner().invoke(
+        app,
+        [
+            "--language",
+            "english",
+            "--workbook",
+            str(ENGLISH_TEMPLATE_PATH),
+            "--data-root",
+            str(data_root),
+        ],
+    )
+
+    assert result.exit_code == 0, (
+        f"ingest failed (exit {result.exit_code}): {result.output}\n"
+        f"{result.exception!r}"
+    )
+    return data_root
+
+
+class TestEnglishTemplateIngest:
+    def test_student_profile_ids_and_language_are_ingested(
+        self, en_ingested: Path
+    ) -> None:
+        """student_knowledge_id, language_iso_code and jagged come through."""
+        profiles = read_student_knowledge_profiles("english", en_ingested)
+
+        assert [p.student_knowledge_id for p in profiles] == list(EN_EXPECTED_PROFILES)
+        assert {p.language_iso_code for p in profiles} == {"en"}
+        assert [p.jagged for p in profiles] == [False, False]
+
+    @pytest.mark.parametrize("profile_id", sorted(EN_EXPECTED_PROFILES))
+    def test_student_knowledge_fields_are_ingested(
+        self, en_ingested: Path, profile_id: str
+    ) -> None:
+        """gpcs, sight_words and affixes parse correctly, with and without affixes.
+
+        Comparing the whole dict also asserts that no template column
+        (Curriculum stage, Realistic level, ...) leaks in and that ``affixes``
+        is always written.
+        """
+        profiles = {
+            p.student_knowledge_id: p
+            for p in read_student_knowledge_profiles("english", en_ingested)
+        }
+
+        assert (
+            profiles[profile_id].student_knowledge == EN_EXPECTED_PROFILES[profile_id]
+        )
+
+    def test_texts_are_ingested(self, en_ingested: Path) -> None:
+        """text_id, language_iso_code and content come through verbatim."""
+        texts = read_decodable_texts("english", en_ingested)
+
+        assert {t.text_id: t.content for t in texts} == EN_EXPECTED_TEXTS
+        assert {t.language_iso_code for t in texts} == {"en"}
+
+
+class TestExtractAffixes:
+    @pytest.mark.parametrize(
+        ("cell", "expected"),
+        [
+            # Suffix, prefix and positional markers are kept as written.
+            ("-ed /d/, pre- /pri/, _ce /s/, -le /əl/", ["-ed", "pre-", "_ce", "-le"]),
+            # Unmarked graphemes are plain GPCs, not affixes.
+            ("a /æ/, ing /ɪŋ/, qu /kw/", []),
+            # A medial underscore is a split digraph, not an affix.
+            ("a_e /eɪ/, o_e /oʊ/", []),
+            # Marked and unmarked items mix; only the marked ones survive.
+            ("a /æ/, -s /z/, a_e /eɪ/", ["-s"]),
+            # The same marked grapheme with two phonemes collapses to one entry,
+            # keeping first-seen order.
+            ("-s /s/, -ed /d/, -s /z/", ["-s", "-ed"]),
+            # Blank and "none"-style cells give nothing.
+            ("", []),
+            ("none", []),
+            ("N/A", []),
+        ],
+    )
+    def test_extracts_only_edge_marked_graphemes(
+        self, script: ModuleType, cell: str, expected: list[str]
+    ) -> None:
+        """Only graphemes with a leading or trailing marker are returned."""
+        assert script.extract_affixes(cell) == expected
+
+    def test_agrees_with_gpc_parsing_on_the_same_cell(self, script: ModuleType) -> None:
+        """Each affix also appears, marker stripped, in the parsed GPC pairs.
+
+        The model promises the same pair lands in both ``affixes`` (marked) and
+        ``gpcs`` (stripped), so the two parsers must stay in step on one cell.
+        """
+        cell = "ing /ɪŋ/, -ed /d/, pre- /pri/, _ce /s/"
+
+        affixes = script.extract_affixes(cell)
+        graphemes = {grapheme for grapheme, _ in script.extract_gpc_pairs(cell)}
+
+        assert {a.strip("-_") for a in affixes} <= graphemes
