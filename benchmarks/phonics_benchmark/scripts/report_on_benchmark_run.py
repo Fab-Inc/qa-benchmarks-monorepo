@@ -28,8 +28,8 @@ Writes, into `{run directory}/report`:
 - ``accuracy_by_nondecodable_count.png`` — accuracy against item difficulty
 - ``irt_item_estimates.csv`` — Rasch difficulty per item
 - ``irt_model_capability.csv`` — Rasch capability per model
-- ``item_discrimination.csv`` — proportion correct and item-rest discrimination
-  per item, items least like the rest of the test first
+- ``item_discrimination.csv`` — proportion correct and the mean rank of the
+  models that got each item right, items least like the rest of the test first
 - ``sampled_items_for_inspection.csv`` — only with ``--inspect-sample-size``
 """
 
@@ -267,25 +267,31 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
 
 
 def write_item_discrimination(
-    scored_results: pd.DataFrame, report_dir: Path, seed: int
+    scored_results: pd.DataFrame,
+    model_scores: pd.Series,
+    report_dir: Path,
+    seed: int,
 ) -> list[str]:
     """Compute and write simple difficulty and discrimination per item.
-    Simple difficulty and discrimination are defined as
-        - difficulty: proportion of models that answered the item correctly.
-        - discrimination: point-biserial correlation between
-            - response to the item
-            - total score of the other items
 
-    Items are sorted so the ones least like the rest of the test come first:
-    lowest permutation p-value, then hardest. Items no model (or every model)
-    got right have no discrimination and sort last.
+    Simple difficulty and discrimination are defined as
+
+    - difficulty: proportion of models that answered the item correctly.
+    - discrimination: mean rank of the models that answered it correctly, by
+      ``model_scores`` (0 weakest, 1 strongest, 0.5 chance).
+
+    Items are sorted by mean rank, lowest (solved mostly by weaker models)
+    first, then hardest. Items no model (or every model) got right have no
+    discrimination and sort last.
 
     Returns the filenames written, or an empty list if the run has too few
     models.
     """
     answered = scored_results[scored_results["call_status"] != CALL_STATUS_ERROR]
     try:
-        items = simple_difficulty_and_discrimination(answered, seed=seed)
+        items = simple_difficulty_and_discrimination(
+            answered, model_scores=model_scores, seed=seed
+        )
     except IRTFitError as e:
         typer.secho(
             f"\nSkipping item discrimination: {e}", fg=typer.colors.YELLOW, err=True
@@ -293,17 +299,16 @@ def write_item_discrimination(
         return []
 
     items = items.sort_values(
-        ["p_value_low_discrimination", "proportion_correct"], na_position="last"
+        ["mean_rank_of_correct", "proportion_correct"], na_position="last"
     )
     path = report_dir / "item_discrimination.csv"
     items.to_csv(path, index=False)
 
-    flagged = int((items["p_value_low_discrimination"] < 0.05).sum())
     typer.echo(
-        f"\nItem discrimination* by {len(items)} items: {flagged} items have "
-        "lower discrimination than chance at p < 0.05 (one-sided, uncorrected).\n"
-        "*Item discrimination is computed as the correlation (point-biserial) of "
-        "each item's responses with the total score of the other items.\n"
+        f"\nItem discrimination* for {len(items)} items written to {path.name}, "
+        "lowest mean rank first.\n"
+        "*Item discrimination is the mean rank of the models that got each item "
+        "right, by their perfect-match accuracy on all items.\n"
     )
     return [path.name]
 
@@ -423,7 +428,11 @@ def report_on_run(
     written.extend(irt_files)
 
     # Which items do the stronger models not do better on?
-    written.extend(write_item_discrimination(results, report_dir, seed))
+    # Models are ranked by whole-test perfect-match accuracy. Assumption: this
+    # is a stand-in for adjusted balanced accuracy, which this script does not
+    # compute; review_difficult_items.py ranks by adjusted balanced accuracy.
+    model_accuracy = summary.set_index("model_name")["accuracy"]
+    written.extend(write_item_discrimination(results, model_accuracy, report_dir, seed))
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:

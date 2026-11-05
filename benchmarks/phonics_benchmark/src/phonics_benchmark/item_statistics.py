@@ -1,28 +1,19 @@
-"""Classical item statistics: difficulty and item-rest discrimination.
+"""Simple item statistics: difficulty and rank-based discrimination.
 
 Each ``model`` is a respondent and ``perfect_match`` its binary response to a
-``benchmark_item_id``, as in the Rasch fit in ``irt``. With a few dozen model
-respondents a 2PL discrimination per item is not estimable, so discrimination
-here is the classical item-rest correlation instead: the point-biserial between
-the item's 0/1 responses and each model's perfect-match rate on the *other*
-items.
+``benchmark_item_id``, as in the Rasch fit in ``irt``.
 
-The raw item-rest correlation is capped by how hard an item is: when only a few
-models get an item right, it cannot reach 1 even if those models are the
-strongest ones. So each item also gets
+Difficulty is the proportion of answering models that got the item right.
 
-- the largest correlation its difficulty allows, and the raw value as a share
-  of it,
-- the mean rest-score percentile of the models that got it right (1 means the
-  strongest models solved it), and
-- a one-sided permutation p-value for discrimination this low arising by
-  chance, which accounts for how few models answered correctly.
+Discrimination asks whether the models that got it right are the strong ones:
+it is the mean rank of those models by a per-model score, scaled so 0 is the
+weakest answering model, 1 the strongest, and 0.5 what random models would
+average.
 
-Items every answering model got right, or none did, have no correlation.
+We also compute the 95% interval for the mean rank, representing the range
+of mean rank of random models.
 
-Missing model x item responses are left out rather than scored as wrong: rest
-scores are rates over the other items a model answered, and each item's
-statistics use only the models that answered it.
+Items every answering model got right, or none did, have no rank statistics.
 """
 
 from __future__ import annotations
@@ -40,53 +31,59 @@ from phonics_benchmark.irt import (
 from phonics_benchmark.utils import require_columns
 
 DEFAULT_N_PERMUTATIONS = 1000
+DEFAULT_N_BOOTSTRAP = 1000
+DEFAULT_INTERVAL_LEVEL = 0.95
 
 STATUS_ALL_CORRECT = "all_correct"
 STATUS_ALL_INCORRECT = "all_incorrect"
 STATUS_INTERIOR = "interior"
 
 
-def _correlation(x: np.ndarray, y: np.ndarray) -> float:
-    """Pearson correlation, or NaN when either vector is constant."""
-    if np.std(x) == 0 or np.std(y) == 0:
-        return np.nan
-    return float(np.corrcoef(x, y)[0, 1])
+def scaled_ranks(scores: np.ndarray) -> np.ndarray:
+    """Ranks scaled to [0, 1]: 0 for the lowest score, 1 for the highest.
+
+    Tied scores share their average rank.
+    """
+    ranks = pd.Series(scores).rank(method="average").to_numpy()
+    return (ranks - 1) / (len(scores) - 1)
 
 
-def _permutation_p_value(
+def _permutation_means(
     responses: np.ndarray,
-    rest: np.ndarray,
+    ranks: np.ndarray,
     n_permutations: int,
     rng: np.random.Generator,
-) -> float:
-    """One-sided p-value for an item-rest correlation at least this low.
+) -> np.ndarray:
+    """Mean rank of the correct models after shuffling responses across models.
 
-    Shuffling the item's responses across models keeps the number correct
-    fixed, so the correlation is monotone in the summed rest score of the
-    models marked correct. Comparing those sums is equivalent and cheaper.
+    Shuffling keeps the number models that got the item right fixed, so each
+    draw is the mean rank of that many models picked at random.
     """
-    observed = rest[responses == 1].sum()
     shuffled = rng.permuted(np.tile(responses, (n_permutations, 1)), axis=1)
-    permuted_sums = shuffled @ rest
-    # Small tolerance so ties with the observed sum count as "as low".
-    as_low = np.count_nonzero(permuted_sums <= observed + 1e-9)
-    # The +1s count the observed arrangement itself, so p is never exactly 0.
-    return (as_low + 1) / (n_permutations + 1)
+    return (shuffled @ ranks) / responses.sum()
 
 
 @require_columns(["model", "benchmark_item_id", "perfect_match"])
 def simple_difficulty_and_discrimination(
     results: pd.DataFrame,
     *,
+    model_scores: pd.Series | None = None,
     n_permutations: int = DEFAULT_N_PERMUTATIONS,
+    interval_level: float = DEFAULT_INTERVAL_LEVEL,
     seed: int = 0,
     item_metadata_columns: Sequence[str] = DEFAULT_ITEM_METADATA_COLUMNS,
 ) -> pd.DataFrame:
-    """Per-item difficulty and item-rest discrimination over model responses.
+    """Per-item difficulty and rank-based discrimination over model responses.
+    - difficulty: low proportion of models that got it right
+    - discrimination: low mean rank among the models that got it right
 
     ``results`` is one row per model and benchmark item. Rows for calls that
     never returned should be dropped by the caller rather than passed in as
     zeros: a failed call is a missing response, not a wrong answer.
+
+    ``model_scores`` ranks the models, indexed by model, higher meaning
+    stronger. You can feed in any metric here as long as higher means better.
+    If not provided, defaults to accuracy.
 
     Returns one row per item, in first-seen order.
     """
@@ -96,8 +93,9 @@ def simple_difficulty_and_discrimination(
 
     item_order = results["benchmark_item_id"].drop_duplicates().tolist()
     model_order = results["model"].drop_duplicates().tolist()
-    # Three models is the fewest for which a rest score can vary once one
-    # model's response is fixed.
+
+    # We're only concerned with items with mixed responses. If there are only
+    # two models, the mean rank can't meaningfully discriminate between them.
     if len(model_order) < 3:
         raise IRTFitError(
             "Item discrimination requires responses from at least three models; "
@@ -116,44 +114,33 @@ def simple_difficulty_and_discrimination(
         .to_numpy(dtype=float)
     )
     answered = ~np.isnan(responses)
-    filled = np.nan_to_num(responses)
 
-    # Each model's accuracy on every other item.
-    correct_by_model = filled.sum(axis=0)
-    answered_by_model = answered.sum(axis=0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        rest_scores = (correct_by_model - filled) / (answered_by_model - 1)
-    rest_scores[~answered] = np.nan
+    # One score per model, aligned to the response columns. Models that
+    # model_scores does not cover get NaN and cannot be ranked.
+    if model_scores is None:
+        model_scores = results.groupby("model")["perfect_match"].mean()
+    scores = model_scores.reindex(model_order).to_numpy(dtype=float)
+    has_score = np.isfinite(scores)
 
     rng = np.random.default_rng(seed)
+    tail = (1 - interval_level) / 2
     rows = []
     for item_index in range(len(item_order)):
-        rest = rest_scores[item_index]
-        # A model with no other answered items has no rest score.
-        usable = answered[item_index] & np.isfinite(rest)
+        # Rank only the models that answered this item and have a score.
+        usable = answered[item_index] & has_score
         item_responses = responses[item_index, usable].astype(int)
-        item_rest = rest[usable]
         n_correct = int(item_responses.sum())
         n_answered = int(usable.sum())
 
-        correlation = max_correlation = p_value = mean_percentile = np.nan
+        mean_rank = np.nan
+        chance_low = chance_high = np.nan
         if 0 < n_correct < n_answered:
-            correlation = _correlation(item_responses, item_rest)
+            ranks = scaled_ranks(scores[usable])
+            ranks_of_correct_models = ranks[item_responses == 1]
+            mean_rank = float(ranks_of_correct_models.mean())
 
-            # The best case for this difficulty: the n_correct strongest
-            # models are the ones that got it right.
-            best_case = np.zeros(n_answered, dtype=int)
-            best_case[np.argsort(-item_rest, kind="stable")[:n_correct]] = 1
-            max_correlation = _correlation(best_case, item_rest)
-
-            # Percentile 1.0 is the strongest model among those answering.
-            percentiles = pd.Series(item_rest).rank(pct=True).to_numpy()
-            mean_percentile = float(percentiles[item_responses == 1].mean())
-
-            if not np.isnan(correlation):
-                p_value = _permutation_p_value(
-                    item_responses, item_rest, n_permutations, rng
-                )
+            chance = _permutation_means(item_responses, ranks, n_permutations, rng)
+            chance_low, chance_high = np.quantile(chance, [tail, 1 - tail])
 
         rows.append(
             {
@@ -161,19 +148,13 @@ def simple_difficulty_and_discrimination(
                 "models_correct": n_correct,
                 "models_answered": n_answered,
                 "proportion_correct": n_correct / n_answered if n_answered else np.nan,
-                "item_rest_correlation": correlation,
-                "max_item_rest_correlation": max_correlation,
-                "mean_rest_percentile_of_correct": mean_percentile,
-                "p_value_low_discrimination": p_value,
+                "mean_rank_of_correct": mean_rank,
+                "chance_rank_low": chance_low,
+                "chance_rank_high": chance_high,
             }
         )
 
     item_results = pd.DataFrame(rows)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        item_results["normalized_item_rest_correlation"] = (
-            item_results["item_rest_correlation"]
-            / item_results["max_item_rest_correlation"]
-        )
     item_results["status"] = np.select(
         [
             item_results["models_correct"] == item_results["models_answered"],

@@ -1,6 +1,10 @@
 """Review difficult items for decodability assessment benchmark.
 
-We look for items that all of the top 10 models get wrong.
+We look for items that all of the top 10 models get wrong, and for items that
+are hard and discriminate poorly: few models get them right, and the ones that
+do are not the strong ones (see ``phonics_benchmark.item_statistics``). For
+the latter, every model's prediction is written out, right and wrong, for
+inspection by hand.
 
 Prerequisite:
     Latest results of decodability assessment benchmark results downloaded locally
@@ -22,6 +26,11 @@ Usage:
     By default, --target is set to
     "outputs/phonics-gold-leaderboard-20260922-from-gcs/reports/"
 
+    Hard, low-discrimination items are those with at most
+    --max-proportion-correct of models right (and at least one) and a mean
+    rank of the models that got them right of at most --max-mean-rank, ranking
+    models by adjusted balanced accuracy.
+
 Saves results in <target_directory>/<language>/difficult_items/
 """
 
@@ -30,6 +39,10 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from phonics_benchmark.item_statistics import (
+    STATUS_INTERIOR,
+    simple_difficulty_and_discrimination,
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -48,13 +61,29 @@ parser.add_argument(
     default="outputs/phonics-gold-leaderboard-20260922-from-gcs/reports/",
     help="Target directory to save results, under /<language>/difficult_items/",
 )
+parser.add_argument(
+    "--max-proportion-correct",
+    type=float,
+    default=0.2,
+    help="Hardest items to review: at most this share of models right (default: 0.2)",
+)
+parser.add_argument(
+    "--max-mean-rank",
+    type=float,
+    default=0.7,
+    help=(
+        "Least discriminating items to review: mean rank of the models that got "
+        "them right at most this, 0 weakest to 1 strongest (default: 0.7)"
+    ),
+)
 
 
-LANGUAGE = parser.parse_args().language
+ARGS = parser.parse_args()
+LANGUAGE = ARGS.language
 REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
 )
-BASE = REPO_ROOT / parser.parse_args().target
+BASE = REPO_ROOT / ARGS.target
 
 REPORT_DIR = BASE / f"{LANGUAGE}"
 TARGET_DIR = REPORT_DIR / "difficult_items"
@@ -195,20 +224,112 @@ def build(results=None):
     return item_words.drop(columns=["response_parsed", "nondecodable_words"])
 
 
-def get_top10_models():
+def get_model_scores():
+    """Adjusted balanced accuracy per model, the leaderboard's metric."""
     model_summary = pd.read_csv(REPORT_DIR / "model_summary_eligible.csv")
-    top10_models = (
-        model_summary.sort_values(by="adjusted_balanced_accuracy", ascending=False)
-        .head(10)["model"]
-        .tolist()
+    return model_summary.set_index("model")["adjusted_balanced_accuracy"]
+
+
+def get_top10_models():
+    return get_model_scores().nlargest(10).index.tolist()
+
+
+def select_hard_low_discrimination_items(
+    results, model_scores, max_proportion_correct, max_mean_rank
+):
+    """Item statistics for the difficult, poorly discriminating items, where
+    - difficult: low proportion of models that got it right
+    - poorly discriminating: low mean rank among the models that got it right
+    sorted in ascending order by mean rank and then proportion correct
+
+    Excludes items that no model got right since they have no mean rank.
+    """
+    items = simple_difficulty_and_discrimination(
+        results, model_scores=model_scores, item_metadata_columns=()
     )
-    return top10_models
+    selected = items[
+        (items["status"] == STATUS_INTERIOR)
+        & (items["proportion_correct"] <= max_proportion_correct)
+        & (items["mean_rank_of_correct"] <= max_mean_rank)
+    ]
+    return selected.sort_values(["mean_rank_of_correct", "proportion_correct"])
+
+
+def predictions_for_items(results, items, model_scores):
+    """Every model's prediction on each of ``items``, right and wrong.
+
+    One row per item and model, with the item's statistics alongside so the
+    file can be read on its own. Within an item, models run strongest first.
+    """
+    model_rank = (
+        model_scores.rank(ascending=False, method="min")
+        .astype(int)
+        .rename("model_rank")
+    )
+    predictions = results[results["benchmark_item_id"].isin(items["benchmark_item_id"])]
+    predictions = predictions.assign(
+        model_rank=predictions["model"].map(model_rank),
+        # Sorted lists rather than sets so the CSV reads the same on every run.
+        predicted=predictions["response_parsed"].map(sorted),
+        gold=predictions["nondecodable_words"].map(sorted),
+        extra_words=[
+            sorted(p - g)
+            for p, g in zip(predictions.response_parsed, predictions.nondecodable_words)
+        ],
+        missed_words=[
+            sorted(g - p)
+            for p, g in zip(predictions.response_parsed, predictions.nondecodable_words)
+        ],
+    )
+    columns = [
+        "benchmark_item_id",
+        "model",
+        "model_rank",
+        "hardware_tier",
+        "perfect_match",
+        "predicted",
+        "gold",
+        "extra_words",
+        "missed_words",
+        "student_knowledge",
+        "content",
+    ]
+    item_columns = [
+        "benchmark_item_id",
+        "models_correct",
+        "models_answered",
+        "proportion_correct",
+        "mean_rank_of_correct",
+        "chance_rank_low",
+        "chance_rank_high",
+    ]
+    merged = items[item_columns].merge(
+        predictions[columns], on="benchmark_item_id", validate="one_to_many"
+    )
+    # Keep the items in selection order (weakest first), then models by rank.
+    item_order = {item: i for i, item in enumerate(items["benchmark_item_id"])}
+    merged["item_order"] = merged["benchmark_item_id"].map(item_order)
+    return merged.sort_values(["item_order", "model_rank"]).drop(columns="item_order")
 
 
 if __name__ == "__main__":
     results = load_results()
     top10_models = get_top10_models()
     logging.info(f"Top 10 models: {top10_models}")
+
+    # Hard, poorly discriminating items, with every model's prediction on them.
+    model_scores = get_model_scores()
+    hard_items = select_hard_low_discrimination_items(
+        results, model_scores, ARGS.max_proportion_correct, ARGS.max_mean_rank
+    )
+    logging.info(
+        f"number of items with proportion correct <= {ARGS.max_proportion_correct} "
+        f"and mean rank of correct models <= {ARGS.max_mean_rank}: {len(hard_items)}"
+    )
+    hard_items.to_csv(TARGET_DIR / "hard_low_discrimination_items.csv", index=False)
+    predictions_for_items(results, hard_items, model_scores).to_csv(
+        TARGET_DIR / "hard_low_discrimination_predictions.csv", index=False
+    )
 
     cols_to_drop = [
         "call_status",
