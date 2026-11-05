@@ -12,6 +12,14 @@ from pydantic import ValidationError
 
 PACKAGE = "decodable_text_generation"
 
+# Student-knowledge notation per language, as a format name the language's
+# model accepts in render(). Unlike the frozen phonics table, entries here can
+# change: prompts are baked at build time, so rebuilt items get a new
+# items_sha256. English uses "plain" (a -> /æ/); Kiswahili keeps "quoted", the
+# notation it has always had. This could become a build argument in the future.
+# A new language needs an entry.
+KNOWLEDGE_FORMAT = {"en": "plain", "sw": "quoted"}
+
 
 @cache
 def _load_yaml(filename: str) -> dict[str, Any]:
@@ -122,6 +130,14 @@ def build_generation_prompt(
         ) from None
 
     try:
+        knowledge_format = KNOWLEDGE_FORMAT[language]
+    except KeyError:
+        raise ConfigError(
+            f"No student-knowledge format for language '{language}'; add one to "
+            "KNOWLEDGE_FORMAT in decodable_text_generation/prompts.py"
+        ) from None
+
+    try:
         student_knowledge = language_integration[
             "student_knowledge_model"
         ].model_validate(item["student_knowledge"])
@@ -131,14 +147,6 @@ def build_generation_prompt(
             f"'{item['benchmark_item_id']}': {e}"
         ) from e
 
-    # Chosen per language, unlike the frozen phonics benchmark, which renders
-    # "quoted" for every language. English uses "plain" (a -> /æ/); Kiswahili keeps
-    # "quoted", the notation it has always had. Hardcoded for now; this could
-    # become a build argument in the future.
-    if language == "en":
-        knowledge_format = "plain"
-    else:
-        knowledge_format = "quoted"
     knowledge_text = student_knowledge.render(knowledge_format)
     # affixes exist only on the English model and render() doesn't include
     # them, so append a line here for generation prompts.

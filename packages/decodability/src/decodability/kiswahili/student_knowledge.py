@@ -1,5 +1,6 @@
 from functools import cached_property, reduce
 from itertools import chain
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -9,11 +10,8 @@ from decodability.kiswahili.definitions import (
     ClusterPattern,
 )
 from decodability.kiswahili.segment import get_grapheme_symbols
-from decodability.student_knowledge import (
-    DEFAULT_KNOWLEDGE_FORMAT,
-    KnowledgeFormat,
-    format_items,
-)
+
+KiswahiliKnowledgeFormat = Literal["quoted"]
 
 
 class KiswahiliStudentKnowledge(BaseModel):
@@ -121,20 +119,34 @@ class KiswahiliStudentKnowledge(BaseModel):
         )
         return self.clusters | clusters_from_patterns
 
-    def render(self, fmt: KnowledgeFormat) -> str:
-        """Render as the STUDENT KNOWLEDGE block of a prompt.
+    def render(self, fmt: KiswahiliKnowledgeFormat) -> str:
+        """Render the profile as a prompt's STUDENT KNOWLEDGE block.
 
-        Renders graphemes, clusters, cluster-pattern labels and whole words.
+        ``"quoted"``: every item double-quoted and sorted, e.g. ``"a", "m"``;
+        cluster patterns render as their labels.
         """
-        pattern_labels = [pattern.label for pattern in self.cluster_patterns]
+        if fmt != "quoted":
+            raise ValueError(
+                f"Unknown knowledge format {fmt!r}; Kiswahili supports "
+                f"{get_args(KiswahiliKnowledgeFormat)}"
+            )
+
+        graphemes = ", ".join(f'"{g}"' for g in sorted(self.graphemes))
+        clusters = ", ".join(f'"{c}"' for c in sorted(self.clusters))
+        cluster_patterns = ", ".join(
+            f'"{p.label}"'
+            for p in sorted(self.cluster_patterns, key=lambda pattern: pattern.label)
+        )
+        whole_words = ", ".join(f'"{w}"' for w in sorted(self.whole_words))
+
         return "\n".join(
             [
-                f"- Known graphemes: {format_items(self.graphemes, fmt)}",
-                f"- Known clusters: {format_items(self.clusters, fmt)}",
-                f"- Known cluster patterns: {format_items(pattern_labels, fmt)}",
-                f"- Known whole words: {format_items(self.whole_words, fmt)}",
+                f"- Known graphemes: {graphemes or 'None'}",
+                f"- Known clusters: {clusters or 'None'}",
+                f"- Known cluster patterns: {cluster_patterns or 'None'}",
+                f"- Known whole words: {whole_words or 'None'}",
             ]
         )
 
     def __str__(self) -> str:
-        return self.render(DEFAULT_KNOWLEDGE_FORMAT)
+        return self.render("quoted")

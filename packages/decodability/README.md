@@ -150,20 +150,22 @@ supply an OOV pronunciation, or correct one that doesn't match the curriculum.
 
 ## Rendering student knowledge
 
-Both student-knowledge models render the STUDENT KNOWLEDGE block of a prompt with
-`render(fmt)`, in one of two notations. Every language supports both; each caller
-chooses one explicitly. Each model implements `render` with the shared helpers in
-`decodability/student_knowledge.py`, so a notation looks the same in every language.
+Each student-knowledge model renders the STUDENT KNOWLEDGE block of a prompt with
+`render(fmt)`. Each language defines its own format names and raises `ValueError` for
+any other, so a new language can add the notation it needs without touching the others.
 
-| Format     | GPCs        | Lists          | Used by                                                    |
-| ---------- | ----------- | -------------- | ---------------------------------------------------------- |
-| `"quoted"` | `"a" → "æ"` | `"and", "the"` | phonics benchmark; decodable text generation for Kiswahili |
-| `"plain"`  | `a -> /æ/`  | `and, the`     | decodable text generation for English                      |
+| Language  | Format     | Example                     |
+| --------- | ---------- | --------------------------- |
+| English   | `"quoted"` | `"a" → "æ"`, `"and", "the"` |
+| English   | `"plain"`  | `a -> /æ/`, `and, the`      |
+| Kiswahili | `"quoted"` | `"a", "m"`                  |
 
-`"quoted"` is frozen. Every phonics run used it, and the rendered prompt is part of each
-call's `model_call_id`, so changing it would split new results from existing runs.
-`str()` uses `"quoted"`, but code that builds prompts passes the format explicitly.
-`affixes` are not rendered.
+Each benchmark picks a format per language in a `KNOWLEDGE_FORMAT` table in its
+`prompts.py`, and a language missing from that table is a `ConfigError`. The phonics
+table is frozen: every phonics run used `"quoted"`, and the rendered prompt is part of
+each call's `model_call_id`, so changing an entry would split new results from existing
+runs. `str()` renders `"quoted"`, but code that builds prompts passes the format
+explicitly. English `affixes` are not rendered.
 
 ## Examples
 

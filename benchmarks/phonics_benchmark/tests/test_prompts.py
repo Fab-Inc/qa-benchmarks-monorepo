@@ -1,10 +1,12 @@
 """Tests for loading and rendering packaged prompts."""
 
 import pytest
+from decodability import DECODABILITY_REGISTRY
 from decodability.english import EnglishStudentKnowledge
 from decodability.kiswahili import KiswahiliStudentKnowledge
 from phonics_benchmark.config import DEFAULT_PROMPT_NAME, ConfigError
 from phonics_benchmark.prompts import (
+    KNOWLEDGE_FORMAT,
     PROMPT_FIELD_BUILDERS,
     _load_prompts,
     build_decodability_prompt,
@@ -68,7 +70,7 @@ def test_leaderboard_prompts_keep_the_frozen_quoted_notation(
 
 
 def test_phonics_prompts_do_not_depend_on_str(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prompts render "quoted" explicitly, so a change to str() cannot reach them."""
+    """Prompts render KNOWLEDGE_FORMAT explicitly, so str() changes can't reach them."""
 
     def fail(self: object) -> str:
         raise AssertionError("phonics prompts must not use str() of the profile")
@@ -142,6 +144,22 @@ def test_build_decodability_prompt_rejects_unknown_language() -> None:
             },
             "xx",
         )
+
+
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_FORMAT))
+def test_knowledge_format_is_supported_by_the_language_model(language: str) -> None:
+    model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
+    assert model().render(KNOWLEDGE_FORMAT[language]).startswith("- Known ")
+
+
+def test_build_decodability_prompt_requires_a_knowledge_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(KNOWLEDGE_FORMAT, "sw")
+    with pytest.raises(
+        ConfigError, match="No student-knowledge format for language 'sw'"
+    ):
+        build_decodability_prompt(DEFAULT_PROMPT_NAME, ITEM, "sw")
 
 
 def test_build_decodability_prompt_reports_invalid_student_knowledge() -> None:

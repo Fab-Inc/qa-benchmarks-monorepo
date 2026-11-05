@@ -1,15 +1,13 @@
+from typing import Literal, get_args
+
 from pydantic import BaseModel, field_validator
 
 from decodability.english.definitions import (
     UFLI_GPC_PAIRS_FLAT,
     normalize_gpc_grapheme,
 )
-from decodability.student_knowledge import (
-    DEFAULT_KNOWLEDGE_FORMAT,
-    KnowledgeFormat,
-    format_items,
-    format_pairs,
-)
+
+EnglishKnowledgeFormat = Literal["quoted", "plain"]
 
 
 class EnglishStudentKnowledge(BaseModel):
@@ -57,17 +55,33 @@ class EnglishStudentKnowledge(BaseModel):
         """Lowercase all affixes to ensure consistency."""
         return {affix.lower() for affix in affixes}
 
-    def render(self, fmt: KnowledgeFormat) -> str:
-        """Render as the STUDENT KNOWLEDGE block of a prompt.
+    def render(self, fmt: EnglishKnowledgeFormat) -> str:
+        """Render known GPCs and sight words as a prompt's STUDENT KNOWLEDGE block.
 
-        Renders known GPCs and sight words; ``affixes`` are not rendered.
+        - ``"quoted"``: ``"a" → "æ"``, ``"the"``
+        - ``"plain"``: ``a -> /æ/``, ``the``
+
+        GPCs keep their order, sight words are sorted, and ``affixes`` are not
+        rendered.
         """
+        if fmt == "quoted":
+            gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
+            sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
+        elif fmt == "plain":
+            gpcs = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in self.gpcs)
+            sight_words = ", ".join(sorted(self.sight_words))
+        else:
+            raise ValueError(
+                f"Unknown knowledge format {fmt!r}; English supports "
+                f"{get_args(EnglishKnowledgeFormat)}"
+            )
+
         return "\n".join(
             [
-                f"- Known GPCs: {format_pairs(self.gpcs, fmt)}",
-                f"- Known sight words: {format_items(self.sight_words, fmt)}",
+                f"- Known GPCs: {gpcs or 'None'}",
+                f"- Known sight words: {sight_words or 'None'}",
             ]
         )
 
     def __str__(self) -> str:
-        return self.render(DEFAULT_KNOWLEDGE_FORMAT)
+        return self.render("quoted")

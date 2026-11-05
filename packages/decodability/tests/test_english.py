@@ -119,6 +119,10 @@ class TestEnglishStudentKnowledgeModel:
         for fmt in ("quoted", "plain"):
             assert "affix" not in knowledge.render(fmt).lower()
 
+    def test_english_student_knowledge_render_rejects_unknown_formats(self):
+        with pytest.raises(ValueError, match="Unknown knowledge format 'v2'"):
+            EnglishStudentKnowledge().render("v2")  # type: ignore[arg-type]
+
 
 class TestScorers:
     @pytest.mark.parametrize(
