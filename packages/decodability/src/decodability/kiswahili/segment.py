@@ -203,33 +203,99 @@ class NasalBoundary:
 NasalRule = Callable[[NasalBoundary], NasalReading | None]
 
 
-def _initial_n_before_monosyllabic_root_is_syllabic(
+def _exception_words(boundary: NasalBoundary) -> NasalReading | None:
+    """Handle exception words that do not follow the usual nasal rules."""
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+
+    if word == "mvua":
+        return NasalReading.SYLLABIC
+
+    if word == "jumanne":
+        return NasalReading.SYLLABIC
+
+    return None
+
+
+def _unambiguous_due_to_expert_review(boundary: NasalBoundary) -> NasalReading | None:
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+    disambiguated = [
+        # reviewed from benchmark item texts
+        ("mbunge", ("mb", 0)),
+        # "kiamshakinywa",
+        # "mfalme",
+        # "mkubwa",
+        # "mgonjwa",
+        # other examples reviewed
+        ("mbaya", ("mb", 0)),
+        ("mvulana", ("mv", 0)),
+        ("mbovu", ("mb", 0)),
+        ("akambeba", ("mb", 3)),
+        ("mbebe", ("mb", 0)),
+        ("hambebi", ("mb", 2)),
+        ("mwako", ("mw", 0)),
+        ("mwaridi", ("mw", 0)),
+        ("myombo", ("my", 0)),
+        ("myugwa", ("my", 0)),
+    ]
+    for w, (_, pos) in disambiguated:
+        if word == w and boundary.index == pos:
+            return NasalReading.SYLLABIC
+    return None
+
+
+def _nw_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """The sequence ``nw`` is always fused."""
+    if boundary.nasal.symbol == "n" and boundary.follower.symbol == "w":
+        return NasalReading.FUSED
+    return None
+
+
+def _medial_m_glide_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """Medial ``my`` and ``mw`` are always fused."""
+    if (
+        not boundary.word_initial
+        and boundary.nasal.symbol == "m"
+        and boundary.follower.symbol in {"y", "w"}
+    ):
+        return NasalReading.FUSED
+    return None
+
+
+def _initial_nasal_before_monosyllabic_root_is_syllabic(
     boundary: NasalBoundary,
 ) -> NasalReading | None:
-    """Word-initial ``n`` + d/j/z on a one-vowel root reads as syllabic n.
+    """Word-initial nasal consonant running on a one-vowel root reads as syllabic.
 
-    When the n- class prefix attaches to a monosyllabic root (nzi, nje) the
-    nasal carries its own syllable rather than fusing into the prenasalised
-    onset; on longer roots (ndizi, njia) and word-medially it stays fused.
+    This is true even for consonants that are typically fused after the nasals, like
+    mb, mv, nd, nj, nz (except nw). On longer roots (ndizi, njia) and word-medially
+    those stay fused.
     """
-    if (
-        boundary.word_initial
-        and boundary.nasal.symbol == "n"
-        and boundary.vowels_after == 1
-    ):
+    if boundary.word_initial and boundary.nasal and boundary.vowels_after == 1:
         return NasalReading.SYLLABIC
     return None
 
 
-def _provisional_mb_mv_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
-    """PROVISIONAL pending linguist notes: ``m`` + b/v may be either reading.
+def _m_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
+    """Nasal verdict on ``m`` before b/v/w/y depends on word analysis which
+    the current tool cannot perform.
 
-    "m" before b or v can be the syllabic m- marker (e.g. a verb marker or
-    class prefix) or the fused prenasalised onset, at any position in the
-    word, so both readings are kept open.
+    More specifically, for words starting with m-glides, we need to know their
+    plural form to determine if the ``m`` is syllabic or fused. Word-medial
+    m-glides are always fused.
+
+    For ``m`` before b/v, it depends on whether
+    it is an object or second-person plural marker for a verb, the intended
+    meaning of the word, or its noun class or agreement features.
     """
-    if boundary.nasal.symbol == "m" and boundary.follower.symbol in {"b", "v"}:
+    if not boundary.nasal.symbol == "m":
+        return None
+
+    if boundary.follower.symbol in {"b", "v"}:
         return NasalReading.AMBIGUOUS
+
+    if boundary.word_initial and boundary.follower.symbol in {"w", "y"}:
+        return NasalReading.AMBIGUOUS
+
     return None
 
 
@@ -249,8 +315,13 @@ def _taught_onset_clusters(boundary: NasalBoundary) -> NasalReading | None:
 
 
 NASAL_RULES: tuple[NasalRule, ...] = (
-    _initial_n_before_monosyllabic_root_is_syllabic,
-    _provisional_mb_mv_ambiguity,
+    _exception_words,
+    _unambiguous_due_to_expert_review,
+    # TODO: check with justin whether to include it here or not
+    _nw_always_fused,
+    _medial_m_glide_always_fused,
+    _initial_nasal_before_monosyllabic_root_is_syllabic,
+    _m_ambiguity,
     _taught_onset_clusters,
 )
 
@@ -341,6 +412,8 @@ def _clusterings_of_run(
     syllabic leading nasal simply drops out of it. An ambiguous boundary
     yields both readings, fused first.
     """
+
+    # TODO: maybe remove verdict field and call _nasal_verdict in here?
 
     def clustering(start: int) -> list[ClusterSpan]:
         span = _run_span(graphemes, run, start)
