@@ -112,6 +112,8 @@ def build_decodability_prompt(
     return get_prompt(
         prompt_name,
         language=language_integration["name"],
-        student_knowledge=student_knowledge,
+        # Frozen notation of every phonics run: changing it changes the prompts and
+        # their model_call_id hashes, splitting new results from existing runs.
+        student_knowledge=student_knowledge.render("quoted"),
         **build_fields(item, language),
     )

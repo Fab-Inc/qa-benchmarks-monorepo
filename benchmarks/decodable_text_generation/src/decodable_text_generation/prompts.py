@@ -80,11 +80,11 @@ _TARGET_FIELD_LABELS = {
 def render_target(target: Mapping[str, Any]) -> str:
     """Render a profile's target object as the TARGET block of a prompt.
 
-    Pair-valued fields (e.g. ``gpcs``) render as ``"grapheme" → "phoneme"`` and
-    plain word/symbol lists as quoted, comma-separated items — the same notation
-    the student-knowledge models' ``__str__`` uses for the STUDENT KNOWLEDGE
-    block. Scalar fields such as ``description`` render verbatim. Empty fields
-    are omitted entirely.
+    Pair-valued fields (e.g. ``gpcs``) render as ``grapheme -> /phoneme/`` —
+    the same notation as the English STUDENT KNOWLEDGE block (``"plain"``);
+    plain word/symbol lists render comma-separated;
+    scalar fields such as ``description`` render verbatim. Empty fields are
+    omitted entirely.
     """
     lines = []
     for field, values in target.items():
@@ -99,9 +99,9 @@ def render_target(target: Mapping[str, Any]) -> str:
         if not items:
             continue
         if isinstance(items[0], (list, tuple)):
-            rendered = "; ".join(f'"{g}" → "{p}"' for g, p in items)
+            rendered = "; ".join(f"{g} -> /{p}/" for g, p in items)
         else:
-            rendered = ", ".join(f'"{v}"' for v in sorted(items))
+            rendered = ", ".join(str(v) for v in sorted(items))
         lines.append(f"- {label}: {rendered}")
     return "\n".join(lines) or "- Nothing new this week"
 
@@ -131,13 +131,20 @@ def build_generation_prompt(
             f"'{item['benchmark_item_id']}': {e}"
         ) from e
 
-    knowledge_text = str(student_knowledge)
-    # affixes exist only on the English model; shared __str__ doesn't render
+    # Chosen per language, unlike the frozen phonics benchmark, which renders
+    # "quoted" for every language. English uses "plain" (a -> /æ/); Kiswahili keeps
+    # "quoted", the notation it has always had. Hardcoded for now; this could
+    # become a build argument in the future.
+    if language == "en":
+        knowledge_format = "plain"
+    else:
+        knowledge_format = "quoted"
+    knowledge_text = student_knowledge.render(knowledge_format)
+    # affixes exist only on the English model and render() doesn't include
     # them, so append a line here for generation prompts.
     affixes = getattr(student_knowledge, "affixes", None)
     if affixes:
-        known_affixes = ", ".join(f'"{a}"' for a in sorted(affixes))
-        knowledge_text += f"\n- Known affixes: {known_affixes}"
+        knowledge_text += f"\n- Known affixes: {', '.join(sorted(affixes))}"
 
     fields: dict[str, Any] = {
         "decoding_rules": get_decoding_rules(language)["decoding_rules"],

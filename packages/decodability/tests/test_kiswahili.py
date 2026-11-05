@@ -284,6 +284,36 @@ class TestKiswahiliStudentKnowledgeModel:
     def test_kiswahili_student_knowledge_str(self, kwargs: dict, expected_str: str):
         """Test the string representation of KiswahiliStudentKnowledge."""
         assert str(KiswahiliStudentKnowledge(**kwargs)) == expected_str
+        assert KiswahiliStudentKnowledge(**kwargs).render("quoted") == expected_str
+
+    @pytest.mark.parametrize(
+        "kwargs, expected_plain",
+        [
+            (
+                {"graphemes": {"m", "a", "n"}, "whole_words": {"baba", "mama"}},
+                "- Known graphemes: a, m, n\n"
+                "- Known clusters: None\n"
+                "- Known cluster patterns: None\n"
+                "- Known whole words: baba, mama",
+            ),
+            (
+                {
+                    "graphemes": {"m", "b", "d"},
+                    "clusters": {"mb", "md"},
+                    "cluster_patterns": {ClusterPattern.PALATALISED_GLIDE},
+                },
+                "- Known graphemes: b, d, m\n"
+                "- Known clusters: mb, md\n"
+                '- Known cluster patterns: consonant + "y"\n'
+                "- Known whole words: None",
+            ),
+        ],
+    )
+    def test_kiswahili_student_knowledge_render_plain(
+        self, kwargs: dict, expected_plain: str
+    ):
+        """The "plain" notation drops the outer quotes, also around pattern labels."""
+        assert KiswahiliStudentKnowledge(**kwargs).render("plain") == expected_plain
 
 
 class TestKiswahiliClusters:

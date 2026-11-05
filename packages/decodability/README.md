@@ -148,6 +148,22 @@ Pronunciations come from CMUdict, with per-word overrides available via
 `CMUDICT_OVERRIDES` in `phoneme_overrides.py` — used to force a specific CMU variant,
 supply an OOV pronunciation, or correct one that doesn't match the curriculum.
 
+## Rendering student knowledge
+
+Both student-knowledge models render the STUDENT KNOWLEDGE block of a prompt with
+`render(fmt)`, in one of two notations. Every language supports both; each caller
+chooses one explicitly.
+
+| Format     | GPCs        | Lists          | Used by                                                    |
+| ---------- | ----------- | -------------- | ---------------------------------------------------------- |
+| `"quoted"` | `"a" → "æ"` | `"and", "the"` | phonics benchmark; decodable text generation for Kiswahili |
+| `"plain"`  | `a -> /æ/`  | `and, the`     | decodable text generation for English                      |
+
+`"quoted"` is frozen. Every phonics run used it, and the rendered prompt is part of each
+call's `model_call_id`, so changing it would split new results from existing runs.
+`str()` uses `"quoted"`, but code that builds prompts passes the format explicitly.
+`affixes` are not rendered.
+
 ## Examples
 
 Two runnable examples ship with the package. Run either from the repository root.

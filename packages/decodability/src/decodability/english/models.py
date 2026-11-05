@@ -1,12 +1,18 @@
-from pydantic import BaseModel, field_validator
+from pydantic import field_validator
 
 from decodability.english.definitions import (
     UFLI_GPC_PAIRS_FLAT,
     normalize_gpc_grapheme,
 )
+from decodability.student_knowledge import (
+    KnowledgeFormat,
+    StudentKnowledgeBase,
+    format_items,
+    format_pairs,
+)
 
 
-class EnglishStudentKnowledge(BaseModel):
+class EnglishStudentKnowledge(StudentKnowledgeBase):
     gpcs: list[tuple[str, str]] = []
     sight_words: set[str] = set()
     # Marker-bearing units taught as chunks: affixes ("-ed", "-ies", "un-")
@@ -51,14 +57,11 @@ class EnglishStudentKnowledge(BaseModel):
         """Lowercase all affixes to ensure consistency."""
         return {affix.lower() for affix in affixes}
 
-    def __str__(self) -> str:
-        """Return a string representation of the EnglishStudentKnowledge instance."""
-        gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
-        sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
-
+    def _render(self, fmt: KnowledgeFormat) -> str:
+        """Render known GPCs and sight words; ``affixes`` are not rendered."""
         return "\n".join(
             [
-                f"- Known GPCs: {gpcs or 'None'}",
-                f"- Known sight words: {sight_words or 'None'}",
+                f"- Known GPCs: {format_pairs(self.gpcs, fmt)}",
+                f"- Known sight words: {format_items(self.sight_words, fmt)}",
             ]
         )

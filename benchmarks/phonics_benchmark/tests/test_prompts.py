@@ -1,6 +1,7 @@
 """Tests for loading and rendering packaged prompts."""
 
 import pytest
+from decodability.english import EnglishStudentKnowledge
 from decodability.kiswahili import KiswahiliStudentKnowledge
 from phonics_benchmark.config import DEFAULT_PROMPT_NAME, ConfigError
 from phonics_benchmark.prompts import (
@@ -15,6 +16,73 @@ ITEM = {
     "content": "Mama anaona kuku.",
     "student_knowledge": {"graphemes": ["a", "m", "n"], "whole_words": ["mama"]},
 }
+
+EN_ITEM = {
+    "benchmark_item_id": "item-en",
+    "content": "The cat sat.",
+    "student_knowledge": {
+        "gpcs": [["c", "k"], ["a", "æ"], ["t", "t"], ["s", "s"]],
+        "sight_words": ["the"],
+    },
+}
+
+SW_CLUSTER_ITEM = {
+    "benchmark_item_id": "item-sw-clusters",
+    "content": "Mbuzi.",
+    "student_knowledge": {
+        "graphemes": ["m", "b", "d"],
+        "clusters": ["mb", "md"],
+        "cluster_patterns": ["palatalised_glide"],
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("prompt_name", "item", "language", "expected_block"),
+    [
+        (
+            "decodability_evaluation_schwa_rule",
+            EN_ITEM,
+            "en",
+            '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"; "s" → "s"\n'
+            '- Known sight words: "the"',
+        ),
+        (
+            "decodability_evaluation_clusters",
+            SW_CLUSTER_ITEM,
+            "sw",
+            '- Known graphemes: "b", "d", "m"\n'
+            '- Known clusters: "mb", "md"\n'
+            '- Known cluster patterns: "consonant + "y""\n'
+            "- Known whole words: None",
+        ),
+    ],
+)
+def test_leaderboard_prompts_keep_the_frozen_quoted_notation(
+    prompt_name: str, item: dict, language: str, expected_block: str
+) -> None:
+    """Every phonics run used this notation; changing it splits results."""
+    prompt = build_decodability_prompt(prompt_name, item, language)
+
+    assert expected_block in prompt
+
+
+def test_phonics_prompts_do_not_depend_on_str(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prompts render "quoted" explicitly, so a change to str() cannot reach them."""
+
+    def fail(self: object) -> str:
+        raise AssertionError("phonics prompts must not use str() of the profile")
+
+    monkeypatch.setattr(EnglishStudentKnowledge, "__str__", fail)
+    monkeypatch.setattr(KiswahiliStudentKnowledge, "__str__", fail)
+
+    en_prompt = build_decodability_prompt(
+        "decodability_evaluation_schwa_rule", EN_ITEM, "en"
+    )
+    sw_prompt = build_decodability_prompt(DEFAULT_PROMPT_NAME, ITEM, "sw")
+
+    assert '- Known sight words: "the"' in en_prompt
+    assert '- Known whole words: "mama"' in sw_prompt
 
 
 def test_get_prompt_formats_student_knowledge_with_str() -> None:

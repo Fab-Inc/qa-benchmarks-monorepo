@@ -1,7 +1,7 @@
 from functools import cached_property, reduce
 from itertools import chain
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import ConfigDict, field_validator, model_validator
 
 from decodability.kiswahili.definitions import (
     VALID_CLUSTERS,
@@ -9,9 +9,14 @@ from decodability.kiswahili.definitions import (
     ClusterPattern,
 )
 from decodability.kiswahili.segment import get_grapheme_symbols
+from decodability.student_knowledge import (
+    KnowledgeFormat,
+    StudentKnowledgeBase,
+    format_items,
+)
 
 
-class KiswahiliStudentKnowledge(BaseModel):
+class KiswahiliStudentKnowledge(StudentKnowledgeBase):
     """Model for Kiswahili student knowledge representation."""
 
     model_config = ConfigDict(frozen=True)
@@ -116,21 +121,14 @@ class KiswahiliStudentKnowledge(BaseModel):
         )
         return self.clusters | clusters_from_patterns
 
-    def __str__(self) -> str:
-        """Return a string representation of the KiswahiliStudentKnowledge instance."""
-        graphemes = ", ".join(f'"{g}"' for g in sorted(self.graphemes))
-        clusters = ", ".join(f'"{c}"' for c in sorted(self.clusters))
-        cluster_patterns = ", ".join(
-            f'"{p.label}"'
-            for p in sorted(self.cluster_patterns, key=lambda pattern: pattern.label)
-        )
-        whole_words = ", ".join(f'"{w}"' for w in sorted(self.whole_words))
-
+    def _render(self, fmt: KnowledgeFormat) -> str:
+        """Render graphemes, clusters, cluster-pattern labels and whole words."""
+        pattern_labels = [pattern.label for pattern in self.cluster_patterns]
         return "\n".join(
             [
-                f"- Known graphemes: {graphemes or 'None'}",
-                f"- Known clusters: {clusters or 'None'}",
-                f"- Known cluster patterns: {cluster_patterns or 'None'}",
-                f"- Known whole words: {whole_words or 'None'}",
+                f"- Known graphemes: {format_items(self.graphemes, fmt)}",
+                f"- Known clusters: {format_items(self.clusters, fmt)}",
+                f"- Known cluster patterns: {format_items(pattern_labels, fmt)}",
+                f"- Known whole words: {format_items(self.whole_words, fmt)}",
             ]
         )

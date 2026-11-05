@@ -144,7 +144,7 @@ def test_curriculum_items_keep_only_targeted_profiles(data_root: Path) -> None:
         for item in items
     )
     assert all("TARGET" in item["prompt"] for item in items)
-    assert all('- Target GPCs: "n" → "n"' in item["prompt"] for item in items)
+    assert all("- Target GPCs: n -> /n/" in item["prompt"] for item in items)
 
 
 def test_curriculum_fails_without_targeted_profiles(tmp_path: Path) -> None:
