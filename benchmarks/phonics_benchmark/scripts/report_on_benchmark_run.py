@@ -266,7 +266,7 @@ def write_irt_estimates(scored_results: pd.DataFrame, report_dir: Path) -> list[
     return [items_path.name, models_path.name, difficulty_plot_path.name]
 
 
-def write_item_discrimination(
+def write_item_difficulty_discrimination(
     scored_results: pd.DataFrame,
     model_scores: pd.Series,
     report_dir: Path,
@@ -276,11 +276,11 @@ def write_item_discrimination(
 
     Simple difficulty and discrimination are defined as
 
-    - difficulty: proportion of models that answered the item correctly.
-    - discrimination: mean rank of the models that answered it correctly, by
-      ``model_scores`` (0 weakest, 1 strongest, 0.5 chance).
+    - difficulty: proportion of models that got the item right.
+    - discrimination: mean rank of the models that got the item right, by
+      ``model_scores`` (0 weakest, 1 strongest).
 
-    Items are sorted by mean rank, lowest (solved mostly by weaker models)
+    Items are sorted by mean rank, lowest (weaker models got it right)
     first, then hardest. Items no model (or every model) got right have no
     discrimination and sort last.
 
@@ -432,7 +432,9 @@ def report_on_run(
     # is a stand-in for adjusted balanced accuracy, which this script does not
     # compute; review_difficult_items.py ranks by adjusted balanced accuracy.
     model_accuracy = summary.set_index("model_name")["accuracy"]
-    written.extend(write_item_discrimination(results, model_accuracy, report_dir, seed))
+    written.extend(
+        write_item_difficulty_discrimination(results, model_accuracy, report_dir, seed)
+    )
 
     # Sample a few items for inspection, if requested.
     if inspect_sample_size:
