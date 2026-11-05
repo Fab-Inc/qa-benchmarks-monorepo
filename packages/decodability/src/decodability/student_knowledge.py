@@ -8,16 +8,17 @@ A profile renders in one of two notations:
 - ``"plain"``: unquoted items, GPCs as ``a -> /æ/``. Used by the decodable text
   generation benchmark for English.
 
-Every language supports both formats; each caller chooses one explicitly.
+Every language's student-knowledge model implements ``render(fmt)`` with the
+helpers below, so both formats look the same across languages; each caller
+chooses one explicitly.
 
-``str()`` of a profile uses ``"quoted"``. Code that builds prompts calls ``render()``
-with an explicit format rather than relying on that default.
+``str()`` of a profile uses ``DEFAULT_KNOWLEDGE_FORMAT`` (``"quoted"``). Code that
+builds prompts calls ``render()`` with an explicit format rather than relying on
+that default.
 """
 
 from collections.abc import Iterable
 from typing import Literal, get_args
-
-from pydantic import BaseModel
 
 KnowledgeFormat = Literal["quoted", "plain"]
 KNOWLEDGE_FORMATS: tuple[str, ...] = get_args(KnowledgeFormat)
@@ -49,23 +50,3 @@ def format_pairs(pairs: Iterable[tuple[str, str]], fmt: KnowledgeFormat) -> str:
     else:
         rendered = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in pairs)
     return rendered or "None"
-
-
-class StudentKnowledgeBase(BaseModel):
-    """Base for the language-specific student-knowledge models.
-
-    Subclasses implement ``_render``; callers use ``render`` so every language
-    accepts the same formats.
-    """
-
-    def render(self, fmt: KnowledgeFormat) -> str:
-        """Render the profile as the STUDENT KNOWLEDGE block of a prompt."""
-        check_knowledge_format(fmt)
-        return self._render(fmt)
-
-    def _render(self, fmt: KnowledgeFormat) -> str:
-        raise NotImplementedError
-
-    def __str__(self) -> str:
-        """Render in the default ``"quoted"`` notation."""
-        return self.render(DEFAULT_KNOWLEDGE_FORMAT)

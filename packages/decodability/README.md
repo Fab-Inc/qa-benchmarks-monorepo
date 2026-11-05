@@ -152,7 +152,8 @@ supply an OOV pronunciation, or correct one that doesn't match the curriculum.
 
 Both student-knowledge models render the STUDENT KNOWLEDGE block of a prompt with
 `render(fmt)`, in one of two notations. Every language supports both; each caller
-chooses one explicitly.
+chooses one explicitly. Each model implements `render` with the shared helpers in
+`decodability/student_knowledge.py`, so a notation looks the same in every language.
 
 | Format     | GPCs        | Lists          | Used by                                                    |
 | ---------- | ----------- | -------------- | ---------------------------------------------------------- |

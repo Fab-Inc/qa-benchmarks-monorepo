@@ -5,7 +5,6 @@ from decodability import DECODABILITY_REGISTRY
 from decodability.student_knowledge import (
     DEFAULT_KNOWLEDGE_FORMAT,
     KNOWLEDGE_FORMATS,
-    StudentKnowledgeBase,
     format_items,
     format_pairs,
 )
@@ -19,10 +18,8 @@ def test_knowledge_formats_and_default() -> None:
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
-def test_every_registered_model_shares_the_rendering_contract(language: str) -> None:
+def test_every_registered_model_renders_every_format(language: str) -> None:
     model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
-    assert issubclass(model, StudentKnowledgeBase)
-
     empty = model()
     for fmt in KNOWLEDGE_FORMATS:
         assert empty.render(fmt).startswith("- Known ")

@@ -1,7 +1,7 @@
 from functools import cached_property, reduce
 from itertools import chain
 
-from pydantic import ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from decodability.kiswahili.definitions import (
     VALID_CLUSTERS,
@@ -10,13 +10,13 @@ from decodability.kiswahili.definitions import (
 )
 from decodability.kiswahili.segment import get_grapheme_symbols
 from decodability.student_knowledge import (
+    DEFAULT_KNOWLEDGE_FORMAT,
     KnowledgeFormat,
-    StudentKnowledgeBase,
     format_items,
 )
 
 
-class KiswahiliStudentKnowledge(StudentKnowledgeBase):
+class KiswahiliStudentKnowledge(BaseModel):
     """Model for Kiswahili student knowledge representation."""
 
     model_config = ConfigDict(frozen=True)
@@ -121,8 +121,11 @@ class KiswahiliStudentKnowledge(StudentKnowledgeBase):
         )
         return self.clusters | clusters_from_patterns
 
-    def _render(self, fmt: KnowledgeFormat) -> str:
-        """Render graphemes, clusters, cluster-pattern labels and whole words."""
+    def render(self, fmt: KnowledgeFormat) -> str:
+        """Render as the STUDENT KNOWLEDGE block of a prompt.
+
+        Renders graphemes, clusters, cluster-pattern labels and whole words.
+        """
         pattern_labels = [pattern.label for pattern in self.cluster_patterns]
         return "\n".join(
             [
@@ -132,3 +135,6 @@ class KiswahiliStudentKnowledge(StudentKnowledgeBase):
                 f"- Known whole words: {format_items(self.whole_words, fmt)}",
             ]
         )
+
+    def __str__(self) -> str:
+        return self.render(DEFAULT_KNOWLEDGE_FORMAT)
