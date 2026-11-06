@@ -24,7 +24,7 @@ from decodability.kiswahili.segment import (
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
 
 
-class KiswahiliWordAnalysis(BaseModel):
+class KiswahiliDecodabilityAnalysis(BaseModel):
     """Analysis of a Kiswahili word based on a student knowledge profile.
 
     ``unknown_clusters`` is the strict view: the unknown clusters under the
@@ -48,13 +48,14 @@ class KiswahiliWordAnalysis(BaseModel):
 
 def analyse_word_kiswahili(
     word: str, student_knowledge: KiswahiliStudentKnowledge
-) -> KiswahiliWordAnalysis:
+) -> KiswahiliDecodabilityAnalysis:
     """Analyze a Kiswahili word based on a student knowledge profile.
 
     The word is decomposed once and both graphemes and clusters are derived from that
     single decomposition.
     """
-    graphemes = decompose_word(word)
+    word_decomposition = decompose_word(word)
+    graphemes = word_decomposition.graphemes
     taught_graphemes = student_knowledge.graphemes
     taught_clusters = student_knowledge.all_known_clusters
 
@@ -66,35 +67,43 @@ def analyse_word_kiswahili(
         elif grapheme.symbol not in taught_graphemes:
             unknown_graphemes.append(grapheme.to_span())
 
-    clustering_variants = find_clustering_variants(graphemes)
-    # Variants are ordered fused-first, so index 0 is the strict resolution.
+    # ``word_decomposition.clusters`` is the strict (fused-first) resolution: every
+    # ambiguous nasal boundary is treated as a cluster.
     unknown_clusters = [
-        span
-        for span in clustering_variants[0]
+        span.to_span()
+        for span in word_decomposition.clusters
         if span.normalised not in taught_clusters
     ]
     # The lenient view reports the least-blocked clustering; on ties the first
     # (most fused) variant wins, preferring the cluster a teacher recognises.
     lenient_unknown_clusters = min(
         (
-            [span for span in variant if span.normalised not in taught_clusters]
-            for variant in clustering_variants
+            [
+                span.to_span()
+                for span in variant
+                if span.normalised not in taught_clusters
+            ]
+            for variant in find_clustering_variants(graphemes)
         ),
         key=len,
     )
 
-    return KiswahiliWordAnalysis(
+    return KiswahiliDecodabilityAnalysis(
         word=word,
         invalid_graphemes=invalid_graphemes,
         unknown_graphemes=unknown_graphemes,
         unknown_clusters=unknown_clusters,
         lenient_unknown_clusters=lenient_unknown_clusters,
-        ambiguous_boundaries=find_ambiguous_boundaries(graphemes),
+        ambiguous_boundaries=[
+            span.to_span() for span in find_ambiguous_boundaries(graphemes)
+        ],
         known_whole_word=word.lower() in student_knowledge.whole_words,
     )
 
 
-def assess_decodability_kenya_tusome(word_analysis: KiswahiliWordAnalysis) -> bool:
+def assess_decodability_kenya_tusome(
+    word_analysis: KiswahiliDecodabilityAnalysis,
+) -> bool:
     """Decide decodability of a word based on the analysis results and the
     Kenya Tusome curriculum.
 
@@ -122,7 +131,7 @@ def assess_decodability_kenya_tusome(word_analysis: KiswahiliWordAnalysis) -> bo
 
 
 def assess_decodability_kenya_tusome_lenient(
-    word_analysis: KiswahiliWordAnalysis,
+    word_analysis: KiswahiliDecodabilityAnalysis,
 ) -> bool:
     """Lenient variant of the Kenya Tusome decodability rule.
 

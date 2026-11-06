@@ -16,14 +16,20 @@ from decodability.kiswahili.scorers import (
     score_whole_words_kiswahili,
 )
 from decodability.kiswahili.segment import (
+    ClusterSpan,
+    GraphemeSpan,
+    Span,
+    count_syllables,
     decompose_word,
     find_ambiguous_boundaries,
     find_cluster_spans,
     find_clustering_variants,
     get_clusters,
+    get_grapheme_spans,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
+from pydantic import ValidationError
 
 # (word, [(cluster, start_index), ...]) for each expected consonant cluster.
 # find_cluster_spans resolves ambiguous nasal boundaries (m + b/v can be the
@@ -47,7 +53,7 @@ cluster_outputs = [
     ("mmoja", []),
     ("mnyama", []),
     ("mstatili", [("st", 1)]),
-    ("mvua", [("mv", 0)]),
+    ("mvua", []),  # exception word: syllabic m, so no mv cluster
     ("nchi", []),
     ("wanne", []),
     ("ndizi", [("nd", 0)]),
@@ -63,8 +69,10 @@ cluster_outputs = [
     ("rasmi", [("sm", 2)]),
 ]
 
+tiling_words = [word for word, _ in cluster_outputs] + ["a", "B", "NG'OMBE"]
 
-class TestKiswahiliDefinition:
+
+class TestKiswahiliSegmentation:
     @pytest.mark.parametrize(
         "word, expected_graphemes",
         [
@@ -87,9 +95,32 @@ class TestKiswahiliDefinition:
 
     @pytest.mark.parametrize("word, expected_outputs", cluster_outputs)
     def test_find_cluster_spans_locates_each_cluster(self, word, expected_outputs):
-        spans = find_cluster_spans(decompose_word(word))
+        spans = find_cluster_spans(get_grapheme_spans(word))
 
         assert [(span.normalised, span.start) for span in spans] == expected_outputs
+
+    @pytest.mark.parametrize(
+        "word, expected_nasal",
+        [
+            ("ndizi", [True]),
+            ("Ndizi", [True]),  # the symbol is normalised, so a capital "N" counts
+            ("njia", [True]),
+            ("ng'ombe", [True]),  # the nasal cluster "mb" sits mid-word
+            ("kunywea", [False]),  # "nyw" opens with the "ny" digraph, not "n"
+            ("ngw", [False]),  # "ngw" opens with the "ng" digraph, not "n"
+            # A syllabic nasal drops out of its run, so what remains isn't nasal.
+            ("mchwa", [False]),  # syllabic m leaves "chw"
+            ("mtoto", []),  # syllabic m leaves a lone "t", so no cluster
+            ("blanketi", [False]),  # "bl"; the "nk" nasal is syllabic
+            ("transista", [False, False]),  # "tr" and "st"; the "ns" nasal is syllabic
+            ("Baba", []),
+        ],
+    )
+    def test_nasal_flags_clusters_that_open_with_m_or_n(self, word, expected_nasal):
+        """A cluster is nasal when its first grapheme normalises to "m" or "n"."""
+        clusters = find_cluster_spans(get_grapheme_spans(word))
+
+        assert [cluster.nasal for cluster in clusters] == expected_nasal
 
     @pytest.mark.parametrize(
         "word, expected_variants",
@@ -108,20 +139,31 @@ class TestKiswahiliDefinition:
             ("ng'ombe", [["mb"], []]),
             # m + b/v can be the syllabic m- marker or the fused onset.
             ("mbuzi", [["mb"], []]),
-            ("mvua", [["mv"], []]),
+            # mvua is an exception word read as syllabic m.
+            ("mvua", [[]]),
             # Read syllabically, the m leaves a bw stretch cluster behind;
             # read fused, mb + w form the composite cluster mbw.
             ("mbwea'", [["mbw"], ["bw"]]),
             # Variants are fused-first: index 0 resolves every ambiguous
-            # boundary as a cluster.
+            # boundary as a cluster. Word-initial mw is ambiguous too, so all
+            # three boundaries split.
             (
                 "mwembamba",
-                [["mw", "mb", "mb"], ["mw", "mb"], ["mw", "mb"], ["mw"]],
+                [
+                    ["mw", "mb", "mb"],
+                    ["mw", "mb"],
+                    ["mw", "mb"],
+                    ["mw"],
+                    ["mb", "mb"],
+                    ["mb"],
+                    ["mb"],
+                    [],
+                ],
             ),
         ],
     )
     def test_find_clustering_variants(self, word, expected_variants):
-        variants = find_clustering_variants(decompose_word(word))
+        variants = find_clustering_variants(get_grapheme_spans(word))
 
         assert [
             [span.normalised for span in variant] for variant in variants
@@ -131,9 +173,10 @@ class TestKiswahiliDefinition:
         "word, expected_boundaries",
         [
             ("mbuzi", [("mb", 0)]),
-            ("mvua", [("mv", 0)]),
+            ("mvua", []),  # exception word, resolved as syllabic
             ("ng'ombe", [("mb", 4)]),
-            ("mwembamba", [("mb", 3), ("mb", 6)]),
+            # word-initial mw needs the plural form to decide, so it's ambiguous
+            ("mwembamba", [("mw", 0), ("mb", 3), ("mb", 6)]),
             # nd is unambiguously fused, mt unambiguously syllabic.
             ("ndizi", []),
             ("bendera", []),
@@ -147,30 +190,30 @@ class TestKiswahiliDefinition:
         ],
     )
     def test_find_ambiguous_boundaries(self, word, expected_boundaries):
-        boundaries = find_ambiguous_boundaries(decompose_word(word))
+        boundaries = find_ambiguous_boundaries(get_grapheme_spans(word))
 
         assert [(s.normalised, s.start) for s in boundaries] == expected_boundaries
 
     @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
     def test_every_span_indexes_back_into_the_word(self, word):
         """Spans must be usable to slice the original word, casing included."""
-        graphemes = decompose_word(word)
+        graphemes = get_grapheme_spans(word)
 
         grapheme_spans = [grapheme.to_span() for grapheme in graphemes]
         for span in grapheme_spans + find_cluster_spans(graphemes):
             assert word[span.start : span.end] == span.text
 
-    def test_decompose_word_covers_the_whole_word_without_gaps(self):
+    def test_get_grapheme_spans_covers_the_whole_word(self):
         word = "ng'ombe"
 
-        graphemes = decompose_word(word)
+        graphemes = get_grapheme_spans(word)
 
         assert "".join(grapheme.text for grapheme in graphemes) == word
         assert graphemes[0].start == 0
         assert graphemes[-1].end == len(word)
 
-    def test_decompose_word_flags_consonants(self):
-        graphemes = decompose_word("kunywea")
+    def test_get_grapheme_spans_flags_consonants(self):
+        graphemes = get_grapheme_spans("kunywea")
 
         assert [grapheme.is_consonant for grapheme in graphemes] == [
             True,  # k
@@ -181,15 +224,148 @@ class TestKiswahiliDefinition:
             False,  # a
         ]
 
-    def test_decompose_word_preserves_casing_but_lowercases_the_symbol(self):
-        grapheme = decompose_word("Baba")[0]
+    def test_get_grapheme_spans_preserves_casing(self):
+        grapheme = get_grapheme_spans("Baba")[0]
 
         assert grapheme.text == "B"
         assert grapheme.symbol == "b"
 
     @pytest.mark.parametrize("word", ["", "a"])
     def test_words_too_short_to_hold_a_cluster(self, word):
-        assert find_cluster_spans(decompose_word(word)) == []
+        assert find_cluster_spans(get_grapheme_spans(word)) == []
+
+
+class TestSpanModel:
+    @pytest.mark.parametrize(
+        "word, index, expected_length",
+        [
+            ("baba", 0, 1),  # a single-letter grapheme
+            ("chai", 0, 2),  # a digraph
+            ("ng'ombe", 0, 3),  # a trigraph, apostrophe included
+        ],
+    )
+    def test_length_is_the_width_of_the_span(self, word, index, expected_length):
+        """``length`` is the half-open range's width, which is the text's length."""
+        grapheme = get_grapheme_spans(word)[index]
+
+        assert grapheme.length == expected_length == len(grapheme.text)
+
+    def test_cluster_symbol_is_the_lowercased_text(self):
+        """``symbol`` on a cluster is an alias of ``normalised``."""
+        cluster = find_cluster_spans(get_grapheme_spans("Ndizi"))[0]
+
+        assert cluster.text == "Nd"
+        assert cluster.symbol == "nd"
+
+    def test_a_span_whose_range_contradicts_its_text_is_rejected(self):
+        """The range and the text must agree, so a mismatch fails validation."""
+        with pytest.raises(ValidationError, match="does not match text"):
+            Span(text="ch", start=0, end=1)
+
+
+class TestDecomposeWord:
+    @pytest.mark.parametrize("word", tiling_words)
+    def test_decomposition_tiles_the_whole_word(self, word):
+        """Graphemes and the flat decomposition each cover the word exactly once."""
+        result = decompose_word(word)
+
+        for spans in (result.graphemes, result.decomposition):
+            assert "".join(span.text for span in spans) == word
+            assert spans[0].start == 0
+            assert spans[-1].end == len(word)
+            assert [span.start for span in spans[1:]] == [
+                span.end for span in spans[:-1]
+            ]
+
+    @pytest.mark.parametrize(
+        "word, expected_decomposition",
+        [
+            ("chai", ["ch", "a", "i"]),  # a digraph outside any cluster
+            ("shamba", ["sh", "a", "mb", "a"]),
+            ("nchi", ["n", "ch", "i"]),  # syllabic n stands alone
+            ("mchezo", ["m", "ch", "e", "z", "o"]),
+            ("ng'ombe", ["ng'", "o", "mb", "e"]),  # a trigraph, then a later cluster
+            ("mchw", ["m", "chw"]),  # syllabic m, then the cluster chw
+            ("kunywea", ["k", "u", "nyw", "e", "a"]),  # the cluster sits mid-word
+            ("Baba", ["B", "a", "b", "a"]),  # entries keep the original casing
+        ],
+    )
+    def test_decomposition_lists_each_cluster_once_and_every_other_grapheme(
+        self, word, expected_decomposition
+    ):
+        """Every cluster collapses to one entry and the other graphemes stay put."""
+        assert [
+            span.text for span in decompose_word(word).decomposition
+        ] == expected_decomposition
+
+    @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
+    def test_decomposition_partitions_clusters_from_leftover_graphemes(self, word):
+        """Cluster entries are the clusters; the rest are the unabsorbed graphemes."""
+        result = decompose_word(word)
+
+        absorbed = {
+            offset
+            for cluster in result.clusters
+            for offset in range(cluster.start, cluster.end)
+        }
+        cluster_entries = [
+            span for span in result.decomposition if isinstance(span, ClusterSpan)
+        ]
+        grapheme_entries = [
+            span for span in result.decomposition if isinstance(span, GraphemeSpan)
+        ]
+
+        assert cluster_entries == result.clusters
+        assert grapheme_entries == [
+            grapheme for grapheme in result.graphemes if grapheme.start not in absorbed
+        ]
+        assert len(cluster_entries) + len(grapheme_entries) == len(result.decomposition)
+
+    @pytest.mark.parametrize("word", [word for word, _ in cluster_outputs])
+    def test_fields_agree_with_the_standalone_helpers(self, word):
+        """The model's fields are exactly what the segmentation helpers return."""
+        result = decompose_word(word)
+
+        graphemes = get_grapheme_spans(word)
+        assert result.word == word
+        assert result.graphemes == graphemes
+        assert result.clusters == find_cluster_spans(graphemes)
+        assert result.syllable_count == count_syllables(graphemes)
+
+    @pytest.mark.parametrize(
+        "word, expected_syllable_count",
+        [
+            ("chai", 2),  # "ch" is one consonant grapheme, then two nuclei
+            ("shamba", 2),
+            ("nchi", 1),  # the syllabic nasal is not a nucleus
+            ("mchanganyiko", 4),
+            ("mchw", 0),  # no vowel at all
+            ("", 0),
+            # c and q are out of inventory, so they are not flagged as consonants
+            # and are counted as nuclei. This records current behaviour.
+            ("mcq", 2),
+        ],
+    )
+    def test_syllable_count_counts_vowel_nuclei(self, word, expected_syllable_count):
+        """Syllables are counted by vowel nuclei, so consonant runs add none."""
+        assert decompose_word(word).syllable_count == expected_syllable_count
+
+    @pytest.mark.parametrize(
+        "word, expected_decomposition",
+        [
+            ("", []),  # no grapheme is produced, so no Span is ever constructed
+            ("a", ["a"]),
+            ("b", ["b"]),
+            ("mcq", ["m", "c", "q"]),  # out-of-inventory letters break the run
+        ],
+    )
+    def test_words_with_no_cluster_to_collapse(self, word, expected_decomposition):
+        """With no cluster to collapse, the flat decomposition is just the graphemes."""
+        result = decompose_word(word)
+
+        assert [span.text for span in result.decomposition] == expected_decomposition
+        assert [span.text for span in result.graphemes] == expected_decomposition
+        assert result.clusters == []
 
 
 class TestKiswahiliStudentKnowledgeModel:
@@ -581,7 +757,9 @@ class TestScorers:
             # Only untaught fused onsets still block the lenient reading.
             ("ndizi", {"n", "d", "i", "z"}, set(), 0.0),
             ("ndizi", {"n", "d", "i", "z"}, {"nd"}, 1.0),
-            ("mwembamba", set("mwembamba"), set(), 0.0),
+            # Every mwembamba boundary is ambiguous, so the fully syllabic
+            # reading needs no clusters.
+            ("mwembamba", set("mwembamba"), set(), 1.0),
             ("mwembamba", set("mwembamba"), {"mw"}, 1.0),
             ("mtoto", {"m", "t", "o"}, set(), 1.0),
             ("baba", {"b", "a"}, set(), 1.0),
@@ -815,3 +993,179 @@ class TestKiswahiliAggregators:
         }
         final_score = aggregate_scores_kenya_tusome(scores)
         assert final_score == 1.0
+
+
+syllabic_ungating_test_data = (
+    "word,profile,expected",
+    [
+        (
+            "mbwea",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "b", "w", "e", "a"},
+                clusters={"mbw"},
+                cluster_patterns={ClusterPattern.PRENASALISED_M},
+                whole_words=set(),
+            ),
+            True,
+        ),
+        (
+            # mj is syllabic, but the medial mb is fused and unknown
+            "mjomba",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "b", "j", "o", "a"},
+            ),
+            False,
+        ),
+        (
+            # the "m" + consonant pattern covers mb, so the word can be ungated
+            "mjomba",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "b", "j", "o", "a"},
+                cluster_patterns={ClusterPattern.PRENASALISED_M},
+            ),
+            True,
+        ),
+        (
+            # the "m" + consonant pattern covers mb, so the word can be ungated
+            "mjomba",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "b", "j", "o", "a"},
+                clusters={"mb"},
+            ),
+            True,
+        ),
+        (
+            "nje",
+            KiswahiliStudentKnowledge(
+                graphemes={"n", "j", "e"},
+            ),
+            True,
+        ),
+        (
+            "nzi",
+            KiswahiliStudentKnowledge(
+                graphemes={"n", "z", "i"},
+            ),
+            True,
+        ),
+        (
+            "mchwa",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "ch", "w", "a"},
+            ),
+            False,
+        ),
+        (
+            "mchwa",
+            KiswahiliStudentKnowledge(
+                graphemes={"m", "ch", "w", "a"},
+                cluster_patterns={ClusterPattern.LABIALISED_GLIDE},
+            ),
+            True,
+        ),
+        (
+            "mbwa",
+            KiswahiliStudentKnowledge(graphemes={"m", "b", "w", "a"}),
+            False,
+        ),
+        (
+            "alimpenda",
+            KiswahiliStudentKnowledge(
+                graphemes={"a", "l", "i", "m", "p", "e", "n", "d"}, clusters={"nd"}
+            ),
+            True,
+        ),
+    ],
+)
+
+# Words reviewed as having syllabic nasals, with the clusters the nasal rules
+# should leave behind (strict view: ambiguous boundaries count as fused). A
+# syllabic nasal reads as the bare grapheme, so it drops out of its cluster.
+UNGATE_EXPECTED_CLUSTERS = [
+    ("akamsalimia", []),
+    ("akamtuma", []),
+    ("alimnunulia", []),
+    ("alimpeleka", []),
+    ("alimpenda", ["nd"]),  # medial nd is fused
+    ("hakumpenda", ["nd"]),  # medial nd is fused
+    ("humpeleka", []),
+    ("inamlinda", ["nd"]),  # medial nd is fused
+    ("kumchapa", []),
+    ("kumfukuza", []),
+    ("kumkaribisha", []),
+    ("mbunge", []),
+    ("mbwa", ["bw"]),  # syllabic m on a monosyllabic root leaves bw
+    ("mchana", []),
+    ("mchanganyiko", []),
+    ("mchele", []),
+    ("mchezo", []),
+    ("mchi", []),
+    ("mchwa", ["chw"]),  # syllabic m leaves chw
+    ("mdogo", []),
+    ("mdomo", []),
+    ("mdudu", []),
+    ("mfalme", ["lm"]),  # lm is an ordinary cluster
+    ("mfano", []),
+    ("mfupi", []),
+    ("mgeni", []),
+    ("mgonjwa", ["njw"]),  # medial n+j is fused and njw is treated as a single cluster
+    ("mheshimiwa", []),
+    ("mjini", []),
+    ("mjomba", ["mb"]),  # medial mb is ambiguous; strict view keeps it
+    ("mkali", []),
+    ("mkate", []),
+    ("mkono", []),
+    ("mkononi", []),
+    ("mkubwa", ["bw"]),  # bw is an ordinary cluster
+    ("mkuu", []),
+    ("mlango", []),
+    ("mlingoti", []),
+    ("mmoja", []),
+    ("mpeketoni", []),
+    ("mpunga", []),
+    ("mraba", []),
+    ("mrefu", []),
+    ("msafiri", []),
+    ("msalani", []),
+    ("msichana", []),
+    ("msingi", []),
+    ("msituni", []),
+    ("mstatili", ["st"]),  # syllabic m leaves st
+    ("mti", []),
+    ("mtihani", []),
+    ("mtini", []),
+    ("mtoto", []),
+    ("mtu", []),
+    ("mvua", []),
+    ("mzazi", []),
+    ("mzee", []),
+    ("nchi", []),
+    ("nne", []),
+    ("wamsalimie", []),
+    ("wanamjua", []),
+    ("zilizompatia", []),
+    ("nzi", []),
+    ("kuamka", []),
+    ("kiamshakinywa", ["nyw"]),  # nyw is an ordinary cluster
+    ("kuzungumza", []),
+    ("namna", []),
+    ("umri", []),
+    ("huteremsha", []),
+    ("nje", []),
+]
+
+
+class TestKiswahiliSyllabicNasalUngating:
+    @pytest.mark.parametrize(*syllabic_ungating_test_data)
+    def test_strict_cluster_scoring(self, word, profile, expected):
+        assert (
+            score_known_clusters_and_patterns_kiswahili(
+                word=word,
+                student_knowledge=profile,
+            )
+            == expected
+        )
+
+    @pytest.mark.parametrize("word, expected_clusters", UNGATE_EXPECTED_CLUSTERS)
+    def test_syllabic_nasals_drop_out_of_clusters(self, word, expected_clusters):
+        assert get_clusters(word) == expected_clusters

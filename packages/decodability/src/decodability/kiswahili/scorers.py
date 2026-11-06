@@ -1,7 +1,7 @@
 from decodability.kiswahili.segment import (
-    decompose_word,
     find_cluster_spans,
     find_clustering_variants,
+    get_grapheme_spans,
     get_grapheme_symbols,
 )
 from decodability.kiswahili.student_knowledge import KiswahiliStudentKnowledge
@@ -45,7 +45,7 @@ def score_known_clusters_and_patterns_kiswahili(
     """
     taught_clusters = student_knowledge.all_known_clusters
 
-    graphemes = decompose_word(word)
+    graphemes = get_grapheme_spans(word)
     return float(
         all(
             span.normalised in taught_clusters for span in find_cluster_spans(graphemes)
@@ -71,7 +71,7 @@ def score_known_clusters_and_patterns_lenient_kiswahili(
     """
     taught_clusters = student_knowledge.all_known_clusters
 
-    for clustering in find_clustering_variants(decompose_word(word)):
+    for clustering in find_clustering_variants(get_grapheme_spans(word)):
         if all(span.normalised in taught_clusters for span in clustering):
             return 1.0
 

@@ -8,9 +8,9 @@ from enum import Enum
 from typing import Annotated
 
 from primerpro import Word
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from decodability.kiswahili.definitions import primerpro_settings
+from decodability.kiswahili.definitions import VALID_GRAPHEMES, primerpro_settings
 
 
 class Span(BaseModel):
@@ -39,6 +39,11 @@ class Span(BaseModel):
         return self
 
     @property
+    def length(self) -> int:
+        """Return the length of the span."""
+        return self.end - self.start
+
+    @property
     def normalised(self) -> str:
         """Lowercased text, for matching against inventories and student knowledge."""
         return self.text.lower()
@@ -58,8 +63,60 @@ class GraphemeSpan(Span):
         """The lowercased grapheme symbol: an alias of :attr:`normalised`."""
         return self.normalised
 
+    @property
+    def is_valid(self) -> bool:
+        """Check if the grapheme is valid against the known inventory."""
+        return self.normalised in VALID_GRAPHEMES
 
-def decompose_word(word: str) -> list[GraphemeSpan]:
+
+class ClusterSpan(Span):
+    """A span that is known to be a consonant cluster."""
+
+    nasal: bool
+
+    @field_validator("text")
+    def check_cluster_length(cls, value: str) -> str:  # noqa: N805
+        graphemes = get_grapheme_spans(value)
+        if len(graphemes) < 2:
+            raise ValueError("A cluster must consist of at least two characters.")
+        return value
+
+    @field_validator("text")
+    def check_all_consonants(cls, value: str) -> str:  # noqa: N805
+        assert all(grapheme.is_consonant for grapheme in get_grapheme_spans(value))
+        return value
+
+    @property
+    def grapheme_spans(self) -> list[GraphemeSpan]:
+        """Return the individual grapheme spans that make up this cluster."""
+        return get_grapheme_spans(self.text)
+
+    def to_span(self) -> Span:
+        """Return a plain :class:`Span` with the same text and range."""
+        return Span(text=self.text, start=self.start, end=self.end)
+
+    @property
+    def symbol(self) -> str:
+        """The lowercased cluster symbol: an alias of :attr:`normalised`."""
+        return self.normalised
+
+
+class WordDecomposition(BaseModel):
+    """A decomposition of a word into grapheme spans and cluster spans."""
+
+    word: str
+    graphemes: list[GraphemeSpan]
+    clusters: list[ClusterSpan]
+    decomposition: list[GraphemeSpan | ClusterSpan]
+    syllable_count: int
+
+
+def count_syllables(graphemes: list[GraphemeSpan]) -> int:
+    """Syllable count by vowel nuclei."""
+    return sum(1 for grapheme in graphemes if not grapheme.is_consonant)
+
+
+def get_grapheme_spans(word: str) -> list[GraphemeSpan]:
     """Decompose a word into its located graphemes using PrimerPro settings.
 
     NOTE: PrimerPro's grapheme decomposition doesn't flag out-of-inventory graphemes,
@@ -146,33 +203,99 @@ class NasalBoundary:
 NasalRule = Callable[[NasalBoundary], NasalReading | None]
 
 
-def _initial_n_before_monosyllabic_root_is_syllabic(
+def _exception_words(boundary: NasalBoundary) -> NasalReading | None:
+    """Handle exception words that do not follow the usual nasal rules."""
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+
+    if word == "mvua":
+        return NasalReading.SYLLABIC
+
+    if word == "jumanne":
+        return NasalReading.SYLLABIC
+
+    return None
+
+
+def _unambiguous_due_to_expert_review(boundary: NasalBoundary) -> NasalReading | None:
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+    disambiguated = [
+        # reviewed from benchmark item texts
+        ("mbunge", ("mb", 0)),
+        # "kiamshakinywa",
+        # "mfalme",
+        # "mkubwa",
+        # "mgonjwa",
+        # other examples reviewed
+        ("mbaya", ("mb", 0)),
+        ("mvulana", ("mv", 0)),
+        ("mbovu", ("mb", 0)),
+        ("akambeba", ("mb", 3)),
+        ("mbebe", ("mb", 0)),
+        ("hambebi", ("mb", 2)),
+        ("mwako", ("mw", 0)),
+        ("mwaridi", ("mw", 0)),
+        ("myombo", ("my", 0)),
+        ("myugwa", ("my", 0)),
+    ]
+    for w, (_, pos) in disambiguated:
+        if word == w and boundary.index == pos:
+            return NasalReading.SYLLABIC
+    return None
+
+
+def _nw_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """The sequence ``nw`` is always fused."""
+    if boundary.nasal.symbol == "n" and boundary.follower.symbol == "w":
+        return NasalReading.FUSED
+    return None
+
+
+def _medial_m_glide_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """Medial ``my`` and ``mw`` are always fused."""
+    if (
+        not boundary.word_initial
+        and boundary.nasal.symbol == "m"
+        and boundary.follower.symbol in {"y", "w"}
+    ):
+        return NasalReading.FUSED
+    return None
+
+
+def _initial_nasal_before_monosyllabic_root_is_syllabic(
     boundary: NasalBoundary,
 ) -> NasalReading | None:
-    """Word-initial ``n`` + d/j/z on a one-vowel root reads as syllabic n.
+    """Word-initial nasal consonant running on a one-vowel root reads as syllabic.
 
-    When the n- class prefix attaches to a monosyllabic root (nzi, nje) the
-    nasal carries its own syllable rather than fusing into the prenasalised
-    onset; on longer roots (ndizi, njia) and word-medially it stays fused.
+    This is true even for consonants that are typically fused after the nasals, like
+    mb, mv, nd, nj, nz (except nw). On longer roots (ndizi, njia) and word-medially
+    those stay fused.
     """
-    if (
-        boundary.word_initial
-        and boundary.nasal.symbol == "n"
-        and boundary.vowels_after == 1
-    ):
+    if boundary.word_initial and boundary.nasal and boundary.vowels_after == 1:
         return NasalReading.SYLLABIC
     return None
 
 
-def _provisional_mb_mv_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
-    """PROVISIONAL pending linguist notes: ``m`` + b/v may be either reading.
+def _m_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
+    """Nasal verdict on ``m`` before b/v/w/y depends on word analysis which
+    the current tool cannot perform.
 
-    "m" before b or v can be the syllabic m- marker (e.g. a verb marker or
-    class prefix) or the fused prenasalised onset, at any position in the
-    word, so both readings are kept open.
+    More specifically, for words starting with m-glides, we need to know their
+    plural form to determine if the ``m`` is syllabic or fused. Word-medial
+    m-glides are always fused.
+
+    For ``m`` before b/v, it depends on whether
+    it is an object or second-person plural marker for a verb, the intended
+    meaning of the word, or its noun class or agreement features.
     """
-    if boundary.nasal.symbol == "m" and boundary.follower.symbol in {"b", "v"}:
+    if not boundary.nasal.symbol == "m":
+        return None
+
+    if boundary.follower.symbol in {"b", "v"}:
         return NasalReading.AMBIGUOUS
+
+    if boundary.word_initial and boundary.follower.symbol in {"w", "y"}:
+        return NasalReading.AMBIGUOUS
+
     return None
 
 
@@ -192,8 +315,13 @@ def _taught_onset_clusters(boundary: NasalBoundary) -> NasalReading | None:
 
 
 NASAL_RULES: tuple[NasalRule, ...] = (
-    _initial_n_before_monosyllabic_root_is_syllabic,
-    _provisional_mb_mv_ambiguity,
+    _exception_words,
+    _unambiguous_due_to_expert_review,
+    # TODO: check with justin whether to include it here or not
+    _nw_always_fused,
+    _medial_m_glide_always_fused,
+    _initial_nasal_before_monosyllabic_root_is_syllabic,
+    _m_ambiguity,
     _taught_onset_clusters,
 )
 
@@ -251,19 +379,24 @@ def _nasal_verdict(
 
 def _run_span(
     graphemes: Sequence[GraphemeSpan], run: Sequence[int], pos: int
-) -> Span | None:
+) -> ClusterSpan | None:
     """The cluster covering ``run[pos:]``, if two or more consonants remain.
 
     A consonant run is one cluster — a fused onset cannot decompose into its
     parts, so "ndw", "ndr" and "mbw" are emitted whole rather than "nd" plus
     a loose consonant. A lone consonant is not a cluster.
+
+    ``nasal`` is set when the cluster itself starts with a nasal (m or n). When
+    the rules read a leading nasal as syllabic it is dropped from the cluster,
+    so the remaining cluster is not flagged as nasal.
     """
     if len(run) - pos < 2:
         return None
-    return Span(
+    return ClusterSpan(
         text="".join(graphemes[i].text for i in run[pos:]),
         start=graphemes[run[pos]].start,
         end=graphemes[run[-1]].end,
+        nasal=graphemes[run[pos]].symbol in _NASAL_CLUSTER_FOLLOWERS,
     )
 
 
@@ -271,7 +404,7 @@ def _clusterings_of_run(
     graphemes: Sequence[GraphemeSpan],
     run: Sequence[int],
     verdict: NasalReading | None,
-) -> list[list[Span]]:
+) -> list[list[ClusterSpan]]:
     """Enumerate every viable clustering of one consonant run.
 
     A run has at most one nasal boundary — its opening position — so each
@@ -280,7 +413,9 @@ def _clusterings_of_run(
     yields both readings, fused first.
     """
 
-    def clustering(start: int) -> list[Span]:
+    # TODO: maybe remove verdict field and call _nasal_verdict in here?
+
+    def clustering(start: int) -> list[ClusterSpan]:
         span = _run_span(graphemes, run, start)
         return [] if span is None else [span]
 
@@ -293,7 +428,7 @@ def _clusterings_of_run(
 
 def find_clustering_variants(
     graphemes: Sequence[GraphemeSpan],
-) -> list[list[Span]]:
+) -> list[list[ClusterSpan]]:
     """Enumerate every viable consonant clustering of an already-decomposed word.
 
     Each variant is the list of cluster spans under one resolution of the
@@ -302,7 +437,7 @@ def find_clustering_variants(
     the last variant is the fully syllabic resolution. A word with no
     ambiguous boundaries yields a single variant.
     """
-    variants: list[list[Span]] = [[]]
+    variants: list[list[ClusterSpan]] = [[]]
     for run in _consonant_runs(graphemes):
         run_variants = _clusterings_of_run(
             graphemes, run, _nasal_verdict(graphemes, run)
@@ -311,7 +446,9 @@ def find_clustering_variants(
     return variants
 
 
-def find_ambiguous_boundaries(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
+def find_ambiguous_boundaries(
+    graphemes: Sequence[GraphemeSpan],
+) -> list[ClusterSpan]:
     """Locate nasal + consonant boundaries the rules could not resolve.
 
     Each returned span covers the whole run the boundary heads — the cluster
@@ -325,7 +462,7 @@ def find_ambiguous_boundaries(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
     ]
 
 
-def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
+def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[ClusterSpan]:
     """Locate the consonant clusters in an already-decomposed word.
 
     A cluster is a run of two or more consecutive consonant graphemes, except
@@ -343,28 +480,57 @@ def find_cluster_spans(graphemes: Sequence[GraphemeSpan]) -> list[Span]:
     return find_clustering_variants(graphemes)[0]
 
 
+def decompose_word(word: str) -> WordDecomposition:
+    """Decompose a word into its graphemes, consonant clusters, and full
+    decomposition."""
+    graphemes = get_grapheme_spans(word)
+    clusters = find_cluster_spans(graphemes)
+    cluster_by_start = {cluster.start: cluster for cluster in clusters}
+
+    decomposition: list[GraphemeSpan | ClusterSpan] = []
+    i = 0
+    while i < len(graphemes):
+        cluster = cluster_by_start.get(graphemes[i].start)
+        if cluster is None:
+            decomposition.append(graphemes[i])
+            i += 1
+            continue
+        decomposition.append(cluster)
+        # Skip past every grapheme the cluster absorbed.
+        while i < len(graphemes) and graphemes[i].end <= cluster.end:
+            i += 1
+
+    return WordDecomposition(
+        word=word,
+        graphemes=graphemes,
+        clusters=clusters,
+        decomposition=decomposition,
+        syllable_count=count_syllables(graphemes),
+    )
+
+
 def get_grapheme_symbols(word: str) -> list[str]:
     """Return the lowercased graphemes of a word, in order."""
-    return [grapheme.symbol for grapheme in decompose_word(word)]
+    return [grapheme.symbol for grapheme in get_grapheme_spans(word)]
 
 
 def get_clusters(word: str) -> list[str]:
-    """Return the lowercased consonant clusters of a word, in order.
-
-    Ambiguous nasal boundaries are resolved as fused, so this lists every
-    cluster the word could require under any viable reading.
-    """
-    return [span.normalised for span in find_cluster_spans(decompose_word(word))]
+    """Return the lowercased consonant clusters of a word, in order."""
+    return [span.normalised for span in find_cluster_spans(get_grapheme_spans(word))]
 
 
 __all__ = [
     "Span",
     "GraphemeSpan",
+    "ClusterSpan",
+    "WordDecomposition",
+    "count_syllables",
+    "decompose_word",
+    "get_grapheme_spans",
     "NasalReading",
     "NasalBoundary",
     "NasalRule",
     "NASAL_RULES",
-    "decompose_word",
     "find_clustering_variants",
     "find_ambiguous_boundaries",
     "find_cluster_spans",

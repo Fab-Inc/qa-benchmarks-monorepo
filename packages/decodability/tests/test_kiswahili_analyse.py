@@ -2,8 +2,8 @@
 
 import pytest
 from decodability.kiswahili import (
+    KiswahiliDecodabilityAnalysis,
     KiswahiliStudentKnowledge,
-    KiswahiliWordAnalysis,
     aggregate_scores_kenya_tusome,
     aggregate_scores_kenya_tusome_lenient,
     analyse_word_kiswahili,
@@ -46,7 +46,7 @@ class TestFindKiswahili:
     def test_a_fully_known_word_yields_no_analysis(self, knowledge):
         analysis = analyse_word_kiswahili("mayowe", knowledge)
 
-        assert analysis == KiswahiliWordAnalysis(word="mayowe")
+        assert analysis == KiswahiliDecodabilityAnalysis(word="mayowe")
 
     def test_untaught_graphemes_are_located(self, knowledge):
         analysis = analyse_word_kiswahili("tulisikia", knowledge)
@@ -164,14 +164,17 @@ class TestKenyaTusomeRule:
         assert is_decodable_kenya_tusome_lenient("ng'ombe", knowledge) is True
 
     def test_the_syllabic_reading_still_leaves_a_cluster_that_blocks(self):
-        """The bw left by the syllabic reading of mbwa is itself a cluster
+        """The bw left by the syllabic reading of mbwea is itself a cluster
         that must be taught, so the word is non-decodable with graphemes
-        alone — the syllabic reading only helps when it leaves no cluster."""
+        alone — the syllabic reading only helps when it leaves no cluster.
+
+        (mbwa no longer works here: its monosyllabic root makes the m
+        unambiguously syllabic.)"""
         knowledge = KiswahiliStudentKnowledge.model_validate(
-            dict(graphemes={"m", "b", "w", "a"})
+            dict(graphemes={"m", "b", "w", "e", "a"})
         )
 
-        analysis = analyse_word_kiswahili("mbwa", knowledge)
+        analysis = analyse_word_kiswahili("mbwea", knowledge)
 
         assert analysis.ambiguous_boundaries == [Span(text="mbw", start=0, end=3)]
         assert analysis.unknown_clusters == [Span(text="mbw", start=0, end=3)]
@@ -180,20 +183,20 @@ class TestKenyaTusomeRule:
         assert assess_decodability_kenya_tusome_lenient(analysis) is False
 
     def test_an_untaught_fused_onset_still_blocks_leniently(self):
-        """mw is a fused nasal onset, so it cannot be decomposed: mwembamba is
-        non-decodable for a student who knows graphemes but no clusters."""
+        """nd on a two-vowel root is a fused nasal onset, so it cannot be
+        decomposed: ndizi is non-decodable for a student who knows graphemes
+        but no clusters, even leniently.
+
+        (mwembamba no longer works here: word-initial mw is now ambiguous.)"""
         knowledge = KiswahiliStudentKnowledge.model_validate(
-            dict(graphemes=set("mwemba"))
+            dict(graphemes=set("ndizi"))
         )
 
-        analysis = analyse_word_kiswahili("mwembamba", knowledge)
+        analysis = analyse_word_kiswahili("ndizi", knowledge)
 
-        assert analysis.unknown_clusters == [
-            Span(text="mw", start=0, end=2),
-            Span(text="mb", start=3, end=5),
-            Span(text="mb", start=6, end=8),
-        ]
-        assert analysis.lenient_unknown_clusters == [Span(text="mw", start=0, end=2)]
+        assert analysis.ambiguous_boundaries == []
+        assert analysis.unknown_clusters == [Span(text="nd", start=0, end=2)]
+        assert analysis.lenient_unknown_clusters == [Span(text="nd", start=0, end=2)]
         assert assess_decodability_kenya_tusome(analysis) is False
         assert assess_decodability_kenya_tusome_lenient(analysis) is False
 
@@ -209,7 +212,7 @@ class TestKenyaTusomeRule:
 
     def test_invalid_graphemes_alone_make_a_word_non_decodable(self):
         """A rule that only checked untaught graphemes would miss this."""
-        analysis = KiswahiliWordAnalysis(
+        analysis = KiswahiliDecodabilityAnalysis(
             word="x", invalid_graphemes=[Span(text="x", start=0, end=1)]
         )
 
@@ -247,7 +250,10 @@ class TestAnalysisModel:
     def test_the_analysis_round_trips_through_serialisation(self, knowledge):
         analysis = analyse_word_kiswahili("Xylophone", knowledge)
 
-        assert KiswahiliWordAnalysis.model_validate(analysis.model_dump()) == analysis
+        assert (
+            KiswahiliDecodabilityAnalysis.model_validate(analysis.model_dump())
+            == analysis
+        )
 
 
 class TestParityWithTheScoreBasedPath:
