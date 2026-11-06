@@ -23,6 +23,7 @@ import typer
 from decodability.kiswahili.definitions import ClusterPattern
 from phonics_benchmark.data_io import validate_student_knowledge, write_dataset
 from phonics_benchmark.models import DecodableText, StudentKnowledge
+from phonics_benchmark.utils import resolve_language_iso_code
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
@@ -163,17 +164,7 @@ def get_language_iso_code(df: pd.DataFrame, description: str) -> str:
     col = "language_iso_code"
     if col not in df.columns:
         raise ValueError(f"{description} is missing required column '{col}'")
-    values = df[col].dropna().astype(str).str.strip()
-    values = values[values != ""]
-    if values.empty:
-        raise ValueError(f"No '{col}' values found in {description}")
-    unique = values.unique()
-    if len(unique) > 1:
-        raise ValueError(
-            f"Multiple language_iso_code values in {description}: "
-            f"{', '.join(sorted(unique))}"
-        )
-    return unique[0]
+    return resolve_language_iso_code(df[col].dropna().astype(str), source=description)
 
 
 def preprocess_sheet_data(

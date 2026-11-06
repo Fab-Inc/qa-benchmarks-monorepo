@@ -11,6 +11,7 @@ import pandas as pd
 from decodability import DECODABILITY_REGISTRY
 from pydantic import BaseModel, ValidationError
 
+from phonics_benchmark import utils
 from phonics_benchmark.models import (
     DecodableText,
     LabelledBenchmarkItem,
@@ -240,19 +241,11 @@ def resolve_language_iso_code(
     Raises ValueError if the records are empty, or if more than one language code
     appears across them — the pipeline only handles one language per data folder.
     """
-    codes = {profile.language_iso_code for profile in profiles}
-    codes |= {text.language_iso_code for text in texts}
-
-    if not codes:
-        raise ValueError(
-            "Cannot resolve a language_iso_code: no student profiles and no texts"
-        )
-    if len(codes) > 1:
-        raise ValueError(
-            "Expected one language_iso_code across the dataset, found: "
-            f"{', '.join(sorted(codes))}"
-        )
-    return codes.pop()
+    codes = [profile.language_iso_code for profile in profiles]
+    codes += [text.language_iso_code for text in texts]
+    return utils.resolve_language_iso_code(
+        codes, source="the student profiles and texts"
+    )
 
 
 def build_benchmark_item_candidates_dataframe(

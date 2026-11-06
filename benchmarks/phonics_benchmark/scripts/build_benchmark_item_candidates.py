@@ -45,36 +45,11 @@ from phonics_benchmark.data_io import (
     write_dataset,
     write_json,
 )
+from phonics_benchmark.labeling import get_decodability_config
 from phonics_benchmark.models import LabelledBenchmarkItem
 from phonics_benchmark.plots import save_nondecodable_ratio_histogram
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
-
-# Config for the decodability package. ``score_column`` picks which aggregation
-# output decides decodability, and so differs by language.
-DECODABILITY_CONFIGS: dict[str, dict] = {
-    "sw": {
-        "scoring_methods": [
-            "score_known_graphemes_kiswahili",
-            "score_known_clusters_and_patterns_kiswahili",
-            "score_whole_words_kiswahili",
-        ],
-        "aggregations": {
-            "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
-        },
-        "score_column": "kenya_tusome_score",
-    },
-    "en": {
-        "scoring_methods": [
-            "score_known_gpcs_english",
-            "score_sight_words_english",
-        ],
-        "aggregations": {
-            "ufli_score": {"name": "ufli_curriculum_aggregator"},
-        },
-        "score_column": "ufli_score",
-    },
-}
 
 
 def build_candidate_benchmark_items(
@@ -99,12 +74,7 @@ def build_candidate_benchmark_items(
     validate_student_knowledge(profiles, strict=True)
 
     language_iso_code = resolve_language_iso_code(profiles, texts)
-    config = DECODABILITY_CONFIGS.get(language_iso_code)
-    if config is None:
-        raise ValueError(
-            f"No decodability config for language '{language_iso_code}'. "
-            "Add an entry to DECODABILITY_CONFIGS."
-        )
+    config = get_decodability_config(language_iso_code)
 
     candidates_df = build_benchmark_item_candidates_dataframe(profiles, texts)
     candidates_with_labels_df = add_labels_and_analysis(
