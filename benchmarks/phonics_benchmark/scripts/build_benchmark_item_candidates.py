@@ -38,9 +38,9 @@ from phonics_benchmark.curation import (
 from phonics_benchmark.data_io import (
     build_benchmark_item_candidates_dataframe,
     convert_dataframe_to_records,
+    get_dataset_language_iso_code,
     read_decodable_texts,
     read_student_knowledge_profiles,
-    resolve_language_iso_code,
     validate_student_knowledge,
     write_dataset,
     write_json,
@@ -73,7 +73,7 @@ def build_candidate_benchmark_items(
     profiles = read_student_knowledge_profiles(language, data_root)
     validate_student_knowledge(profiles, strict=True)
 
-    language_iso_code = resolve_language_iso_code(profiles, texts)
+    language_iso_code = get_dataset_language_iso_code(profiles, texts)
     config = get_decodability_config(language_iso_code)
 
     candidates_df = build_benchmark_item_candidates_dataframe(profiles, texts)

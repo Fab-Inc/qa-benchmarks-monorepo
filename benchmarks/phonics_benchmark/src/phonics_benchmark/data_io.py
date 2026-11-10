@@ -232,7 +232,7 @@ def validate_student_knowledge(
             ) from exc
 
 
-def resolve_language_iso_code(
+def get_dataset_language_iso_code(
     profiles: list[StudentKnowledge],
     texts: list[DecodableText],
 ) -> str:
@@ -243,7 +243,7 @@ def resolve_language_iso_code(
     """
     codes = [profile.language_iso_code for profile in profiles]
     codes += [text.language_iso_code for text in texts]
-    return utils.resolve_language_iso_code(
+    return utils.require_single_language_iso_code(
         codes, source="the student profiles and texts"
     )
 
@@ -263,7 +263,7 @@ def build_benchmark_item_candidates_dataframe(
             f"{len(texts)} text(s), need at least one of each"
         )
 
-    resolve_language_iso_code(profiles, texts)
+    get_dataset_language_iso_code(profiles, texts)
 
     profiles_df = convert_records_to_dataframe(profiles)
     texts_df = convert_records_to_dataframe(texts)

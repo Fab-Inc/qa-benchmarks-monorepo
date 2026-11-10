@@ -22,7 +22,7 @@ def require_columns(columns: list[str]):
     return decorator
 
 
-def resolve_language_iso_code(
+def require_single_language_iso_code(
     codes: Iterable[str],
     *,
     source: str,
