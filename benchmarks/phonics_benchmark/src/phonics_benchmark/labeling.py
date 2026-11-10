@@ -57,7 +57,7 @@ def get_decodability_config(language: str) -> dict:
             f"No decodability config for language '{language}'. Add an entry to "
             f"DECODABILITY_CONFIGS (known: {sorted(DECODABILITY_CONFIGS)})."
         )
-    return config
+    return copy.deepcopy(config)
 
 
 def resolve_decodability_config(
