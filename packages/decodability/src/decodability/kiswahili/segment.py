@@ -85,6 +85,87 @@ def decompose_word(word: str) -> list[GraphemeSpan]:
     return graphemes
 
 
+# Words reviewed by Kiswahili experts as having syllabic nasals,
+# mapped to the clusters the rules should leave behind in the strict
+# view (ambiguous boundaries count as fused, cf. ``segment.py``).
+SYLLABIC_NASAL_EXPECTED_CLUSTERS: dict[str, list[str]] = {
+    "akamsalimia": [],
+    "akamtuma": [],
+    "alimnunulia": [],
+    "alimpeleka": [],
+    "alimpenda": ["nd"],  # medial nd is fused
+    "hakumpenda": ["nd"],  # medial nd is fused
+    "humpeleka": [],
+    "inamlinda": ["nd"],  # medial nd is fused
+    "kumchapa": [],
+    "kumfukuza": [],
+    "kumkaribisha": [],
+    "mbunge": [],
+    "mbwa": ["bw"],  # syllabic m on a monosyllabic root leaves bw
+    "mchana": [],
+    "mchanganyiko": [],
+    "mchele": [],
+    "mchezo": [],
+    "mchi": [],
+    "mchwa": ["chw"],  # syllabic m leaves chw
+    "mdogo": [],
+    "mdomo": [],
+    "mdudu": [],
+    "mfalme": ["lm"],  # lm is an ordinary cluster
+    "mfano": [],
+    "mfupi": [],
+    "mgeni": [],
+    "mgonjwa": ["njw"],  # medial n+j is fused and njw is treated as a single cluster
+    "mheshimiwa": [],
+    "mjini": [],
+    "mjomba": ["mb"],  # medial mb is ambiguous; strict view keeps it
+    "mkali": [],
+    "mkate": [],
+    "mkono": [],
+    "mkononi": [],
+    "mkubwa": ["bw"],  # bw is an ordinary cluster
+    "mkuu": [],
+    "mlango": [],
+    "mlingoti": [],
+    "mmoja": [],
+    "mpeketoni": [],
+    "mpunga": [],
+    "mraba": [],
+    "mrefu": [],
+    "msafiri": [],
+    "msalani": [],
+    "msichana": [],
+    "msingi": [],
+    "msituni": [],
+    "mstatili": ["st"],  # syllabic m leaves st
+    "mti": [],
+    "mtihani": [],
+    "mtini": [],
+    "mtoto": [],
+    "mtu": [],
+    "mvua": [],
+    "mzazi": [],
+    "mzee": [],
+    "nchi": [],
+    "nne": [],
+    "wamsalimie": [],
+    "wanamjua": [],
+    "zilizompatia": [],
+    "nzi": [],
+    "kuamka": [],
+    "kiamshakinywa": ["nyw"],  # nyw is an ordinary cluster
+    "kuzungumza": [],
+    "namna": [],
+    "umri": [],
+    "huteremsha": [],
+    "nje": [],
+}
+
+SYLLABIC_NASAL_REVIEWED_WORDS: frozenset[str] = frozenset(
+    SYLLABIC_NASAL_EXPECTED_CLUSTERS.keys()
+)
+
+
 class NasalReading(Enum):
     """How a nasal + consonant boundary is read.
 
@@ -146,55 +227,136 @@ class NasalBoundary:
 NasalRule = Callable[[NasalBoundary], NasalReading | None]
 
 
-def _initial_n_before_monosyllabic_root_is_syllabic(
+def _exception_words(boundary: NasalBoundary) -> NasalReading | None:
+    """Handle exception words that do not follow the usual nasal rules."""
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+
+    if word == "mvua":
+        return NasalReading.SYLLABIC
+
+    if word == "jumanne":
+        return NasalReading.SYLLABIC
+
+    return None
+
+
+def _unambiguous_due_to_expert_review(boundary: NasalBoundary) -> NasalReading | None:
+    word = "".join(grapheme.symbol for grapheme in boundary.graphemes)
+    disambiguated = [
+        # reviewed from benchmark item texts
+        ("mbunge", ("mb", 0)),
+        # other examples reviewed
+        ("mbaya", ("mb", 0)),
+        ("mvulana", ("mv", 0)),
+        ("mbovu", ("mb", 0)),
+        ("akambeba", ("mb", 3)),
+        ("mbebe", ("mb", 0)),
+        ("hambebi", ("mb", 2)),
+        ("mwako", ("mw", 0)),
+        ("mwaridi", ("mw", 0)),
+        ("myombo", ("my", 0)),
+        ("myugwa", ("my", 0)),
+    ]
+    for w, (_, pos) in disambiguated:
+        if word == w and boundary.index == pos:
+            return NasalReading.SYLLABIC
+    return None
+
+
+def _nw_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """The sequence ``nw`` is always fused."""
+    if boundary.nasal.symbol == "n" and boundary.follower.symbol == "w":
+        return NasalReading.FUSED
+    return None
+
+
+def _medial_m_glide_always_fused(boundary: NasalBoundary) -> NasalReading | None:
+    """Medial ``my`` and ``mw`` are always fused."""
+    if (
+        not boundary.word_initial
+        and boundary.nasal.symbol == "m"
+        and boundary.follower.symbol in {"y", "w"}
+    ):
+        return NasalReading.FUSED
+    return None
+
+
+def _initial_nasal_before_monosyllabic_root_is_syllabic(
     boundary: NasalBoundary,
 ) -> NasalReading | None:
-    """Word-initial ``n`` + d/j/z on a one-vowel root reads as syllabic n.
+    """Word-initial nasal consonant running on a one-vowel root reads as syllabic.
 
-    When the n- class prefix attaches to a monosyllabic root (nzi, nje) the
-    nasal carries its own syllable rather than fusing into the prenasalised
-    onset; on longer roots (ndizi, njia) and word-medially it stays fused.
+    This is true even for consonants that are typically fused after the nasals, like
+    mb, mv, nd, nj, nz (except nw). On longer roots (ndizi, njia) and word-medially
+    those stay fused.
     """
-    if (
-        boundary.word_initial
-        and boundary.nasal.symbol == "n"
-        and boundary.vowels_after == 1
-    ):
+    if boundary.word_initial and boundary.nasal and boundary.vowels_after == 1:
         return NasalReading.SYLLABIC
     return None
 
 
-def _provisional_mb_mv_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
-    """PROVISIONAL pending linguist notes: ``m`` + b/v may be either reading.
+def _taught_n_onset_clusters(boundary: NasalBoundary) -> NasalReading | None:
+    """Default rule: the taught n- onsets are gated, regardless of the following
+    consonant.
 
-    "m" before b or v can be the syllabic m- marker (e.g. a verb marker or
-    class prefix) or the fused prenasalised onset, at any position in the
-    word, so both readings are kept open.
+    n before d, j, z, w is usually fused hence gated.
+    n before any other consonant is either a syllable coda or part of a loan
+    cluster or an unusual sound early grade students aren't expected to blend
+    well, hence gated.
     """
-    if boundary.nasal.symbol == "m" and boundary.follower.symbol in {"b", "v"}:
-        return NasalReading.AMBIGUOUS
+    if boundary.nasal.symbol == "n":
+        return NasalReading.FUSED
     return None
 
 
-def _taught_onset_clusters(boundary: NasalBoundary) -> NasalReading | None:
-    """Default rule: the taught nasal onsets fuse; any other nasal is syllabic.
+def _m_ambiguity(boundary: NasalBoundary) -> NasalReading | None:
+    """Nasal verdict on ``m`` before b/v/w/y depends on word analysis which
+    the current tool cannot perform.
 
-    Before ``b, v, w, y`` (after m) or ``d, j, z, w`` (after n) a nasal is a
-    prenasalised/glide onset taught as a cluster. Before any other consonant
-    the nasal is syllabic and reads as the bare grapheme.
+    More specifically, for words starting with m-glides, we need to know their
+    plural form to determine if the ``m`` is syllabic or fused. Word-medial
+    m-glides are always fused.
+
+    For ``m`` before b/v, it depends on whether
+    it is an object or second-person plural marker for a verb, the intended
+    meaning of the word, or its noun class or agreement features.
+    """
+    if not boundary.nasal.symbol == "m":
+        return None
+
+    if boundary.follower.symbol in {"b", "v"}:
+        return NasalReading.AMBIGUOUS
+
+    if boundary.word_initial and boundary.follower.symbol in {"w", "y"}:
+        return NasalReading.AMBIGUOUS
+
+    return None
+
+
+def _taught_m_onset_clusters(boundary: NasalBoundary) -> NasalReading | None:
+    """Default rule: the taught m- onsets fuse; any other m-cluster is syllabic.
+
+    Before ``b, v, w, y`` an m is a prenasalised/glide onset taught as a cluster.
+    Before any other consonant the m is syllabic and reads as the bare grapheme.
     """
     followers = _NASAL_CLUSTER_FOLLOWERS.get(boundary.nasal.symbol)
     if followers is None:
         return None
-    if boundary.follower.symbol in followers:
+    if boundary.nasal.symbol == "m" and boundary.follower.symbol in followers:
         return NasalReading.FUSED
     return NasalReading.SYLLABIC
 
 
 NASAL_RULES: tuple[NasalRule, ...] = (
-    _initial_n_before_monosyllabic_root_is_syllabic,
-    _provisional_mb_mv_ambiguity,
-    _taught_onset_clusters,
+    _exception_words,
+    _unambiguous_due_to_expert_review,
+    # TODO: check with justin whether to include it here or not
+    _nw_always_fused,
+    _medial_m_glide_always_fused,
+    _initial_nasal_before_monosyllabic_root_is_syllabic,
+    _taught_n_onset_clusters,
+    _m_ambiguity,
+    _taught_m_onset_clusters,
 )
 
 
@@ -358,6 +520,8 @@ def get_clusters(word: str) -> list[str]:
 
 
 __all__ = [
+    "SYLLABIC_NASAL_EXPECTED_CLUSTERS",
+    "SYLLABIC_NASAL_REVIEWED_WORDS",
     "Span",
     "GraphemeSpan",
     "NasalReading",
