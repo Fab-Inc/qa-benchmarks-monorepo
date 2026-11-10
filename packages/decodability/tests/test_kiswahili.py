@@ -38,11 +38,11 @@ cluster_outputs = [
     ("Baba", []),
     ("mchw", [("chw", 1)]),
     ("hospitali", [("sp", 2)]),
-    ("blanketi", [("bl", 0), ("nk", 3)]),  # medial n + consonant is fused
+    ("blanketi", [("bl", 0), ("nk", 3)]),  # medial n + consonant is gated
     ("mwenzangu", [("mw", 0), ("nz", 3)]),
     ("mchanganyiko", []),
     ("mwembamba", [("mw", 0), ("mb", 3), ("mb", 6)]),
-    ("transista", [("tr", 0), ("ns", 3), ("st", 6)]),  # medial ns is fused
+    ("transista", [("tr", 0), ("ns", 3), ("st", 6)]),  # medial ns is gated
     # Syllabic nasals: nasal + consonant is decodable from the graphemes alone.
     ("mtoto", []),
     ("mmoja", []),
@@ -50,7 +50,7 @@ cluster_outputs = [
     ("mstatili", [("st", 1)]),
     ("mvua", []),  # exception word: syllabic m, so no mv cluster
     ("nchi", []),
-    ("wanne", [("nn", 2)]),  # exception word: nn after a class prefix is fused
+    ("wanne", [("nn", 2)]),  # exception word: nn after a class prefix is gated
     ("ndizi", [("nd", 0)]),
     ("njia", [("nj", 0)]),
     ("pandwa", [("ndw", 2)]),
@@ -95,7 +95,7 @@ class TestKiswahiliDefinition:
     @pytest.mark.parametrize(
         "word, expected_variants",
         [
-            # Only m + b/v boundaries are ambiguous (provisional rule); every
+            # Only m + b/v/w/y boundaries are ambiguous; every
             # other boundary has a single reading, so most words have exactly
             # one clustering.
             ("ndizi", [["nd"]]),
@@ -111,8 +111,8 @@ class TestKiswahiliDefinition:
             ("mbuzi", [["mb"], []]),
             # mvua is an exception word read as syllabic m.
             ("mvua", [[]]),
-            # Read syllabically, the m leaves a bw stretch cluster behind;
-            # read fused, mb + w form the composite cluster mbw.
+            # If m is fused, mbw forms the composite cluster.
+            # If m is syllabic, it leaves bw as a fused cluster;
             ("mbwea'", [["mbw"], ["bw"]]),
             # Variants are fused-first: index 0 resolves every ambiguous
             # boundary as a cluster. Word-initial mw is ambiguous too, so all
