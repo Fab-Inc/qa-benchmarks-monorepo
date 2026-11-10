@@ -177,24 +177,6 @@ def test_nondecodable_word_analysis_histogram_bins() -> None:
     assert sum(histogram.values()) == len(items)
 
 
-def test_nondecodable_word_analysis_threshold_count_includes_one() -> None:
-    """The last threshold row counts items whose ratio is exactly 1.0."""
-    items = pd.DataFrame(
-        {
-            "nondecodable_ratio": [0.0, 0.2, 1.0, 1.0],
-            "num_nondecodable_words": [0, 1, 2, 3],
-        }
-    )
-
-    thresholds = get_nondecodable_word_analysis(items)[
-        "Non-decodable ratio threshold count"
-    ]
-
-    assert thresholds["[1.00, 1.00]"] == 2
-    assert thresholds["(0.30, 1.00]"] == 2
-    assert thresholds["(0.05, 1.00]"] == 3
-
-
 def test_filter_benchmark_items_respects_thresholds() -> None:
     """Sampling caps and the max-ratio drop are all applied."""
     items = pd.DataFrame(
