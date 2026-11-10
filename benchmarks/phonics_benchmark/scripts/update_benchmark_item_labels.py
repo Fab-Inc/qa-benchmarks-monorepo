@@ -216,15 +216,18 @@ def main(
         log_kiswahili_nasal_report(removed_by_word, added_by_word, unchanged_by_word)
 
     # Report new nondecodable word stats
+    report_text = "Analysis post-update:\n"
     analysis_post = get_nondecodable_word_analysis(pd.DataFrame(items))
-    report = analysis_post.copy()
     for key, post in analysis_post.items():
         if key == "Non-decodable ratio histogram":
+            report_text += f"{key}:\n"
             for subkey, post_val in post.items():
                 pre = analysis_pre["Non-decodable ratio histogram"][subkey]
-                report[key][subkey] = f"{pre:3d} -> {post_val:3d} ({post_val - pre:+})"
+                report_text += (
+                    f"{subkey}: {pre:3d} -> {post_val:3d} ({post_val - pre:+})\n"
+                )
             continue
         else:
             pre = analysis_pre[key]
-            report[key] = f"{pre:3d} -> {post:3d} ({post - pre:+})"
-    logging.info(f"Analysis post-update:\n{json.dumps(analysis_post, indent=2)}")
+            report_text += f"{key}: {pre:3d} -> {post:3d} ({post - pre:+})\n"
+    logging.info(report_text)
