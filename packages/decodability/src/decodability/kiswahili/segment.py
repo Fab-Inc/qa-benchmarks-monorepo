@@ -85,7 +85,7 @@ def decompose_word(word: str) -> list[GraphemeSpan]:
     return graphemes
 
 
-# Words reviewed by Kiswahili experts as having syllabic nasalsm=,
+# Words reviewed by Kiswahili experts as having syllabic nasals,
 # mapped to the clusters the rules should leave behind in the strict
 # view (ambiguous boundaries count as fused, cf. ``segment.py``).
 SYLLABIC_NASAL_EXPECTED_CLUSTERS: dict[str, list[str]] = {
