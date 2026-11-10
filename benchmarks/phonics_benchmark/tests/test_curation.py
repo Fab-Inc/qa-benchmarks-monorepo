@@ -153,23 +153,46 @@ def test_add_analysis_columns_drops_items_with_no_words() -> None:
     assert not enriched["nondecodable_ratio"].isna().any()
 
 
-def test_nondecodable_word_analysis_counts_small_nonzero_ratios() -> None:
-    """Items just above 0.0 belong in the first bin, not dropped from the histogram."""
+def test_nondecodable_word_analysis_histogram_bins() -> None:
+    """Zero gets its own closed bin; the rest fall in right-closed 0.1-wide bins."""
     items = pd.DataFrame(
         {
-            "nondecodable_ratio": [0.0, 0.03, 0.04, 0.12],
-            "num_nondecodable_words": [0, 1, 1, 3],
+            # 0.1, 0.3 and 1.0 sit exactly on right edges -> lower bin
+            "nondecodable_ratio": [0.0, 0.0, 0.03, 0.1, 0.12, 0.3, 0.95, 1.0],
+            "num_nondecodable_words": [0, 0, 1, 1, 2, 3, 9, 10],
         }
     )
 
-    analysis = get_nondecodable_word_analysis(items)
-    histogram = analysis["Non-decodable ratio histogram"]
+    histogram = get_nondecodable_word_analysis(items)["Non-decodable ratio histogram"]
 
-    assert histogram["(0.00, 0.05]"] == 2
-    assert histogram["(0.10, 0.15]"] == 1
-    # Zero-ratio items are reported on their own line, not in the histogram.
-    assert analysis["No non-decodable words"] == 1
-    assert sum(histogram.values()) == len(items) - 1
+    assert list(histogram) == ["[0.0, 0.0]"] + [
+        f"({i / 10:.1f}, {(i + 1) / 10:.1f}]" for i in range(10)
+    ]
+    assert histogram["[0.0, 0.0]"] == 2
+    assert histogram["(0.0, 0.1]"] == 2
+    assert histogram["(0.1, 0.2]"] == 1
+    assert histogram["(0.2, 0.3]"] == 1
+    assert histogram["(0.9, 1.0]"] == 2
+    # Every item lands in exactly one bin
+    assert sum(histogram.values()) == len(items)
+
+
+def test_nondecodable_word_analysis_threshold_count_includes_one() -> None:
+    """The last threshold row counts items whose ratio is exactly 1.0."""
+    items = pd.DataFrame(
+        {
+            "nondecodable_ratio": [0.0, 0.2, 1.0, 1.0],
+            "num_nondecodable_words": [0, 1, 2, 3],
+        }
+    )
+
+    thresholds = get_nondecodable_word_analysis(items)[
+        "Non-decodable ratio threshold count"
+    ]
+
+    assert thresholds["[1.00, 1.00]"] == 2
+    assert thresholds["(0.30, 1.00]"] == 2
+    assert thresholds["(0.05, 1.00]"] == 3
 
 
 def test_filter_benchmark_items_respects_thresholds() -> None:
