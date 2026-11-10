@@ -8,6 +8,7 @@ contained change (config + decodability registry) rather than a code edit here.
 
 from __future__ import annotations
 
+import copy
 from functools import partial
 
 import pandas as pd
