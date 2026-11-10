@@ -185,9 +185,7 @@ class TestKenyaTusomeRule:
     def test_an_untaught_fused_onset_still_blocks_leniently(self):
         """nd on a two-vowel root is a fused nasal onset, so it cannot be
         decomposed: ndizi is non-decodable for a student who knows graphemes
-        but no clusters, even leniently.
-
-        (mwembamba no longer works here: word-initial mw is now ambiguous.)"""
+        but no clusters, even leniently."""
         knowledge = KiswahiliStudentKnowledge.model_validate(
             dict(graphemes=set("ndizi"))
         )
