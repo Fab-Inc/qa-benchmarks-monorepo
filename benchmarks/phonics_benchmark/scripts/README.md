@@ -81,3 +81,24 @@ The following responses are excluded from scoring:
 - API error (`call_status` is not `success`): These can be re-attempted with
   `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
 - Parsing error (`parse_ok` is `False`)
+
+## Updating labels for existing benchmark items
+
+If you updated your decodability logic and hence need to update the labels for a
+benchmark items dataset, run
+
+```shell
+uv run --frozen --package phonics_benchmark \
+    benchmarks/phonics_benchmark/scripts/update_benchmark_item_labels.py \
+    $EXISTING_ITEMS_PATH \
+    $TARGET_ITEMS_PATH
+```
+
+It will save the re-labelled version of `$EXISTING_ITEMS_PATH` to `$TARGET_ITEMS_PATH`.
+
+It will log a report on
+
+- how many items were re-labeled
+- how many and which words were
+  - dropped (previously non-decodable but now decodable)
+  - added (previously decodable but now non-decodable)
