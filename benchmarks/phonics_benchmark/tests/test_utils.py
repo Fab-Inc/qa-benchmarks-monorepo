@@ -1,7 +1,5 @@
 """Tests for the utils module."""
 
-import os
-from collections.abc import Generator
 from pathlib import Path
 
 import pandas as pd
@@ -21,11 +19,10 @@ def test_require_column_decorator_raises_if_missing() -> None:
 
 
 @pytest.fixture
-def tmp_jsonl_file(tmp_path) -> Generator[Path]:
+def tmp_jsonl_file(tmp_path) -> Path:
     file_path = tmp_path / "test.jsonl"
     file_path.write_text('{"a": 1}\n{"b": 2}\n\n')
-    yield file_path
-    os.remove(file_path)
+    return file_path
 
 
 def test_load_jsonl(tmp_jsonl_file) -> None:
