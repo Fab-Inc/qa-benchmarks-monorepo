@@ -21,10 +21,9 @@ REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
 )
 BASE = (
-    REPO_ROOT
-    / "outputs/phonics-mixture-corrected-20260921/selections/beta1-8-provisional"
+    REPO_ROOT / "outputs/phonics-gold-leaderboard-20260922-relabelled-20261110/reports"
 )
-REPORT = BASE / "kiswahili/report"
+REPORT = BASE / "kiswahili"
 
 # Palette and furniture copied from plot_report_f2_leaderboards.py on the
 # add-phonics-local-merge branch, so these figures sit alongside the F2
@@ -37,15 +36,15 @@ FEATURES = [
     "grapheme_bin",
     "has_multigraph",
     "has_cluster",
-    # "has_nonnasal_cluster",
-    # "has_nasal_cluster",
+    "has_nonnasal_cluster",
+    "has_nasal_cluster",
 ]
 TAGS = {
     "is_known_word": "known",
     "has_multigraph": "multi",
     "has_cluster": "CLUST",
-    # "has_nonnasal_cluster": "clust",
-    # "has_nasal_cluster": "NASAL",
+    "has_nonnasal_cluster": "clust",
+    "has_nasal_cluster": "NASAL",
 }
 GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 9), (9, 14)])
 # Level order for plotting. `level` is stored as a label rather than a mix of
@@ -56,8 +55,8 @@ LEVEL_ORDER = {
     "grapheme_bin": ["2-5", "6-9", "10-14"],
     "has_multigraph": ["False", "True"],
     "has_cluster": ["False", "True"],
-    # "has_nonnasal_cluster": ["False", "True"],
-    # "has_nasal_cluster": ["False", "True"],
+    "has_nonnasal_cluster": ["False", "True"],
+    "has_nasal_cluster": ["False", "True"],
 }
 
 
@@ -265,10 +264,10 @@ def cell_group(row):
         return 0
     if row.has_cluster:
         return 3
-    # if row.has_nasal_cluster:
-    #     return 4
-    # if row.has_nonnasal_cluster:
-    #     return 3
+    if row.has_nasal_cluster:
+        return 4
+    if row.has_nonnasal_cluster:
+        return 3
     if row.has_multigraph:
         return 2
     return 1
