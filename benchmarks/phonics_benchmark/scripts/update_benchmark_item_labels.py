@@ -33,12 +33,14 @@ from pathlib import Path
 import pandas as pd
 import typer
 from decodability.kiswahili.segment import decompose_word
+from phonics_benchmark.curation import get_nondecodable_word_analysis
+from phonics_benchmark.data_io import convert_records_to_dataframe
 from phonics_benchmark.labeling import (
     get_decodability_config,
     get_vocabulary_set,
     label_nondecodable_words,
 )
-from phonics_benchmark.utils import require_single_language_iso_code
+from phonics_benchmark.utils import load_jsonl, require_single_language_iso_code
 
 # Graphemes that can head a Kiswahili nasal boundary; matches the keys of
 # _NASAL_CLUSTER_FOLLOWERS in decodability.kiswahili.segment
@@ -97,11 +99,6 @@ def log_kiswahili_nasal_report(
             logging.info(f"  Non-nasal added: {dict(added.most_common(15))}")
 
 
-def load_jsonl(path: Path) -> list[dict]:
-    with path.open("r", encoding="utf-8") as f:
-        return [json.loads(line) for line in f]
-
-
 def save_as_jsonl(items: list[dict], path: Path) -> None:
     with path.open("w", encoding="utf-8") as f:
         for item in items:
@@ -122,8 +119,9 @@ def main(
 ) -> None:
     logging.basicConfig(level=getattr(logging, log_level.upper(), logging.INFO))
 
+    assert load_items_path != save_items_path, "Load and save paths must be different"
+
     items = load_jsonl(Path(load_items_path))
-    # --language must match the items' own code; it defaults to that code
     language = require_single_language_iso_code(
         (item.get("language_iso_code", "") for item in items),
         source="the benchmark items",
@@ -132,22 +130,30 @@ def main(
     config = get_decodability_config(language)
     logging.info(f"Loaded {len(items)} items from {load_items_path} ({language})")
 
-    # The labelling functions take a frame and only read these two columns; the
-    # raw dicts stay the source of truth so untouched items round-trip unchanged
+    # Copy required data
     items_df = pd.DataFrame(
         {
             "content": [item["content"] for item in items],
             "student_knowledge": [item["student_knowledge"] for item in items],
+            "num_nondecodable_words": [
+                item["num_nondecodable_words"] for item in items
+            ],
+            "nondecodable_ratio": [item["nondecodable_ratio"] for item in items],
         }
     )
     items_df["vocab_set"] = get_vocabulary_set(items_df, language)
+
+    # Report existing nondecodable word stats
+    analysis_pre = get_nondecodable_word_analysis(pd.DataFrame(items))
+
+    # Create new labels
     new_labels = label_nondecodable_words(
         items_df, config, language, score_column=config["score_column"]
     )
 
+    # Count label changes
     n_items_with_removal = 0
     n_items_with_addition = 0
-    # An item counts once even if it had both a removal and an addition
     n_items_changed = 0
     removed_by_word: Counter[str] = Counter()
     added_by_word: Counter[str] = Counter()
@@ -183,9 +189,11 @@ def main(
             item["num_total_words"] = len(vocab_set)
             item["nondecodable_ratio"] = len(new_label) / len(vocab_set)
 
+    # Save updated items to JSONL
     save_as_jsonl(items, Path(save_items_path))
     logging.info(f"Saved updated items to {save_items_path}")
 
+    # Report label change statistics
     logging.info(
         f"Items with changed labels: {n_items_changed} / {len(items)} "
         f"({n_items_changed / len(items):.1%})"
@@ -206,3 +214,17 @@ def main(
 
     if language == "sw":
         log_kiswahili_nasal_report(removed_by_word, added_by_word, unchanged_by_word)
+
+    # Report new nondecodable word stats
+    analysis_post = get_nondecodable_word_analysis(pd.DataFrame(items))
+    report = analysis_post.copy()
+    for key, post in analysis_post.items():
+        if key == "Non-decodable ratio histogram":
+            for subkey, post_val in post.items():
+                pre = analysis_pre["Non-decodable ratio histogram"][subkey]
+                report[key][subkey] = f"{pre:3d} -> {post_val:3d} ({post_val - pre:+})"
+            continue
+        else:
+            pre = analysis_pre[key]
+            report[key] = f"{pre:3d} -> {post:3d} ({post - pre:+})"
+    logging.info(f"Analysis post-update:\n{json.dumps(analysis_post, indent=2)}")
