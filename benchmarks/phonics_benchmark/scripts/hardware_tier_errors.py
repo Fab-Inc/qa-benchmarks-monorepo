@@ -168,8 +168,10 @@ def ci_note(n_bootstrap: int, ci_level: float) -> str:
 
 
 def ranking_phrase(metric: str, language: str) -> str:
-    """Footnote wording, e.g. "highest-pooled_f2 English models"."""
-    return f"highest-{metric} {language.title()} models"
+    """Footnote wording, e.g. "English models with the highest pooled F2"."""
+    label = hardware.METRICS[metric]
+    # Lowercase only the first letter so acronyms such as F2 keep their case.
+    return f"{language.title()} models with the highest {label[0].lower()}{label[1:]}"
 
 
 def tier_dir(root: Path, metric: str, min_coverage: float | None) -> Path:

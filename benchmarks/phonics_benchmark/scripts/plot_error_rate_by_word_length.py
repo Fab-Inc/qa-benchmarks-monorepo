@@ -160,7 +160,7 @@ def plot(
         f"Pooled {label} by word length ({language.title()})\n{title_suffix}",
         fontweight="bold",
     )
-    note = f"{error.upper()} rate pooled across the {ranking} in each hardware tier"
+    note = f"{error.upper()} rate pooled across {ranking} in each hardware tier"
     if has_ci:
         n_bootstrap, ci_level = table.n_bootstrap.iloc[0], table.ci_level.iloc[0]
         note += "\n" + common.ci_note(int(n_bootstrap), float(ci_level))
@@ -175,14 +175,18 @@ def main() -> None:
     )
     args = parser.parse_args()
     common.validate_bootstrap_args(parser, args)
-    out = common.tier_dir(args.root, args.metric, args.min_coverage) / "error_analysis"
-    out.mkdir(parents=True, exist_ok=True)
+    # Load every language's inputs first: a missing file (e.g. a wrong --root)
+    # raises here, before any output folder is created.
+    inputs = {}
     for language in args.language:
         models = common.load_top_models(
             args.root, language, args.top_n, args.metric, args.min_coverage
         )
         scored = common.load_scored_items(args.root, language, models)
-        words = common.explode_words(scored)
+        inputs[language] = (models, common.explode_words(scored))
+    out = common.tier_dir(args.root, args.metric, args.min_coverage) / "error_analysis"
+    out.mkdir(parents=True, exist_ok=True)
+    for language, (models, words) in inputs.items():
         ranking = common.ranking_phrase(args.metric, language)
         for error in args.error:
             table = rate_by_length(

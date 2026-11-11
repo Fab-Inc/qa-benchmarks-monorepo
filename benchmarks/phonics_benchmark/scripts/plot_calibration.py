@@ -195,13 +195,20 @@ def main() -> None:
     common.add_common_args(parser)
     args = parser.parse_args()
     common.validate_bootstrap_args(parser, args)
-    out = common.tier_dir(args.root, args.metric, args.min_coverage) / "error_analysis"
-    out.mkdir(parents=True, exist_ok=True)
+    # Load every language's inputs first: a missing file (e.g. a wrong --root)
+    # raises here, before any output folder is created.
+    inputs = {}
     for language in args.language:
         models = common.load_top_models(
             args.root, language, args.top_n, args.metric, args.min_coverage
         )
-        scored = common.load_scored_items(args.root, language, models)
+        inputs[language] = (
+            models,
+            common.load_scored_items(args.root, language, models),
+        )
+    out = common.tier_dir(args.root, args.metric, args.min_coverage) / "error_analysis"
+    out.mkdir(parents=True, exist_ok=True)
+    for language, (models, scored) in inputs.items():
         table = calibration_table(
             item_ratios(scored), args.n_bootstrap, args.ci_level, args.seed
         )

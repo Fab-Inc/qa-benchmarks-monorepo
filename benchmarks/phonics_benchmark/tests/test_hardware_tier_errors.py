@@ -92,7 +92,11 @@ def test_calibration_keeps_ratio_one_in_last_bin():
 def test_ranking_phrase():
     assert (
         common.ranking_phrase("pooled_f2", "english")
-        == "highest-pooled_f2 English models"
+        == "English models with the highest pooled F2"
+    )
+    assert (
+        common.ranking_phrase("adjusted_balanced_accuracy", "kiswahili")
+        == "Kiswahili models with the highest adjusted balanced accuracy"
     )
 
 
