@@ -1,5 +1,6 @@
 from functools import cached_property, reduce
 from itertools import chain
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -9,6 +10,8 @@ from decodability.kiswahili.definitions import (
     ClusterPattern,
 )
 from decodability.kiswahili.segment import get_grapheme_symbols
+
+KiswahiliKnowledgeFormat = Literal["quoted"]
 
 
 class KiswahiliStudentKnowledge(BaseModel):
@@ -116,8 +119,18 @@ class KiswahiliStudentKnowledge(BaseModel):
         )
         return self.clusters | clusters_from_patterns
 
-    def __str__(self) -> str:
-        """Return a string representation of the KiswahiliStudentKnowledge instance."""
+    def render(self, fmt: KiswahiliKnowledgeFormat) -> str:
+        """Render the profile as a prompt's STUDENT KNOWLEDGE block.
+
+        ``"quoted"``: every item double-quoted and sorted, e.g. ``"a", "m"``;
+        cluster patterns render as their labels.
+        """
+        if fmt != "quoted":
+            raise ValueError(
+                f"Unknown knowledge format {fmt!r}; Kiswahili supports "
+                f"{get_args(KiswahiliKnowledgeFormat)}"
+            )
+
         graphemes = ", ".join(f'"{g}"' for g in sorted(self.graphemes))
         clusters = ", ".join(f'"{c}"' for c in sorted(self.clusters))
         cluster_patterns = ", ".join(
@@ -134,3 +147,6 @@ class KiswahiliStudentKnowledge(BaseModel):
                 f"- Known whole words: {whole_words or 'None'}",
             ]
         )
+
+    def __str__(self) -> str:
+        return self.render("quoted")

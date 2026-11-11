@@ -1,9 +1,13 @@
+from typing import Literal, get_args
+
 from pydantic import BaseModel, field_validator
 
 from decodability.english.definitions import (
     UFLI_GPC_PAIRS_FLAT,
     normalize_gpc_grapheme,
 )
+
+EnglishKnowledgeFormat = Literal["quoted", "plain"]
 
 
 class EnglishStudentKnowledge(BaseModel):
@@ -51,10 +55,26 @@ class EnglishStudentKnowledge(BaseModel):
         """Lowercase all affixes to ensure consistency."""
         return {affix.lower() for affix in affixes}
 
-    def __str__(self) -> str:
-        """Return a string representation of the EnglishStudentKnowledge instance."""
-        gpcs = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in self.gpcs)
-        sight_words = ", ".join(sorted(self.sight_words))
+    def render(self, fmt: EnglishKnowledgeFormat) -> str:
+        """Render known GPCs and sight words as a prompt's STUDENT KNOWLEDGE block.
+
+        - ``"quoted"``: ``"a" → "æ"``, ``"the"``
+        - ``"plain"``: ``a -> /æ/``, ``the``
+
+        GPCs keep their order, sight words are sorted, and ``affixes`` are not
+        rendered.
+        """
+        if fmt == "quoted":
+            gpcs = "; ".join(f'"{grapheme}" → "{ipa}"' for grapheme, ipa in self.gpcs)
+            sight_words = ", ".join(f'"{w}"' for w in sorted(self.sight_words))
+        elif fmt == "plain":
+            gpcs = "; ".join(f"{grapheme} -> /{ipa}/" for grapheme, ipa in self.gpcs)
+            sight_words = ", ".join(sorted(self.sight_words))
+        else:
+            raise ValueError(
+                f"Unknown knowledge format {fmt!r}; English supports "
+                f"{get_args(EnglishKnowledgeFormat)}"
+            )
 
         return "\n".join(
             [
@@ -62,3 +82,6 @@ class EnglishStudentKnowledge(BaseModel):
                 f"- Known sight words: {sight_words or 'None'}",
             ]
         )
+
+    def __str__(self) -> str:
+        return self.render("quoted")

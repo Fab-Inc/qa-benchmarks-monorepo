@@ -297,6 +297,13 @@ class TestKiswahiliStudentKnowledgeModel:
     def test_kiswahili_student_knowledge_str(self, kwargs: dict, expected_str: str):
         """Test the string representation of KiswahiliStudentKnowledge."""
         assert str(KiswahiliStudentKnowledge(**kwargs)) == expected_str
+        assert KiswahiliStudentKnowledge(**kwargs).render("quoted") == expected_str
+
+    @pytest.mark.parametrize("fmt", ["plain", "v2"])
+    def test_kiswahili_student_knowledge_render_rejects_other_formats(self, fmt: str):
+        """Kiswahili only defines "quoted"; other formats belong to other languages."""
+        with pytest.raises(ValueError, match=f"Unknown knowledge format '{fmt}'"):
+            KiswahiliStudentKnowledge().render(fmt)  # type: ignore[arg-type]
 
 
 class TestKiswahiliClusters:
