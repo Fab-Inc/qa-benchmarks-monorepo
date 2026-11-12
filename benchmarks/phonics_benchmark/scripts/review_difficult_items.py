@@ -46,6 +46,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from decodability.kiswahili.segment import SYLLABIC_NASAL_REVIEWED_WORDS
 from phonics_benchmark.item_statistics import (
     STATUS_INTERIOR,
     simple_difficulty_and_discrimination,
@@ -95,79 +96,6 @@ BASE = REPO_ROOT / ARGS.target
 REPORT_DIR = BASE / f"{LANGUAGE}"
 TARGET_DIR = REPORT_DIR / "difficult_items"
 TARGET_DIR.mkdir(parents=True, exist_ok=True)
-
-TO_UNGATE = [
-    "akamsalimia",
-    "akamtuma",
-    "alimnunulia",
-    "alimpeleka",
-    "alimpenda",
-    "hakumpenda",
-    "humpeleka",
-    "inamlinda",
-    "kumchapa",
-    "kumfukuza",
-    "kumkaribisha",
-    "mbunge",
-    "mbwa",
-    "mchana",
-    "mchanganyiko",
-    "mchele",
-    "mchezo",
-    "mchi",
-    "mchwa",
-    "mdogo",
-    "mdomo",
-    "mdudu",
-    "mfalme",
-    "mfano",
-    "mfupi",
-    "mgeni",
-    "mgonjwa",
-    "mheshimiwa",
-    "mjini",
-    "mjomba",
-    "mkali",
-    "mkate",
-    "mkono",
-    "mkononi",
-    "mkubwa",
-    "mkuu",
-    "mlango",
-    "mlingoti",
-    "mmoja",
-    "mpeketoni",
-    "mpunga",
-    "mraba",
-    "mrefu",
-    "msafiri",
-    "msalani",
-    "msichana",
-    "msingi",
-    "msituni",
-    "mstatili",
-    "mti",
-    "mtihani",
-    "mtini",
-    "mtoto",
-    "mtu",
-    "mvua",
-    "mzazi",
-    "mzee",
-    "nchi",
-    "nne",
-    "wamsalimie",
-    "wanamjua",
-    "zilizompatia",
-    "nzi",
-    "kuamka",
-    "kiamshakinywa",
-    "kuzungumza",
-    "namna",
-    "umri",
-    "huteremsha",
-    "nje",
-]
 
 
 # --------------------------------------------------------------------------
@@ -513,24 +441,13 @@ if __name__ == "__main__":
     n_items = results["benchmark_item_id"].nunique()
     n_items_all_right = int(too_easy_items["all_models_correct"].sum())
     n_items_top10_right = int(too_easy_items["all_top_models_correct"].sum())
-    # Counted directly rather than subtracted: an item no top 10 model answered
-    # can be all-right overall without being all-right for the top 10.
-    n_items_only_top10_right = int(
-        (
-            too_easy_items["all_top_models_correct"]
-            & ~too_easy_items["all_models_correct"]
-        ).sum()
-    )
     logging.info(
         f"number of items all models get right: {n_items_all_right} of {n_items} "
         f"({n_items_all_right / n_items:.1%})"
     )
     logging.info(
-        f"number of items all top 10 models get right: {n_items_top10_right} of "
+        f"number of items top 10 models get right: {n_items_top10_right} of "
         f"{n_items} ({n_items_top10_right / n_items:.1%})"
-    )
-    logging.info(
-        f"number of items only the top 10 models get right: {n_items_only_top10_right}"
     )
     too_easy_items.to_csv(TARGET_DIR / "too_easy_items.csv", index=False)
 
@@ -577,23 +494,23 @@ if __name__ == "__main__":
     )
 
     if LANGUAGE == "kiswahili":
-        # import from package once implemented
-        # from decodability.kiswahili.ungate_syllabic_nasal import TO_UNGATE
         fp_rate = (
             fp_words_for_top10_models.index.get_level_values("word")
-            .isin(TO_UNGATE)
+            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
             .mean()
         )
         fn_rate = (
             fn_words_for_top10_models.index.get_level_values("word")
-            .isin(TO_UNGATE)
+            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
             .mean()
         )
         logging.info(
-            f"Proportion of fp words for top 10 models that are in TO_UNGATE: {fp_rate}"
+            f"Proportion of fp words for top 10 models that are in "
+            f"SYLLABIC_NASAL_REVIEWED_WORDS: {fp_rate}"
         )
         logging.info(
-            f"Proportion of fn words for top 10 models that are in TO_UNGATE: {fn_rate}"
+            f"Proportion of fn words for top 10 models that are in "
+            f"SYLLABIC_NASAL_REVIEWED_WORDS: {fn_rate}"
         )
 
     all_wrong_words_mask = ~words.groupby(["benchmark_item_id", "word"])[

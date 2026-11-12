@@ -4,6 +4,7 @@ import re
 from functools import cache
 from pathlib import Path
 
+from decodability.english.analyse import is_decodable_ufli
 from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.scorers import (
     score_known_gpcs_english,
@@ -51,7 +52,8 @@ def load_stories() -> dict[str, tuple[str, ...]]:
     stories = {}
     for row in rows:
         words = tuple(row["words"].split("|"))
-        assert words and all(word == word.lower() for word in words)
+        # words are lowercase, except all-caps initialisms like "OK"/"TV"
+        assert words and all(word == word.lower() or word.isupper() for word in words)
         assert len(words) == len(set(words))
         assert row["story_id"] not in stories
         stories[row["story_id"]] = words
@@ -86,7 +88,7 @@ def load_profiles() -> dict[str, EnglishStudentKnowledge]:
         len(final_profile.gpcs),
         len(final_profile.sight_words),
         len(final_profile.affixes),
-    ) == (165, 121, 31)
+    ) == (168, 121, 33)
     return profiles
 
 
@@ -125,11 +127,18 @@ EXPECTATIONS = load_expectations(STORIES, PROFILES)
 
 @cache
 def is_decodable(profile_id: str, word: str) -> bool:
+    """Every comparison checks both verdict paths: the scorers and the
+    per-word analysis must always agree."""
     knowledge = PROFILES[profile_id]
-    return bool(
+    scorer_verdict = bool(
         score_sight_words_english(word, knowledge)
         or score_known_gpcs_english(word, knowledge)
     )
+    analysis_verdict = is_decodable_ufli(word, knowledge)
+    assert analysis_verdict == scorer_verdict, (
+        f"{profile_id}/{word}: analysis={analysis_verdict} scorer={scorer_verdict}"
+    )
+    return scorer_verdict
 
 
 def test_english_curriculum_decodability_regression() -> None:

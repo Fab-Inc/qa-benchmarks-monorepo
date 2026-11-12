@@ -8,6 +8,7 @@ contained change (config + decodability registry) rather than a code edit here.
 
 from __future__ import annotations
 
+import copy
 from functools import partial
 
 import pandas as pd
@@ -16,6 +17,48 @@ from decodability.kiswahili.definitions import ClusterPattern, primerpro_setting
 from primerpro import Word
 
 from phonics_benchmark.utils import require_columns
+
+# Config for the decodability package, keyed by language ISO code. Shared by every
+# script that labels benchmark items, so building and relabelling score words the
+# same way. ``score_column`` picks which aggregation output decides decodability,
+# and so differs by language.
+DECODABILITY_CONFIGS: dict[str, dict] = {
+    "sw": {
+        "scoring_methods": [
+            "score_known_graphemes_kiswahili",
+            "score_known_clusters_and_patterns_kiswahili",
+            "score_whole_words_kiswahili",
+        ],
+        "aggregations": {
+            "kenya_tusome_score": {"name": "kiswahili_kenya_tusome_aggregator"},
+        },
+        "score_column": "kenya_tusome_score",
+    },
+    "en": {
+        "scoring_methods": [
+            "score_known_gpcs_english",
+            "score_sight_words_english",
+        ],
+        "aggregations": {
+            "ufli_score": {"name": "ufli_curriculum_aggregator"},
+        },
+        "score_column": "ufli_score",
+    },
+}
+
+
+def get_decodability_config(language: str) -> dict:
+    """Return the decodability config for a language ISO code.
+
+    Raises ValueError for a language with no entry in ``DECODABILITY_CONFIGS``.
+    """
+    config = DECODABILITY_CONFIGS.get(language)
+    if config is None:
+        raise ValueError(
+            f"No decodability config for language '{language}'. Add an entry to "
+            f"DECODABILITY_CONFIGS (known: {sorted(DECODABILITY_CONFIGS)})."
+        )
+    return copy.deepcopy(config)
 
 
 def resolve_decodability_config(

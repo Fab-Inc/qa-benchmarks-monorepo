@@ -63,19 +63,40 @@ shared shape with three:
 ## Kiswahili Scoring
 
 Kiswahili decodability follows Kenya's Tusome curriculum as well as expert-validated,
-binary definition of decodability. Three binary scorers feed the final score:
+binary definition of decodability. Four binary scorers feed the final score:
 
-| Scorer                                        | Returns 1.0 when                                                                                                                                    |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `score_known_graphemes_kiswahili`             | every grapheme in the word has been taught                                                                                                          |
-| `score_known_clusters_and_patterns_kiswahili` | every cluster in the word is known, directly or by pattern, or if the word contains no consonant clusters (no cluster knowledge required to decode) |
-| `score_whole_words_kiswahili`                 | the word has been taught as a whole word                                                                                                            |
+| Scorer                                                | Returns 1.0 when                                                                                                                                          |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `score_known_graphemes_kiswahili`                     | every grapheme in the word has been taught                                                                                                                |
+| `score_known_clusters_and_patterns_kiswahili`         | every cluster under the fused resolution is known directly or by pattern (strict: ambiguous nasal boundaries count as fused clusters that must be taught) |
+| `score_known_clusters_and_patterns_lenient_kiswahili` | same as the strict cluster score, but ambiguous nasal boundaries may be read syllabically instead of fusing                                               |
+| `score_whole_words_kiswahili`                         | the word has been taught as a whole word                                                                                                                  |
 
-`aggregate_scores_kenya_tusome` combines them as a decision tree: a known whole word is
-decodable regardless of anything else; otherwise an untaught grapheme _or_ an unknown
-cluster makes the word non-decodable.
+`aggregate_scores_kenya_tusome` combines the strict cluster score with the grapheme and
+whole-word scores as a decision tree: a known whole word is decodable regardless of
+anything else; otherwise an untaught grapheme _or_ an unknown cluster makes the word
+non-decodable. `aggregate_scores_kenya_tusome_lenient` is the same tree over the lenient
+cluster score.
 
-All three scorers must be listed in `scoring_methods`.
+**Fused vs syllabic nasals.** A nasal before a consonant can be part of a fused cluster
+onset (the taught mb, mv, mw, my and nd, nj, nz, nw) or a syllabic consonant that reads
+as the bare grapheme. `segment.py` resolves each nasal + consonant boundary through an
+ordered rule list (`NASAL_RULES`) returning FUSED, SYLLABIC, or AMBIGUOUS; ambiguous
+boundaries produce alternative *clusterings* of the word (`find_clustering_variants`). A
+fused onset closed by a glide forms a single *composite* cluster (`ndw`, `mbw`), emitted
+as one span rather than `nd` followed by a loose `w`. Every cluster — composite or plain
+stretch — is a unit that must be taught: knowing `nd` + `w` does not decode `ndw`, and
+knowing `d` + `w` does not decode the `dw` left behind by a syllabic nasal. The strict
+scorer — the default — counts every ambiguous boundary as a fused cluster that must be
+taught. The lenient scorer accepts a word when some viable clustering has every cluster
+taught — i.e. it relaxes exactly the ambiguous boundaries, letting them resolve
+syllabically to produce fewer or no clusters. The provisional rule marks every m + b/v
+boundary ambiguous (the syllabic m- marker vs the fused onset); further linguist
+decision trees slot in as additional rules.
+
+The grapheme, cluster, and whole-word scorers must all be listed in `scoring_methods`;
+the lenient cluster scorer can be added alongside them for benchmarks that want to
+compare assumptions.
 
 ### Student knowledge
 
@@ -126,6 +147,25 @@ unreduced `u → ju` pair, since the glide belongs to that correspondence.
 Pronunciations come from CMUdict, with per-word overrides available via
 `CMUDICT_OVERRIDES` in `phoneme_overrides.py` — used to force a specific CMU variant,
 supply an OOV pronunciation, or correct one that doesn't match the curriculum.
+
+## Rendering student knowledge
+
+Each student-knowledge model renders the STUDENT KNOWLEDGE block of a prompt with
+`render(fmt)`. Each language defines its own format names and raises `ValueError` for
+any other, so a new language can add the notation it needs without touching the others.
+
+| Language  | Format     | Example                     |
+| --------- | ---------- | --------------------------- |
+| English   | `"quoted"` | `"a" → "æ"`, `"and", "the"` |
+| English   | `"plain"`  | `a -> /æ/`, `and, the`      |
+| Kiswahili | `"quoted"` | `"a", "m"`                  |
+
+Each benchmark picks a format per language in a `KNOWLEDGE_FORMAT` table in its
+`prompts.py`, and a language missing from that table is a `ConfigError`. The phonics
+table is frozen: every phonics run used `"quoted"`, and the rendered prompt is part of
+each call's `model_call_id`, so changing an entry would split new results from existing
+runs. `str()` renders `"quoted"`, but code that builds prompts passes the format
+explicitly. English `affixes` are not rendered.
 
 ## Examples
 
