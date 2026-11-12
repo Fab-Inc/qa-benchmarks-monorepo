@@ -46,6 +46,44 @@ from phonics_benchmark.utils import load_jsonl, require_single_language_iso_code
 # _NASAL_CLUSTER_FOLLOWERS in decodability.kiswahili.segment
 KISWAHILI_NASALS = frozenset({"m", "n"})
 
+# GPC pairs stored in older items' student knowledge that the inventory has
+# since renamed, mapped to their current form.
+STALE_GPC_MIGRATIONS: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
+    "en": {
+        # d9bf660 changed G159's final vowel from /i/ to /ɪ/
+        ("uni", "juni"): ("uni", "junɪ"),
+    },
+}
+
+
+def migrate_stale_gpcs(items: list[dict], language: str) -> Counter[tuple[str, str]]:
+    """Rewrite stale GPC pairs in each item's student knowledge, in place.
+
+    Returns how many times each stale pair was replaced.
+    """
+    migrations = STALE_GPC_MIGRATIONS.get(language, {})
+    migrated: Counter[tuple[str, str]] = Counter()
+
+    if not migrations:
+        return migrated
+
+    for item in items:
+        gpcs = item["student_knowledge"].get("gpcs")
+        if not gpcs:
+            continue
+
+        new_gpcs = []
+        for gpc in gpcs:
+            pair = (gpc[0], gpc[1])
+            if pair in migrations:
+                migrated[pair] += 1
+                pair = migrations[pair]
+            new_gpcs.append(list(pair))
+
+        item["student_knowledge"]["gpcs"] = new_gpcs
+
+    return migrated
+
 
 @cache  # called once per word per report line
 def has_nasal_boundary(word: str) -> bool:
@@ -129,6 +167,13 @@ def main(
     )
     config = get_decodability_config(language)
     logging.info(f"Loaded {len(items)} items from {load_items_path} ({language})")
+
+    # Bring student knowledge up to the current inventory before validation
+    for (old_g, old_p), n in migrate_stale_gpcs(items, language).items():
+        new_g, new_p = STALE_GPC_MIGRATIONS[language][(old_g, old_p)]
+        logging.info(
+            f"Migrated stale GPC ({old_g}, {old_p}) -> ({new_g}, {new_p}) in {n} items"
+        )
 
     # Copy required data
     items_df = pd.DataFrame(
