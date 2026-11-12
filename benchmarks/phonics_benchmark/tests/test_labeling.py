@@ -1,15 +1,26 @@
 """Tests for the labeling module."""
 
+from hashlib import sha256
+from importlib.resources import files
+
 import pandas as pd
 import pytest
+from decodability.english.definitions import gpc_pairs
 from phonics_benchmark.labeling import (
     KNOWLEDGE_INVENTORY,
     get_decodability_config,
     get_grapheme_breakdown,
+    knowledge_inventory,
     label_nondecodable_words,
     parse_student_knowledge,
     resolve_decodability_config,
 )
+
+# Checksums of the frozen inventory files; a change here re-labels and can
+# reject stored items, so it has to be deliberate.
+FROZEN_INVENTORY_SHA256 = {
+    "en": "4dd03ba03f17f133217c965ac1c0c82cfcb11c0a5269e37e67ca8f12724d9817",
+}
 
 CONFIG = {
     "scoring_methods": [
@@ -113,13 +124,26 @@ def test_label_nondecodable_words_flags_untaught_word() -> None:
 
 
 @pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
-def test_knowledge_inventory_is_supported_by_the_language_model(language: str) -> None:
-    assert (
-        parse_student_knowledge({}, language).inventory == KNOWLEDGE_INVENTORY[language]
-    )
+def test_knowledge_inventory_file_is_frozen(language: str) -> None:
+    path = files("phonics_benchmark").joinpath(KNOWLEDGE_INVENTORY[language])
+    assert sha256(path.read_bytes()).hexdigest() == FROZEN_INVENTORY_SHA256[language]
 
 
-def test_label_nondecodable_words_parses_with_the_pinned_inventory() -> None:
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
+def test_parse_student_knowledge_uses_the_frozen_inventory(language: str) -> None:
+    profile = parse_student_knowledge({}, language)
+    assert profile.gpc_inventory is knowledge_inventory(language)
+
+
+def test_english_inventory_is_the_one_the_items_were_built_with() -> None:
+    """170 GPCs as of 2026-09-10, when uni- still read /juni/."""
+    pairs = gpc_pairs(knowledge_inventory("en"))
+    assert len(knowledge_inventory("en")) == 170
+    assert ("uni", "juni") in pairs
+    assert ("uni", "junɪ") not in pairs
+
+
+def test_label_nondecodable_words_parses_with_the_frozen_inventory() -> None:
     """A stored /juni/ profile still matches uni- in 'unit' when labelling."""
     items = pd.DataFrame(
         {

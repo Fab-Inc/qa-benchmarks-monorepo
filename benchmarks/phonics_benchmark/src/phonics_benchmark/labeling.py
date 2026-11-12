@@ -10,36 +10,47 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping
-from functools import partial
+from functools import cache, partial
+from importlib.resources import files
 from typing import Any
 
 import pandas as pd
 from decodability import DECODABILITY_REGISTRY, Aggregation, Measure, annotate_words
+from decodability.english.definitions import GPC, gpc_inventory_from_json
 from decodability.kiswahili.definitions import ClusterPattern, primerpro_settings
 from primerpro import Word
 from pydantic import BaseModel
 
 from phonics_benchmark.utils import require_columns
 
-# Inventory version per language whose student-knowledge model versions its
-# inventory; other languages use their model as is. Frozen: every phonics item
-# was built against this spelling, and its profiles are rendered into prompts
-# and labelled exactly as stored, so a later respelling of a GPC must neither
-# reject them nor stop their GPCs matching the parser.
-KNOWLEDGE_INVENTORY = {"en": "2026-09-10"}
+# This benchmark's own copy of the GPC inventory, per language, as a packaged
+# file; a language without an entry uses its model's inventory. Frozen: every
+# phonics item was built and validated against the UFLI inventory of
+# 2026-09-10, and its profiles are rendered into prompts and labelled exactly
+# as stored, so later inventory changes must neither reject them (uni- has
+# since become /junɪ/) nor stop their GPCs matching the parser.
+KNOWLEDGE_INVENTORY = {"en": "ufli_gpc_inventory_2026-09-10.json"}
+
+
+@cache
+def knowledge_inventory(language: str) -> tuple[GPC, ...]:
+    """Load this benchmark's frozen GPC inventory for a language."""
+    path = files("phonics_benchmark").joinpath(KNOWLEDGE_INVENTORY[language])
+    return gpc_inventory_from_json(path.read_text(encoding="utf-8"))
 
 
 def parse_student_knowledge(
     student_knowledge: Mapping[str, Any], language: str
 ) -> BaseModel:
-    """Validate a stored profile with its language's model at the pinned inventory."""
+    """Validate a stored profile with its language's model and frozen inventory.
+
+    Scoring the returned profile parses words with the same inventory.
+    """
     model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
+    context = None
     if language in KNOWLEDGE_INVENTORY:
-        student_knowledge = {
-            **student_knowledge,
-            "inventory": KNOWLEDGE_INVENTORY[language],
-        }
-    return model.model_validate(student_knowledge)
+        context = {"gpc_inventory": knowledge_inventory(language)}
+    return model.model_validate(student_knowledge, context=context)
 
 
 # Config for the decodability package, keyed by language ISO code. Shared by every

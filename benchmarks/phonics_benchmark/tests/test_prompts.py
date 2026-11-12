@@ -69,7 +69,7 @@ def test_leaderboard_prompts_keep_the_frozen_quoted_notation(
     assert expected_block in prompt
 
 
-def test_leaderboard_prompts_render_profiles_at_the_pinned_inventory() -> None:
+def test_leaderboard_prompts_render_profiles_under_the_frozen_inventory() -> None:
     """Stored l128 profiles spell uni- as /juni/, which the latest inventory rejects."""
     item = {
         "benchmark_item_id": "item-en-l128",
