@@ -21,7 +21,10 @@ Usage:
         [--language sw]
 
 The language defaults to the items' ``language_iso_code``. Saves the re-labelled
-version of the existing items dataset to the target items path.
+version of the existing items dataset to the target items path. Only the labels
+and their counts change: content and student knowledge are saved as loaded,
+including GPC pairs the inventory has since renamed (``STALE_GPC_MIGRATIONS``),
+which are read in their current form only while labelling.
 """
 
 import json
@@ -47,8 +50,9 @@ from phonics_benchmark.utils import load_jsonl, require_single_language_iso_code
 KISWAHILI_NASALS = frozenset({"m", "n"})
 
 # GPC pairs stored in older items' student knowledge that the inventory has
-# since renamed, mapped to their current form.
-STALE_GPC_MIGRATIONS: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
+# since renamed, mapped to their current form. Used only to compute labels;
+# the saved items keep the stored pairs.
+STALE_GPC_UPDATES: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
     "en": {
         # d9bf660 changed G159's final vowel from /i/ to /ɪ/
         ("uni", "juni"): ("uni", "junɪ"),
@@ -56,20 +60,22 @@ STALE_GPC_MIGRATIONS: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
 }
 
 
-def migrate_stale_gpcs(items: list[dict], language: str) -> Counter[tuple[str, str]]:
-    """Rewrite stale GPC pairs in each item's student knowledge, in place.
+def update_stale_gpcs(
+    knowledge_profiles: list[dict], language: str
+) -> tuple[list[dict], Counter[tuple[str, str]]]:
+    """Return copies of the student knowledge profiles with stale GPCs renamed.
 
-    Returns how many times each stale pair was replaced.
+    The input profiles are left unchanged. Also returns how many times each
+    stale pair was replaced.
     """
-    migrations = STALE_GPC_MIGRATIONS.get(language, {})
+    migrations = STALE_GPC_UPDATES.get(language, {})
     migrated: Counter[tuple[str, str]] = Counter()
+    migrated_profiles = []
 
-    if not migrations:
-        return migrated
-
-    for item in items:
-        gpcs = item["student_knowledge"].get("gpcs")
-        if not gpcs:
+    for knowledge in knowledge_profiles:
+        gpcs = knowledge.get("gpcs")
+        if not migrations or not gpcs:
+            migrated_profiles.append(dict(knowledge))
             continue
 
         new_gpcs = []
@@ -80,9 +86,10 @@ def migrate_stale_gpcs(items: list[dict], language: str) -> Counter[tuple[str, s
                 pair = migrations[pair]
             new_gpcs.append(list(pair))
 
-        item["student_knowledge"]["gpcs"] = new_gpcs
+        # Shallow copy with a new GPC list; other fields are only read
+        migrated_profiles.append({**knowledge, "gpcs": new_gpcs})
 
-    return migrated
+    return migrated_profiles, migrated
 
 
 @cache  # called once per word per report line
@@ -168,18 +175,26 @@ def main(
     config = get_decodability_config(language)
     logging.info(f"Loaded {len(items)} items from {load_items_path} ({language})")
 
-    # Bring student knowledge up to the current inventory before validation
-    for (old_g, old_p), n in migrate_stale_gpcs(items, language).items():
-        new_g, new_p = STALE_GPC_MIGRATIONS[language][(old_g, old_p)]
+    # Label with student knowledge brought up to the current inventory, so it
+    # passes validation, but save each item's original knowledge unchanged: it
+    # is what the models saw in their prompts so should remain untouched.
+    # If the stale GPCs affect the labels, we should probably re-generate model
+    # outputs on updated knowledge.
+    labelling_knowledge, gpc_updated = update_stale_gpcs(
+        [item["student_knowledge"] for item in items], language
+    )
+    for (old_g, old_p), n in gpc_updated.items():
+        new_g, new_p = STALE_GPC_UPDATES[language][(old_g, old_p)]
         logging.info(
-            f"Migrated stale GPC ({old_g}, {old_p}) -> ({new_g}, {new_p}) in {n} items"
+            f"Labelling with stale GPC ({old_g}, {old_p}) read as ({new_g}, {new_p}) "
+            f"in {n} items"
         )
 
     # Copy required data
     items_df = pd.DataFrame(
         {
             "content": [item["content"] for item in items],
-            "student_knowledge": [item["student_knowledge"] for item in items],
+            "student_knowledge": labelling_knowledge,
             "num_nondecodable_words": [
                 item["num_nondecodable_words"] for item in items
             ],

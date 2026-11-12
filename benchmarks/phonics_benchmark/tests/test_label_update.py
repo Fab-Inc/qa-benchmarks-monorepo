@@ -94,3 +94,47 @@ def test_script_corrects_wrong_labels(
 
     # Every item was wrong, so the report should say all of them changed
     assert f"Items with changed labels: {len(CASES)} / {len(CASES)}" in result.stderr
+
+
+def test_script_keeps_stale_gpcs_in_saved_knowledge(tmp_path: Path) -> None:
+    """A renamed GPC is read in its current form for labelling only.
+
+    ("uni", "juni") is how items built before d9bf660 store G159. The current
+    inventory rejects it, so the script must label with ("uni", "junɪ"), yet
+    write the stored pair back: it is what the models saw, and the merger
+    refuses overlays whose knowledge differs from the source items.
+    """
+    knowledge = {
+        "gpcs": [["a", "æ"], ["m", "m"], ["t", "t"], ["uni", "juni"]],
+        "sight_words": ["the"],
+    }
+    input_path = tmp_path / "stale_items.jsonl"
+    input_path.write_text(
+        json.dumps(
+            {
+                "benchmark_item_id": "test-stale-gpc",
+                "language_iso_code": "en",
+                "content": "The mat.",
+                "student_knowledge": knowledge,
+                "nondecodable_words": [],
+                "num_nondecodable_words": 0,
+                "num_total_words": 2,
+                "nondecodable_ratio": 0.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "relabelled_items.jsonl"
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), str(input_path), str(output_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+    (item,) = [json.loads(line) for line in output_path.open(encoding="utf-8")]
+    assert item["student_knowledge"] == knowledge
+    assert "saved items keep (uni, juni)" in result.stderr
