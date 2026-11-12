@@ -6,6 +6,12 @@ do are not the strong ones (see ``phonics_benchmark.item_statistics``). For
 the latter, every model's prediction is written out, right and wrong, for
 inspection by hand.
 
+We also look the other way, for items and item-words that are too easy to tell
+models apart: those no model gets wrong, and those none of the top 10 gets
+wrong. Both are reported with the counts behind them, so an entry the leaders
+all get right while a weaker model misses it can be told apart from one nobody
+misses at all.
+
 Prerequisite:
     Latest results of decodability assessment benchmark results downloaded locally
     e.g. the result of the following command:
@@ -31,7 +37,8 @@ Usage:
     rank of the models that got them right of at most --max-mean-rank, ranking
     models by adjusted balanced accuracy.
 
-Saves results in <target_directory>/<language>/difficult_items/
+Saves results in <target_directory>/<language>/difficult_items/, including
+too_easy_items.csv and too_easy_item_words.csv for the easy end.
 """
 
 import argparse
@@ -312,6 +319,104 @@ def predictions_for_items(results, items, model_scores):
     return merged.sort_values(["item_order", "model_rank"]).drop(columns="item_order")
 
 
+def _tally_correct(frame, keys, correct_column, models=None):
+    """Answers correct and answers given, per group.
+
+    Counted over the rows present: a model that never answered an item has no
+    row, so it is left out of both counts rather than counted as wrong. That is
+    the ``models_answered`` convention of ``item_statistics``, and the one the
+    all-wrong tallies in ``__main__`` already follow.
+    """
+    if models is not None:
+        frame = frame[frame["model"].isin(models)]
+    grouped = frame.groupby(keys)[correct_column]
+    return pd.DataFrame(
+        {"models_correct": grouped.sum(), "models_answered": grouped.size()}
+    )
+
+
+def _select_too_easy(frame, keys, correct_column, top_models, metadata_columns):
+    """Groups every model, or every top model, got right.
+
+    The mirror of the all-wrong selections: a group is too easy when nobody
+    gets it wrong. ``keys`` makes the group either an item (the item id) or an
+    item-word (the item id and the word).
+
+    One row per group, carrying both flags and the counts behind them. Keeping
+    the two flags side by side separates the genuinely easy entries, which no
+    model misses, from the ones that only look easy at the top and still
+    discriminate lower down the leaderboard.
+    """
+    overall = _tally_correct(frame, keys, correct_column)
+    # Reindexed on the full set, so a group no top model answered comes back as
+    # NaN rather than being dropped or read as zero of zero correct.
+    top = _tally_correct(frame, keys, correct_column, top_models).reindex(overall.index)
+
+    selected = overall.assign(
+        proportion_correct=overall["models_correct"] / overall["models_answered"],
+        all_models_correct=overall["models_correct"] == overall["models_answered"],
+        top_models_correct=top["models_correct"],
+        top_models_answered=top["models_answered"],
+        # A group no top model answered is not one they all got right.
+        all_top_models_correct=(top["models_answered"] > 0)
+        & (top["models_correct"] == top["models_answered"]),
+    )
+    # Filled only now that the flags are set, so the fill cannot turn an
+    # unanswered group into a spurious zero-of-zero success.
+    selected[["top_models_correct", "top_models_answered"]] = (
+        selected[["top_models_correct", "top_models_answered"]].fillna(0).astype(int)
+    )
+    selected = selected[
+        selected["all_models_correct"] | selected["all_top_models_correct"]
+    ]
+
+    metadata = frame[[*keys, *metadata_columns]].drop_duplicates(subset=keys)
+    selected = selected.reset_index().merge(metadata, on=keys, validate="one_to_one")
+    # Easiest first: the ones nobody misses, then by how close the rest came.
+    return selected.sort_values(
+        ["all_models_correct", "proportion_correct"], ascending=False
+    )
+
+
+def select_too_easy_items(results, top_models):
+    """Benchmark items every model, or every top model, matched exactly."""
+    too_easy = _select_too_easy(
+        results,
+        ["benchmark_item_id"],
+        "perfect_match",
+        top_models,
+        [
+            "student_knowledge",
+            "num_total_words",
+            "num_nondecodable_words",
+            "nondecodable_words",
+            "content",
+        ],
+    )
+    # Sorted lists rather than sets so the CSV reads the same on every run.
+    return too_easy.assign(
+        nondecodable_words=too_easy["nondecodable_words"].map(sorted)
+    )
+
+
+def select_too_easy_item_words(words, top_models):
+    """Words within an item every model, or every top model, labelled right.
+
+    A decodable word nobody flags is a weaker signal than a nondecodable one
+    nobody misses, so the gold label rides along for sorting out which is which.
+    The student profile does not: it runs to a couple of kilobytes and would be
+    repeated on every one of tens of thousands of rows. Join on the item id to
+    get it back.
+    """
+    return _select_too_easy(
+        words,
+        ["benchmark_item_id", "word"],
+        "correct",
+        top_models,
+        ["is_nondecodable"],
+    )
+
+
 if __name__ == "__main__":
     results = load_results()
     top10_models = get_top10_models()
@@ -402,6 +507,33 @@ if __name__ == "__main__":
         TARGET_DIR / "only_top10_models_wrong_items.csv", index=False
     )
 
+    # The easy end of the same scale: items nobody gets wrong carry no
+    # information about which model is better.
+    too_easy_items = select_too_easy_items(results, top10_models)
+    n_items = results["benchmark_item_id"].nunique()
+    n_items_all_right = int(too_easy_items["all_models_correct"].sum())
+    n_items_top10_right = int(too_easy_items["all_top_models_correct"].sum())
+    # Counted directly rather than subtracted: an item no top 10 model answered
+    # can be all-right overall without being all-right for the top 10.
+    n_items_only_top10_right = int(
+        (
+            too_easy_items["all_top_models_correct"]
+            & ~too_easy_items["all_models_correct"]
+        ).sum()
+    )
+    logging.info(
+        f"number of items all models get right: {n_items_all_right} of {n_items} "
+        f"({n_items_all_right / n_items:.1%})"
+    )
+    logging.info(
+        f"number of items all top 10 models get right: {n_items_top10_right} of "
+        f"{n_items} ({n_items_top10_right / n_items:.1%})"
+    )
+    logging.info(
+        f"number of items only the top 10 models get right: {n_items_only_top10_right}"
+    )
+    too_easy_items.to_csv(TARGET_DIR / "too_easy_items.csv", index=False)
+
     # word level
     words = build(results)
     words["correct"] = words.predicted == words.is_nondecodable
@@ -481,3 +613,39 @@ if __name__ == "__main__":
     logging.info(
         f"Words that all top 10 models got wrong: \n{all_wrong_top10_models_words}"
     )
+
+    # Item-words at the easy end. Counts rather than the full lists: these sets
+    # run to thousands of entries, so the detail goes to the CSV.
+    too_easy_item_words = select_too_easy_item_words(words, top10_models)
+    n_item_words = len(words[["benchmark_item_id", "word"]].drop_duplicates())
+    n_words_all_right = int(too_easy_item_words["all_models_correct"].sum())
+    n_words_top10_right = int(too_easy_item_words["all_top_models_correct"].sum())
+    n_words_only_top10_right = int(
+        (
+            too_easy_item_words["all_top_models_correct"]
+            & ~too_easy_item_words["all_models_correct"]
+        ).sum()
+    )
+    logging.info(
+        f"number of item-words all models get right: {n_words_all_right} of "
+        f"{n_item_words} ({n_words_all_right / n_item_words:.1%})"
+    )
+    logging.info(
+        f"number of item-words all top 10 models get right: "
+        f"{n_words_top10_right} of {n_item_words} "
+        f"({n_words_top10_right / n_item_words:.1%})"
+    )
+    logging.info(
+        f"number of item-words only the top 10 models get right: "
+        f"{n_words_only_top10_right}"
+    )
+    # Split by gold label: a decodable word nobody flags is near-free, while a
+    # nondecodable one nobody misses is a real but exhausted item.
+    all_right_words_by_label = too_easy_item_words.loc[
+        too_easy_item_words["all_models_correct"], "is_nondecodable"
+    ].value_counts()
+    logging.info(
+        "item-words all models get right, by whether the word is nondecodable:"
+        f"\n{all_right_words_by_label.to_string()}"
+    )
+    too_easy_item_words.to_csv(TARGET_DIR / "too_easy_item_words.csv", index=False)
