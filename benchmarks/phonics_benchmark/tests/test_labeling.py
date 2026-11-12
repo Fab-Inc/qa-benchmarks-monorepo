@@ -3,8 +3,11 @@
 import pandas as pd
 import pytest
 from phonics_benchmark.labeling import (
+    KNOWLEDGE_INVENTORY,
+    get_decodability_config,
     get_grapheme_breakdown,
     label_nondecodable_words,
+    parse_student_knowledge,
     resolve_decodability_config,
 )
 
@@ -107,6 +110,30 @@ def test_label_nondecodable_words_flags_untaught_word() -> None:
     )
 
     assert labels.iloc[0] == ["kuku"]
+
+
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
+def test_knowledge_inventory_is_supported_by_the_language_model(language: str) -> None:
+    assert (
+        parse_student_knowledge({}, language).inventory == KNOWLEDGE_INVENTORY[language]
+    )
+
+
+def test_label_nondecodable_words_parses_with_the_pinned_inventory() -> None:
+    """A stored /juni/ profile still matches uni- in 'unit' when labelling."""
+    items = pd.DataFrame(
+        {
+            "content": ["Unit."],
+            "student_knowledge": [{"gpcs": [["uni", "juni"], ["t", "t"]]}],
+        }
+    )
+    config = get_decodability_config("en")
+
+    labels = label_nondecodable_words(
+        items, config, "en", score_column=config["score_column"]
+    )
+
+    assert labels.iloc[0] == []
 
 
 def test_label_nondecodable_words_requires_expected_columns() -> None:

@@ -12,6 +12,7 @@ from phonics_benchmark.labeling import (
     get_grapheme_breakdown,
     get_missing_knowledge_str,
     get_valid_knowledge_str,
+    parse_student_knowledge,
 )
 
 # Student-knowledge notation per language, as a format name the language's
@@ -114,9 +115,7 @@ def build_decodability_prompt(
         ) from None
 
     try:
-        student_knowledge = language_integration[
-            "student_knowledge_model"
-        ].model_validate(item["student_knowledge"])
+        student_knowledge = parse_student_knowledge(item["student_knowledge"], language)
     except ValidationError as e:
         raise ConfigError(
             "Invalid student_knowledge for benchmark item "
