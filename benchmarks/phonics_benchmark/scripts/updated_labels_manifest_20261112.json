@@ -1,0 +1,27 @@
+{
+  "groups": {
+    "en_gold_leaderboard": [
+      "en-gold-leaderboard-20260922"
+    ],
+    "sw_gold_leaderboard": [
+      "sw-gold-leaderboard-20260922"
+    ]
+  },
+  "run_prefix": "gs://phonics-benchmark/phonics/runs/",
+  "group_languages": {
+    "en_gold_leaderboard": "en",
+    "sw_gold_leaderboard": "sw"
+  },
+  "gold_overlays": {
+    "en": [
+      "gs://phonics-benchmark/phonics/datasets/english/benchmark_items_relabelled_20261112.jsonl"
+    ],
+    "sw": [
+      "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_relabelled_20261110.jsonl"
+    ]
+  },
+  "notes": [
+    "2026-11-10: Kiswahili gold overlay replaced by benchmark_items_relabelled_20261110.jsonl (covers the 1,000 gold-leaderboard items only; other pool items keep source labels).",
+    "2026-11-12: English gold overlay added with benchmark_items_relabelled_20261112.jsonl."
+  ]
+}
