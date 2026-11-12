@@ -9,14 +9,15 @@
   variants, etc.).
 - ``UFLI_GPC_PAIRS_FLAT``: derived lookup sets for the student-knowledge validator
   (joined-IPA form).
-- ``ufli_gpc_inventory(version)`` / ``ufli_gpc_pairs(version)``: the inventory
-  and its pairs as spelled at an earlier ``UFLIInventoryVersion``, so profiles
-  written against that spelling keep validating and matching parses.
+- ``gpc_pairs(inventory)``: the same lookup set for any inventory, such as a copy
+  a benchmark keeps of an earlier inventory.
+- ``gpc_inventory_to_json`` / ``gpc_inventory_from_json``: write and read such a
+  copy.
 """
 
-from dataclasses import dataclass, field, replace
+import json
+from dataclasses import dataclass, field, fields
 from functools import cache
-from typing import Literal, get_args
 
 ARPABET_TO_IPA = {
     "AA": "ɑ",
@@ -320,45 +321,6 @@ def normalize_gpc_grapheme(grapheme: str) -> str:
     return grapheme.strip("-_").replace("_", "-")
 
 
-# Inventory versions, oldest first, named by the date their spelling took
-# effect. Only respelling an existing entry needs a new version: entries added
-# later don't change what an earlier profile means, so every version keeps them.
-UFLIInventoryVersion = Literal["2026-09-10", "2026-10-27"]
-LATEST_UFLI_INVENTORY: UFLIInventoryVersion = "2026-10-27"
-
-# The phonemes each version replaced, by GPC id. A respelling keeps the id and
-# grapheme, so a profile written with the old spelling still means the same
-# correspondence.
-_UFLI_RESPELLINGS: dict[UFLIInventoryVersion, dict[str, tuple[str, ...]]] = {
-    "2026-10-27": {"G159": ("j", "u", "n", "i")},  # uni-: /juni/ → /junɪ/
-}
-
-
-@cache
-def ufli_gpc_inventory(
-    version: UFLIInventoryVersion = LATEST_UFLI_INVENTORY,
-) -> tuple[GPC, ...]:
-    """Return ``UFLI_GPC_INVENTORY`` as spelled at ``version``.
-
-    Every respelling made after ``version`` is undone; all other entries,
-    including ones added since, are the latest. ``"2026-09-10"``, the spelling
-    the phonics benchmark items were built with, reads ``uni-`` as /juni/.
-    """
-    versions = get_args(UFLIInventoryVersion)
-    if version not in versions:
-        raise ValueError(
-            f"Unknown UFLI inventory version {version!r}; known: {versions}"
-        )
-    earlier: dict[str, tuple[str, ...]] = {}
-    # Newest first, so an entry respelled twice ends at its spelling at `version`.
-    for later in reversed(versions[versions.index(version) + 1 :]):
-        earlier.update(_UFLI_RESPELLINGS.get(later, {}))
-    return tuple(
-        replace(gpc, phonemes=earlier[gpc.id]) if gpc.id in earlier else gpc
-        for gpc in UFLI_GPC_INVENTORY
-    )
-
-
 # Student-facing form: the phoneme side is a single joined IPA string, so a
 # multi-phoneme GPC like ``("x", ("k", "s"))`` reads as ``("x", "ks")``. The
 # grapheme side is normalized to its canonical form (affix markers stripped:
@@ -366,17 +328,36 @@ def ufli_gpc_inventory(
 # in student profiles. Used by ``EnglishStudentKnowledge`` validation and by
 # the scorer to check parser matches against the student's taught set.
 @cache
-def ufli_gpc_pairs(
-    version: UFLIInventoryVersion = LATEST_UFLI_INVENTORY,
-) -> frozenset[tuple[str, str]]:
-    """Return the student-facing pairs of ``ufli_gpc_inventory(version)``."""
+def gpc_pairs(inventory: tuple[GPC, ...]) -> frozenset[tuple[str, str]]:
+    """Return the student-facing ``(grapheme, IPA)`` pairs of an inventory."""
     return frozenset(
         (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
-        for gpc in ufli_gpc_inventory(version)
+        for gpc in inventory
     )
 
 
-UFLI_GPC_PAIRS_FLAT: frozenset[tuple[str, str]] = ufli_gpc_pairs()
+UFLI_GPC_PAIRS_FLAT: frozenset[tuple[str, str]] = gpc_pairs(UFLI_GPC_INVENTORY)
+
+
+def gpc_inventory_to_json(inventory: tuple[GPC, ...]) -> str:
+    """Write an inventory as a JSON list, one GPC per line, to keep a copy of it."""
+    rows = [
+        "  "
+        + json.dumps(
+            {f.name: getattr(gpc, f.name) for f in fields(GPC) if f.init},
+            ensure_ascii=False,
+        )
+        for gpc in inventory
+    ]
+    return "[\n" + ",\n".join(rows) + "\n]\n"
+
+
+def gpc_inventory_from_json(text: str) -> tuple[GPC, ...]:
+    """Read an inventory written by ``gpc_inventory_to_json``."""
+    return tuple(
+        GPC(**{**entry, "phonemes": tuple(entry["phonemes"])})
+        for entry in json.loads(text)
+    )
 
 
 # UFLI lesson (1-128) at which each sight (heart) word is introduced, from the

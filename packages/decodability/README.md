@@ -167,31 +167,31 @@ each call's `model_call_id`, so changing an entry would split new results from e
 runs. `str()` renders `"quoted"`, but code that builds prompts passes the format
 explicitly. English `affixes` are not rendered.
 
-## UFLI inventory versions
+## Using your own GPC inventory
 
-`EnglishStudentKnowledge(inventory=...)` names the version of the UFLI GPC inventory a
-profile's `gpcs` are checked against and that the scorers parse words with. It defaults
-to the latest version, is not part of the profile, and is left out of `model_dump()`.
+English profiles are checked against `UFLI_GPC_INVENTORY`, and the scorers parse words
+with it. A caller that needs a different inventory, such as a benchmark whose items were
+built before the inventory changed, passes its own when it validates the profile:
 
-| Version        | Spelling                                                       |
-| -------------- | -------------------------------------------------------------- |
-| `"2026-09-10"` | as the phonics benchmark items were built: `uni-` reads /juni/ |
-| `"2026-10-27"` | latest: `uni-` reads /junɪ/                                    |
+```python
+knowledge = EnglishStudentKnowledge.model_validate(
+    profile, context={"gpc_inventory": inventory}
+)
+```
 
-`ufli_gpc_inventory(version)` returns the latest entries with every later respelling
-undone, so ids, graphemes and lessons are always the latest and entries added since are
-kept. A profile written against an earlier spelling therefore still validates and still
-matches the parser's GPCs.
+`gpcs` are then checked against `inventory`, and the scorers parse with it
+(`knowledge.gpc_inventory`). The inventory is not part of the profile and is left out of
+`model_dump()`; without a context, everything uses `UFLI_GPC_INVENTORY` as before.
 
-Only respelling an existing entry needs a new version: add its date to
-`UFLIInventoryVersion`, make it `LATEST_UFLI_INVENTORY`, and record the replaced
-phonemes under that date in `_UFLI_RESPELLINGS`. Adding an entry needs nothing, since it
-can't change what an earlier profile means. A test checks that `"2026-09-10"` still
-contains every pair the inventory had on that date, so an unregistered respelling fails.
+`gpc_inventory_to_json(inventory)` writes an inventory as JSON, one GPC per line, and
+`gpc_inventory_from_json(text)` reads it back, so a benchmark can keep a frozen copy as
+a file. A copy has to be in the current `GPC` format, since the scorers' parser reads
+fields such as the affix markers.
 
-The phonics benchmark pins `"2026-09-10"` in a frozen `KNOWLEDGE_INVENTORY` table in its
-`labeling.py`, used wherever it validates or labels a stored profile. Other callers get
-the latest version.
+The phonics benchmark keeps its copy of the inventory of 2026-09-10, which its items
+were built and validated against (`uni-` still read /juni/ then), in
+`phonics_benchmark/ufli_gpc_inventory_2026-09-10.json`, and uses it wherever it
+validates or labels a stored profile.
 
 ## Examples
 

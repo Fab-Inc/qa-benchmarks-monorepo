@@ -1,24 +1,29 @@
-from typing import Literal, get_args
+from typing import Literal, Self, get_args
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    PrivateAttr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from decodability.english.definitions import (
     GPC,
-    LATEST_UFLI_INVENTORY,
-    UFLIInventoryVersion,
+    UFLI_GPC_INVENTORY,
+    gpc_pairs,
     normalize_gpc_grapheme,
-    ufli_gpc_inventory,
-    ufli_gpc_pairs,
 )
 
 EnglishKnowledgeFormat = Literal["quoted", "plain"]
 
 
+def _context_inventory(info: ValidationInfo) -> tuple[GPC, ...]:
+    """The inventory a caller passed as ``context={"gpc_inventory": ...}``."""
+    return (info.context or {}).get("gpc_inventory", UFLI_GPC_INVENTORY)
+
+
 class EnglishStudentKnowledge(BaseModel):
-    # The UFLI inventory version ``gpcs`` are checked against and scorers parse
-    # words with. A caller's setting, not part of the profile, so it is left out
-    # of dumps; declared first so the ``gpcs`` validator can read it.
-    inventory: UFLIInventoryVersion = Field(default=LATEST_UFLI_INVENTORY, exclude=True)
     gpcs: list[tuple[str, str]] = []
     sight_words: set[str] = set()
     # Marker-bearing units taught as chunks: affixes ("-ed", "-ies", "un-")
@@ -26,6 +31,11 @@ class EnglishStudentKnowledge(BaseModel):
     # marker at the edge of the grapheme; ingestion preserves it here while
     # the same pair also lands in ``gpcs`` stripped, as letter knowledge.
     affixes: set[str] = set()
+    # The inventory ``gpcs`` were checked against and scorers parse words with:
+    # UFLI_GPC_INVENTORY unless the caller validates with
+    # ``context={"gpc_inventory": ...}``, such as a benchmark's copy of an
+    # earlier inventory. Private, so it is not part of the profile or its dumps.
+    _gpc_inventory: tuple[GPC, ...] = PrivateAttr(default=UFLI_GPC_INVENTORY)
 
     @field_validator("gpcs")
     @classmethod
@@ -34,29 +44,32 @@ class EnglishStudentKnowledge(BaseModel):
         gpcs: list[tuple[str, str]],
         info: ValidationInfo,
     ) -> list[tuple[str, str]]:
-        """Check that every GPC is taught in the UFLI inventory at ``inventory``.
+        """Check that every GPC is taught in the inventory.
 
         Graphemes are compared in canonical form, so a pair carries the same
         meaning whether the profile writes the affix marker (``-ed``,
         ``pre-``, ``_ce``) or not (``ed``, ``pre``, ``ce``).
         """
-        # Absent only when ``inventory`` itself failed, which is reported anyway.
-        version = info.data.get("inventory", LATEST_UFLI_INVENTORY)
-        taught = ufli_gpc_pairs(version)
+        taught = gpc_pairs(_context_inventory(info))
         invalid = [
             g for g in gpcs if (normalize_gpc_grapheme(g[0]), g[1]) not in taught
         ]
         if invalid:
             raise ValueError(
                 f"Not taught GPCs: {invalid}. "
-                f"Only GPCs from UFLI GPC inventory {version} are allowed."
+                "Only GPCs from UFLI GPC inventory are allowed."
             )
         return gpcs
 
+    @model_validator(mode="after")
+    def keep_gpc_inventory(self, info: ValidationInfo) -> Self:
+        self._gpc_inventory = _context_inventory(info)
+        return self
+
     @property
     def gpc_inventory(self) -> tuple[GPC, ...]:
-        """The UFLI inventory at this profile's ``inventory`` version."""
-        return ufli_gpc_inventory(self.inventory)
+        """The inventory ``gpcs`` were checked against; scorers parse with it."""
+        return self._gpc_inventory
 
     @field_validator("sight_words")
     @classmethod
