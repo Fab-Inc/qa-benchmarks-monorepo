@@ -126,7 +126,9 @@ def test_label_nondecodable_words_flags_untaught_word() -> None:
 @pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
 def test_knowledge_inventory_file_is_frozen(language: str) -> None:
     path = files("phonics_benchmark").joinpath(KNOWLEDGE_INVENTORY[language])
-    assert sha256(path.read_bytes()).hexdigest() == FROZEN_INVENTORY_SHA256[language]
+    # Hash the text, as it is loaded: a Windows checkout has CRLF line endings.
+    text = path.read_text(encoding="utf-8")
+    assert sha256(text.encode("utf-8")).hexdigest() == FROZEN_INVENTORY_SHA256[language]
 
 
 @pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
