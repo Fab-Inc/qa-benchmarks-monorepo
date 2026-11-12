@@ -330,8 +330,10 @@ def select_too_easy_items(results, top_models):
 def select_too_easy_item_words(words, top_models):
     """Words within an item every model, or every top model, labelled right.
 
-    A decodable word nobody flags is a weaker signal than a nondecodable one
-    nobody misses, so the gold label rides along for sorting out which is which.
+    The two gold labels are different kinds of success: a decodable word is
+    right when the model never names it, a nondecodable one only when it does.
+    Which half is the easier one is a property of the language and the models,
+    not of the task, so the gold label rides along rather than being assumed.
     The student profile does not: it runs to a couple of kilobytes and would be
     repeated on every one of tens of thousands of rows. Join on the item id to
     get it back.
@@ -473,11 +475,8 @@ if __name__ == "__main__":
             & (words["model"].isin(top10_models))
         ]
         .groupby(["benchmark_item_id", "student_knowledge", "word"])["word"]
-        .count()
-    )
-
-    fp_words_for_top10_models.to_csv(
-        TARGET_DIR / "fp_words_top10_models.csv", index=True
+        .size()
+        .to_frame("n_models")
     )
 
     fn_words_for_top10_models = (
@@ -487,23 +486,25 @@ if __name__ == "__main__":
             & (words["model"].isin(top10_models))
         ]
         .groupby(["benchmark_item_id", "student_knowledge", "word"])["word"]
-        .count()
-    )
-    fn_words_for_top10_models.to_csv(
-        TARGET_DIR / "fn_words_top10_models.csv", index=True
+        .size()
+        .to_frame("n_models")
     )
 
     if LANGUAGE == "kiswahili":
-        fp_rate = (
-            fp_words_for_top10_models.index.get_level_values("word")
-            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
-            .mean()
+        fp_words_for_top10_models["is_syllabic_nasal"] = (
+            fp_words_for_top10_models.index.get_level_values("word").isin(
+                SYLLABIC_NASAL_REVIEWED_WORDS
+            )
         )
-        fn_rate = (
-            fn_words_for_top10_models.index.get_level_values("word")
-            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
-            .mean()
+
+        fp_rate = fp_words_for_top10_models["is_syllabic_nasal"].mean()
+
+        fn_words_for_top10_models["is_syllabic_nasal"] = (
+            fn_words_for_top10_models.index.get_level_values("word").isin(
+                SYLLABIC_NASAL_REVIEWED_WORDS
+            )
         )
+        fn_rate = fn_words_for_top10_models["is_syllabic_nasal"].mean()
         logging.info(
             f"Proportion of fp words for top 10 models that are in "
             f"SYLLABIC_NASAL_REVIEWED_WORDS: {fp_rate}"
@@ -512,6 +513,14 @@ if __name__ == "__main__":
             f"Proportion of fn words for top 10 models that are in "
             f"SYLLABIC_NASAL_REVIEWED_WORDS: {fn_rate}"
         )
+
+    fp_words_for_top10_models.to_csv(
+        TARGET_DIR / "fp_words_top10_models.csv", index=True
+    )
+
+    fn_words_for_top10_models.to_csv(
+        TARGET_DIR / "fn_words_top10_models.csv", index=True
+    )
 
     all_wrong_words_mask = ~words.groupby(["benchmark_item_id", "word"])[
         "correct"
@@ -556,8 +565,7 @@ if __name__ == "__main__":
         f"number of item-words only the top 10 models get right: "
         f"{n_words_only_top10_right}"
     )
-    # Split by gold label: a decodable word nobody flags is near-free, while a
-    # nondecodable one nobody misses is a real but exhausted item.
+
     all_right_words_by_label = too_easy_item_words.loc[
         too_easy_item_words["all_models_correct"], "is_nondecodable"
     ].value_counts()
