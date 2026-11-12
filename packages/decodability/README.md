@@ -167,6 +167,32 @@ each call's `model_call_id`, so changing an entry would split new results from e
 runs. `str()` renders `"quoted"`, but code that builds prompts passes the format
 explicitly. English `affixes` are not rendered.
 
+## UFLI inventory versions
+
+`EnglishStudentKnowledge(inventory=...)` names the version of the UFLI GPC inventory a
+profile's `gpcs` are checked against and that the scorers parse words with. It defaults
+to the latest version, is not part of the profile, and is left out of `model_dump()`.
+
+| Version        | Spelling                                                       |
+| -------------- | -------------------------------------------------------------- |
+| `"2026-09-10"` | as the phonics benchmark items were built: `uni-` reads /juni/ |
+| `"2026-10-27"` | latest: `uni-` reads /junɪ/                                    |
+
+`ufli_gpc_inventory(version)` returns the latest entries with every later respelling
+undone, so ids, graphemes and lessons are always the latest and entries added since are
+kept. A profile written against an earlier spelling therefore still validates and still
+matches the parser's GPCs.
+
+Only respelling an existing entry needs a new version: add its date to
+`UFLIInventoryVersion`, make it `LATEST_UFLI_INVENTORY`, and record the replaced
+phonemes under that date in `_UFLI_RESPELLINGS`. Adding an entry needs nothing, since it
+can't change what an earlier profile means. A test checks that `"2026-09-10"` still
+contains every pair the inventory had on that date, so an unregistered respelling fails.
+
+The phonics benchmark pins `"2026-09-10"` in a frozen `KNOWLEDGE_INVENTORY` table in its
+`labeling.py`, used wherever it validates or labels a stored profile. Other callers get
+the latest version.
+
 ## Examples
 
 Two runnable examples ship with the package. Run either from the repository root.

@@ -302,7 +302,7 @@ def analyse_word_english(
                     is_monosyllabic=variant.is_monosyllabic,
                 )
             )
-            for parse in parse_gpcs(word, variant, GPC_INVENTORY):
+            for parse in parse_gpcs(word, variant, student_knowledge.gpc_inventory):
                 matches = [
                     GPCUse(
                         gpc_id=match.gpc.id,

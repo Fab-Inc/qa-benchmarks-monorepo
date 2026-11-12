@@ -1,16 +1,24 @@
 from typing import Literal, get_args
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from decodability.english.definitions import (
-    UFLI_GPC_PAIRS_FLAT,
+    GPC,
+    LATEST_UFLI_INVENTORY,
+    UFLIInventoryVersion,
     normalize_gpc_grapheme,
+    ufli_gpc_inventory,
+    ufli_gpc_pairs,
 )
 
 EnglishKnowledgeFormat = Literal["quoted", "plain"]
 
 
 class EnglishStudentKnowledge(BaseModel):
+    # The UFLI inventory version ``gpcs`` are checked against and scorers parse
+    # words with. A caller's setting, not part of the profile, so it is left out
+    # of dumps; declared first so the ``gpcs`` validator can read it.
+    inventory: UFLIInventoryVersion = Field(default=LATEST_UFLI_INVENTORY, exclude=True)
     gpcs: list[tuple[str, str]] = []
     sight_words: set[str] = set()
     # Marker-bearing units taught as chunks: affixes ("-ed", "-ies", "un-")
@@ -24,24 +32,31 @@ class EnglishStudentKnowledge(BaseModel):
     def check_known_gpcs(
         cls,
         gpcs: list[tuple[str, str]],
+        info: ValidationInfo,
     ) -> list[tuple[str, str]]:
-        """Check that every GPC is taught in the UFLI inventory.
+        """Check that every GPC is taught in the UFLI inventory at ``inventory``.
 
         Graphemes are compared in canonical form, so a pair carries the same
         meaning whether the profile writes the affix marker (``-ed``,
         ``pre-``, ``_ce``) or not (``ed``, ``pre``, ``ce``).
         """
+        # Absent only when ``inventory`` itself failed, which is reported anyway.
+        version = info.data.get("inventory", LATEST_UFLI_INVENTORY)
+        taught = ufli_gpc_pairs(version)
         invalid = [
-            g
-            for g in gpcs
-            if (normalize_gpc_grapheme(g[0]), g[1]) not in UFLI_GPC_PAIRS_FLAT
+            g for g in gpcs if (normalize_gpc_grapheme(g[0]), g[1]) not in taught
         ]
         if invalid:
             raise ValueError(
                 f"Not taught GPCs: {invalid}. "
-                "Only GPCs from UFLI GPC inventory are allowed."
+                f"Only GPCs from UFLI GPC inventory {version} are allowed."
             )
         return gpcs
+
+    @property
+    def gpc_inventory(self) -> tuple[GPC, ...]:
+        """The UFLI inventory at this profile's ``inventory`` version."""
+        return ufli_gpc_inventory(self.inventory)
 
     @field_validator("sight_words")
     @classmethod

@@ -138,7 +138,7 @@ def score_known_gpcs_english(
     taught_set, taught_graphemes = normalize_taught_gpcs(taught_gpcs)
 
     for variant in variants:
-        for parse in parse_gpcs(word, variant, GPC_INVENTORY):
+        for parse in parse_gpcs(word, variant, student_knowledge.gpc_inventory):
             if all(
                 _is_taught_match(match, taught_set, taught_graphemes) for match in parse
             ):

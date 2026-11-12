@@ -1,7 +1,16 @@
+import json
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
+from decodability.english.definitions import (
+    UFLI_GPC_INVENTORY,
+    UFLI_GPC_PAIRS_FLAT,
+    ufli_gpc_inventory,
+    ufli_gpc_pairs,
+)
 from decodability.english.extract_phonemes import (
     Phoneme,
     Pronunciation,
@@ -122,6 +131,69 @@ class TestEnglishStudentKnowledgeModel:
     def test_english_student_knowledge_render_rejects_unknown_formats(self):
         with pytest.raises(ValueError, match="Unknown knowledge format 'v2'"):
             EnglishStudentKnowledge().render("v2")  # type: ignore[arg-type]
+
+
+PINNED_PAIRS_PATH = Path(__file__).parent / "fixtures/ufli_gpc_pairs_2026-09-10.json"
+
+
+class TestUFLIInventoryVersions:
+    def test_latest_version_is_the_inventory(self):
+        assert ufli_gpc_inventory() == UFLI_GPC_INVENTORY
+        assert ufli_gpc_pairs() == UFLI_GPC_PAIRS_FLAT
+
+    def test_earlier_version_only_undoes_respellings(self):
+        """Ids, graphemes and lessons stay; G159 reads /juni/ as it did before."""
+        pinned = {gpc.id: gpc for gpc in ufli_gpc_inventory("2026-09-10")}
+        changed = {
+            gpc.id: pinned[gpc.id].phonemes
+            for gpc in UFLI_GPC_INVENTORY
+            if pinned[gpc.id] != gpc
+        }
+        assert changed == {"G159": ("j", "u", "n", "i")}
+
+    def test_earlier_version_keeps_every_pair_it_was_frozen_with(self):
+        """Fails when an entry is respelled without registering a version."""
+        frozen = {
+            tuple(pair) for pair in json.loads(PINNED_PAIRS_PATH.read_text())["pairs"]
+        }
+        assert frozen <= ufli_gpc_pairs("2026-09-10")
+
+    def test_unknown_version_is_rejected(self):
+        with pytest.raises(ValueError, match="Unknown UFLI inventory version"):
+            ufli_gpc_inventory("2025-01-01")  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        "inventory, gpc, should_pass",
+        [
+            ("2026-10-27", ("uni", "junɪ"), True),
+            ("2026-10-27", ("uni", "juni"), False),
+            ("2026-09-10", ("uni", "juni"), True),
+            ("2026-09-10", ("uni", "junɪ"), False),
+        ],
+    )
+    def test_gpcs_are_checked_against_the_profile_inventory(
+        self, inventory: str, gpc: tuple[str, str], should_pass: bool
+    ):
+        if should_pass:
+            EnglishStudentKnowledge(inventory=inventory, gpcs=[gpc])
+        else:
+            with pytest.raises(ValueError, match=f"inventory {inventory}"):
+                EnglishStudentKnowledge(inventory=inventory, gpcs=[gpc])
+
+    def test_inventory_is_not_part_of_the_profile(self):
+        knowledge = EnglishStudentKnowledge(inventory="2026-09-10", gpcs=[("t", "t")])
+        assert "inventory" not in knowledge.model_dump()
+
+    @pytest.mark.parametrize(
+        "inventory, uni",
+        [("2026-10-27", ("uni", "junɪ")), ("2026-09-10", ("uni", "juni"))],
+    )
+    def test_scorer_parses_with_the_profile_inventory(
+        self, inventory: str, uni: tuple[str, str]
+    ):
+        """A profile's spelling matches the parser only at its own version."""
+        knowledge = EnglishStudentKnowledge(inventory=inventory, gpcs=[uni, ("t", "t")])
+        assert score_known_gpcs_english("unit", knowledge) == 1.0
 
 
 class TestScorers:
