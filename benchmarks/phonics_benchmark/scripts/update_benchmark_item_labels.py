@@ -18,12 +18,12 @@ Usage:
         benchmarks/phonics_benchmark/scripts/update_benchmark_item_labels.py \
         <existing_items_path> \
         <target_items_path> \
-        [--language sw]
+        [--language-code sw]
 
 The language defaults to the items' ``language_iso_code``. Saves the re-labelled
 version of the existing items dataset to the target items path. Only the labels
 and their counts change: content and student knowledge are saved as loaded,
-including GPC pairs the inventory has since renamed (``STALE_GPC_MIGRATIONS``),
+including GPC pairs the inventory has since renamed (``STALE_GPC_UPDATES``),
 which are read in their current form only while labelling.
 """
 

@@ -137,4 +137,8 @@ def test_script_keeps_stale_gpcs_in_saved_knowledge(tmp_path: Path) -> None:
 
     (item,) = [json.loads(line) for line in output_path.open(encoding="utf-8")]
     assert item["student_knowledge"] == knowledge
-    assert "saved items keep (uni, juni)" in result.stderr
+    # The script reports which stale pairs it read in their current form
+    assert (
+        "Labelling with stale GPC (uni, juni) read as (uni, junɪ) in 1 items"
+        in result.stderr
+    )
