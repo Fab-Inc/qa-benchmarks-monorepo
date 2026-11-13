@@ -20,9 +20,7 @@ import pandas as pd
 REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
 )
-BASE = (
-    REPO_ROOT / "outputs/phonics-gold-leaderboard-20260922-relabelled-20261110/reports"
-)
+BASE = REPO_ROOT / "outputs/phonics-relabelled-20261110/full/reports"
 REPORT = BASE / "kiswahili"
 
 # Palette and furniture copied from plot_report_f2_leaderboards.py on the
@@ -46,13 +44,13 @@ TAGS = {
     "has_nonnasal_cluster": "clust",
     "has_nasal_cluster": "NASAL",
 }
-GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 9), (9, 14)])
+GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 4), (4, 7), (7, 14)])
 # Level order for plotting. `level` is stored as a label rather than a mix of
 # Interval and bool, because pandas cannot sort those two types against each
 # other once all four features are stacked into one long table.
 LEVEL_ORDER = {
     "is_known_word": ["False", "True"],
-    "grapheme_bin": ["2-5", "6-9", "10-14"],
+    "grapheme_bin": ["2-4", "5-7", "8-14"],
     "has_multigraph": ["False", "True"],
     "has_cluster": ["False", "True"],
     "has_nonnasal_cluster": ["False", "True"],
@@ -252,6 +250,39 @@ def combination_table(words, **kwargs):
     return combos
 
 
+def tier_combination_table(combinations, summary):
+    """One row per (tier, cell): mean J, FPR and FNR over each tier's top models.
+
+    The models are the same top-N per tier as the dumbbell chart. Each model
+    counts equally, as there, rather than pooling words across models. Since
+    J = recall - FPR = 1 - FNR - FPR for each model, the means satisfy the
+    same identity cell by cell wherever all three are defined.
+
+    pos and neg are each cell's item-word counts from the best-covered model,
+    which is the full item set. They do not depend on the tier.
+    """
+    selected = pd.concat(
+        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
+    )
+    top = combinations[combinations.model.isin(selected)].assign(
+        fnr=lambda d: 1 - d.recall
+    )
+    out = (
+        top.groupby(["hardware_tier", "cell"], observed=True)
+        .agg(
+            j=("j", "mean"),
+            fpr=("fpr", "mean"),
+            fnr=("fnr", "mean"),
+            n_models=("model", "nunique"),
+        )
+        .reset_index()
+    )
+    sizes = combinations.groupby("cell").agg(
+        group=("group", "first"), pos=("pos", "max"), neg=("neg", "max")
+    )
+    return out.merge(sizes, on="cell")
+
+
 def cell_group(row):
     """Reading order for the heatmap columns.
 
@@ -262,8 +293,8 @@ def cell_group(row):
     """
     if row.is_known_word:
         return 0
-    if row.has_cluster:
-        return 3
+    # No separate has_cluster check: every cluster is nasal or non-nasal, and
+    # checking has_cluster first would put nasal cells in group 3.
     if row.has_nasal_cluster:
         return 4
     if row.has_nonnasal_cluster:
@@ -420,6 +451,19 @@ FEATURE_PLOTS = {
 }
 
 
+def top_models(summary, tier):
+    """The TOP_N models with the highest pooled J within one hardware tier.
+
+    Model id breaks ties so the selection is stable across runs. A tier with
+    fewer than TOP_N models contributes all of them.
+    """
+    return (
+        summary[summary.hardware_tier == tier]
+        .sort_values(["j", "model"], ascending=[False, True])
+        .head(TOP_N)["model"]
+    )
+
+
 def top_n_stats(summary, marginals, feature):
     """Mean Adj. balanced accuracy of the best TOP_N models per (tier, level)
     for one feature.
@@ -431,12 +475,7 @@ def top_n_stats(summary, marginals, feature):
     for (tier, level), group in panel.groupby(
         ["hardware_tier", "level"], observed=True
     ):
-        models = (
-            summary[summary.hardware_tier == tier]
-            .sort_values(["j", "model"], ascending=[False, True])
-            .head(TOP_N)["model"]
-        )
-        top = group[group.model.isin(models)]
+        top = group[group.model.isin(top_models(summary, tier))]
         rows.append(
             {
                 "hardware_tier": tier,
@@ -623,9 +662,9 @@ def plot_combinations(combinations, ax, models):
     """Models against the full cross product of features, plain to clustered.
 
     A cell no model can score is dropped from the axis rather than left as a
-    blank column. That removes the thin combinations (a multigraph alongside a
-    cluster, and most 10-14 grapheme clusters) and the known-word cells, whose
-    J is undefined because every known word is decodable.
+    blank column. With the 2-4 / 5-7 / 8-14 grapheme bins that removes only the
+    known-word cells, whose J is undefined because every known word is
+    decodable.
     """
     grid = combinations.pivot_table(index="model", columns="cell", values="j")
     order = [cell for cell in ordered_cells(combinations) if cell in grid]
@@ -662,6 +701,139 @@ def plot_combinations(combinations, ax, models):
     style(ax)
     ax.figure.colorbar(im, ax=ax, label="Adj. BA  (0 = chance)", shrink=0.5, pad=0.02)
     return grid
+
+
+TIER_COLUMNS = ["Cloud", "Mobile + Tablet"]
+TIER_HEADERS = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile +\ntablet"}
+# J keeps the ramp the other heatmaps use. The two error rates share a
+# separate warm ramp and one 0-1 scale, so FPR and FNR compare directly.
+TIER_METRICS = {
+    "j": ("Adj. balanced accuracy", "YlGnBu"),
+    "fpr": ("False positive rate", "YlOrRd"),
+    "fnr": ("False negative rate", "YlOrRd"),
+}
+# Below this many nondecodable or decodable item-words, a cell's values are faded.
+MIN_WORDS = 20
+
+
+def plot_tier_combinations(tier_combos, order, fig):
+    """Each tier's top models against the full cross product, one panel per metric.
+
+    Rows are word types in the per-model heatmap's reading order, with a gap
+    between groups. In each panel the two columns are the tiers, so the tier
+    gap reads across a row and the error type behind a low J reads across
+    panels. The right-hand column gives the word counts behind each row.
+    """
+    cells = [cell for cell in order if cell in set(tier_combos.cell)]
+    sizes = tier_combos.drop_duplicates("cell").set_index("cell").loc[cells]
+    # Known-word rows have no nondecodable words by definition, so pos == 0
+    # there is expected, not thin. It already greys out J and FNR.
+    thin = (sizes.pos.between(1, MIN_WORDS - 1) | (sizes.neg < MIN_WORDS)).to_numpy()
+    breaks = [
+        i
+        for i in range(1, len(cells))
+        if sizes.group.iloc[i] != sizes.group.iloc[i - 1]
+    ]
+    n_models = tier_combos.groupby("hardware_tier").n_models.max()
+
+    fig.set_facecolor(SURFACE)
+    axes = fig.subplots(1, 4, sharey=True, width_ratios=[2, 2, 2, 1.7])
+    images = {}
+    for ax, (metric, (title, cmap_name)) in zip(axes, TIER_METRICS.items()):
+        grid = tier_combos.pivot(index="cell", columns="hardware_tier", values=metric)
+        grid = grid.reindex(index=cells, columns=TIER_COLUMNS)
+        cmap = plt.get_cmap(cmap_name).with_extremes(bad=GRIDLINE)
+        images[metric] = ax.imshow(
+            grid.values, cmap=cmap, vmin=0, vmax=1, aspect="auto"
+        )
+        for row, col in np.ndindex(grid.shape):
+            value = grid.values[row, col]
+            if not np.isnan(value):
+                ax.text(
+                    col,
+                    row,
+                    f"{value:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    color=SURFACE if value > 0.55 else INK_PRIMARY,
+                    alpha=0.4 if thin[row] else 1,
+                )
+        # A surface-coloured rule opens a visible gap between cell groups.
+        for b in breaks:
+            ax.axhline(b - 0.5, color=SURFACE, lw=3)
+        # style() resets tick label colours, so it runs before the tier colours.
+        style(ax)
+        ax.tick_params(length=0)
+        ax.xaxis.tick_top()
+        ax.set_xticks(
+            range(len(TIER_COLUMNS)),
+            [f"{TIER_HEADERS[t]}\n{n_models[t]} models" for t in TIER_COLUMNS],
+            fontsize=8.5,
+        )
+        for label, tier in zip(ax.get_xticklabels(), TIER_COLUMNS):
+            label.set_color(TIER_COLORS[tier])
+        ax.set_title(title, fontsize=10, fontweight="semibold", color=INK_PRIMARY)
+
+    axes[0].set_yticks(range(len(cells)), cells, fontsize=9)
+    for label, faded in zip(axes[0].get_yticklabels(), thin):
+        label.set_color(INK_MUTED if faded else INK_SECONDARY)
+
+    # Word counts as a text column sharing the heatmaps' rows.
+    counts = axes[-1]
+    for row, (pos, neg) in enumerate(zip(sizes.pos, sizes.neg)):
+        counts.text(
+            0.05,
+            row,
+            f"{pos:,} / {neg:,}",
+            va="center",
+            fontsize=8.5,
+            color=INK_MUTED if thin[row] else INK_SECONDARY,
+        )
+    counts.set_xlim(0, 1)
+    counts.set_title(
+        "Item-words\nnondecodable / decodable",
+        fontsize=9,
+        color=INK_SECONDARY,
+    )
+    counts.axis("off")
+
+    fig.colorbar(
+        images["j"],
+        ax=axes[0],
+        location="bottom",
+        shrink=0.9,
+        pad=0.01,
+        label="Adj. BA (0 = chance)",
+    )
+    fig.colorbar(
+        images["fpr"],
+        ax=axes[1:3],
+        location="bottom",
+        shrink=0.6,
+        pad=0.01,
+        label="Error rate (lower is better)",
+    )
+    fig.suptitle(
+        "Adj. BA and error rates by word type, top models per hardware tier",
+        fontsize=12,
+        fontweight="semibold",
+        color=INK_PRIMARY,
+    )
+    fig.text(
+        0.01,
+        -0.01,
+        f"Values are means over each tier's top {TOP_N} models by adjusted balanced "
+        "accuracy over all words; a tier with fewer models contributes all of them.\n"
+        "Adj. BA = 1 - FPR - FNR in every cell. Grey: undefined, because every "
+        "known word is decodable. "
+        f"Faded: fewer than {MIN_WORDS} nondecodable or decodable item-words.",
+        va="top",
+        fontsize=8,
+        color=INK_SECONDARY,
+        linespacing=1.5,
+    )
+    return fig
 
 
 def plot_known_word_alarms(words, ax, models):
@@ -742,6 +914,18 @@ if __name__ == "__main__":
     shown = plot_combinations(combinations, ax, ranking)
     fig.savefig(
         REPORT / "word_type_heatmap.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor=SURFACE,
+    )
+
+    # Must run before `summary` is reused for the dumbbell figure below.
+    tier_combos = tier_combination_table(combinations, summary)
+    tier_combos.to_csv(REPORT / "word_feature_combinations_by_tier.csv", index=False)
+    fig = plt.figure(figsize=(11, 9.5), layout="constrained")
+    plot_tier_combinations(tier_combos, ordered_cells(combinations), fig)
+    fig.savefig(
+        REPORT / "word_type_heatmap_by_tier.png",
         dpi=300,
         bbox_inches="tight",
         facecolor=SURFACE,
