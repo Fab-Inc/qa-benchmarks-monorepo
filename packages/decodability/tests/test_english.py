@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
+from decodability.english.analyse import analyse_word_english
 from decodability.english.definitions import (
     UFLI_GPC_INVENTORY,
     UFLI_GPC_PAIRS_FLAT,
@@ -138,6 +139,15 @@ OLD_UNI_INVENTORY = tuple(
     replace(gpc, phonemes=("j", "u", "n", "i")) if gpc.id == "G159" else gpc
     for gpc in UFLI_GPC_INVENTORY
 )
+# Each inventory with the uni- pair it spells; a profile using that pair must
+# behave the same under its own inventory everywhere the inventory is read.
+UNI_SPELLINGS = pytest.mark.parametrize(
+    "inventory, uni",
+    [
+        (UFLI_GPC_INVENTORY, ("uni", "junɪ")),
+        (OLD_UNI_INVENTORY, ("uni", "juni")),
+    ],
+)
 
 
 class TestCallerInventory:
@@ -181,13 +191,7 @@ class TestCallerInventory:
         }
         assert EnglishStudentKnowledge().gpc_inventory is UFLI_GPC_INVENTORY
 
-    @pytest.mark.parametrize(
-        "inventory, uni",
-        [
-            (UFLI_GPC_INVENTORY, ("uni", "junɪ")),
-            (OLD_UNI_INVENTORY, ("uni", "juni")),
-        ],
-    )
+    @UNI_SPELLINGS
     def test_scorer_parses_with_the_supplied_inventory(
         self, inventory: tuple, uni: tuple[str, str]
     ):
@@ -196,6 +200,35 @@ class TestCallerInventory:
             {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
         )
         assert score_known_gpcs_english("unit", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_affix_rules_follow_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The taught uni- pair unlocks uni- + a sight word under its own spelling."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni], "sight_words": ["form"]},
+            context={"gpc_inventory": inventory},
+        )
+        assert score_sight_words_english("uniform", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_analysis_curriculum_follows_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The profile's uni- match gets its lesson from the profile's inventory."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
+        )
+        analysis = analyse_word_english("unit", knowledge)
+        lessons = {
+            match.first_taught_lesson
+            for parse in analysis.candidate_parses
+            for match in parse.matches
+            if match.gpc_id == "G159"
+        }
+        assert lessons and None not in lessons
+        assert analysis.earliest_decodable_lesson is not None
 
 
 class TestScorers:

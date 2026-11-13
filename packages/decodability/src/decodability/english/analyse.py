@@ -15,6 +15,7 @@ from functools import cache
 from pydantic import BaseModel, ConfigDict
 
 from decodability.english.definitions import (
+    GPC,
     UFLI_SIGHT_WORD_LESSONS,
     normalize_gpc_grapheme,
 )
@@ -22,7 +23,6 @@ from decodability.english.extract_phonemes import get_word_phonemes
 from decodability.english.gpc_parser import GPCMatch, parse_gpcs
 from decodability.english.models import EnglishStudentKnowledge
 from decodability.english.scorers import (
-    GPC_INVENTORY,
     _is_taught_match,
     normalize_taught_gpcs,
     score_sight_words_english,
@@ -174,17 +174,17 @@ class EnglishWordAnalysis(BaseModel):
 
 
 @cache
-def _curriculum_steps() -> tuple[
-    tuple[int, frozenset[tuple[str, str]], frozenset[str]], ...
-]:
-    """Cumulative taught sets after each UFLI lesson, in lesson order.
+def _curriculum_steps(
+    inventory: tuple[GPC, ...],
+) -> tuple[tuple[int, frozenset[tuple[str, str]], frozenset[str]], ...]:
+    """Cumulative taught sets after each UFLI lesson of ``inventory``, in order.
 
     Each step is ``(lesson, taught_pairs, taught_graphemes)`` for a student
     who has been taught every GPC up to and including that lesson — the same
     canonical form ``normalize_taught_gpcs`` produces for a profile.
     """
     by_lesson: dict[int, list[tuple[str, str]]] = {}
-    for gpc in GPC_INVENTORY:
+    for gpc in inventory:
         by_lesson.setdefault(gpc.decode_lesson or gpc.lesson, []).append(
             (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
         )
@@ -199,22 +199,24 @@ def _curriculum_steps() -> tuple[
     return tuple(steps)
 
 
-def _first_taught_lesson(match: GPCMatch) -> int | None:
+def _first_taught_lesson(match: GPCMatch, inventory: tuple[GPC, ...]) -> int | None:
     """Earliest UFLI lesson at which ``_is_taught_match`` credits ``match``.
 
     ``_is_taught_match`` is monotonic in the taught sets, so the first lesson
     whose cumulative set accepts the match is the earliest it can be taught.
     Returns ``None`` when no lesson's set accepts it.
     """
-    for lesson, taught_pairs, taught_graphemes in _curriculum_steps():
+    for lesson, taught_pairs, taught_graphemes in _curriculum_steps(inventory):
         if _is_taught_match(match, taught_pairs, taught_graphemes):
             return lesson
     return None
 
 
 @cache
-def _curriculum_profiles() -> tuple[tuple[int, EnglishStudentKnowledge], ...]:
-    """Cumulative student profiles after each UFLI lesson, in lesson order.
+def _curriculum_profiles(
+    inventory: tuple[GPC, ...],
+) -> tuple[tuple[int, EnglishStudentKnowledge], ...]:
+    """Cumulative student profiles after each UFLI lesson of ``inventory``.
 
     Each step is ``(lesson, profile)`` for a student taught every GPC, affix
     unit, and sight word introduced up to and including that lesson — the
@@ -224,7 +226,7 @@ def _curriculum_profiles() -> tuple[tuple[int, EnglishStudentKnowledge], ...]:
     """
     gpcs_by_lesson: dict[int, list[tuple[str, str]]] = {}
     affixes_by_lesson: dict[int, list[str]] = {}
-    for gpc in GPC_INVENTORY:
+    for gpc in inventory:
         gpcs_by_lesson.setdefault(gpc.decode_lesson or gpc.lesson, []).append(
             (normalize_gpc_grapheme(gpc.grapheme), "".join(gpc.phonemes))
         )
@@ -242,21 +244,20 @@ def _curriculum_profiles() -> tuple[tuple[int, EnglishStudentKnowledge], ...]:
         gpcs += gpcs_by_lesson.get(lesson, [])
         affixes.update(affixes_by_lesson.get(lesson, ()))
         sight_words.update(sight_words_by_lesson.get(lesson, ()))
-        profiles.append(
-            (
-                lesson,
-                EnglishStudentKnowledge(
-                    gpcs=list(gpcs),
-                    sight_words=set(sight_words),
-                    affixes=set(affixes),
-                ),
-            )
+        profile = EnglishStudentKnowledge.model_validate(
+            {
+                "gpcs": list(gpcs),
+                "sight_words": set(sight_words),
+                "affixes": set(affixes),
+            },
+            context={"gpc_inventory": inventory},
         )
+        profiles.append((lesson, profile))
     return tuple(profiles)
 
 
 @cache
-def _first_sight_word_lesson(word: str) -> int | None:
+def _first_sight_word_lesson(word: str, inventory: tuple[GPC, ...]) -> int | None:
     """Earliest UFLI lesson at which the sight-word route credits ``word``.
 
     Runs ``score_sight_words_english`` against each cumulative curriculum
@@ -265,7 +266,7 @@ def _first_sight_word_lesson(word: str) -> int | None:
     is a known sight word and ``some`` decodes via GPCs — not just direct
     sight-word membership.
     """
-    for lesson, profile in _curriculum_profiles():
+    for lesson, profile in _curriculum_profiles(inventory):
         if score_sight_words_english(word, profile) == 1.0:
             return lesson
     return None
@@ -284,6 +285,7 @@ def analyse_word_english(
     the UFLI teaching order so the earliest decodable lesson is known.
     """
     lowered = word.lower()
+    inventory = student_knowledge.gpc_inventory
     known_sight_word = score_sight_words_english(word, student_knowledge) == 1.0
 
     pronunciations: list[PronunciationVariant] = []
@@ -302,7 +304,7 @@ def analyse_word_english(
                     is_monosyllabic=variant.is_monosyllabic,
                 )
             )
-            for parse in parse_gpcs(word, variant, student_knowledge.gpc_inventory):
+            for parse in parse_gpcs(word, variant, inventory):
                 matches = [
                     GPCUse(
                         gpc_id=match.gpc.id,
@@ -312,7 +314,7 @@ def analyse_word_english(
                         letter_positions=match.letter_positions,
                         phoneme_span=match.phoneme_span,
                         taught=_is_taught_match(match, taught_set, taught_graphemes),
-                        first_taught_lesson=_first_taught_lesson(match),
+                        first_taught_lesson=_first_taught_lesson(match, inventory),
                     )
                     for match in parse
                 ]
@@ -335,7 +337,7 @@ def analyse_word_english(
         for parse in parses
         if parse.decodable_at_lesson is not None
     ]
-    sight_word_lesson = _first_sight_word_lesson(lowered)
+    sight_word_lesson = _first_sight_word_lesson(lowered, inventory)
     if sight_word_lesson is not None:
         lesson_candidates.append(sight_word_lesson)
 
