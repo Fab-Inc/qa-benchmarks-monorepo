@@ -14,6 +14,7 @@
   {"id": "G014", "grapheme": "g", "phonemes": ["g"], "lesson": 16, "decode_lesson": null},
   {"id": "G015", "grapheme": "b", "phonemes": ["b"], "lesson": 17, "decode_lesson": null},
   {"id": "G016", "grapheme": "e", "phonemes": ["ɛ"], "lesson": 18, "decode_lesson": null},
+  {"id": "G017", "grapheme": "-s", "phonemes": ["s"], "lesson": 20, "decode_lesson": null},
   {"id": "G018", "grapheme": "s", "phonemes": ["z"], "lesson": 21, "decode_lesson": null},
   {"id": "G019", "grapheme": "k", "phonemes": ["k"], "lesson": 22, "decode_lesson": null},
   {"id": "G020", "grapheme": "h", "phonemes": ["h"], "lesson": 23, "decode_lesson": null},
@@ -107,6 +108,7 @@
   {"id": "G108", "grapheme": "kn", "phonemes": ["n"], "lesson": 98, "decode_lesson": null},
   {"id": "G109", "grapheme": "wr", "phonemes": ["r"], "lesson": 98, "decode_lesson": null},
   {"id": "G110", "grapheme": "mb", "phonemes": ["m"], "lesson": 98, "decode_lesson": null},
+  {"id": "G111", "grapheme": "-er", "phonemes": ["ə", "r"], "lesson": 100, "decode_lesson": 80},
   {"id": "G112", "grapheme": "-est", "phonemes": ["ə", "s", "t"], "lesson": 100, "decode_lesson": 18},
   {"id": "G113", "grapheme": "-ly", "phonemes": ["l", "i"], "lesson": 101, "decode_lesson": 74},
   {"id": "G114", "grapheme": "-less", "phonemes": ["l", "ə", "s"], "lesson": 102, "decode_lesson": 42},
@@ -168,5 +170,8 @@
   {"id": "G171", "grapheme": "ough", "phonemes": ["ɑ"], "lesson": 116, "decode_lesson": null},
   {"id": "G172", "grapheme": "ssion", "phonemes": ["ʃ", "ə", "n"], "lesson": 119, "decode_lesson": null},
   {"id": "G173", "grapheme": "o-e", "phonemes": ["ʌ"], "lesson": 62, "decode_lesson": null},
-  {"id": "G174", "grapheme": "rr", "phonemes": ["r"], "lesson": 67, "decode_lesson": null}
+  {"id": "G174", "grapheme": "rr", "phonemes": ["r"], "lesson": 67, "decode_lesson": null},
+  {"id": "G175", "grapheme": "-ier", "phonemes": ["i", "ə", "r"], "lesson": 110, "decode_lesson": null},
+  {"id": "G176", "grapheme": "-iest", "phonemes": ["i", "ə", "s", "t"], "lesson": 110, "decode_lesson": null},
+  {"id": "G177", "grapheme": "-ied", "phonemes": ["i", "d"], "lesson": 110, "decode_lesson": null}
 ]

@@ -24,12 +24,13 @@ from pydantic import BaseModel
 from phonics_benchmark.utils import require_columns
 
 # This benchmark's own copy of the GPC inventory, per language, as a packaged
-# file; a language without an entry uses its model's inventory. Frozen: every
-# phonics item was built and validated against the UFLI inventory of
-# 2026-09-10, and its profiles are rendered into prompts and labelled exactly
-# as stored, so later inventory changes must neither reject them (uni- has
-# since become /junɪ/) nor stop their GPCs matching the parser.
-KNOWLEDGE_INVENTORY = {"en": "ufli_gpc_inventory_2026-09-10.json"}
+# file; a language without an entry uses its model's inventory. Frozen: the
+# stored profiles are rendered into prompts and labelled exactly as stored, so
+# later inventory changes must neither reject them nor stop their GPCs matching
+# the parser and affix rules. The English copy is decodability's inventory of
+# 2026-11-13 with uni- read as /juni/, as every stored profile spells it (the
+# inventory respelled it /junɪ/ on 2026-10-27).
+KNOWLEDGE_INVENTORY = {"en": "ufli_gpc_inventory.json"}
 
 
 @cache

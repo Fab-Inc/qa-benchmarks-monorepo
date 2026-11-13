@@ -179,19 +179,22 @@ knowledge = EnglishStudentKnowledge.model_validate(
 )
 ```
 
-`gpcs` are then checked against `inventory`, and the scorers parse with it
-(`knowledge.gpc_inventory`). The inventory is not part of the profile and is left out of
-`model_dump()`; without a context, everything uses `UFLI_GPC_INVENTORY` as before.
+`gpcs` are then checked against `inventory`, and everything that reads the inventory for
+this profile uses it too (`knowledge.gpc_inventory`): the GPC parser, the affix pairs
+that unlock affixed sight words, and the lesson schedule `analyse_word_english` reports.
+The inventory is not part of the profile and is left out of `model_dump()`; without a
+context, everything uses `UFLI_GPC_INVENTORY` as before.
 
 `gpc_inventory_to_json(inventory)` writes an inventory as JSON, one GPC per line, and
 `gpc_inventory_from_json(text)` reads it back, so a benchmark can keep a frozen copy as
-a file. A copy has to be in the current `GPC` format, since the scorers' parser reads
-fields such as the affix markers.
+a file. A copy has to be in the current `GPC` format and match what the current code
+expects: the parser reads fields such as the affix markers, and the sight-word rules
+rely on affix entries such as `-s` and `-er`. So a copy is best taken from the current
+inventory, with only the entries its profiles spell differently changed back.
 
-The phonics benchmark keeps its copy of the inventory of 2026-09-10, which its items
-were built and validated against (`uni-` still read /juni/ then), in
-`phonics_benchmark/ufli_gpc_inventory_2026-09-10.json`, and uses it wherever it
-validates or labels a stored profile.
+The phonics benchmark keeps such a copy in `phonics_benchmark/ufli_gpc_inventory.json`:
+the inventory of 2026-11-13 with `uni-` read as /juni/, as every stored phonics profile
+spells it. It uses the copy wherever it validates or labels a stored profile.
 
 ## Examples
 

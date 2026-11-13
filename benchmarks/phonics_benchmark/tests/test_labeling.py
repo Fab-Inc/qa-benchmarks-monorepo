@@ -19,7 +19,7 @@ from phonics_benchmark.labeling import (
 # Checksums of the frozen inventory files; a change here re-labels and can
 # reject stored items, so it has to be deliberate.
 FROZEN_INVENTORY_SHA256 = {
-    "en": "4dd03ba03f17f133217c965ac1c0c82cfcb11c0a5269e37e67ca8f12724d9817",
+    "en": "30f09372faed1372a4167e358fbb3765b658e44ac0da8cfc1466e38cbe857634",
 }
 
 CONFIG = {
@@ -137,10 +137,9 @@ def test_parse_student_knowledge_uses_the_frozen_inventory(language: str) -> Non
     assert profile.gpc_inventory is knowledge_inventory(language)
 
 
-def test_english_inventory_is_the_one_the_items_were_built_with() -> None:
-    """170 GPCs as of 2026-09-10, when uni- still read /juni/."""
+def test_english_inventory_spells_uni_as_the_stored_profiles_do() -> None:
+    """Stored profiles spell uni- /juni/; the copy keeps that spelling."""
     pairs = gpc_pairs(knowledge_inventory("en"))
-    assert len(knowledge_inventory("en")) == 170
     assert ("uni", "juni") in pairs
     assert ("uni", "junɪ") not in pairs
 
