@@ -7,6 +7,7 @@ decodability rules give.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,23 @@ from pathlib import Path
 import pytest
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "update_benchmark_item_labels.py"
+
+
+def run_script(input_path: Path, output_path: Path) -> subprocess.CompletedProcess:
+    """Run the script as a subprocess and capture its log output.
+
+    The script calls typer.run at import time, so it can't be imported. Its
+    stderr is forced to UTF-8 because Windows defaults to a code page that
+    cannot encode IPA symbols such as "ɪ" and would write them as "\\u026a".
+    """
+    return subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), str(input_path), str(output_path)],
+        capture_output=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        check=False,
+    )
+
 
 # A deliberately tiny student: only a, m, k, t, plus "na" as a sight word.
 # Words built from those graphemes are decodable; anything else is not. That
@@ -65,19 +83,7 @@ def test_script_corrects_wrong_labels(
 ) -> None:
     output_path = tmp_path / "relabelled_items.jsonl"
 
-    # The script calls typer.run at import time, so run it as a subprocess
-    # instead of importing it
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPT_PATH),
-            str(wrongly_labelled_items_path),
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    result = run_script(wrongly_labelled_items_path, output_path)
     assert result.returncode == 0, result.stderr
 
     with output_path.open(encoding="utf-8") as f:
@@ -127,12 +133,7 @@ def test_script_keeps_stale_gpcs_in_saved_knowledge(tmp_path: Path) -> None:
     )
     output_path = tmp_path / "relabelled_items.jsonl"
 
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), str(input_path), str(output_path)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    result = run_script(input_path, output_path)
     assert result.returncode == 0, result.stderr
 
     (item,) = [json.loads(line) for line in output_path.open(encoding="utf-8")]
