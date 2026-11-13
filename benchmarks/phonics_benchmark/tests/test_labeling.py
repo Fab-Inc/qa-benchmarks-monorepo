@@ -1,12 +1,26 @@
 """Tests for the labeling module."""
 
+from hashlib import sha256
+from importlib.resources import files
+
 import pandas as pd
 import pytest
+from decodability.english.definitions import gpc_pairs
 from phonics_benchmark.labeling import (
+    KNOWLEDGE_INVENTORY,
+    get_decodability_config,
     get_grapheme_breakdown,
+    knowledge_inventory,
     label_nondecodable_words,
+    parse_student_knowledge,
     resolve_decodability_config,
 )
+
+# Checksums of the frozen inventory files; a change here re-labels and can
+# reject stored items, so it has to be deliberate.
+FROZEN_INVENTORY_SHA256 = {
+    "en": "30f09372faed1372a4167e358fbb3765b658e44ac0da8cfc1466e38cbe857634",
+}
 
 CONFIG = {
     "scoring_methods": [
@@ -107,6 +121,44 @@ def test_label_nondecodable_words_flags_untaught_word() -> None:
     )
 
     assert labels.iloc[0] == ["kuku"]
+
+
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
+def test_knowledge_inventory_file_is_frozen(language: str) -> None:
+    path = files("phonics_benchmark").joinpath(KNOWLEDGE_INVENTORY[language])
+    # Hash the text, as it is loaded: a Windows checkout has CRLF line endings.
+    text = path.read_text(encoding="utf-8")
+    assert sha256(text.encode("utf-8")).hexdigest() == FROZEN_INVENTORY_SHA256[language]
+
+
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_INVENTORY))
+def test_parse_student_knowledge_uses_the_frozen_inventory(language: str) -> None:
+    profile = parse_student_knowledge({}, language)
+    assert profile.gpc_inventory is knowledge_inventory(language)
+
+
+def test_english_inventory_spells_uni_as_the_stored_profiles_do() -> None:
+    """Stored profiles spell uni- /juni/; the copy keeps that spelling."""
+    pairs = gpc_pairs(knowledge_inventory("en"))
+    assert ("uni", "juni") in pairs
+    assert ("uni", "junɪ") not in pairs
+
+
+def test_label_nondecodable_words_parses_with_the_frozen_inventory() -> None:
+    """A stored /juni/ profile still matches uni- in 'unit' when labelling."""
+    items = pd.DataFrame(
+        {
+            "content": ["Unit."],
+            "student_knowledge": [{"gpcs": [["uni", "juni"], ["t", "t"]]}],
+        }
+    )
+    config = get_decodability_config("en")
+
+    labels = label_nondecodable_words(
+        items, config, "en", score_column=config["score_column"]
+    )
+
+    assert labels.iloc[0] == []
 
 
 def test_label_nondecodable_words_requires_expected_columns() -> None:

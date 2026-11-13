@@ -1,7 +1,17 @@
+from dataclasses import replace
+
 import pandas as pd
 import pytest
 from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
+from decodability.english.analyse import analyse_word_english
+from decodability.english.definitions import (
+    UFLI_GPC_INVENTORY,
+    UFLI_GPC_PAIRS_FLAT,
+    gpc_inventory_from_json,
+    gpc_inventory_to_json,
+    gpc_pairs,
+)
 from decodability.english.extract_phonemes import (
     Phoneme,
     Pronunciation,
@@ -122,6 +132,103 @@ class TestEnglishStudentKnowledgeModel:
     def test_english_student_knowledge_render_rejects_unknown_formats(self):
         with pytest.raises(ValueError, match="Unknown knowledge format 'v2'"):
             EnglishStudentKnowledge().render("v2")  # type: ignore[arg-type]
+
+
+# The inventory before uni- was respelled /juni/ → /junɪ/, as a caller's copy.
+OLD_UNI_INVENTORY = tuple(
+    replace(gpc, phonemes=("j", "u", "n", "i")) if gpc.id == "G159" else gpc
+    for gpc in UFLI_GPC_INVENTORY
+)
+# Each inventory with the uni- pair it spells; a profile using that pair must
+# behave the same under its own inventory everywhere the inventory is read.
+UNI_SPELLINGS = pytest.mark.parametrize(
+    "inventory, uni",
+    [
+        (UFLI_GPC_INVENTORY, ("uni", "junɪ")),
+        (OLD_UNI_INVENTORY, ("uni", "juni")),
+    ],
+)
+
+
+class TestCallerInventory:
+    """Callers can check and score profiles against their own copy of an inventory."""
+
+    def test_flat_pairs_are_the_pairs_of_the_inventory(self):
+        assert gpc_pairs(UFLI_GPC_INVENTORY) == UFLI_GPC_PAIRS_FLAT
+
+    def test_inventory_json_round_trips(self):
+        text = gpc_inventory_to_json(UFLI_GPC_INVENTORY)
+        assert gpc_inventory_from_json(text) == UFLI_GPC_INVENTORY
+
+    @pytest.mark.parametrize(
+        "inventory, gpc, should_pass",
+        [
+            (None, ("uni", "junɪ"), True),
+            (None, ("uni", "juni"), False),
+            (OLD_UNI_INVENTORY, ("uni", "juni"), True),
+            (OLD_UNI_INVENTORY, ("uni", "junɪ"), False),
+        ],
+    )
+    def test_gpcs_are_checked_against_the_supplied_inventory(
+        self, inventory: tuple | None, gpc: tuple[str, str], should_pass: bool
+    ):
+        context = None if inventory is None else {"gpc_inventory": inventory}
+        if should_pass:
+            EnglishStudentKnowledge.model_validate({"gpcs": [gpc]}, context=context)
+        else:
+            with pytest.raises(ValueError, match="Not taught GPCs"):
+                EnglishStudentKnowledge.model_validate({"gpcs": [gpc]}, context=context)
+
+    def test_supplied_inventory_is_kept_but_not_part_of_the_profile(self):
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [("t", "t")]}, context={"gpc_inventory": OLD_UNI_INVENTORY}
+        )
+        assert knowledge.gpc_inventory is OLD_UNI_INVENTORY
+        assert knowledge.model_dump() == {
+            "gpcs": [("t", "t")],
+            "sight_words": set(),
+            "affixes": set(),
+        }
+        assert EnglishStudentKnowledge().gpc_inventory is UFLI_GPC_INVENTORY
+
+    @UNI_SPELLINGS
+    def test_scorer_parses_with_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """A profile's spelling matches the parser only under its own inventory."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
+        )
+        assert score_known_gpcs_english("unit", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_affix_rules_follow_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The taught uni- pair unlocks uni- + a sight word under its own spelling."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni], "sight_words": ["form"]},
+            context={"gpc_inventory": inventory},
+        )
+        assert score_sight_words_english("uniform", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_analysis_curriculum_follows_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The profile's uni- match gets its lesson from the profile's inventory."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
+        )
+        analysis = analyse_word_english("unit", knowledge)
+        lessons = {
+            match.first_taught_lesson
+            for parse in analysis.candidate_parses
+            for match in parse.matches
+            if match.gpc_id == "G159"
+        }
+        assert lessons and None not in lessons
+        assert analysis.earliest_decodable_lesson is not None
 
 
 class TestScorers:

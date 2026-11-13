@@ -1,6 +1,8 @@
 from collections import defaultdict
+from functools import cache
 
 from decodability.english.definitions import (
+    GPC,
     UFLI_GPC_INVENTORY,
     normalize_gpc_grapheme,
 )
@@ -138,7 +140,7 @@ def score_known_gpcs_english(
     taught_set, taught_graphemes = normalize_taught_gpcs(taught_gpcs)
 
     for variant in variants:
-        for parse in parse_gpcs(word, variant, GPC_INVENTORY):
+        for parse in parse_gpcs(word, variant, student_knowledge.gpc_inventory):
             if all(
                 _is_taught_match(match, taught_set, taught_graphemes) for match in parse
             ):
@@ -197,7 +199,11 @@ def score_sight_words_english(
     taught_pairs, _ = normalize_taught_gpcs(student_knowledge.gpcs)
     if (
         _sight_word_stem(
-            word.lower(), taught_sight_words, student_knowledge.affixes, taught_pairs
+            word.lower(),
+            taught_sight_words,
+            student_knowledge.affixes,
+            taught_pairs,
+            student_knowledge.gpc_inventory,
         )
         is not None
     ):
@@ -242,23 +248,30 @@ _ED_SCHWA_STEM_FINALS = frozenset("td")
 _ED_SILENT_E_PAIRS = frozenset({("ed", "d"), ("ed", "t")})
 _ED_SCHWA_PAIR = ("ed", "əd")
 
-# Every affix string → the normalized (symbol, phonemes) pairs that license
-# it — including unmarked siblings, since the marker doesn't change the
-# correspondence (``s → z`` reads the ``-s`` ending in ``friends``). A
-# correspondence decodes before the affix unit is officially taught, so a
-# taught pair unlocks the same ending on a sight-word stem:
-# ``("ing", "ɪŋ")`` at lesson 51 reads ``walk`` + ``ing`` well before the
-# ``-ing`` affix is introduced at 65.
-_PAIRS_BY_SYMBOL: dict[str, set[tuple[str, str]]] = defaultdict(set)
-for gpc in GPC_INVENTORY:
-    _PAIRS_BY_SYMBOL[gpc.symbol].add((gpc.symbol, "".join(gpc.phonemes)))
 
-_AFFIX_PAIRS: dict[str, frozenset[tuple[str, str]]] = {
-    gpc.grapheme: frozenset(_PAIRS_BY_SYMBOL[gpc.symbol])
-    for gpc in GPC_INVENTORY
-    if gpc.is_suffix or gpc.is_prefix
-}
-_ALL_AFFIX_PAIRS = frozenset().union(*_AFFIX_PAIRS.values())
+@cache
+def _affix_pairs(
+    inventory: tuple[GPC, ...],
+) -> tuple[dict[str, frozenset[tuple[str, str]]], frozenset[tuple[str, str]]]:
+    """Map each affix string of ``inventory`` to the pairs that license it.
+
+    Also returns the union of those pairs. The pairs are normalized
+    ``(symbol, phonemes)`` and include unmarked
+    siblings, since the marker doesn't change the correspondence (``s → z``
+    reads the ``-s`` ending in ``friends``). A correspondence decodes before
+    the affix unit is officially taught, so a taught pair unlocks the same
+    ending on a sight-word stem: ``("ing", "ɪŋ")`` at lesson 51 reads ``walk``
+    + ``ing`` well before the ``-ing`` affix is introduced at 65.
+    """
+    pairs_by_symbol: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for gpc in inventory:
+        pairs_by_symbol[gpc.symbol].add((gpc.symbol, "".join(gpc.phonemes)))
+    affix_pairs = {
+        gpc.grapheme: frozenset(pairs_by_symbol[gpc.symbol])
+        for gpc in inventory
+        if gpc.is_suffix or gpc.is_prefix
+    }
+    return affix_pairs, frozenset().union(*affix_pairs.values())
 
 
 # Word openings a taught prefix unit unlocks on a sight-word stem. Prefixes
@@ -305,6 +318,7 @@ def _sight_word_stem(
     sight_words: set[str],
     affixes: set[str],
     taught_pairs: set[tuple[str, str]],
+    inventory: tuple[GPC, ...],
     *,
     _depth: int = 2,
 ) -> str | None:
@@ -315,9 +329,11 @@ def _sight_word_stem(
     ``preview`` → ``view`` under ``pre-``. Returns ``None`` when no licensed
     split reaches a sight word. ``_depth`` bounds the recursion so a stem
     can carry one affix at each edge (``unfriendly`` → ``un-`` + ``friend``
-    + ``-ly``) but no more.
+    + ``-ly``) but no more. Taught pairs license affixes as ``inventory``
+    spells them, the profile's inventory.
     """
-    if _depth <= 0 or not (affixes or taught_pairs & _ALL_AFFIX_PAIRS):
+    affix_pairs, all_affix_pairs = _affix_pairs(inventory)
+    if _depth <= 0 or not (affixes or taught_pairs & all_affix_pairs):
         return None
     for stem, morphemes in (*_suffix_stems(word), *_prefix_stems(word)):
         if "-ed" in morphemes:
@@ -332,7 +348,7 @@ def _sight_word_stem(
             licensed = "-ed" in affixes or bool(taught_pairs & ed_pairs)
         else:
             licensed = bool(morphemes & affixes) or any(
-                taught_pairs & _AFFIX_PAIRS.get(morpheme, frozenset())
+                taught_pairs & affix_pairs.get(morpheme, frozenset())
                 for morpheme in morphemes
             )
         if not licensed:
@@ -340,7 +356,7 @@ def _sight_word_stem(
         if stem in sight_words:
             return stem
         inner = _sight_word_stem(
-            stem, sight_words, affixes, taught_pairs, _depth=_depth - 1
+            stem, sight_words, affixes, taught_pairs, inventory, _depth=_depth - 1
         )
         if inner is not None:
             return inner
@@ -374,6 +390,7 @@ def _compound_segments(
             sight_words,
             student_knowledge.affixes,
             normalize_taught_gpcs(student_knowledge.gpcs)[0],
+            student_knowledge.gpc_inventory,
         )
         return stem is not None and (len(stem) >= 3 or "'" in chunk)
 
