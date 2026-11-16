@@ -24,6 +24,7 @@ exclude-newer = "7 days"
 [tool.uv.workspace]
 members = [
   "packages/fab_benchmark_publisher",
+  "packages/fab_benchmark_runner",
   "packages/primerpro",
   "packages/decodability",
   "benchmarks/phonics_benchmark",

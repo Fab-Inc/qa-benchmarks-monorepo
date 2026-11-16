@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fab-benchmark-runner"
+version = "0.1.0"
+description = "Shared run machinery for FAB benchmarks: result IDs, model registry, GCS sync and Cloud Run deployment"
+readme = "README.md"
+# Legacy benchmark repositories still run on Python 3.12, so this package must not
+# require 3.13 even though the monorepo itself does.
+requires-python = ">=3.12"
+dependencies = [
+  "fabdata-llm",
+  "google-cloud-storage>=2",
+  "google-crc32c>=1.5",
+  "python-dotenv>=1.0.0",
+  "pyyaml>=6.0",
+  "typer>=0.12.0",
+]
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+target-version = "py312"

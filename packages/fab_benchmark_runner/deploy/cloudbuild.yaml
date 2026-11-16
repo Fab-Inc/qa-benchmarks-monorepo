@@ -1,0 +1,26 @@
+# Builds deploy/Dockerfile, checks that the image's command starts, then pushes it.
+# From fab-benchmark-runner's deploy/ folder; copy it to deploy/cloudbuild.yaml.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - deploy/Dockerfile
+      - --build-arg
+      - CODE_GIT_HASH=${_CODE_GIT_HASH}
+      - --build-arg
+      - CODE_GIT_DIRTY=${_CODE_GIT_DIRTY}
+      - --tag
+      - ${_IMAGE_URI}
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - ${_IMAGE_URI}
+      - run-cloud
+      - --help
+
+images:
+  - ${_IMAGE_URI}

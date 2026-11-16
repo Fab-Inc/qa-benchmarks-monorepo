@@ -19,6 +19,7 @@ members = [
     "decodability",
     "decodable-text-generation",
     "fab-benchmark-publisher",
+    "fab-benchmark-runner",
     "fab-benchmarks-monorepo",
     "linguistic-knowledge-benchmark",
     "phonics-benchmark",
@@ -864,6 +865,29 @@ requires-dist = [
     { name = "google-cloud-storage", specifier = ">=2" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pandas", specifier = ">=2.0.0" },
+]
+
+[[package]]
+name = "fab-benchmark-runner"
+version = "0.1.0"
+source = { editable = "packages/fab_benchmark_runner" }
+dependencies = [
+    { name = "fabdata-llm" },
+    { name = "google-cloud-storage" },
+    { name = "google-crc32c" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fabdata-llm", git = "https://github.com/AI-for-Education/fabdata-llm.git?rev=main" },
+    { name = "google-cloud-storage", specifier = ">=2" },
+    { name = "google-crc32c", specifier = ">=1.5" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "typer", specifier = ">=0.12.0" },
 ]
 
 [[package]]
