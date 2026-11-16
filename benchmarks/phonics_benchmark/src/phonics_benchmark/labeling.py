@@ -9,14 +9,50 @@ contained change (config + decodability registry) rather than a code edit here.
 from __future__ import annotations
 
 import copy
-from functools import partial
+from collections.abc import Mapping
+from functools import cache, partial
+from importlib.resources import files
+from typing import Any
 
 import pandas as pd
 from decodability import DECODABILITY_REGISTRY, Aggregation, Measure, annotate_words
+from decodability.english.definitions import GPC, gpc_inventory_from_json
 from decodability.kiswahili.definitions import ClusterPattern, primerpro_settings
 from primerpro import Word
+from pydantic import BaseModel
 
 from phonics_benchmark.utils import require_columns
+
+# This benchmark's own copy of the GPC inventory, per language, as a packaged
+# file; a language without an entry uses its model's inventory. Frozen: the
+# stored profiles are rendered into prompts and labelled exactly as stored, so
+# later inventory changes must neither reject them nor stop their GPCs matching
+# the parser and affix rules. The English copy is decodability's inventory of
+# 2026-11-13 with uni- read as /juni/, as every stored profile spells it (the
+# inventory respelled it /junɪ/ on 2026-10-27).
+KNOWLEDGE_INVENTORY = {"en": "ufli_gpc_inventory.json"}
+
+
+@cache
+def knowledge_inventory(language: str) -> tuple[GPC, ...]:
+    """Load this benchmark's frozen GPC inventory for a language."""
+    path = files("phonics_benchmark").joinpath(KNOWLEDGE_INVENTORY[language])
+    return gpc_inventory_from_json(path.read_text(encoding="utf-8"))
+
+
+def parse_student_knowledge(
+    student_knowledge: Mapping[str, Any], language: str
+) -> BaseModel:
+    """Validate a stored profile with its language's model and frozen inventory.
+
+    Scoring the returned profile parses words with the same inventory.
+    """
+    model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
+    context = None
+    if language in KNOWLEDGE_INVENTORY:
+        context = {"gpc_inventory": knowledge_inventory(language)}
+    return model.model_validate(student_knowledge, context=context)
+
 
 # Config for the decodability package, keyed by language ISO code. Shared by every
 # script that labels benchmark items, so building and relabelling score words the
@@ -122,12 +158,11 @@ def label_nondecodable_words(
             f"score_column '{score_column}' is not one of the config's aggregation "
             f"outputs: {sorted(aggregations)}"
         )
-    objs = DECODABILITY_REGISTRY[language]
 
     def get_nondecodable_words(benchmark_item: pd.Series) -> list[str]:
         words = benchmark_item.vocab_set
-        student_knowledge = objs["student_knowledge_model"].model_validate(
-            benchmark_item.student_knowledge
+        student_knowledge = parse_student_knowledge(
+            benchmark_item.student_knowledge, language
         )
         label_df = annotate_words(
             words,
@@ -209,8 +244,7 @@ def get_missing_knowledge_str(language: str, student_knowledge: dict) -> str:
     if grapheme_inventory is None:
         raise ValueError("Grapheme inventory is not defined in primerpro_settings.")
 
-    knowledge_model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
-    profile = knowledge_model.model_validate(student_knowledge)
+    profile = parse_student_knowledge(student_knowledge, language)
 
     unknown_graphemes = [
         grapheme.symbol

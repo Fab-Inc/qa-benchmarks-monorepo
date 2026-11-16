@@ -69,6 +69,19 @@ def test_leaderboard_prompts_keep_the_frozen_quoted_notation(
     assert expected_block in prompt
 
 
+def test_leaderboard_prompts_render_profiles_under_the_frozen_inventory() -> None:
+    """Stored l128 profiles spell uni- as /juni/, which the latest inventory rejects."""
+    item = {
+        "benchmark_item_id": "item-en-l128",
+        "content": "A unit.",
+        "student_knowledge": {"gpcs": [["a", "æ"], ["uni", "juni"], ["t", "t"]]},
+    }
+
+    prompt = build_decodability_prompt("decodability_evaluation_schwa_rule", item, "en")
+
+    assert '- Known GPCs: "a" → "æ"; "uni" → "juni"; "t" → "t"' in prompt
+
+
 def test_phonics_prompts_do_not_depend_on_str(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prompts render KNOWLEDGE_FORMAT explicitly, so str() changes can't reach them."""
 

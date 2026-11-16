@@ -12,6 +12,7 @@ from decodability import DECODABILITY_REGISTRY
 from pydantic import BaseModel, ValidationError
 
 from phonics_benchmark import utils
+from phonics_benchmark.labeling import parse_student_knowledge
 from phonics_benchmark.models import (
     DecodableText,
     LabelledBenchmarkItem,
@@ -223,9 +224,10 @@ def validate_student_knowledge(
                 raise ValueError(message)
             warnings.warn(f"{message}; skipping validation.", stacklevel=2)
             continue
-        student_knowledge_model = language_integration["student_knowledge_model"]
         try:
-            student_knowledge_model.model_validate(profile.student_knowledge)
+            parse_student_knowledge(
+                profile.student_knowledge, profile.language_iso_code
+            )
         except ValidationError as exc:
             raise ValueError(
                 f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"
