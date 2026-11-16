@@ -114,9 +114,10 @@ def build(results=None):
     unique word. analyse_word_kiswahili also needs the student profile, which
     is fixed within a benchmark item, so it runs once per (word, profile) pair
     rather than once per row across all models.
+
     """
     from decodability.kiswahili import KiswahiliStudentKnowledge, analyse_word_kiswahili
-    from decodability.kiswahili.segment import decompose_word
+    from decodability.kiswahili.segment import decompose_word, find_cluster_spans
 
     df = load_results() if results is None else results
 
@@ -137,7 +138,10 @@ def build(results=None):
     )
 
     words = pd.DataFrame({"word": item_words.word.unique()})
-    parts = [decompose_word(w) for w in words.word]
+    # decompose_word returns the word's graphemes as a list of spans; clusters
+    # are derived from those graphemes in a second step.
+    graphemes = [decompose_word(w) for w in words.word]
+    clusters = [find_cluster_spans(g) for g in graphemes]
     pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
     profiles = {
         s: KiswahiliStudentKnowledge.model_validate(eval(s))
@@ -149,18 +153,16 @@ def build(results=None):
     ]
     item_words = item_words.merge(pairs, on=["word", "student_knowledge"])
 
-    words["n_graphemes"] = [len(p.graphemes) for p in parts]
+    words["n_graphemes"] = [len(gs) for gs in graphemes]
     words["grapheme_bin"] = pd.cut(
         words.n_graphemes, GRAPHEME_BINS, include_lowest=True
     )
-    words["has_multigraph"] = [any(len(g.text) > 1 for g in p.graphemes) for p in parts]
+    words["has_multigraph"] = [any(len(g.text) > 1 for g in gs) for gs in graphemes]
     words["has_nonnasal_cluster"] = [
-        any(not is_nasal(c.text) for c in p.clusters) for p in parts
+        any(not is_nasal(c.text) for c in cs) for cs in clusters
     ]
-    words["has_nasal_cluster"] = [
-        any(is_nasal(c.text) for c in p.clusters) for p in parts
-    ]
-    words["has_cluster"] = [len(p.clusters) > 0 for p in parts]
+    words["has_nasal_cluster"] = [any(is_nasal(c.text) for c in cs) for cs in clusters]
+    words["has_cluster"] = [len(cs) > 0 for cs in clusters]
     item_words = item_words.merge(words, on="word")
 
     item_words["predicted"] = [
