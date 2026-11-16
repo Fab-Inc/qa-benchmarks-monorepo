@@ -1,4 +1,4 @@
-"""Inspection plots for the benchmark item distribution and model results."""
+"""Plots related to model results, independent of hardware tiers."""
 
 from __future__ import annotations
 

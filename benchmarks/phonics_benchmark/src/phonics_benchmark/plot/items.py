@@ -1,3 +1,5 @@
+"""Plots related to benchmark items."""
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
