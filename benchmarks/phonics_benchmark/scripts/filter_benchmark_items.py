@@ -35,7 +35,7 @@ from phonics_benchmark.data_io import (
     write_json,
 )
 from phonics_benchmark.models import LabelledBenchmarkItem
-from phonics_benchmark.plots import save_nondecodable_ratio_histogram
+from phonics_benchmark.plots.items_analysis import save_nondecodable_ratio_histogram
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
