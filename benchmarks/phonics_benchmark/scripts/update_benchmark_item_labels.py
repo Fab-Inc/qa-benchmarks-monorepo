@@ -49,48 +49,6 @@ from phonics_benchmark.utils import load_jsonl, require_single_language_iso_code
 # _NASAL_CLUSTER_FOLLOWERS in decodability.kiswahili.segment
 KISWAHILI_NASALS = frozenset({"m", "n"})
 
-# GPC pairs stored in older items' student knowledge that the inventory has
-# since renamed, mapped to their current form. Used only to compute labels;
-# the saved items keep the stored pairs.
-STALE_GPC_UPDATES: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
-    "en": {
-        # d9bf660 changed G159's final vowel from /i/ to /ɪ/
-        ("uni", "juni"): ("uni", "junɪ"),
-    },
-}
-
-
-def update_stale_gpcs(
-    knowledge_profiles: list[dict], language: str
-) -> tuple[list[dict], Counter[tuple[str, str]]]:
-    """Return copies of the student knowledge profiles with stale GPCs renamed.
-
-    The input profiles are left unchanged. Also returns how many times each
-    stale pair was replaced.
-    """
-    migrations = STALE_GPC_UPDATES.get(language, {})
-    migrated: Counter[tuple[str, str]] = Counter()
-    migrated_profiles = []
-
-    for knowledge in knowledge_profiles:
-        gpcs = knowledge.get("gpcs")
-        if not migrations or not gpcs:
-            migrated_profiles.append(dict(knowledge))
-            continue
-
-        new_gpcs = []
-        for gpc in gpcs:
-            pair = (gpc[0], gpc[1])
-            if pair in migrations:
-                migrated[pair] += 1
-                pair = migrations[pair]
-            new_gpcs.append(list(pair))
-
-        # Shallow copy with a new GPC list; other fields are only read
-        migrated_profiles.append({**knowledge, "gpcs": new_gpcs})
-
-    return migrated_profiles, migrated
-
 
 @cache  # called once per word per report line
 def has_nasal_boundary(word: str) -> bool:
@@ -175,26 +133,11 @@ def main(
     config = get_decodability_config(language)
     logging.info(f"Loaded {len(items)} items from {load_items_path} ({language})")
 
-    # Label with student knowledge brought up to the current inventory, so it
-    # passes validation, but save each item's original knowledge unchanged: it
-    # is what the models saw in their prompts so should remain untouched.
-    # If the stale GPCs affect the labels, we should probably re-generate model
-    # outputs on updated knowledge.
-    labelling_knowledge, gpc_updated = update_stale_gpcs(
-        [item["student_knowledge"] for item in items], language
-    )
-    for (old_g, old_p), n in gpc_updated.items():
-        new_g, new_p = STALE_GPC_UPDATES[language][(old_g, old_p)]
-        logging.info(
-            f"Labelling with stale GPC ({old_g}, {old_p}) read as ({new_g}, {new_p}) "
-            f"in {n} items"
-        )
-
     # Copy required data
     items_df = pd.DataFrame(
         {
             "content": [item["content"] for item in items],
-            "student_knowledge": labelling_knowledge,
+            "student_knowledge": [item["student_knowledge"] for item in items],
             "num_nondecodable_words": [
                 item["num_nondecodable_words"] for item in items
             ],
