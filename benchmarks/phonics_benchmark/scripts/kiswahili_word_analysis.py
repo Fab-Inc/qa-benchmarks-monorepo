@@ -8,6 +8,9 @@ Two tables are used for plotting:
     summary      one row per (model) aggregated across all features
     marginals    one row per (model, feature, level)
     combinations one row per (model, cell) where cell is the combination of features
+
+A separate nasal table asks where models trip on nasal + consonant sequences:
+    nasal        one row per (model, nasal case), with the case's error rate
 """
 
 import textwrap
@@ -61,6 +64,65 @@ LEVEL_ORDER = {
 def is_nasal(cluster):
     """Nasal-initial cluster, excluding ng/ng'/ny, which are single sounds."""
     return cluster[:1] in "mn" and not cluster.startswith(("ng", "ng'", "ny"))
+
+
+# Rows of the nasal chart, grouped by the error that matters for them. Every
+# case holds words of one label only (see nasal_case), so a decodable case's
+# error rate is its false alarm rate and a nondecodable case's is its miss rate.
+# The non-nasal rows are baselines for the nasal rows beneath them.
+NASAL_ROWS = {
+    "Decodable words: share falsely flagged": [
+        ("no cluster", "No cluster"),
+        ("non-nasal cluster, taught", "Non-nasal cluster, taught"),
+        ("fused nasal, taught", "Fused nasal, taught"),
+        ("ambiguous nasal, taught", "Ambiguous nasal, taught"),
+        ("syllabic nasal", "Syllabic nasal"),
+    ],
+    "Nondecodable words: share missed": [
+        ("non-nasal cluster, untaught", "Non-nasal cluster, untaught"),
+        ("fused nasal, untaught", "Fused nasal, untaught"),
+        ("ambiguous nasal, untaught", "Ambiguous nasal, untaught"),
+    ],
+}
+
+
+def nasal_case(nasal_runs, n_runs, analysis, taught_clusters):
+    """The NASAL_ROWS case a (word, student) pair belongs to, or None.
+
+    nasal_runs lists (reading, run) for each consonant run headed by m or n,
+    where reading is the package's verdict: "fused", "syllabic" or
+    "ambiguous". n_runs counts all runs of two or more consonants.
+
+    A pair qualifies only if clusters alone decide its label: every grapheme
+    is taught and the word is not a known whole word. A nasal case also
+    requires the nasal runs to be the word's only clusters and to share one
+    reading, so an error there can be pinned on the nasal and nothing else.
+    Labels follow the strict rule (ambiguous boundaries count as fused), which
+    is what the relabelled benchmark uses.
+    """
+    if (
+        analysis.known_whole_word
+        or analysis.invalid_graphemes
+        or analysis.unknown_graphemes
+    ):
+        return None
+    taught = "untaught" if analysis.unknown_clusters else "taught"
+    if not nasal_runs:
+        return "no cluster" if n_runs == 0 else f"non-nasal cluster, {taught}"
+    readings = {reading for reading, _ in nasal_runs}
+    if len(readings) > 1 or len(nasal_runs) < n_runs:
+        return None
+    (reading,) = readings
+    if reading == "syllabic":
+        # The trap is reading the syllabic nasal as part of a cluster, so it
+        # only exists when that naive cluster (e.g. mt in mtoto) is untaught.
+        # Whatever follows the nasal (e.g. bw in mbwa) must be taught, so the
+        # word is decodable and the only possible error is a false alarm.
+        naive_taught = any(run in taught_clusters for _, run in nasal_runs)
+        if analysis.unknown_clusters or naive_taught:
+            return None
+        return "syllabic nasal"
+    return f"{reading} nasal, {taught}"
 
 
 # --------------------------------------------------------------------------
@@ -117,7 +179,16 @@ def build(results=None):
 
     """
     from decodability.kiswahili import KiswahiliStudentKnowledge, analyse_word_kiswahili
-    from decodability.kiswahili.segment import decompose_word, find_cluster_spans
+
+    # _consonant_runs and _nasal_verdict are private helpers, imported so the
+    # nasal readings come from exactly the rules the labels use. A rename
+    # upstream breaks this import loudly rather than letting the two drift apart.
+    from decodability.kiswahili.segment import (
+        _consonant_runs,
+        _nasal_verdict,
+        decompose_word,
+        find_cluster_spans,
+    )
 
     df = load_results() if results is None else results
 
@@ -142,14 +213,32 @@ def build(results=None):
     # are derived from those graphemes in a second step.
     graphemes = [decompose_word(w) for w in words.word]
     clusters = [find_cluster_spans(g) for g in graphemes]
+    # Every run of consecutive consonants, and the nasal reading of each run
+    # headed by m or n. Both depend only on spelling, so they are keyed by word.
+    runs = [list(_consonant_runs(g)) for g in graphemes]
+    n_runs = {w: sum(len(r) >= 2 for r in rs) for w, rs in zip(words.word, runs)}
+    nasal_runs = {
+        w: [
+            (verdict.value, "".join(g[i].normalised for i in r))
+            for r in rs
+            if (verdict := _nasal_verdict(g, r)) is not None
+        ]
+        for w, g, rs in zip(words.word, graphemes, runs)
+    }
+
     pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
     profiles = {
         s: KiswahiliStudentKnowledge.model_validate(eval(s))
         for s in pairs.student_knowledge.unique()
     }
-    pairs["is_known_word"] = [
-        analyse_word_kiswahili(w, profiles[s]).known_whole_word
+    analyses = [
+        analyse_word_kiswahili(w, profiles[s])
         for w, s in zip(pairs.word, pairs.student_knowledge)
+    ]
+    pairs["is_known_word"] = [a.known_whole_word for a in analyses]
+    pairs["nasal_case"] = [
+        nasal_case(nasal_runs[w], n_runs[w], a, profiles[s].all_known_clusters)
+        for w, s, a in zip(pairs.word, pairs.student_knowledge, analyses)
     ]
     item_words = item_words.merge(pairs, on=["word", "student_knowledge"])
 
@@ -283,6 +372,50 @@ def tier_combination_table(combinations, summary):
         group=("group", "first"), pos=("pos", "max"), neg=("neg", "max")
     )
     return out.merge(sizes, on="cell")
+
+
+def nasal_table(words):
+    """One row per (model, nasal case): how often the model gets those words wrong.
+
+    error_rate counts every disagreement with the label. Each case holds one
+    label by construction, so this is the false alarm rate for a decodable
+    case and the miss rate for a nondecodable one. pos and neg are kept so a
+    case that breaks that rule would show up in the CSV.
+    """
+    frame = words.dropna(subset=["nasal_case"]).assign(
+        wrong=lambda d: d.predicted != d.is_nondecodable,
+        pos=lambda d: d.is_nondecodable,
+        neg=lambda d: ~d.is_nondecodable,
+    )
+    out = (
+        frame.groupby(["hardware_tier", "model", "nasal_case"], observed=True)[
+            ["wrong", "pos", "neg"]
+        ]
+        .sum()
+        .reset_index()
+    )
+    out["n"] = out.pos + out.neg
+    out["error_rate"] = out.wrong / out.n
+    return out
+
+
+def tier_nasal_table(nasal, summary):
+    """One row per (tier, nasal case): mean error rate over each tier's top models.
+
+    The models and the equal weighting per model match tier_combination_table.
+    n is the case's item-word count for the best-covered model, which does not
+    depend on the tier.
+    """
+    selected = pd.concat(
+        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
+    )
+    out = (
+        nasal[nasal.model.isin(selected)]
+        .groupby(["hardware_tier", "nasal_case"], observed=True)
+        .agg(error_rate=("error_rate", "mean"), n_models=("model", "nunique"))
+        .reset_index()
+    )
+    return out.merge(nasal.groupby("nasal_case").n.max(), on="nasal_case")
 
 
 def cell_group(row):
@@ -876,6 +1009,146 @@ def plot_known_word_alarms(words, ax, models):
     style(ax)
 
 
+def plot_nasal_errors(tier_nasal):
+    """Where top models trip on nasals: one row per nasal case, one dot per tier.
+
+    The top panel holds decodable words, where the error is a false alarm; the
+    bottom holds nondecodable words, where it is a miss. Mixing the two on one
+    axis would compare different errors, so they get separate panels. Within
+    each panel the non-nasal rows come first, in grey, as baselines.
+    """
+    stats = tier_nasal.set_index(["nasal_case", "hardware_tier"]).error_rate * 100
+    sizes = tier_nasal.drop_duplicates("nasal_case").set_index("nasal_case").n
+    groups = list(NASAL_ROWS.items())
+    fig, axes = plt.subplots(
+        len(groups),
+        1,
+        sharex=True,
+        figsize=(10, 6.8),
+        height_ratios=[len(rows) for _, rows in groups],
+        layout="constrained",
+    )
+    fig.set_facecolor(SURFACE)
+
+    for ax, (title, rows) in zip(axes, groups):
+        # y grows upward, so reverse to keep NASAL_ROWS order top to bottom.
+        rows = rows[::-1]
+        for y, (case, _) in enumerate(rows):
+            points = {
+                tier: stats[(case, tier)]
+                for tier in TIER_ORDER
+                if (case, tier) in stats.index
+            }
+            if not points:
+                continue
+            faded = sizes.get(case, 0) < MIN_WORDS
+            low, high = min(points.values()), max(points.values())
+            ax.plot([low, high], [y, y], color=BASELINE, lw=2, zorder=1)
+            for tier, rate in points.items():
+                ax.scatter(
+                    rate,
+                    y,
+                    s=110,
+                    color=TIER_COLORS[tier],
+                    edgecolors=SURFACE,
+                    linewidths=1.5,
+                    zorder=3,
+                    alpha=0.4 if faded else 1,
+                )
+                # The lower value is labelled on its left, the higher on its
+                # right, so the two labels never sit on top of each other.
+                left = rate == low and len(points) > 1
+                ax.annotate(
+                    f"{rate:.0f}%",
+                    (rate, y),
+                    xytext=(-9 if left else 9, 0),
+                    textcoords="offset points",
+                    ha="right" if left else "left",
+                    va="center",
+                    fontsize=9,
+                    color=INK_MUTED if faded else INK_PRIMARY,
+                )
+            ax.annotate(
+                f"{sizes.get(case, 0):,}",
+                (1.01, y),
+                xycoords=("axes fraction", "data"),
+                va="center",
+                fontsize=9,
+                color=INK_MUTED,
+            )
+        ax.set_yticks(range(len(rows)), [label for _, label in rows], fontsize=10)
+        style(ax)
+        # style() resets tick label colours, so baselines are greyed after it.
+        for tick, (case, _) in zip(ax.get_yticklabels(), rows):
+            baseline = case.startswith(("no cluster", "non-nasal"))
+            tick.set_color(INK_MUTED if baseline else INK_PRIMARY)
+        ax.set_ylim(-0.6, len(rows) - 0.4)
+        ax.grid(axis="x", color=GRIDLINE, lw=0.8)
+        ax.set_axisbelow(True)
+        ax.tick_params(axis="y", length=0)
+        ax.set_title(
+            title, loc="left", fontsize=11, fontweight="semibold", color=INK_PRIMARY
+        )
+    axes[0].annotate(
+        "item-words",
+        (1.01, 1.02),
+        xycoords="axes fraction",
+        fontsize=8.5,
+        color=INK_MUTED,
+    )
+    # Padding past 0 and 100 leaves room for the value labels, so a 0% label
+    # does not run into the row names nor a high one into the counts column.
+    axes[-1].set_xlim(-9, 106)
+    axes[-1].set_xticks([0, 20, 40, 60, 80, 100])
+    axes[-1].set_xlabel(
+        f"Error rate, mean over each tier's top {TOP_N} models", color=INK_SECONDARY
+    )
+    fig.legend(
+        handles=[
+            plt.Line2D(
+                [],
+                [],
+                marker="o",
+                linestyle="none",
+                markersize=9,
+                markerfacecolor=TIER_COLORS[tier],
+                markeredgecolor=SURFACE,
+                label=TIER_LABELS[tier][0],
+            )
+            for tier in TIER_ORDER
+        ],
+        loc="outside upper right",
+        ncol=2,
+        frameon=False,
+        fontsize=10,
+        labelcolor=INK_SECONDARY,
+    )
+    fig.suptitle(
+        "Where do models trip on Kiswahili nasals?",
+        x=0.02,
+        ha="left",
+        fontsize=14,
+        fontweight="bold",
+        color=INK_PRIMARY,
+    )
+    fig.text(
+        0.01,
+        -0.01,
+        "Only words whose label turns on the nasal: every grapheme taught, not a "
+        "known whole word, and the nasal run is the word's only cluster.\n"
+        "Fused: a taught onset (nd, nj, nz, nw; medial mw, my). Syllabic: m before "
+        "another consonant (mtoto), or an initial nasal on a one-vowel root (mbwa).\n"
+        "Ambiguous: m before b/v, or initial mw/my; labelled strictly, as a "
+        "cluster the student must know. "
+        f"Faded: fewer than {MIN_WORDS} item-words.",
+        va="top",
+        fontsize=8,
+        color=INK_SECONDARY,
+        linespacing=1.5,
+    )
+    return fig
+
+
 if __name__ == "__main__":
     results = load_results()
     words = build(results)
@@ -928,6 +1201,18 @@ if __name__ == "__main__":
     plot_tier_combinations(tier_combos, ordered_cells(combinations), fig)
     fig.savefig(
         REPORT / "word_type_heatmap_by_tier.png",
+        dpi=300,
+        bbox_inches="tight",
+        facecolor=SURFACE,
+    )
+
+    # Nasal breakdown. Also needs `summary` before it is reused below.
+    nasal = nasal_table(words)
+    tier_nasal = tier_nasal_table(nasal, summary)
+    nasal.to_csv(REPORT / "nasal_error_rates.csv", index=False)
+    tier_nasal.to_csv(REPORT / "nasal_error_rates_by_tier.csv", index=False)
+    plot_nasal_errors(tier_nasal).savefig(
+        REPORT / "nasal_error_rates.png",
         dpi=300,
         bbox_inches="tight",
         facecolor=SURFACE,
