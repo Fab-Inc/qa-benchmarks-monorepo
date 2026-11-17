@@ -198,7 +198,7 @@ def build_generation_items(
     )
     typer.echo(
         "Next: point a run config's items_path at this file and run "
-        "'decodable-text-generation run-generation'."
+        "'decodable-text-generation run'."
     )
 
 
