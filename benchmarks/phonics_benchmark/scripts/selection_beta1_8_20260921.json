@@ -1,0 +1,30 @@
+{
+  "name": "beta1-8-provisional",
+  "languages": {
+    "en": {
+      "mixture": {
+        "size": 1000,
+        "beta": 8,
+        "zero_share": 0.1,
+        "uniform_share": 0.2,
+        "seed": 42,
+        "shortfall": "keep_available"
+      }
+    },
+    "sw": {
+      "mixture": {
+        "size": 1000,
+        "beta": 8,
+        "zero_share": 0.1,
+        "uniform_share": 0.2,
+        "seed": 42,
+        "shortfall": "error"
+      }
+    }
+  },
+  "notes": [
+    "English extension gold is provisional; regenerate this selection after correcting full-pool labels.",
+    "The English upper-tail shortage is retained explicitly, never filled from another bin.",
+    "Selection is seeded over the complete pool, so IDs need not match the earlier current-items-first plan."
+  ]
+}

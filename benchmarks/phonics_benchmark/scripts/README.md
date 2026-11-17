@@ -61,23 +61,37 @@ curated after running the benchmark, e.g. using Item Response Theory.
 See [`../README.md`](../README.md) to learn how to set up the run configuration and run
 the benchmark.
 
-## Generate benchmark report
+## Generate benchmark reports
 
-Generate a report on benchmark run by running
+Use `report_on_benchmark_run.py` to score runs and generate F1/F2, balanced-accuracy and
+adjusted-BA tables and figures. Use `plot_benchmark_report.py` to redraw saved reports
+without rescoring.
 
-```shell
+```sh
 uv run --frozen --package phonics-benchmark python \
-   benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
-   --run-id $YOUR_RUN_ID \
-   --inspect-sample-size 10
+  benchmarks/phonics_benchmark/scripts/report_on_benchmark_run.py \
+  --run-id YOUR_RUN_ID --inspect-sample-size 10
 ```
 
-Providing a number for the `--inspect-sample-size` flag will generate a sample of
-benchmark items and each model's responses for you to inspect manually, with only
-relevant columns.
+See [current reporting](../docs/current-metric-reports.md) for output files, coverage
+filters, bootstrap settings, multiple runs and optional hardware comparisons. Failed API
+calls and unparseable responses are excluded from scores and counted in the coverage
+report. The inspection sample includes every model's response for each sampled item.
 
-The following responses are excluded from scoring:
+## Historical consolidation and review
 
-- API error (`call_status` is not `success`): These can be re-attempted with
-  `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
-- Parsing error (`parse_ok` is `False`)
+The September consolidation combined existing responses and checked them against
+rescoring the resulting unified runs. These scripts are retained for provenance and
+reproduction; they are not steps required to report on a new run.
+
+| Task                                                          | Scripts                                                                                                                                                   | Details                                                                 |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Download source snapshots, merge responses and select items   | `download_benchmark_snapshot.py`, `merge_local_benchmark_runs.py`, `select_local_benchmark_subset.py`                                                     | [Historical merge workflow](../docs/local-merged-analysis.md)           |
+| Refresh labels and compare fixed-ID snapshots                 | `apply_refreshed_gold.py`, `finalize_phonics_refresh.py`                                                                                                  | [Historical refresh](../docs/historical-report-refresh.md)              |
+| Package, verify, publish and retrieve unified runs            | `build_unified_leaderboard_runs.py`, `analyze_unified_leaderboard_runs.py`, `publish_unified_leaderboard_runs.py`, `download_unified_leaderboard_runs.py` | [Unified runs](../docs/unified-leaderboard-runs.md)                     |
+| Audit actual retained/dropped responses and source provenance | `audit_unified_preservation.py`                                                                                                                           | [Committed preservation tables](../docs/merge-audit-20260922/README.md) |
+| Review metric equations, examples and plotting behavior       | `build_metric_examples.py`                                                                                                                                | [Validation and manual HTML generation](../docs/validation.md)          |
+
+[Reporting refactor review notes](../docs/reporting-refactor-review.md) explain the
+module boundaries and record the local comparison with existing reports. Detailed
+procedures live in `docs/`; this README remains the entry point beside the scripts.

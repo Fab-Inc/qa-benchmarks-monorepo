@@ -495,3 +495,96 @@ def plot_dumbbell(
         linespacing=1.55,
     )
     return fig
+
+
+def report_hardware(report_dirs, metadata, destination, *, top_n=10, make_plots=True):
+    """Export optional hardware comparisons using only saved report tables."""
+    from phonics_benchmark.plots import METRIC_SPECS
+
+    specs = load_metadata(Path(metadata))
+    reports = [
+        (
+            read_csv(path / "model_summary_all_scored.csv"),
+            json.loads((path / "report_config.json").read_text()),
+            read_csv(path / "coverage_by_model.csv"),
+        )
+        for path in report_dirs
+    ]
+    languages = [config["language"] for _, config, _ in reports]
+    if len(set(languages)) != len(languages):
+        raise ValueError("Hardware comparisons require one report per language")
+    if not set(languages) <= set(SERIES):
+        raise ValueError("Hardware plots currently support English and Kiswahili")
+    policies = {
+        (config["min_items"], config["min_coverage"]) for _, config, _ in reports
+    }
+    if len(policies) != 1:
+        raise ValueError("Hardware comparisons require the same coverage policy")
+    min_items, min_coverage = policies.pop()
+    denominators = {
+        config["language"]: config["expected_items"] for _, config, _ in reports
+    }
+    # The presentation supports either language alone as well as both together.
+    for metric, spec in METRIC_SPECS.items():
+        audits = []
+        output = Path(destination) / metric
+        output.mkdir(parents=True, exist_ok=True)
+        for summary, config, coverage in reports:
+            extra = [
+                column
+                for column in summary
+                if column not in coverage or column == "model"
+            ]
+            table = coverage.merge(
+                summary[extra], on="model", how="left", validate="one_to_one"
+            )
+            audit = audit_models(
+                table,
+                specs,
+                config["expected_items"],
+                config["language"],
+                metric,
+                min_items=min_items,
+                min_coverage=min_coverage,
+            )
+            audit.to_csv(
+                output / f"hardware_tiers_{config['language']}_audit.csv", index=False
+            )
+            audit[audit.included].to_csv(
+                output / f"hardware_tiers_{config['language']}.csv", index=False
+            )
+            audits.append(audit)
+        audit = pd.concat(audits, ignore_index=True)
+        medians, means, selected = summarize_tiers(audit, top_n, metric)
+        selected.to_csv(output / f"hardware_tiers_top{top_n}_models.csv", index=False)
+        for stats, value, stem in (
+            (medians, f"median_{metric}", "hardware_tiers_medians"),
+            (means, f"top_n_mean_{metric}", f"hardware_tiers_top{top_n}_mean"),
+        ):
+            stats.to_csv(output / f"{stem}.csv", index=False)
+            if stats.empty or not make_plots:
+                continue
+            plot_stats = stats.copy()
+            plot_stats[value] /= spec.scale
+            for slide in (False, True):
+                fig = plot_dumbbell(
+                    plot_stats,
+                    value,
+                    spec.label + " by hardware tier",
+                    "Group point estimates; no group confidence intervals.",
+                    denominators,
+                    metric_label=spec.label,
+                    slide=slide,
+                    min_items=min_items,
+                    min_coverage=min_coverage,
+                    point_units=spec.scale == 100,
+                )
+                try:
+                    for extension in ("png", "pdf"):
+                        fig.savefig(
+                            output / f"{stem}{'_slide' if slide else ''}.{extension}",
+                            dpi=150,
+                            bbox_inches="tight",
+                        )
+                finally:
+                    plt.close(fig)
