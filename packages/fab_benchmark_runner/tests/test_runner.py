@@ -304,11 +304,19 @@ def test_retry_errors_rejects_invalid_cached_statuses(config: RunConfig) -> None
         execute_run(replace(config, retry_errors=True), evaluator=_echo)
 
 
-def test_models_in_one_provider_group_never_overlap(
-    benchmark: Benchmark, write_run: Callable[..., Path]
+@pytest.mark.parametrize("model_workers", [1, 2, 3])
+def test_model_workers_caps_models_running_at_once(
+    benchmark: Benchmark, write_run: Callable[..., Path], model_workers: int
 ) -> None:
+    """Models of one provider group run in parallel too; only the cap applies."""
+
+    models = ["model-a", "model-b", "model-c"]
     config = load_run_config(
-        write_run(groups={"shared": ["model-a", "model-b"]}, model_workers=2),
+        write_run(
+            models=models,
+            groups={"shared": models},
+            model_workers=model_workers,
+        ),
         benchmark,
     )
     lock = Lock()
@@ -319,19 +327,22 @@ def test_models_in_one_provider_group_never_overlap(
         with lock:
             active += 1
             maximum = max(maximum, active)
-        sleep(0.01)
+        sleep(0.02)
         with lock:
             active -= 1
         return {"output": "x"}
 
-    assert execute_run(config, evaluator=evaluator)["executed_count"] == 4
-    assert maximum == 1
+    assert execute_run(config, evaluator=evaluator)["executed_count"] == 6
+    assert maximum == model_workers
 
 
-def test_provider_groups_run_in_parallel_with_items_in_order(
+def test_models_of_one_provider_run_in_parallel_with_items_in_order(
     benchmark: Benchmark, write_run: Callable[..., Path]
 ) -> None:
-    config = load_run_config(write_run(model_workers=2), benchmark)
+    config = load_run_config(
+        write_run(groups={"shared": ["model-a", "model-b"]}, model_workers=2),
+        benchmark,
+    )
     first_calls = Barrier(2, timeout=2)
     calls: dict[str, list[str]] = {"model-a": [], "model-b": []}
 
@@ -344,6 +355,31 @@ def test_provider_groups_run_in_parallel_with_items_in_order(
     execute_run(config, evaluator=evaluator)
 
     assert calls == {"model-a": ["item-1", "item-2"], "model-b": ["item-1", "item-2"]}
+
+
+def test_a_failing_model_stops_further_models_from_starting(
+    benchmark: Benchmark, write_run: Callable[..., Path]
+) -> None:
+    models = ["model-a", "model-b", "model-c", "model-d"]
+    config = load_run_config(write_run(models=models, model_workers=2), benchmark)
+    started: list[str] = []
+    lock = Lock()
+
+    def evaluator(_config, model, _item, _prompt) -> dict:
+        with lock:
+            if model not in started:
+                started.append(model)
+        if model == "model-a":
+            raise RuntimeError("bug in model-a's prompt handling")
+        sleep(0.02)
+        return {"output": "x"}
+
+    with pytest.raises(RuntimeError, match="model-a"):
+        execute_run(config, evaluator=evaluator)
+
+    assert started == ["model-a", "model-b"]
+    finished = config.run_dir / "responses" / "responses_model-b.jsonl"
+    assert len(finished.read_text(encoding="utf-8").splitlines()) == 2
 
 
 def test_checkpoints_fire_after_each_chunk_in_run_order(

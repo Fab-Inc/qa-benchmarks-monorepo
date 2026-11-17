@@ -78,7 +78,7 @@ def build_app(benchmark: Benchmark) -> typer.Typer:
             None,
             "--model-workers",
             min=1,
-            help="Maximum number of provider groups to run concurrently.",
+            help="Maximum number of models to run concurrently.",
         ),
         results_dest: str | None = typer.Option(
             None,

@@ -120,7 +120,7 @@ The shared keys are listed in `CORE_CONFIG_KEYS`:
 | `custom_models_uri`, `custom_models_sha256` | Download and verify a pinned registry                               |
 | `max_tokens`                                | Response token limit (default 10,000)                               |
 | `chunk_size`                                | Calls per model between checkpoints (default 20; `null` saves once) |
-| `model_workers`                             | Provider groups run in parallel (default 4)                         |
+| `model_workers`                             | Models run in parallel (default 4)                                  |
 | `force`, `retry_errors`                     | Rerun everything, or only failed calls                              |
 | `results_dest`                              | GCS run prefix to mirror results to                                 |
 | `metadata`                                  | Free-form object kept in the run snapshot                           |
@@ -157,6 +157,10 @@ error rows; any other exception stops the run.
 - With `custom_models_path`, that file is used as it is.
 - Otherwise the public file is refreshed from `gs://fab-open-configs` into the default
   path, unless `--skip-models-download` is given.
+
+Every model in a run must appear in exactly one top-level provider group of the
+registry. FDLLM merges the groups, so a model listed twice would silently take one
+group's settings.
 
 Pin the registry for long cloud runs. Each model's registered config is part of its call
 IDs, so a change to the public file between restarts would make the run redo that
@@ -209,4 +213,5 @@ environment.
   built-in list, changes the IDs of the affected models. Projects that override the
   FDLLM version can get different IDs for the same model.
 - **Text only.** Prompts are single strings; images are not part of calls or IDs yet.
-- **Calls within a model run one at a time.** Parallelism is across provider groups.
+- **Calls within a model run one at a time.** Up to `model_workers` models run in
+  parallel, so a run with one or two models gets no faster.

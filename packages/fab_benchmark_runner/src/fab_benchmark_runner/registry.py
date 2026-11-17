@@ -216,11 +216,12 @@ def sanitize_model_config(value: Any) -> Any:
     return value
 
 
-def provider_groups_for_models(
-    custom_models_path: Path,
-    model_names: list[str],
-) -> list[list[str]]:
-    """Group the selected models by their top-level registry provider group."""
+def check_provider_groups(custom_models_path: Path, model_names: list[str]) -> None:
+    """Require each selected model to appear in exactly one top-level provider group.
+
+    FDLLM merges the groups into one model list, so a model listed under two groups
+    would silently take one group's settings.
+    """
 
     try:
         raw_registry = yaml.safe_load(custom_models_path.read_text(encoding="utf-8"))
@@ -269,11 +270,6 @@ def provider_groups_for_models(
             "Selected model(s) belong to multiple custom_models.yaml provider "
             f"groups: {details}"
         )
-
-    groups: dict[str, list[str]] = {}
-    for model_name in model_names:
-        groups.setdefault(memberships[model_name][0], []).append(model_name)
-    return list(groups.values())
 
 
 def _is_secret_model_config_key(key: str) -> bool:

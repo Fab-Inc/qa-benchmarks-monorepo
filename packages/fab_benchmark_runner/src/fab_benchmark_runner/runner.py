@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -26,8 +26,8 @@ from fab_benchmark_runner.items import ITEM_ID_KEY, validate_items
 from fab_benchmark_runner.llm import evaluate_item_with_fdllm
 from fab_benchmark_runner.provenance import git_dirty, git_hash
 from fab_benchmark_runner.registry import (
+    check_provider_groups,
     prepare_fdllm_for_run,
-    provider_groups_for_models,
     resolve_custom_models_path,
     sanitize_model_config,
     snapshot_model_configs,
@@ -178,7 +178,6 @@ class _RunContext:
     custom_models_path: Path
     items_sha256: str
     model_configs: dict[str, Any]
-    provider_groups: list[list[str]]
     states: dict[str, _ModelState]
 
 
@@ -228,7 +227,7 @@ def execute_run(
     if on_artifact_write is not None:
         on_artifact_write(config_snapshot_path)
 
-    model_outputs = _run_provider_groups(
+    model_outputs = _run_models_in_parallel(
         config=config,
         context=context,
         config_snapshot_path=config_snapshot_path,
@@ -303,7 +302,7 @@ def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunCon
     items, items_sha256 = config.benchmark.load_items(config.items_path)
     validate_items(items, source=config.items_path)
     prepared_items = [_prepare_item(config, item) for item in items]
-    provider_groups = provider_groups_for_models(custom_models_path, config.models)
+    check_provider_groups(custom_models_path, config.models)
     sanitized_model_configs = sanitize_model_config(dict(model_configs))
     states = {
         model_name: _plan_model(
@@ -321,7 +320,6 @@ def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunCon
         custom_models_path=custom_models_path,
         items_sha256=items_sha256,
         model_configs=sanitized_model_configs,
-        provider_groups=provider_groups,
         states=states,
     )
 
@@ -441,7 +439,7 @@ def _check_retry_caches(states: Mapping[str, _ModelState]) -> None:
         )
 
 
-def _run_provider_groups(
+def _run_models_in_parallel(
     *,
     config: RunConfig,
     context: _RunContext,
@@ -449,36 +447,47 @@ def _run_provider_groups(
     evaluator: Evaluator,
     on_artifact_write: ArtifactWriteHook | None,
 ) -> list[_ModelRunOutput]:
-    """Run provider groups concurrently and the models within a group in order."""
+    """Run up to ``model_workers`` models at once, each model's items in order.
 
-    def run_group(model_names: list[str]) -> list[_ModelRunOutput]:
-        return [
-            _run_model(
-                config=config,
-                config_id=context.config_id,
-                config_snapshot_path=config_snapshot_path,
-                state=context.states[model_name],
-                evaluator=evaluator,
-                on_artifact_write=on_artifact_write,
-            )
-            for model_name in model_names
-        ]
+    Models start in config order. Once a model fails with an exception, no further
+    model starts; the models already running finish before the error propagates.
+    """
 
-    groups = context.provider_groups
-    if config.model_workers == 1 or len(groups) == 1:
-        group_outputs = [run_group(group) for group in groups]
+    def run(model_name: str) -> _ModelRunOutput:
+        return _run_model(
+            config=config,
+            config_id=context.config_id,
+            config_snapshot_path=config_snapshot_path,
+            state=context.states[model_name],
+            evaluator=evaluator,
+            on_artifact_write=on_artifact_write,
+        )
+
+    waiting = list(config.models)
+    workers = min(config.model_workers, len(waiting))
+    outputs: dict[str, _ModelRunOutput] = {}
+    if workers <= 1:
+        for model_name in waiting:
+            outputs[model_name] = run(model_name)
     else:
         with ThreadPoolExecutor(
-            max_workers=min(config.model_workers, len(groups)),
-            thread_name_prefix="provider-group",
-        ) as executor:
-            futures = [executor.submit(run_group, group) for group in groups]
-            group_outputs = [future.result() for future in futures]
+            max_workers=workers, thread_name_prefix="model"
+        ) as pool:
+            running: dict[Future[_ModelRunOutput], str] = {}
 
-    outputs_by_model = {
-        output["model_name"]: output for outputs in group_outputs for output in outputs
-    }
-    return [outputs_by_model[model_name] for model_name in config.models]
+            def start_next() -> None:
+                model_name = waiting.pop(0)
+                running[pool.submit(run, model_name)] = model_name
+
+            while waiting and len(running) < workers:
+                start_next()
+            while running:
+                done, _ = wait(running, return_when=FIRST_COMPLETED)
+                for future in done:
+                    outputs[running.pop(future)] = future.result()
+                    if waiting:
+                        start_next()
+    return [outputs[model_name] for model_name in config.models]
 
 
 def _run_model(

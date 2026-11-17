@@ -13,12 +13,12 @@ import pytest
 
 from fab_benchmark_runner import Benchmark, ConfigError, load_run_config
 from fab_benchmark_runner.registry import (
+    check_provider_groups,
     download_pinned_registry,
     download_public_registry,
     load_environment,
     prepare_fdllm_for_run,
     prepare_model_registry,
-    provider_groups_for_models,
     snapshot_model_configs,
 )
 
@@ -309,7 +309,7 @@ def test_snapshot_sanitizes_fdllm_model_configs() -> None:
     }
 
 
-def test_provider_groups_follow_the_registry(tmp_path: Path) -> None:
+def test_models_each_in_one_provider_group_pass(tmp_path: Path) -> None:
     registry_path = tmp_path / "custom_models.yaml"
     registry_path.write_text(
         json.dumps(
@@ -322,11 +322,7 @@ def test_provider_groups_follow_the_registry(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    groups = provider_groups_for_models(
-        registry_path, ["model-a", "model-b", "model-c"]
-    )
-
-    assert groups == [["model-a", "model-c"], ["model-b"]]
+    check_provider_groups(registry_path, ["model-a", "model-b", "model-c"])
 
 
 @pytest.mark.parametrize(
@@ -342,11 +338,11 @@ def test_provider_groups_follow_the_registry(tmp_path: Path) -> None:
         ({}, "non-empty mapping"),
     ],
 )
-def test_provider_groups_reject_invalid_registries(
+def test_provider_group_check_rejects_invalid_registries(
     tmp_path: Path, registry: dict, message: str
 ) -> None:
     registry_path = tmp_path / "custom_models.yaml"
     registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
     with pytest.raises(ConfigError, match=message):
-        provider_groups_for_models(registry_path, ["model-a"])
+        check_provider_groups(registry_path, ["model-a"])
