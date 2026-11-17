@@ -81,3 +81,45 @@ The following responses are excluded from scoring:
 - API error (`call_status` is not `success`): These can be re-attempted with
   `run-decodability` with `--retry-errors` (see [`../README.md`](../README.md)).
 - Parsing error (`parse_ok` is `False`)
+
+### Generating other analysis results
+
+Other than the main report, there are a number of scripts that generate additional
+analyses. (TODO: consolidate into the main report generation step)
+
+1. Inspect difficult items: find items or item-word pairs that all of the top 10 models
+   get wrong. The script doesn't produce any plots, only tables of items or item-words
+   that too many strong models get wrong that they should be manually reviewed. Set
+   `$TARGET_DIRECTORY/$LANGUAGE/` should contain `results_with_scoring.csv`.
+
+   ```shell
+   uv run --frozen --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/review_difficult_items.py \
+     --language $LANGUAGE --target $TARGET_DIRECTORY
+   ```
+
+1. A couple of analysis per hardware tier:
+
+   1. Plot predicted vs. actual non-decodabe word ratio in items
+
+      ```shell
+      uv run --frozen --package phonics-benchmark python \
+        benchmarks/phonics_benchmark/scripts/plot_calibration.py \
+        --root outputs/phonics-relabelled-20261110 \
+        --language kiswahili \
+        --metric adjusted_balanced_accuracy
+      ```
+
+   1. Plot error rates by word length. `--error` can be `fp` or `fn`.
+
+      ```shell
+      uv run --frozen --package phonics-benchmark python \
+        benchmarks/phonics_benchmark/scripts/plot_error_rate_by_word_length.py \
+        --root outputs/phonics-relabelled-20261116 \
+        --error $ERROR_TYPE \
+        --language $LANGUAGE \
+        --metric balanced_accuracy
+      ```
+
+   `--language` can be `kiswahili` or `english`. `--metric` is used to select the top
+   models in each hardware tier.
