@@ -12,7 +12,14 @@ from phonics_benchmark.labeling import (
     get_grapheme_breakdown,
     get_missing_knowledge_str,
     get_valid_knowledge_str,
+    parse_student_knowledge,
 )
+
+# Student-knowledge notation per language, as a format name the language's
+# model accepts in render(). Frozen: every phonics run used these, and the
+# rendered block is part of each prompt and its model_call_id, so changing an
+# entry splits new results from existing runs. A new language needs an entry.
+KNOWLEDGE_FORMAT = {"en": "quoted", "sw": "quoted"}
 
 
 @cache
@@ -100,9 +107,15 @@ def build_decodability_prompt(
         ) from None
 
     try:
-        student_knowledge = language_integration[
-            "student_knowledge_model"
-        ].model_validate(item["student_knowledge"])
+        knowledge_format = KNOWLEDGE_FORMAT[language]
+    except KeyError:
+        raise ConfigError(
+            f"No student-knowledge format for language '{language}'; add one to "
+            "KNOWLEDGE_FORMAT in phonics_benchmark/prompts.py"
+        ) from None
+
+    try:
+        student_knowledge = parse_student_knowledge(item["student_knowledge"], language)
     except ValidationError as e:
         raise ConfigError(
             "Invalid student_knowledge for benchmark item "
@@ -112,6 +125,6 @@ def build_decodability_prompt(
     return get_prompt(
         prompt_name,
         language=language_integration["name"],
-        student_knowledge=student_knowledge,
+        student_knowledge=student_knowledge.render(knowledge_format),
         **build_fields(item, language),
     )

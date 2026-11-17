@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 REFERENCE_COMMIT = "acfbac1745fc5e710b59b77d7dec947ac6c1eae6"
 REFERENCE_SOURCE_SHA256 = (
@@ -80,7 +81,7 @@ def assign_hardware(spec: dict | None) -> dict:
             band = PRECISION_BAND[0] < size <= PRECISION_BAND[1]
     return {
         "raw_hardware_tier": raw,
-        "hardware_tier": TIER_MERGES.get(raw, raw),
+        "hardware_tier": TIER_MERGES.get(raw, raw) if raw is not None else None,
         "placed_by": reason,
         "precision_dependent": band,
     }
@@ -130,7 +131,7 @@ def load_metadata(path: Path) -> dict:
         raise ValueError("Unrecognized open-weights flag")
     specs = {}
     for row in models.itertuples():
-        size = None if pd.isna(row.size) else float(row.size)
+        size = None if pd.isna(row.size) else float(row.size)  # pyright: ignore[reportArgumentType]
         if size is not None and (not np.isfinite(size) or size <= 0):
             raise ValueError(f"Invalid total parameter count for {row.model_id}")
         specs[row.model_id] = {
@@ -369,7 +370,7 @@ def plot_dumbbell(
             rows = group[group.language.eq(language)]
             if not rows.empty:
                 row = rows.iloc[0]
-                used = int(row.get("n_used", row.get("n_models")))
+                used = int(row["n_used"] if "n_used" in row else row["n_models"])
                 available = int(row.get("n_available", used))
                 counts.append(
                     f"{language.title()}: {used}"
@@ -442,7 +443,7 @@ def plot_dumbbell(
     )
     fig.text(0.025, 0.82, subtitle, va="top", fontsize=11.5, color=SECONDARY)
     handles = [
-        plt.Line2D(
+        Line2D(
             [],
             [],
             marker="o",

@@ -1,0 +1,11 @@
+{
+  "run_id": "sw-generation-curriculum-words",
+  "language": "sw",
+  "items_path": "../data/curriculum_aligned/kiswahili/benchmark_items_words.jsonl",
+  "output_dir": "../outputs",
+  "models": [
+   "gpt-5.4-2026-03-05-medium"
+  ],
+  "chunk_size": 20,
+  "model_workers": 4
+}

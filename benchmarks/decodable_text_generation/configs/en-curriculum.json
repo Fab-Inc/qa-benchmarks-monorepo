@@ -1,0 +1,12 @@
+{
+  "run_id": "en-generation-curriculum",
+  "language": "en",
+  "items_path": "../data/curriculum_aligned/english/benchmark_items.jsonl",
+  "output_dir": "../outputs",
+  "models": [
+   "gpt-5.4-2026-03-05-medium"
+  ],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 4
+}

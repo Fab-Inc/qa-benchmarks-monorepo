@@ -9,10 +9,10 @@ question. See ``parse_gpcs`` for the match kinds it recognizes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cache
 
-from decodability.english.definitions import VOWEL_LETTERS
+from decodability.english.definitions import GPC, VOWEL_LETTERS
 from decodability.english.extract_phonemes import Phoneme, Pronunciation
 
 # Productive spelling/pronunciation conventions that are licensed by taught
@@ -68,56 +68,6 @@ _LETTER_NAME_IPAS = {
     "y": ("w", "aɪ"),
     "z": ("z", "i"),
 }
-
-
-@dataclass(frozen=True)
-class GPC:
-    """One licensed correspondence, including multi-phoneme and split units.
-
-    A hyphen at the *edge* of the grapheme is a positional marker, not a
-    split: a leading ``-`` marks a word-final unit (``-ed``, ``-ing``,
-    ``-ve``), a trailing ``-`` a word-initial one (``pre-``, ``un-``). The
-    marker is stripped from ``symbol`` and recorded as ``is_suffix`` /
-    ``is_prefix``; matching itself is position-agnostic — a medial
-    occurrence (the ``ve`` in ``gives``) is the same correspondence. A
-    medial hyphen remains a split digraph (``a-e``).
-    """
-
-    id: str
-    grapheme: str
-    phonemes: tuple[str, ...]
-    # Derived at construction.
-    symbol: str = field(init=False, repr=False, compare=False)
-    is_split: bool = field(init=False, repr=False, compare=False)
-    split_head: str = field(init=False, repr=False, compare=False)
-    split_tail: str = field(init=False, repr=False, compare=False)
-    is_prefix: bool = field(init=False, repr=False, compare=False)
-    is_suffix: bool = field(init=False, repr=False, compare=False)
-    is_reduced_vowel: bool = field(init=False, repr=False, compare=False)
-    is_silent: bool = field(init=False, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.grapheme or (
-            not self.phonemes and not self.id.startswith("SILENT_")
-        ):
-            raise ValueError("a GPC needs a grapheme and at least one phoneme")
-        folded = self.grapheme.casefold()
-        is_suffix = len(folded) > 1 and folded.startswith("-")
-        is_prefix = len(folded) > 1 and not is_suffix and folded.endswith("-")
-        symbol = folded[1:] if is_suffix else folded[:-1] if is_prefix else folded
-        if symbol.count("-") > 1:
-            raise ValueError("the prototype supports two-part split graphemes only")
-        head, hyphen, tail = symbol.partition("-")
-        if hyphen and not (head and tail):
-            raise ValueError("a split grapheme needs letters on both sides of the '-'")
-        object.__setattr__(self, "symbol", symbol)
-        object.__setattr__(self, "is_split", bool(hyphen))
-        object.__setattr__(self, "split_head", head)
-        object.__setattr__(self, "split_tail", tail)
-        object.__setattr__(self, "is_prefix", is_prefix)
-        object.__setattr__(self, "is_suffix", is_suffix)
-        object.__setattr__(self, "is_reduced_vowel", self.id.startswith("REDUCED_"))
-        object.__setattr__(self, "is_silent", self.id.startswith("SILENT_"))
 
 
 @cache
@@ -181,6 +131,18 @@ def _phonemes_match(
             and wanted == "ə"
             and heard.is_unstressed
             and heard.ipa == "ɪ"
+        ):
+            continue
+        # A prefix's closing vowel accepts its reduced form — ``re-`` → /ri/
+        # also reads /rɪ/ or /rə/ (``reflect``, ``replacement``) and
+        # ``uni-`` → /junɪ/ reads /junə/ (``uniform``), since the
+        # letter-level reduced pass is withheld inside prefix units.
+        if (
+            gpc.is_prefix
+            and index == len(gpc.phonemes) - 1
+            and wanted in {"i", "ɪ"}
+            and heard.is_unstressed
+            and heard.ipa in {"i", "ɪ", "ə"}
         ):
             continue
         return False
@@ -293,9 +255,10 @@ def parse_gpcs(
     - Edge-marked units (``-ed``, ``-ing``, ``pre-``, ``un-``, ``-ve``,
       ``-le``): affixes and positional graphemes taught as chunks. The
       marker is stripped from ``symbol`` and recorded on the ``GPC``
-      (``is_prefix``/``is_suffix``) but does not constrain matching —
-      the same chunk appears medially in inflected words (``gives``,
-      ``tables``) and the unit means the same correspondence there.
+      (``is_prefix``/``is_suffix``); suffix markers do not constrain
+      matching — the same chunk appears medially in inflected words
+      (``gives``, ``tables``) — while prefix units anchor to the word
+      start (``pre-`` in ``predict``, not ``re-`` inside it).
     - Free pass on unstressed vowels: a bare vowel letter paired with
       an unstressed phoneme parses via a synthesized ``REDUCED_*`` GPC —
       vowel reduction is a universal spoken-English process, not a taught
@@ -332,15 +295,69 @@ def parse_gpcs(
         inventory
     )
     split = tuple(gpc for gpc in inventory if gpc.is_split)
-    spells_letter_names = _is_letter_name_pronunciation(
+    # Letter-name (initialism) readings count only when the spelling is
+    # all-caps — "AM" can be read "ay-em", but "am" cannot.
+    spells_letter_names = word.isupper() and _is_letter_name_pronunciation(
         spelling, phoneme_strings, inventory
     )
+    if spells_letter_names:
+        # The pronunciation is exactly every letter's name, so the only
+        # valid parse reads each letter by name — ordinary GPCs cannot mix
+        # in for part of the word.
+        matches: list[GPCMatch] = []
+        phoneme_index = 0
+        for letter_index, letter in enumerate(spelling):
+            name = _LETTER_NAME_IPAS[letter]
+            matches.append(
+                GPCMatch(
+                    GPC(f"LETTER_NAME_{letter.upper()}", letter, name),
+                    (letter_index,),
+                    (phoneme_index, phoneme_index + len(name)),
+                )
+            )
+            phoneme_index += len(name)
+        return (tuple(matches),)
     # The reduced-yod free pass is licensed only when the inventory teaches
     # u → (j, u): the glide belongs to that correspondence; only its vowel
     # reduces.
     has_yod_u = any(
         gpc.symbol == "u" and gpc.phonemes == ("j", "u") for gpc in contiguous
     )
+    # The closing vowel of a word-initial prefix unit is not a free reduced
+    # vowel — ``pre-``/``re-`` are taught as chunks, so ``predict`` needs the
+    # ``pre-`` unit, not ``p + r + e→ə``.
+    prefix_final_vowels = frozenset(
+        len(gpc.symbol) - 1
+        for gpc in contiguous
+        if gpc.is_prefix
+        and gpc.symbol[-1] in VOWEL_LETTERS
+        and spelling.startswith(gpc.symbol)
+    )
+    # The 'e' in a y-to-i affix ending (-ied, -ies, -ier, -iest) is part of
+    # the taught unit — it can't ride a split tail (``babies`` ≠
+    # ``b + a-e + b + i + s``), reduce, or hide inside another match
+    # (``happier`` ≠ ``happ + i + er``; ``carried`` ≠ ``carr + i + -ed``).
+    gated_e_position: int | None = None
+    allowed_e_gpcs: frozenset[str] = frozenset()
+    for ending in ("ied", "ies", "ier", "iest"):
+        if spelling.endswith(ending):
+            candidates = tuple(
+                gpc for gpc in contiguous if gpc.is_suffix and gpc.symbol == ending
+            )
+            # Gate only when a suffix unit can actually cover the ending —
+            # a word like ``tier`` /tir/ has no -ier→iər reading, so its
+            # 'e' stays available to ordinary parses.
+            if any(
+                _phonemes_match(
+                    gpc,
+                    phonemes[len(phonemes) - len(gpc.phonemes) :],
+                    None,
+                )
+                for gpc in candidates
+            ):
+                gated_e_position = len(spelling) - len(ending) + 1
+                allowed_e_gpcs = frozenset(gpc.id for gpc in candidates)
+            break
 
     @cache
     def walk(letter_index: int, phoneme_index: int, reserved: int) -> tuple[Parse, ...]:
@@ -373,7 +390,18 @@ def parse_gpcs(
                     start < letter_index and not _can_reuse_previous_letter(gpc)
                 ):
                     continue
+                # Prefixes are anchored to the word start — the ``re`` inside
+                # ``pre-`` is not a prefix, so ``predict`` parses as
+                # ``pre- + dict``, never ``p + re- + dict``.
+                if gpc.is_prefix and start != 0:
+                    continue
                 letter_end = start + len(gpc.symbol)
+                if (
+                    gated_e_position is not None
+                    and gated_e_position in range(start, letter_end)
+                    and gpc.id not in allowed_e_gpcs
+                ):
+                    continue
                 if (
                     spelling.startswith(gpc.symbol, start)
                     and _derived_match_is_licensed(gpc, spelling, start)
@@ -403,7 +431,12 @@ def parse_gpcs(
             reduced_ipa = phonemes[phoneme_index].ipa
             is_unstressed = phonemes[phoneme_index].is_unstressed
             letter = spelling[letter_index]
-            if is_unstressed and letter in VOWEL_LETTERS:
+            if (
+                is_unstressed
+                and letter in VOWEL_LETTERS
+                and letter_index not in prefix_final_vowels
+                and letter_index != gated_e_position
+            ):
                 free_pass = GPCMatch(
                     GPC(
                         id=f"REDUCED_{letter.upper()}",
@@ -439,20 +472,6 @@ def parse_gpcs(
                 )
 
         letter = spelling[letter_index]
-        if spells_letter_names:
-            name = _LETTER_NAME_IPAS[letter]
-            name_end = phoneme_index + len(name)
-            if phoneme_strings[phoneme_index:name_end] == name:
-                letter_name = GPCMatch(
-                    GPC(f"LETTER_NAME_{letter.upper()}", letter, name),
-                    (letter_index,),
-                    (phoneme_index, name_end),
-                )
-                parses.extend(
-                    (letter_name, *remainder)
-                    for remainder in walk(letter_index + 1, name_end, reserved)
-                )
-
         is_silent_final_e = (
             letter == "e"
             and letter_index == len(spelling) - 1
@@ -491,10 +510,23 @@ def parse_gpcs(
             for gap in range(1, max_split_gap + 1):
                 tail_start = head_end + gap
                 tail_end = tail_start + len(gpc.split_tail)
-                if spelling.startswith(
-                    gpc.split_tail, tail_start
-                ) and _positions_are_free(letter_index, tail_end, reserved):
+                if (
+                    spelling.startswith(gpc.split_tail, tail_start)
+                    # The skipped letters must all be consonants — a-e
+                    # spans ``th`` in ``bathe`` but can't swallow the ``i``
+                    # inside ``babies`` (``b + a-b-i + e`` is not a-e).
+                    and not any(
+                        letter in VOWEL_LETTERS
+                        for letter in spelling[head_end:tail_start]
+                    )
+                    and _positions_are_free(letter_index, tail_end, reserved)
+                ):
                     tail_positions = tuple(range(tail_start, tail_end))
+                    if gated_e_position is not None and (
+                        gated_e_position in range(letter_index, head_end)
+                        or gated_e_position in tail_positions
+                    ):
+                        continue
                     tail_mask = sum(1 << position for position in tail_positions)
                     match = GPCMatch(
                         gpc,

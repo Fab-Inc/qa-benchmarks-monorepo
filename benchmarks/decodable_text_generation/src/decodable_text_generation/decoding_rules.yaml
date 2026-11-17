@@ -1,0 +1,42 @@
+# Per-language wording injected into the shared generation prompts
+# (prompts.yaml). Keyed by decodability-registry language code.
+#
+# ``decoding_rules`` is the numbered DECODING RULES block; ``word_list_name``
+# is what the language calls its memorised-word list and must match the label
+# the language's student-knowledge model prints in the STUDENT KNOWLEDGE block
+# (KiswahiliStudentKnowledge: "Known whole words", EnglishStudentKnowledge:
+# "Known sight words").
+
+sw:
+  word_list_name: whole words
+  decoding_rules: >-
+    1. The student already knows the word as a whole word, or
+
+    2. ALL of the following hold:
+
+    - every letter-sound (grapheme) in the word is one the student knows, AND
+
+    - every consonant cluster in the word is one the student knows, either
+    directly or through a cluster pattern they know.
+
+
+    If neither condition holds, the word is non-decodable.
+
+    Note that a word is non-decodable if even one of its graphemes or clusters
+    is unknown to the student.
+
+en:
+  word_list_name: sight words
+  decoding_rules: >-
+    1. The student already knows the word as a sight word, or
+
+    2. The word can be sounded out using ONLY the grapheme-phoneme
+    correspondences (GPCs) the student knows: every letter or letter group in
+    the word (like "sh", "th", or a split spelling like "a-e") spells a sound
+    the student has been taught.
+
+
+    If neither condition holds, the word is non-decodable.
+
+    Note that a word is non-decodable if even one grapheme-phoneme
+    correspondence it needs is unknown to the student.

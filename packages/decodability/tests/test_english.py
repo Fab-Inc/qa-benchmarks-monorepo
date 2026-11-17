@@ -1,7 +1,17 @@
+from dataclasses import replace
+
 import pandas as pd
 import pytest
 from decodability import rowwise
 from decodability.english.aggregators import aggregate_scores_ufli_curriculum
+from decodability.english.analyse import analyse_word_english
+from decodability.english.definitions import (
+    UFLI_GPC_INVENTORY,
+    UFLI_GPC_PAIRS_FLAT,
+    gpc_inventory_from_json,
+    gpc_inventory_to_json,
+    gpc_pairs,
+)
 from decodability.english.extract_phonemes import (
     Phoneme,
     Pronunciation,
@@ -62,6 +72,36 @@ class TestEnglishStudentKnowledgeModel:
             ),
             (
                 {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
+                '- Known GPCs: "c" → "k"; "a" → "æ"; "t" → "t"\n'
+                "- Known sight words: None",
+            ),
+            (
+                {"sight_words": {"The", "and"}},
+                '- Known GPCs: None\n- Known sight words: "and", "the"',
+            ),
+            (
+                {
+                    "gpcs": [("th", "ð"), ("th", "θ")],
+                    "sight_words": {"the"},
+                },
+                '- Known GPCs: "th" → "ð"; "th" → "θ"\n- Known sight words: "the"',
+            ),
+        ],
+    )
+    def test_english_student_knowledge_str(self, kwargs: dict, expected_str: str):
+        """Test the string representation of EnglishStudentKnowledge."""
+        assert str(EnglishStudentKnowledge(**kwargs)) == expected_str
+        assert EnglishStudentKnowledge(**kwargs).render("quoted") == expected_str
+
+    @pytest.mark.parametrize(
+        "kwargs, expected_plain",
+        [
+            (
+                {},
+                "- Known GPCs: None\n- Known sight words: None",
+            ),
+            (
+                {"gpcs": [("c", "k"), ("a", "æ"), ("t", "t")]},
                 "- Known GPCs: c -> /k/; a -> /æ/; t -> /t/\n- Known sight words: None",
             ),
             (
@@ -77,9 +117,118 @@ class TestEnglishStudentKnowledgeModel:
             ),
         ],
     )
-    def test_english_student_knowledge_str(self, kwargs: dict, expected_str: str):
-        """Test the string representation of EnglishStudentKnowledge."""
-        assert str(EnglishStudentKnowledge(**kwargs)) == expected_str
+    def test_english_student_knowledge_render_plain(
+        self, kwargs: dict, expected_plain: str
+    ):
+        """The "plain" notation used by decodable text generation."""
+        assert EnglishStudentKnowledge(**kwargs).render("plain") == expected_plain
+
+    def test_english_student_knowledge_render_omits_affixes(self):
+        """Affixes stay out of the rendered block; generation adds its own line."""
+        knowledge = EnglishStudentKnowledge(gpcs=[("-ed", "t")], affixes={"-ed"})
+        for fmt in ("quoted", "plain"):
+            assert "affix" not in knowledge.render(fmt).lower()
+
+    def test_english_student_knowledge_render_rejects_unknown_formats(self):
+        with pytest.raises(ValueError, match="Unknown knowledge format 'v2'"):
+            EnglishStudentKnowledge().render("v2")  # type: ignore[arg-type]
+
+
+# The inventory before uni- was respelled /juni/ → /junɪ/, as a caller's copy.
+OLD_UNI_INVENTORY = tuple(
+    replace(gpc, phonemes=("j", "u", "n", "i")) if gpc.id == "G159" else gpc
+    for gpc in UFLI_GPC_INVENTORY
+)
+# Each inventory with the uni- pair it spells; a profile using that pair must
+# behave the same under its own inventory everywhere the inventory is read.
+UNI_SPELLINGS = pytest.mark.parametrize(
+    "inventory, uni",
+    [
+        (UFLI_GPC_INVENTORY, ("uni", "junɪ")),
+        (OLD_UNI_INVENTORY, ("uni", "juni")),
+    ],
+)
+
+
+class TestCallerInventory:
+    """Callers can check and score profiles against their own copy of an inventory."""
+
+    def test_flat_pairs_are_the_pairs_of_the_inventory(self):
+        assert gpc_pairs(UFLI_GPC_INVENTORY) == UFLI_GPC_PAIRS_FLAT
+
+    def test_inventory_json_round_trips(self):
+        text = gpc_inventory_to_json(UFLI_GPC_INVENTORY)
+        assert gpc_inventory_from_json(text) == UFLI_GPC_INVENTORY
+
+    @pytest.mark.parametrize(
+        "inventory, gpc, should_pass",
+        [
+            (None, ("uni", "junɪ"), True),
+            (None, ("uni", "juni"), False),
+            (OLD_UNI_INVENTORY, ("uni", "juni"), True),
+            (OLD_UNI_INVENTORY, ("uni", "junɪ"), False),
+        ],
+    )
+    def test_gpcs_are_checked_against_the_supplied_inventory(
+        self, inventory: tuple | None, gpc: tuple[str, str], should_pass: bool
+    ):
+        context = None if inventory is None else {"gpc_inventory": inventory}
+        if should_pass:
+            EnglishStudentKnowledge.model_validate({"gpcs": [gpc]}, context=context)
+        else:
+            with pytest.raises(ValueError, match="Not taught GPCs"):
+                EnglishStudentKnowledge.model_validate({"gpcs": [gpc]}, context=context)
+
+    def test_supplied_inventory_is_kept_but_not_part_of_the_profile(self):
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [("t", "t")]}, context={"gpc_inventory": OLD_UNI_INVENTORY}
+        )
+        assert knowledge.gpc_inventory is OLD_UNI_INVENTORY
+        assert knowledge.model_dump() == {
+            "gpcs": [("t", "t")],
+            "sight_words": set(),
+            "affixes": set(),
+        }
+        assert EnglishStudentKnowledge().gpc_inventory is UFLI_GPC_INVENTORY
+
+    @UNI_SPELLINGS
+    def test_scorer_parses_with_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """A profile's spelling matches the parser only under its own inventory."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
+        )
+        assert score_known_gpcs_english("unit", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_affix_rules_follow_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The taught uni- pair unlocks uni- + a sight word under its own spelling."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni], "sight_words": ["form"]},
+            context={"gpc_inventory": inventory},
+        )
+        assert score_sight_words_english("uniform", knowledge) == 1.0
+
+    @UNI_SPELLINGS
+    def test_analysis_curriculum_follows_the_supplied_inventory(
+        self, inventory: tuple, uni: tuple[str, str]
+    ):
+        """The profile's uni- match gets its lesson from the profile's inventory."""
+        knowledge = EnglishStudentKnowledge.model_validate(
+            {"gpcs": [uni, ("t", "t")]}, context={"gpc_inventory": inventory}
+        )
+        analysis = analyse_word_english("unit", knowledge)
+        lessons = {
+            match.first_taught_lesson
+            for parse in analysis.candidate_parses
+            for match in parse.matches
+            if match.gpc_id == "G159"
+        }
+        assert lessons and None not in lessons
+        assert analysis.earliest_decodable_lesson is not None
 
 
 class TestScorers:
@@ -130,22 +279,34 @@ class TestScorers:
         """An inflected sight word passes when its affix was taught."""
         knowledge = EnglishStudentKnowledge(
             affixes={"-s", "-ed", "-ing", "-ies"},
-            sight_words={"friend", "walk", "cry", "make"},
+            sight_words={"friend", "walk", "cry", "make", "want"},
         )
         assert score_sight_words_english("friends", knowledge) == 1.0
-        assert score_sight_words_english("walked", knowledge) == 1.0
         assert score_sight_words_english("walking", knowledge) == 1.0
+        # the taught affix unit covers all of -ed's allomorphs
+        assert score_sight_words_english("wanted", knowledge) == 1.0
+        assert score_sight_words_english("walked", knowledge) == 1.0
+        # a correspondence pair licenses the same ending before the affix
+        # is introduced — but -ed→əd only reads it after t/d stems; the
+        # silent-e /d/,/t/ readings need their own pair
+        ed_schwa = EnglishStudentKnowledge(
+            gpcs=[("ed", "əd")], sight_words={"want", "walk"}
+        )
+        assert score_sight_words_english("wanted", ed_schwa) == 1.0
+        assert score_sight_words_english("walked", ed_schwa) == 0.0
         # cry -> cries via the -ies unit (the ie letters spell the stem's y)
         assert score_sight_words_english("cries", knowledge) == 1.0
         # silent-e restoration: make + s
         assert score_sight_words_english("makes", knowledge) == 1.0
 
-        # letter GPCs alone don't unlock inflections — the affix must be taught
+        # a taught correspondence pair licenses the matching ending before
+        # its affix is officially introduced: s→z reads friend + s and
+        # ed→t reads walk + ed
         no_affixes = EnglishStudentKnowledge(
             gpcs=[("s", "z"), ("ed", "t")], sight_words={"friend", "walk"}
         )
-        assert score_sight_words_english("friends", no_affixes) == 0.0
-        assert score_sight_words_english("walked", no_affixes) == 0.0
+        assert score_sight_words_english("friends", no_affixes) == 1.0
+        assert score_sight_words_english("walked", no_affixes) == 1.0
 
         # and the stem must be a known sight word
         unknown_stem = EnglishStudentKnowledge(affixes={"-s"}, sight_words={"pal"})
@@ -432,6 +593,25 @@ class TestSuffixedSFallback:
         assert score_known_gpcs_english("hap's", student) == 1.0
 
 
+class TestPronunciationDedup:
+    """Distinct ARPABET variants can normalize to the same ``Pronunciation`` —
+    stress-level swaps (``AE1/AY2`` vs ``AE2/AY1``), ``ER0`` vs a spelled-out
+    ``AH0 R``, and ``IH R`` undone to ``IY R`` — so the dedup happens after
+    normalization, not just on the raw ARPABET tuples."""
+
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "advertised",  # AE1/AY2 vs AE2/AY1 stress swap
+            "disarray",  # ER0 vs AH0 R
+            "disappear",  # IH1 R vs IY1 R
+        ],
+    )
+    def test_no_duplicate_pronunciations(self, word: str):
+        variants = get_word_phonemes(word)
+        assert len(variants) == len(set(variants))
+
+
 class TestGPCValidation:
     @pytest.mark.parametrize(
         "grapheme, phonemes",
@@ -490,13 +670,14 @@ class TestGPCValidation:
         medial = parse_gpcs("sings", _say("s", "ɪ", "ŋ", "s"), inventory)
         assert medial and medial[0][1].gpc.id == "ING"
 
-    def test_prefix_gpc_matches_medially(self):
-        """``pre-`` likewise matches wherever the ``pre`` chunk appears."""
+    def test_prefix_gpc_matches_at_word_start_only(self):
+        """``pre-`` anchors to the word start — the ``re`` inside ``pre`` is
+        not a prefix, unlike suffixes which match medially."""
         inventory = (GPC("S", "s", ("s",)), GPC("PRE", "pre-", ("p", "r", "i")))
         parses = parse_gpcs("pre", _say("p", "r", "i"), inventory)
         assert parses and parses[0][0].gpc.id == "PRE"
         medial = parse_gpcs("spre", _say("s", "p", "r", "i"), inventory)
-        assert medial and medial[0][1].gpc.id == "PRE"
+        assert not medial or all(match.gpc.id != "PRE" for match in medial[0])
 
     @pytest.mark.parametrize(
         "word, gpcs, expected",
@@ -1012,10 +1193,76 @@ class TestSharedLetters:
         )
         assert score_known_gpcs_english("placed", student) == 0.0
 
+    def test_judged_ed_shares_the_dge_e(self):
+        """``judged`` parses as ``j`` + ``u`` + ``dge`` + ``-ed`` — the
+        suffix's first letter is the trigraph's last."""
+        _, parses = _parse_corpus_word("judged")
+        assert any(
+            [(m.gpc.grapheme, m.letter_positions) for m in parse]
+            == [
+                ("j", (0,)),
+                ("u", (1,)),
+                ("dge", (2, 3, 4)),
+                ("-ed", (4, 5)),
+            ]
+            for _, parse in parses
+        )
+
+    def test_judged_needs_the_dge_trigraph_not_ge(self):
+        """The ``d`` before ``g`` has no other /dʒ/ correspondence, so every
+        parse goes through ``dge`` — ``ge`` → /dʒ/ is unreachable here."""
+        _, parses = _parse_corpus_word("judged")
+        assert parses, "judged should parse under the full UFLI inventory"
+        for _, parse in parses:
+            graphemes = [m.gpc.grapheme for m in parse]
+            assert "dge" in graphemes
+            assert "ge" not in graphemes
+
+    def test_judged_scores_end_to_end(self):
+        student = EnglishStudentKnowledge(
+            gpcs=[("j", "dʒ"), ("u", "ʌ"), ("dge", "dʒ"), ("-ed", "d")]
+        )
+        assert score_known_gpcs_english("judged", student) == 1.0
+
+    def test_ge_alone_does_not_unlock_judged(self):
+        """Taught ``ge`` → /dʒ/ (and even ``g`` → /dʒ/) can't substitute for
+        the trigraph — ``dge`` is atomic, not ``d`` + ``ge``."""
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("j", "dʒ"),
+                ("u", "ʌ"),
+                ("d", "d"),
+                ("ge", "dʒ"),
+                ("g", "dʒ"),
+                ("-ed", "d"),
+            ]
+        )
+        assert score_known_gpcs_english("judged", student) == 0.0
+
 
 class TestProductiveSpellingAndPronunciationRules:
     def test_positional_final_e_is_silent_after_a_consonant(self):
         student = EnglishStudentKnowledge(gpcs=[("h", "h"), ("ou", "aʊ"), ("s", "s")])
+        assert score_known_gpcs_english("house", student) == 0.0
+        # Once the silent-e family is fully taught (UFLI lesson 62), the
+        # trailing-e convention unlocks and the same parse decodes.
+        student = EnglishStudentKnowledge(
+            gpcs=[
+                ("h", "h"),
+                ("ou", "aʊ"),
+                ("s", "s"),
+                ("a-e", "eɪ"),
+                ("i-e", "aɪ"),
+                ("o-e", "oʊ"),
+                ("e-e", "i"),
+                ("u-e", "u"),
+                ("u-e", "ju"),
+                ("ce", "s"),
+                ("ge", "dʒ"),
+                ("ve", "v"),
+                ("o-e", "ʌ"),
+            ]
+        )
         assert score_known_gpcs_english("house", student) == 1.0
 
     def test_final_e_does_not_turn_bare_u_into_the_ue_vowel_team(self):
@@ -1088,15 +1335,30 @@ class TestProductiveSpellingAndPronunciationRules:
     def test_letter_name_initialisms_use_known_constituent_letters(self):
         assert (
             score_known_gpcs_english(
-                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+                "TV", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
             )
             == 1.0
         )
         assert (
             score_known_gpcs_english(
-                "ok", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
+                "OK", EnglishStudentKnowledge(gpcs=[("o", "oʊ"), ("k", "k")])
             )
             == 1.0
+        )
+
+    def test_letter_name_readings_require_all_caps_spelling(self):
+        assert (
+            score_known_gpcs_english(
+                "tv", EnglishStudentKnowledge(gpcs=[("t", "t"), ("v", "v")])
+            )
+            == 0.0
+        )
+        assert (
+            score_known_gpcs_english(
+                "am",
+                EnglishStudentKnowledge(gpcs=[("a", "eɪ"), ("m", "m")]),
+            )
+            == 0.0
         )
 
     def test_taught_digraph_is_not_reinterpreted_as_an_initialism(self):

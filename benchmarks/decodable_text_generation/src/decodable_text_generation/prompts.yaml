@@ -1,0 +1,104 @@
+# Template(s) below use str.format() named placeholders like {my_variable}
+# and use YAML folded scalars (>-): a single line break becomes a
+# space; blank lines are preserved as newlines (N blank lines -> N newlines).
+# So to get a blank line in the output, leave two blank lines in the source.
+
+decodable_text_generation: >-
+  CONTEXT
+
+  You are helping a teacher to write a text that a particular student can read
+  aloud entirely on their own.
+
+
+  A word is "decodable" for a student when the student can read it based on what
+  they currently know. A word is "non-decodable" when they cannot.
+
+
+  DECODING RULES
+
+  A word is decodable for this student if EITHER of the following is true:
+
+
+  {decoding_rules}
+
+
+  The text must be written in the language of {language}.
+
+
+  STUDENT KNOWLEDGE
+
+  {student_knowledge}
+
+
+  TASK
+
+  {scenario}
+
+
+  OUTPUT
+
+  Respond with only the text itself, wrapped in text tags, exactly like this:
+
+  <text>
+
+  Your text goes here.
+
+  </text>
+
+
+  Do not include any explanation, reasoning, commentary, translation, word list
+  or notes before, after or inside the tags. Do not explain your word choices.
+
+decodable_text_generation_curriculum: >-
+  CONTEXT
+
+  You are helping a teacher to write a text that a particular student can read
+  aloud entirely on their own.
+
+
+  A word is "decodable" for a student when the student can read it based on what
+  they currently know. A word is "non-decodable" when they cannot.
+
+
+  DECODING RULES
+
+  A word is decodable for this student if EITHER of the following is true:
+
+
+  {decoding_rules}
+
+
+  The text must be written in the language of {language}.
+
+
+  STUDENT KNOWLEDGE
+
+  {student_knowledge}
+
+
+  TARGET
+
+  The text is meant to help the student practice the following:
+
+  {target}
+
+
+
+  TASK
+
+  {scenario}
+
+
+  OUTPUT
+
+  Respond with only the text itself, wrapped in text tags, exactly like this:
+
+  <text>
+
+  Your text goes here.
+
+  </text>
+
+
+  Do not include any explanation, reasoning, commentary, translation, word list
+  or notes before, after or inside the tags. Do not explain your word choices.

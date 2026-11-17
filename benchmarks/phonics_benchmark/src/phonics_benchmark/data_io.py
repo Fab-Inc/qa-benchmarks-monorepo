@@ -11,6 +11,8 @@ import pandas as pd
 from decodability import DECODABILITY_REGISTRY
 from pydantic import BaseModel, ValidationError
 
+from phonics_benchmark import utils
+from phonics_benchmark.labeling import parse_student_knowledge
 from phonics_benchmark.models import (
     DecodableText,
     LabelledBenchmarkItem,
@@ -222,16 +224,17 @@ def validate_student_knowledge(
                 raise ValueError(message)
             warnings.warn(f"{message}; skipping validation.", stacklevel=2)
             continue
-        student_knowledge_model = language_integration["student_knowledge_model"]
         try:
-            student_knowledge_model.model_validate(profile.student_knowledge)
+            parse_student_knowledge(
+                profile.student_knowledge, profile.language_iso_code
+            )
         except ValidationError as exc:
             raise ValueError(
                 f"student_knowledge_id '{profile.student_knowledge_id}': {exc}"
             ) from exc
 
 
-def resolve_language_iso_code(
+def get_dataset_language_iso_code(
     profiles: list[StudentKnowledge],
     texts: list[DecodableText],
 ) -> str:
@@ -240,19 +243,11 @@ def resolve_language_iso_code(
     Raises ValueError if the records are empty, or if more than one language code
     appears across them — the pipeline only handles one language per data folder.
     """
-    codes = {profile.language_iso_code for profile in profiles}
-    codes |= {text.language_iso_code for text in texts}
-
-    if not codes:
-        raise ValueError(
-            "Cannot resolve a language_iso_code: no student profiles and no texts"
-        )
-    if len(codes) > 1:
-        raise ValueError(
-            "Expected one language_iso_code across the dataset, found: "
-            f"{', '.join(sorted(codes))}"
-        )
-    return codes.pop()
+    codes = [profile.language_iso_code for profile in profiles]
+    codes += [text.language_iso_code for text in texts]
+    return utils.require_single_language_iso_code(
+        codes, source="the student profiles and texts"
+    )
 
 
 def build_benchmark_item_candidates_dataframe(
@@ -270,7 +265,7 @@ def build_benchmark_item_candidates_dataframe(
             f"{len(texts)} text(s), need at least one of each"
         )
 
-    resolve_language_iso_code(profiles, texts)
+    get_dataset_language_iso_code(profiles, texts)
 
     profiles_df = convert_records_to_dataframe(profiles)
     texts_df = convert_records_to_dataframe(texts)
