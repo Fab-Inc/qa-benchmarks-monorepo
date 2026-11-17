@@ -49,6 +49,7 @@ METRICS = {
     "pooled_f1": "Pooled F1",
     "pooled_f2": "Pooled F2",
     "balanced_accuracy": "Balanced accuracy",
+    "adjusted_balanced_accuracy": "Adjusted balanced accuracy",
 }
 
 
