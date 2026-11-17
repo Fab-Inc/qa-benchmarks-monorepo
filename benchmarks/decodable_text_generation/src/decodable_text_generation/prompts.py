@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 from decodability import DECODABILITY_REGISTRY
-from phonics_benchmark.config import ConfigError
+from fab_benchmark_runner import ConfigError
 from pydantic import ValidationError
 
 PACKAGE = "decodable_text_generation"
@@ -48,6 +48,11 @@ def get_prompt(name: str, **kwargs: object) -> str:
 def load_scenarios() -> dict[str, str]:
     """Return the scenario_id -> TASK instruction mapping from scenarios.yaml."""
     return dict(_load_yaml("scenarios.yaml"))
+
+
+def prompt_names() -> list[str]:
+    """Return the generation prompt template names in prompts.yaml."""
+    return sorted(_load_yaml("prompts.yaml"))
 
 
 def get_scenario(scenario_id: str) -> str:
@@ -171,11 +176,7 @@ def build_generation_prompt(
         raise ConfigError(str(e)) from e
 
 
-def prompt_from_item(
-    prompt_name: str,  # noqa: ARG001 - kept for the PromptBuilder signature
-    item: Mapping[str, Any],
-    language: str,  # noqa: ARG001
-) -> str:
+def prompt_from_item(item: Mapping[str, Any]) -> str:
     """Return the item's baked prompt.
 
     Generation prompts are rendered at item-build time (see

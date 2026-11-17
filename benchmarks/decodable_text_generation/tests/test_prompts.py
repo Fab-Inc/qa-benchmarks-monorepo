@@ -13,7 +13,7 @@ from decodable_text_generation.prompts import (
     prompt_from_item,
     render_target,
 )
-from phonics_benchmark.config import ConfigError
+from fab_benchmark_runner import ConfigError
 
 EN_ITEM: dict[str, Any] = {
     "benchmark_item_id": "p1_words",
@@ -177,8 +177,4 @@ def test_render_target_blank_scalar_falls_back() -> None:
 
 def test_prompt_from_item_requires_prompt() -> None:
     with pytest.raises(ConfigError, match="has no 'prompt'"):
-        prompt_from_item(
-            "decodable_text_generation",
-            {"benchmark_item_id": "b1", "prompt": "  "},
-            "en",
-        )
+        prompt_from_item({"benchmark_item_id": "b1", "prompt": "  "})

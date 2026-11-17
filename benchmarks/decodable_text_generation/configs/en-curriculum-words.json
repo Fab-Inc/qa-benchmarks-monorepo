@@ -1,6 +1,7 @@
 {
   "run_id": "en-generation-curriculum-words",
   "language": "en",
+  "task": "generation-curriculum",
   "items_path": "../data/curriculum_aligned/english/benchmark_items_words.jsonl",
   "output_dir": "../outputs",
   "models": [

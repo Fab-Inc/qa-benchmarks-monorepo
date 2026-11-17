@@ -1,6 +1,7 @@
 {
   "run_id": "sw-generation-curriculum-words",
   "language": "sw",
+  "task": "generation-curriculum",
   "items_path": "../data/curriculum_aligned/kiswahili/benchmark_items_words.jsonl",
   "output_dir": "../outputs",
   "models": [

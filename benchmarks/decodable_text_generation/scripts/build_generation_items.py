@@ -25,6 +25,7 @@ from pathlib import Path
 
 import typer
 from decodability import DECODABILITY_REGISTRY
+from decodable_text_generation.data_io import write_jsonl
 from decodable_text_generation.models import (
     GenerationBenchmarkItem,
     GenerationStudentProfile,
@@ -38,7 +39,6 @@ from decodable_text_generation.prompts import (
     build_generation_prompt,
     load_scenarios,
 )
-from phonics_benchmark.data_io import write_jsonl
 from pydantic import BaseModel, ValidationError
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"

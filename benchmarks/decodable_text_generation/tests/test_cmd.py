@@ -5,11 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from decodable_text_generation.cmd import app
-from decodable_text_generation.items import load_generation_items
-from decodable_text_generation.prompts import prompt_from_item
-from phonics_benchmark.config import ConfigError, load_run_config
-from phonics_benchmark.runner import execute_run
+from decodable_text_generation.cmd import BENCHMARK, app
+from fab_benchmark_runner import execute_run, load_run_config
 from typer.testing import CliRunner
 
 FIXTURE = Path(__file__).parent / "fixtures" / "generation_benchmark_items.jsonl"
@@ -24,6 +21,7 @@ def _write_config(
     tmp_path: Path,
     *,
     items_path: Path,
+    task: str,
     prompt_name: str | None = None,
 ) -> Path:
     custom_models_path = tmp_path / "custom_models.yaml"
@@ -34,6 +32,7 @@ def _write_config(
     config = {
         "run_id": "experiment-a",
         "language": "en",
+        "task": task,
         "items_path": str(items_path),
         "output_dir": str(tmp_path / "outputs"),
         "models": ["model-a"],
@@ -62,10 +61,22 @@ def _fake_output(run_dir: Path) -> dict:
     }
 
 
-def test_main_shows_help_without_command(runner: CliRunner) -> None:
-    result = runner.invoke(app)
-    assert result.exit_code == 0
-    assert "Usage:" in result.stdout
+def _child_items(tmp_path: Path) -> Path:
+    """The fixture's rows with target_knowledge stripped: a child file."""
+    items = [
+        {
+            key: value
+            for key, value in json.loads(line).items()
+            if key != "target_knowledge"
+        }
+        for line in FIXTURE.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    items_path = tmp_path / "items.jsonl"
+    items_path.write_text(
+        "\n".join(json.dumps(item) for item in items), encoding="utf-8"
+    )
+    return items_path
 
 
 def _curriculum_items(tmp_path: Path) -> Path:
@@ -80,106 +91,138 @@ def _curriculum_items(tmp_path: Path) -> Path:
     return items_path
 
 
-def test_run_generation_infers_task_and_defaults(
-    runner: CliRunner, tmp_path: Path
-) -> None:
-    """Curriculum items → the curriculum task and prompt defaults."""
-    items_path = _curriculum_items(tmp_path)
-    config_path = _write_config(tmp_path, items_path=items_path)
-
-    with (
-        patch(
-            "decodable_text_generation.cmd.download_default_custom_models"
-        ) as download_models,
-        patch(
-            "decodable_text_generation.cmd._execute_with_optional_sync",
-            return_value=_fake_output(tmp_path / "outputs" / "experiment-a"),
-        ) as run,
-    ):
-        result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
-
-    assert result.exit_code == 0, result.output
-    download_models.assert_called_once_with()
-    run.assert_called_once()
-    run_config = run.call_args.args[0]
-    assert run_config.task == "generation-curriculum"
-    assert run_config.prompt_name == "decodable_text_generation_curriculum"
-    assert run.call_args.kwargs["prompt_builder"] is prompt_from_item
-    # The item loader is the generation loader bound to the curriculum variant.
-    item_loader = run.call_args.kwargs["item_loader"]
-    assert item_loader.func is load_generation_items
-    assert item_loader.keywords["curriculum"] is True
+def test_main_shows_help_without_command(runner: CliRunner) -> None:
+    result = runner.invoke(app)
+    assert result.exit_code == 0
+    assert "Usage:" in result.stdout
 
 
-def test_run_command_curriculum_loader_requires_target(
-    runner: CliRunner, tmp_path: Path
-) -> None:
-    """The curriculum-inferred item loader rejects items without a target."""
-    items_path = _curriculum_items(tmp_path)
-    config_path = _write_config(tmp_path, items_path=items_path)
-
-    with (
-        patch("decodable_text_generation.cmd.download_default_custom_models"),
-        patch(
-            "decodable_text_generation.cmd._execute_with_optional_sync",
-            return_value=_fake_output(tmp_path / "outputs" / "experiment-a"),
-        ) as run,
-    ):
-        result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
-
-    assert result.exit_code == 0, result.output
-    item_loader = run.call_args.kwargs["item_loader"]
-    # The fixture mixes a child item in; the curriculum loader rejects it.
-    with pytest.raises(ConfigError, match="target"):
-        item_loader(FIXTURE)
-
-
-def test_run_generation_infers_child_task(runner: CliRunner, tmp_path: Path) -> None:
-    """Items without ``target_knowledge`` infer the child task."""
-    items = [
-        {k: v for k, v in json.loads(line).items() if k != "target_knowledge"}
-        for line in FIXTURE.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    items_path = tmp_path / "items.jsonl"
-    items_path.write_text(
-        "\n".join(json.dumps(item) for item in items), encoding="utf-8"
+def test_run_binds_generation_params(runner: CliRunner, tmp_path: Path) -> None:
+    """Config keys become validated params; prompt_name defaults per task."""
+    items_path = _child_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
     )
-    config_path = _write_config(tmp_path, items_path=items_path)
 
-    with (
-        patch("decodable_text_generation.cmd.download_default_custom_models"),
-        patch(
-            "decodable_text_generation.cmd._execute_with_optional_sync",
-            return_value=_fake_output(tmp_path / "outputs" / "experiment-a"),
-        ) as run,
-    ):
-        result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
+    with patch(
+        "fab_benchmark_runner.cli.execute_with_optional_sync",
+        return_value=_fake_output(tmp_path / "outputs" / "experiment-a"),
+    ) as run:
+        result = runner.invoke(app, ["run", "--config", str(config_path)])
 
     assert result.exit_code == 0, result.output
     run_config = run.call_args.args[0]
-    assert run_config.task == "generation-child"
-    assert run_config.prompt_name == "decodable_text_generation"
-    assert run.call_args.kwargs["item_loader"].keywords["curriculum"] is False
+    assert run_config.params.language == "en"
+    assert run_config.params.task == "generation-child"
+    assert run_config.params.prompt_name == "decodable_text_generation"
 
 
-def test_run_generation_rejects_mixed_items(runner: CliRunner, tmp_path: Path) -> None:
-    """A file mixing target-bearing and target-free items fails loudly."""
-    items_path = tmp_path / "items.jsonl"
-    items_path.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
-    config_path = _write_config(tmp_path, items_path=items_path)
+def test_run_curriculum_defaults(runner: CliRunner, tmp_path: Path) -> None:
+    """The curriculum task defaults to the {target}-bearing template name."""
+    items_path = _curriculum_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-curriculum"
+    )
 
-    result = runner.invoke(app, ["run-generation", "--config", str(config_path)])
+    with patch(
+        "fab_benchmark_runner.cli.execute_with_optional_sync",
+        return_value=_fake_output(tmp_path / "outputs" / "experiment-a"),
+    ) as run:
+        result = runner.invoke(app, ["run", "--config", str(config_path)])
+
+    assert result.exit_code == 0, result.output
+    run_config = run.call_args.args[0]
+    assert run_config.params.prompt_name == "decodable_text_generation_curriculum"
+
+
+def test_run_requires_task(runner: CliRunner, tmp_path: Path) -> None:
+    """A config without ``task`` is rejected."""
+    items_path = _child_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    del config["task"]
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    result = runner.invoke(app, ["run", "--config", str(config_path)])
+
+    assert result.exit_code == 1
+    assert "task" in result.output
+
+
+def test_run_rejects_unknown_prompt_name(runner: CliRunner, tmp_path: Path) -> None:
+    items_path = _child_items(tmp_path)
+    config_path = _write_config(
+        tmp_path,
+        items_path=items_path,
+        task="generation-child",
+        prompt_name="bogus-prompt",
+    )
+
+    result = runner.invoke(app, ["run", "--config", str(config_path)])
+
+    assert result.exit_code == 1
+    assert "prompt_name" in result.output
+
+
+def test_run_rejects_task_item_mismatch(runner: CliRunner, tmp_path: Path) -> None:
+    """Curriculum items under a child task fail before any model call."""
+    items_path = _curriculum_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
+    )
+
+    with (
+        patch("fab_benchmark_runner.runner.prepare_fdllm_for_run"),
+        patch("fab_benchmark_runner.runner.snapshot_model_configs", return_value={}),
+    ):
+        result = runner.invoke(app, ["run", "--config", str(config_path)])
 
     assert result.exit_code == 1
     assert "target_knowledge" in result.output
 
 
-def test_run_end_to_end_with_fake_evaluator(tmp_path: Path) -> None:
-    """A full run: items load, the baked prompt is used, rows record the task."""
+def test_run_rejects_mixed_items(runner: CliRunner, tmp_path: Path) -> None:
+    """A file mixing target-bearing and target-free items fails loudly."""
     items_path = tmp_path / "items.jsonl"
     items_path.write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
-    config_path = _write_config(tmp_path, items_path=items_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
+    )
+
+    with (
+        patch("fab_benchmark_runner.runner.prepare_fdllm_for_run"),
+        patch("fab_benchmark_runner.runner.snapshot_model_configs", return_value={}),
+    ):
+        result = runner.invoke(app, ["run", "--config", str(config_path)])
+
+    assert result.exit_code == 1
+    assert "target_knowledge" in result.output
+
+
+def test_dry_run_reports_plan(runner: CliRunner, tmp_path: Path) -> None:
+    items_path = _child_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
+    )
+
+    with (
+        patch("fab_benchmark_runner.runner.prepare_fdllm_for_run"),
+        patch("fab_benchmark_runner.runner.snapshot_model_configs", return_value={}),
+    ):
+        result = runner.invoke(app, ["run", "--config", str(config_path), "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "model-a: 2 planned, 0 reused, 2 to run" in result.output
+
+
+def test_run_end_to_end_with_fake_evaluator(tmp_path: Path) -> None:
+    """A full run: items load, the baked prompt is used, rows record params."""
+    items_path = _child_items(tmp_path)
+    config_path = _write_config(
+        tmp_path, items_path=items_path, task="generation-child"
+    )
 
     prompts_seen: list[str] = []
 
@@ -188,14 +231,8 @@ def test_run_end_to_end_with_fake_evaluator(tmp_path: Path) -> None:
         return {"output": "<text>the cat sat</text>"}
 
     output = execute_run(
-        load_run_config(
-            config_path,
-            task="generation-child",
-            default_prompt_name="decodable_text_generation",
-        ),
+        load_run_config(config_path, BENCHMARK),
         evaluator=evaluator,
-        item_loader=load_generation_items,
-        prompt_builder=prompt_from_item,
     )
 
     assert output["executed_count"] == 2
@@ -211,6 +248,8 @@ def test_run_end_to_end_with_fake_evaluator(tmp_path: Path) -> None:
         if line.strip()
     ]
     assert {row["task"] for row in rows} == {"generation-child"}
+    assert {row["language"] for row in rows} == {"en"}
+    assert {row["prompt_name"] for row in rows} == {"decodable_text_generation"}
     assert {row["benchmark_item_id"] for row in rows} == {
         "ufli-en-l008_words",
         "child-jagged-01_story",

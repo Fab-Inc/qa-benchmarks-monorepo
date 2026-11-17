@@ -34,6 +34,7 @@ members = [
 
 [tool.uv.sources]
 fab-benchmark-publisher = { workspace = true }
+fab-benchmark-runner = { workspace = true }
 primerpro = { workspace = true }
 decodability = { workspace = true }
 phonics-benchmark = { workspace = true }

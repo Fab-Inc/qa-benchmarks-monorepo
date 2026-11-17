@@ -8,10 +8,10 @@ Two sibling benchmarks that ask models to write decodable text:
   used; the prompt also asks the model to practise the target. Task name:
   `generation-curriculum`.
 
-Both reuse the `phonics_benchmark` run harness (config, checkpointed runner, GCS sync) —
-see that package's README for the shared run/config semantics. The generation-specific
-pieces live here: prompt templates, scenarios, per-language decoding-rules wording, the
-item schema, and the data pipeline.
+Both run on `fab_benchmark_runner` (config, checkpointed runner, GCS sync) — see that
+package's README for the shared run/config semantics. The generation-specific pieces
+live here: prompt templates, scenarios, per-language decoding-rules wording, the item
+schema, and the data pipeline.
 
 ## Pipeline
 
@@ -66,5 +66,10 @@ Each line of `benchmark_items.jsonl` (English example):
 ## Running
 
 ```bash
-decodable-text-generation run-generation --config path/to/run.json
+decodable-text-generation run --config path/to/run.json
 ```
+
+The run config's `language` and `task` (`generation-child` or `generation-curriculum`)
+are required; `task` must match the items' `target_knowledge` presence. `prompt_name` is
+optional and defaults to the task's template name. `run-cloud`, `upload-results` and
+`fetch-results` behave as in `fab_benchmark_runner`'s generated CLI.

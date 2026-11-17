@@ -1,344 +1,101 @@
-"""Command-line interface for the decodable text generation benchmarks."""
+"""The decodable text generation benchmarks, built on fab-benchmark-runner."""
 
-from dataclasses import replace
-from functools import partial
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-import typer
-from phonics_benchmark.cmd import (
-    DEFAULT_CLOUD_WORKDIR,
-    EXPECTED_CLI_ERRORS,
-    _echo_run_output,
-    _execute_with_optional_sync,
-    _load_cloud_run_config,
-    _load_local_run_config,
-    _parse_cli_models,
-    _timestamp_run_id,
-    fetch_results_cmd,
-    upload_results_cmd,
-)
-from phonics_benchmark.config import (
-    DEFAULT_CHUNK_SIZE,
-    DEFAULT_MODEL_WORKERS,
-    DEFAULT_PROMPT_NAME,
-    ConfigError,
-    apply_execution_overrides,
-    build_run_config,
-)
-from phonics_benchmark.runner import download_default_custom_models
+from decodability import DECODABILITY_REGISTRY
+from fab_benchmark_runner import Benchmark, ConfigError, build_app
 
 from decodable_text_generation.items import load_generation_items
-from decodable_text_generation.prompts import prompt_from_item
+from decodable_text_generation.prompts import (
+    KNOWLEDGE_FORMAT,
+    prompt_from_item,
+    prompt_names,
+)
 
 GENERATION_CHILD_TASK = "generation-child"
 GENERATION_CURRICULUM_TASK = "generation-curriculum"
 
-
 # Curriculum items carry a `target` object and are prompted with the
 # {target}-bearing template; child items use the plain generation template.
-_IS_CURRICULUM = {
-    GENERATION_CHILD_TASK: False,
-    GENERATION_CURRICULUM_TASK: True,
-}
 DEFAULT_PROMPT_NAMES = {
     GENERATION_CHILD_TASK: "decodable_text_generation",
     GENERATION_CURRICULUM_TASK: "decodable_text_generation_curriculum",
 }
 
-app = typer.Typer(
-    name="decodable-text-generation",
-    help=(
-        "Run decodable text generation benchmarks (child and curriculum) "
-        "from a config file or CLI options."
-    ),
-)
+# The monorepo's shared .env and custom_models.yaml, as the phonics benchmark
+# uses; src/decodable_text_generation/cmd.py sits four levels below the root.
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
-@app.callback(invoke_without_command=True)
-def setup(ctx: typer.Context) -> None:
-    """Decodable text generation benchmarks."""
-    if ctx.invoked_subcommand is None:
-        typer.echo(ctx.get_help())
-        raise typer.Exit()
+@dataclass(frozen=True)
+class GenerationParams:
+    """The run config keys owned by the generation benchmarks.
 
-
-def _item_loader_for(task: str):
-    return partial(load_generation_items, curriculum=_IS_CURRICULUM[task])
-
-
-def _infer_task(items_path: Path) -> str:
-    """Select the task from the items' ``target_knowledge``.
-
-    Curriculum items carry the knowledge currently being taught; child items
-    don't. A file mixing the two is ambiguous — likely a malformed items file —
-    so it fails rather than silently picking a task.
+    All three are run identity: they go into the config ID and every result
+    row. ``prompt_name`` records which template the items were baked with;
+    generation items carry their rendered prompt, so it is provenance only.
     """
-    items, _ = load_generation_items(items_path)
-    targets = [bool(item.get("target_knowledge")) for item in items]
-    if all(targets):
-        return GENERATION_CURRICULUM_TASK
-    if not any(targets):
-        return GENERATION_CHILD_TASK
-    raise ConfigError(
-        f"Benchmark items in {items_path} mix 'target_knowledge' presence; "
-        "expected all items or none to carry it."
-    )
 
+    language: str
+    task: str
+    prompt_name: str | None = None
 
-def run_generation_cmd(
-    ctx: typer.Context,
-    config: Path | None = typer.Option(
-        None,
-        "--config",
-        "-c",
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help=(
-            "Path to the JSON run config. Its items_path may be local or a gs:// "
-            "URI. If omitted, use CLI options."
-        ),
-    ),
-    run_id: str | None = typer.Option(
-        None,
-        "--run-id",
-        help=(
-            "Run identifier used as the output subdirectory. Defaults to 'default'. "
-            "Alphanumeric and hyphens only."
-        ),
-    ),
-    timestamped_output: bool = typer.Option(
-        False,
-        "--timestamped-output",
-        help="Generate a UTC timestamp run ID for a non-overwriting run.",
-    ),
-    language: str | None = typer.Option(
-        None,
-        "--language",
-        "-l",
-        help="Language registry key for the benchmark run, for example 'sw'.",
-    ),
-    models: str | None = typer.Option(
-        None,
-        "--models",
-        help="Model list as comma-separated names or a JSON array string.",
-    ),
-    model: list[str] | None = typer.Option(
-        None,
-        "--model",
-        "-m",
-        help="Model name to evaluate. Repeatable compatibility option.",
-    ),
-    output_dir: Path = typer.Option(
-        Path("results"),
-        "--output-dir",
-        help="Directory where run artifacts should be written.",
-    ),
-    items_path: Path | None = typer.Option(
-        None,
-        "--items-path",
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help="JSONL containing completed benchmark items.",
-    ),
-    custom_models_path: Path | None = typer.Option(
-        None,
-        "--custom-models-path",
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help="Path to the FDLLM custom models YAML file.",
-    ),
-    skip_models_download: bool = typer.Option(
-        False,
-        "--skip-models-download",
-        help="Do not refresh the shared repo-root custom_models.yaml before the run.",
-    ),
-    env_path: Path | None = typer.Option(
-        None,
-        "--env-path",
-        exists=True,
-        dir_okay=False,
-        readable=True,
-        help="Path to a .env file with provider API keys.",
-    ),
-    prompt_name: str | None = typer.Option(
-        None,
-        "--prompt-name",
-        help="Prompt template to evaluate each item with.",
-    ),
-    max_tokens: int | None = typer.Option(
-        None,
-        "--max-tokens",
-        min=1,
-        help="Maximum response tokens for each model call. Defaults to 10,000.",
-    ),
-    chunk_size: int = typer.Option(
-        DEFAULT_CHUNK_SIZE,
-        "--chunk-size",
-        min=1,
-        help="Number of pending items to evaluate before checkpointing results.",
-    ),
-    model_workers: int | None = typer.Option(
-        None,
-        "--model-workers",
-        min=1,
-        help=(
-            "Maximum number of provider groups to run concurrently. "
-            f"Defaults to the config value, or {DEFAULT_MODEL_WORKERS} without "
-            "a config."
-        ),
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        "-f",
-        help="Ignore existing results and rerun all model/item pairs.",
-    ),
-    retry_errors: bool = typer.Option(
-        False,
-        "--retry-errors",
-        help="Retry only existing result rows with call_status=error.",
-    ),
-    results_dest: str | None = typer.Option(
-        None,
-        "--results-dest",
-        help="GCS run prefix to mirror, for example gs://bucket/dtg/runs/id/.",
-    ),
-) -> None:
-    """Run a decodable text generation benchmark from a config file or CLI options."""
-
-    try:
-        if config is not None:
-            run_config = _load_local_run_config(
-                config,
-                task=GENERATION_CHILD_TASK,
-                default_prompt_name=DEFAULT_PROMPT_NAME,
+    def __post_init__(self) -> None:
+        if self.task not in DEFAULT_PROMPT_NAMES:
+            raise ValueError(
+                f"Unknown task '{self.task}'; available: {sorted(DEFAULT_PROMPT_NAMES)}"
             )
-            run_config = apply_execution_overrides(
-                run_config,
-                force=force,
-                retry_errors=retry_errors,
-                model_workers=model_workers,
-                results_dest=results_dest,
+        if self.language not in DECODABILITY_REGISTRY:
+            raise ValueError(
+                f"Unknown language '{self.language}'; available: "
+                f"{sorted(DECODABILITY_REGISTRY)}"
             )
-        else:
-            effective_run_id = (
-                _timestamp_run_id() if timestamped_output and run_id is None else run_id
+        if self.language not in KNOWLEDGE_FORMAT:
+            raise ValueError(
+                f"No student-knowledge format for language '{self.language}'; "
+                "add one to KNOWLEDGE_FORMAT in decodable_text_generation/prompts.py"
             )
-            model_names = _parse_cli_models(models, model)
-            run_config = build_run_config(
-                run_id=effective_run_id,
-                language=language,
-                output_dir=output_dir,
-                models=model_names,
-                base_dir=Path.cwd(),
-                task=GENERATION_CHILD_TASK,
-                items_path=items_path,
-                prompt_name=prompt_name or DEFAULT_PROMPT_NAME,
-                env_path=env_path,
-                custom_models_path=custom_models_path,
-                max_tokens=max_tokens,
-                chunk_size=chunk_size,
-                model_workers=(
-                    model_workers
-                    if model_workers is not None
-                    else DEFAULT_MODEL_WORKERS
-                ),
-                force=force,
-                retry_errors=retry_errors,
-                results_dest=results_dest,
+        if self.prompt_name is None:
+            object.__setattr__(self, "prompt_name", DEFAULT_PROMPT_NAMES[self.task])
+        elif self.prompt_name not in prompt_names():
+            raise ValueError(
+                f"Unknown prompt_name '{self.prompt_name}'; available: {prompt_names()}"
             )
 
-        task = _infer_task(run_config.items_path)
-        # An explicit prompt_name (CLI flag or config file) wins; an unset
-        # one falls back to the inferred task's default.
-        if run_config.prompt_name == DEFAULT_PROMPT_NAME:
-            run_config = replace(
-                run_config,
-                task=task,
-                prompt_name=DEFAULT_PROMPT_NAMES[task],
-            )
-        else:
-            run_config = replace(run_config, task=task)
 
-        if not skip_models_download:
-            download_default_custom_models()
-        output = _execute_with_optional_sync(
-            run_config,
-            item_loader=_item_loader_for(task),
-            prompt_builder=prompt_from_item,
+def build_prompt(item: Mapping[str, Any], params: GenerationParams) -> str:
+    """Check item/task agreement, then return the item's baked prompt.
+
+    ``target_knowledge`` marks a curriculum item; the loader already rejects
+    mixed files, so a disagreement here means the config's task does not
+    match its items.
+    """
+    has_target = bool(item.get("target_knowledge"))
+    if has_target and params.task == GENERATION_CHILD_TASK:
+        raise ConfigError(
+            f"Benchmark item '{item['benchmark_item_id']}' carries "
+            f"'target_knowledge' but task '{params.task}' is a child run"
         )
-    except EXPECTED_CLI_ERRORS as e:
-        typer.echo(f"ERROR: {e}", err=True)
-        raise typer.Exit(1) from e
-
-    _echo_run_output(output)
-    if output["error_count"] > 0:
-        raise typer.Exit(1)
-
-
-def run_generation_cloud_cmd(
-    ctx: typer.Context,
-    config: str = typer.Option(
-        ...,
-        "--config",
-        "-c",
-        help="GCS URI of the run config, for example gs://bucket/runs/id/config.json.",
-    ),
-    workdir: Path = typer.Option(
-        DEFAULT_CLOUD_WORKDIR,
-        "--workdir",
-        file_okay=False,
-        help="Writable workspace used for downloaded inputs and run outputs.",
-    ),
-    skip_models_download: bool = typer.Option(
-        False,
-        "--skip-models-download",
-        help="Do not refresh the shared custom_models.yaml before the run.",
-    ),
-) -> None:
-    """Fetch a GCS config and items, then execute a continuously synced run."""
-
-    try:
-        run_config = _load_cloud_run_config(
-            config,
-            workdir=workdir,
-            task=GENERATION_CHILD_TASK,
-            default_prompt_name=DEFAULT_PROMPT_NAME,
+    if not has_target and params.task == GENERATION_CURRICULUM_TASK:
+        raise ConfigError(
+            f"Benchmark item '{item['benchmark_item_id']}' has no "
+            f"'target_knowledge' but task '{params.task}' is a curriculum run"
         )
-        task = _infer_task(run_config.items_path)
-        if run_config.prompt_name == DEFAULT_PROMPT_NAME:
-            run_config = replace(
-                run_config,
-                task=task,
-                prompt_name=DEFAULT_PROMPT_NAMES[task],
-            )
-        else:
-            run_config = replace(run_config, task=task)
-        if not skip_models_download:
-            download_default_custom_models(run_config.custom_models_path)
-        output = _execute_with_optional_sync(
-            run_config,
-            item_loader=_item_loader_for(task),
-            prompt_builder=prompt_from_item,
-        )
-    except EXPECTED_CLI_ERRORS as e:
-        typer.echo(f"ERROR: {e}", err=True)
-        raise typer.Exit(1) from e
-
-    _echo_run_output(output)
-    if output["error_count"] > 0:
-        raise typer.Exit(1)
+    return prompt_from_item(item)
 
 
-app.command("run-generation")(run_generation_cmd)
-app.command("run-generation-cloud")(run_generation_cloud_cmd)
-
-# The GCS sync commands are task-agnostic; reuse the phonics ones unchanged.
-app.command("upload-results")(upload_results_cmd)
-app.command("fetch-results")(fetch_results_cmd)
+BENCHMARK = Benchmark(
+    name="dtg",
+    params_type=GenerationParams,
+    build_prompt=build_prompt,
+    load_items=load_generation_items,
+    default_env_path=REPO_ROOT / ".env",
+    default_custom_models_path=REPO_ROOT / "custom_models.yaml",
+)
+app = build_app(BENCHMARK)
 
 
 def main() -> None:

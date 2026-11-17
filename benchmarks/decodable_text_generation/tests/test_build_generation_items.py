@@ -7,8 +7,8 @@ from types import ModuleType
 
 import pytest
 import typer
+from decodable_text_generation.data_io import write_jsonl
 from decodable_text_generation.models import GenerationStudentProfile
-from phonics_benchmark.data_io import write_jsonl
 from typer.testing import CliRunner
 
 BENCHMARK_ROOT = Path(__file__).parents[1]

@@ -5,53 +5,52 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from phonics_benchmark.config import ConfigError
-from phonics_benchmark.items import load_benchmark_items
+from fab_benchmark_runner import ConfigError, load_jsonl_items
 
 # Generation items pair a student profile with a scenario and carry their fully
 # rendered prompt, so `prompt` and `scenario_id` replace the decodability
-# benchmark's `content` requirement.
+# benchmark's `content` requirement. `benchmark_item_id` is checked by the
+# shared loader.
 GENERATION_REQUIRED_FIELDS: dict[str, type] = {
-    "benchmark_item_id": str,
     "scenario_id": str,
     "student_knowledge": dict,
     "prompt": str,
 }
 
-# Dataset-owned fields carried through for prompt building and later scoring.
-GENERATION_EXTRA_FIELDS = (
-    "student_knowledge_id",
-    "language_iso_code",
-    "is_jagged",
-    "target_knowledge",
-)
-
 
 def load_generation_items(
     items_path: str | Path,
-    *,
-    curriculum: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     """Load generation benchmark items; hash the exact JSONL bytes consumed.
 
-    With ``curriculum=True`` every item must also carry a non-empty
-    ``target_knowledge`` object (the knowledge the student is currently being
-    taught).
+    Every item must carry the generation fields. ``target_knowledge`` — the
+    knowledge the student is currently being taught — must be present on
+    either all items (a curriculum run) or none (a child run); a file mixing
+    the two is rejected. Item/task agreement is checked by the prompt
+    builder.
     """
-    items, items_sha256 = load_benchmark_items(
-        items_path,
-        required_fields=GENERATION_REQUIRED_FIELDS,
-        extra_fields=GENERATION_EXTRA_FIELDS,
-    )
-    if curriculum:
-        missing = [
-            str(item["benchmark_item_id"])
-            for item in items
-            if not item.get("target_knowledge")
-        ]
-        if missing:
-            raise ConfigError(
-                "Curriculum benchmark items must include a non-empty "
-                f"'target_knowledge'; missing on: {', '.join(missing)}"
-            )
+    items, items_sha256 = load_jsonl_items(items_path)
+    path = Path(items_path)
+    for line_number, item in enumerate(items, start=1):
+        for field_name, field_type in GENERATION_REQUIRED_FIELDS.items():
+            value = item.get(field_name)
+            if field_type is str:
+                if not isinstance(value, str) or not value.strip():
+                    raise ConfigError(
+                        f"{path}:{line_number}: {field_name} must be a "
+                        "non-empty, non-whitespace string"
+                    )
+            elif not isinstance(value, field_type):
+                raise ConfigError(
+                    f"{path}:{line_number}: {field_name} must be an object"
+                    if field_type is dict
+                    else f"{path}:{line_number}: {field_name} has the wrong type"
+                )
+
+    has_target = [bool(item.get("target_knowledge")) for item in items]
+    if any(has_target) and not all(has_target):
+        raise ConfigError(
+            f"Benchmark items in {path} mix 'target_knowledge' presence; "
+            "expected all items or none to carry it."
+        )
     return items, items_sha256

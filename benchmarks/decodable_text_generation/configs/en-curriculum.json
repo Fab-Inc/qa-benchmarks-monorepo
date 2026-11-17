@@ -1,6 +1,7 @@
 {
   "run_id": "en-generation-curriculum",
   "language": "en",
+  "task": "generation-curriculum",
   "items_path": "../data/curriculum_aligned/english/benchmark_items.jsonl",
   "output_dir": "../outputs",
   "models": [
