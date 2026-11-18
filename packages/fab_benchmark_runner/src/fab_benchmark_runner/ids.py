@@ -7,7 +7,7 @@ must not change by accident: tests pin known values.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
 from typing import Any
 
@@ -34,6 +34,7 @@ def model_call_id(
     prompt: str,
     system_prompt: str | None,
     max_tokens: int,
+    images: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Identify one model call by everything that shapes its response.
 
@@ -41,16 +42,17 @@ def model_call_id(
     ``max_tokens`` is the effective limit actually sent to the provider.
     """
 
-    return sha256_json(
-        {
-            "benchmark_item_id": benchmark_item_id,
-            "generation_parameters": {"max_tokens": max_tokens},
-            "model": model,
-            "model_config": model_config,
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-        }
-    )
+    payload = {
+        "benchmark_item_id": benchmark_item_id,
+        "generation_parameters": {"max_tokens": max_tokens},
+        "model": model,
+        "model_config": model_config,
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+    }
+    if images:
+        payload["images"] = [dict(image) for image in images]
+    return sha256_json(payload)
 
 
 def result_id(model_call_id: str) -> str:

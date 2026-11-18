@@ -48,7 +48,7 @@ its console script:
 ```python
 from dataclasses import dataclass
 
-from fab_benchmark_runner import Benchmark, build_app
+from fab_benchmark_runner import Benchmark, ImageInput, ModelRequest, build_app
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,34 @@ BENCHMARK = Benchmark(
 )
 app = build_app(BENCHMARK)  # [project.scripts] fab-benchmarks-mathv = "mathv.cli:app"
 ```
+
+For a multimodal benchmark, provide `build_request` instead of `build_prompt`:
+
+```python
+def build_request(item, params: MathParams) -> ModelRequest:
+    return ModelRequest(
+        prompt=PROMPTS[params.prompt_name].render(question=item["question"]),
+        images=(
+            ImageInput(
+                data=item["decoded_image"]["bytes"],
+                detail="high",
+                source_name=item["decoded_image"]["path"],
+            ),
+        ),
+    )
+
+
+BENCHMARK = Benchmark(
+    name="mathv",
+    params_type=MathParams,
+    build_request=build_request,
+)
+```
+
+Each benchmark defines exactly one of `build_prompt` or `build_request`. Images retain
+their order. The runner records both the original-byte hash and the hash of FDLLM's
+normalised provider payload; only the latter, the detail level and payload dimensions
+feed the call ID. `source_name` is provenance and does not affect reuse.
 
 - `params_type` is a dataclass whose fields are extra top-level keys of the run config.
   Fields without a default are required. Validate values in `__post_init__` and raise
@@ -131,8 +159,8 @@ Other keys belong to the benchmark's params; any left over are kept in
 ## Result IDs
 
 - `model_call_id` is the SHA-256 of the item's `benchmark_item_id`, the model name, the
-  model's registered config, the prompt, the system prompt and the effective
-  `max_tokens`.
+  model's registered config, the prompt, the system prompt, the effective `max_tokens`
+  and, for multimodal calls, the ordered image payload identities.
 - `result_id` is the first 24 hex characters of a hash of the `model_call_id`.
 - The config ID hashes the benchmark's identity params plus `max_tokens`. Resuming a run
   with a different config ID, or with different items, is refused.
@@ -212,6 +240,5 @@ environment.
   model list. A change to provider defaults, or an FDLLM upgrade that changes its
   built-in list, changes the IDs of the affected models. Projects that override the
   FDLLM version can get different IDs for the same model.
-- **Text only.** Prompts are single strings; images are not part of calls or IDs yet.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in
   parallel, so a run with one or two models gets no faster.

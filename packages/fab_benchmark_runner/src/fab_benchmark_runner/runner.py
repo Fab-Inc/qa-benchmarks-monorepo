@@ -32,6 +32,7 @@ from fab_benchmark_runner.registry import (
     sanitize_model_config,
     snapshot_model_configs,
 )
+from fab_benchmark_runner.request import ModelRequest, PreparedRequest, prepare_request
 from fab_benchmark_runner.results import (
     CALL_STATUS_ERROR,
     CALL_STATUS_SUCCESS,
@@ -44,6 +45,9 @@ from fab_benchmark_runner.results import (
 RunOutput = dict[str, Any]
 ArtifactWriteHook = Callable[[Path], None]
 Evaluator = Callable[[RunConfig, str, Mapping[str, Any], str], dict[str, Any]]
+RequestEvaluator = Callable[
+    [RunConfig, str, Mapping[str, Any], PreparedRequest], dict[str, Any]
+]
 
 # FDLLM propagates provider SDK failures unchanged. Only these known call failures
 # become error rows, so setup and result-processing bugs still fail fast.
@@ -70,6 +74,7 @@ _BASE_ROW_KEYS = frozenset(
         "model_call_id",
         ITEM_ID_KEY,
         "prompt",
+        "images",
         "output",
         "success",
         "call_status",
@@ -124,13 +129,13 @@ class _ModelRunOutput(TypedDict):
 @dataclass(frozen=True)
 class _PreparedItem:
     item: dict[str, Any]
-    prompt: str
+    request: PreparedRequest
 
 
 @dataclass(frozen=True)
 class _PlannedCall:
     item: dict[str, Any]
-    prompt: str
+    request: PreparedRequest
     model_call_id: str
     result_id: str
 
@@ -198,7 +203,17 @@ def execute_run(
     if evaluator is None:
         prepare_fdllm_for_run(config)
         model_configs = snapshot_model_configs(config.models)
-        evaluator = evaluate_item_with_fdllm
+        request_evaluator = evaluate_item_with_fdllm
+    else:
+
+        def request_evaluator(
+            run_config: RunConfig,
+            model_name: str,
+            item: Mapping[str, Any],
+            request: PreparedRequest,
+        ) -> dict[str, Any]:
+            return evaluator(run_config, model_name, item, request.prompt)
+
     context = _prepare_run(config, model_configs or {})
 
     code_git_hash = git_hash()
@@ -231,7 +246,7 @@ def execute_run(
         config=config,
         context=context,
         config_snapshot_path=config_snapshot_path,
-        evaluator=evaluator,
+        evaluator=request_evaluator,
         on_artifact_write=on_artifact_write,
     )
     executed_models = {
@@ -309,7 +324,7 @@ def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunCon
             config,
             model_name=model_name,
             model_config=sanitized_model_configs.get(model_name, {}),
-            items=deepcopy(prepared_items),
+            items=prepared_items,
         )
         for model_name in config.models
     }
@@ -325,13 +340,28 @@ def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunCon
 
 
 def _prepare_item(config: RunConfig, item: dict[str, Any]) -> _PreparedItem:
-    prompt = config.benchmark.build_prompt(item, config.params)
-    if not isinstance(prompt, str):
-        raise ConfigError(
-            f"Prompt builder returned {type(prompt).__name__} for item "
-            f"{item[ITEM_ID_KEY]}; expected str"
-        )
-    return _PreparedItem(item=item, prompt=prompt)
+    if config.benchmark.build_request is not None:
+        request = config.benchmark.build_request(item, config.params)
+        if not isinstance(request, ModelRequest):
+            raise ConfigError(
+                f"Request builder returned {type(request).__name__} for item "
+                f"{item[ITEM_ID_KEY]}; expected ModelRequest"
+            )
+    else:
+        if config.benchmark.build_prompt is None:  # pragma: no cover - construction
+            raise ConfigError("Benchmark has no prompt or request builder")
+        prompt = config.benchmark.build_prompt(item, config.params)
+        if not isinstance(prompt, str):
+            raise ConfigError(
+                f"Prompt builder returned {type(prompt).__name__} for item "
+                f"{item[ITEM_ID_KEY]}; expected str"
+            )
+        request = ModelRequest(prompt=prompt)
+    try:
+        prepared_request = prepare_request(request)
+    except (TypeError, ValueError) as e:
+        raise ConfigError(f"Invalid request for item {item[ITEM_ID_KEY]}: {e}") from e
+    return _PreparedItem(item=item, request=prepared_request)
 
 
 def _plan_model(
@@ -352,14 +382,15 @@ def _plan_model(
             benchmark_item_id=prepared.item[ITEM_ID_KEY],
             model=model_name,
             model_config=model_config,
-            prompt=prepared.prompt,
+            prompt=prepared.request.prompt,
             system_prompt=config.benchmark.system_prompt,
             max_tokens=config.effective_max_tokens,
+            images=prepared.request.image_identities(),
         )
         calls.append(
             _PlannedCall(
-                item=prepared.item,
-                prompt=prepared.prompt,
+                item=deepcopy(prepared.item),
+                request=prepared.request,
                 model_call_id=model_call_id,
                 result_id=ids.result_id(model_call_id),
             )
@@ -444,7 +475,7 @@ def _run_models_in_parallel(
     config: RunConfig,
     context: _RunContext,
     config_snapshot_path: Path,
-    evaluator: Evaluator,
+    evaluator: RequestEvaluator,
     on_artifact_write: ArtifactWriteHook | None,
 ) -> list[_ModelRunOutput]:
     """Run up to ``model_workers`` models at once, each model's items in order.
@@ -496,7 +527,7 @@ def _run_model(
     config_id: str,
     config_snapshot_path: Path,
     state: _ModelState,
-    evaluator: Evaluator,
+    evaluator: RequestEvaluator,
     on_artifact_write: ArtifactWriteHook | None,
 ) -> _ModelRunOutput:
     """Run one model's pending calls in item order, checkpointing each chunk."""
@@ -537,7 +568,7 @@ def _evaluate_call(
     config_snapshot_path: Path,
     model_name: str,
     call: _PlannedCall,
-    evaluator: Evaluator,
+    evaluator: RequestEvaluator,
 ) -> dict[str, Any]:
     base_row: dict[str, Any] = {
         "result_id": call.result_id,
@@ -549,10 +580,12 @@ def _evaluate_call(
         "model": model_name,
         "model_call_id": call.model_call_id,
         ITEM_ID_KEY: call.item[ITEM_ID_KEY],
-        "prompt": call.prompt,
+        "prompt": call.request.prompt,
     }
+    if call.request.images:
+        base_row["images"] = call.request.image_provenance()
     try:
-        payload = evaluator(config, model_name, call.item, call.prompt)
+        payload = evaluator(config, model_name, call.item, call.request)
     except PROVIDER_ERRORS as e:
         return _error_row(base_row, error_type=type(e).__name__, message=str(e))
 
