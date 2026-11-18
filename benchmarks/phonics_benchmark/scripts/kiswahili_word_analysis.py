@@ -1,6 +1,9 @@
 """Failure modes of models on the Kiswahili decodability benchmark
 
-Change `BASE` path to point to a different run.
+Change `RUN` to point to a different run. The run needs the hardware-tier
+outputs from ``report_on_benchmark_run.py --hardware-tiers``, which choose the
+models each tier is averaged over (the same selection the other hardware-tier
+error plots use).
 
 Every item-word (one word in one benchmark item) is put in exactly one failure
 mode: what, given the item's student profile, could make a model wrong about
@@ -18,9 +21,10 @@ Outputs, in REPORT:
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+import hardware_tier_errors as common
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -37,24 +41,28 @@ from decodability.kiswahili.segment import (
 )
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from phonics_benchmark.hardware import CONNECTOR, GRID, INK, MUTED, SECONDARY, SURFACE
 
 REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
 )
-BASE = REPO_ROOT / "outputs/phonics-relabelled-20261110/full/reports"
+RUN = REPO_ROOT / "outputs/phonics-relabelled-20261116/full"
+BASE = RUN / "reports"
 REPORT = BASE / "kiswahili"
 
-# Palette and furniture copied from plot_report_f2_leaderboards.py on the
-# add-phonics-local-merge branch, so these figures sit alongside the F2
-# leaderboards without a visual jump.
-SURFACE, INK_PRIMARY, INK_SECONDARY = "#fcfcfb", "#0b0b0b", "#52514e"
-INK_MUTED, GRIDLINE, BASELINE = "#898781", "#e1e0d9", "#c3c2b7"
+# Which hardware-tier outputs to read: the ranking metric, the coverage
+# threshold they were made with (None for none), and N in the top-N selection
+# file hardware_tiers_top{N}_models.csv. A tier with fewer than N eligible
+# models has all of them selected.
+METRIC = "pooled_f2"
+MIN_COVERAGE: float | None = None
+TOP_N = 10
+
+# The palette comes from phonics_benchmark.hardware. Tier colours are still this
+# script's own; hardware_tier_errors.TIER_COLORS uses different ones.
 TIER_ORDER = ["Cloud", "Mobile + Tablet"]
 TIER_COLORS = {"Cloud": "#1f4e79", "Mobile + Tablet": "#b5651d"}
 TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
-# Models per tier that the tier table averages over; a tier with fewer
-# contributes all of them.
-TOP_N = 10
 # Below this many item-words, a mode is faded in the chart.
 MIN_WORDS = 20
 
@@ -175,11 +183,17 @@ def load_results() -> pd.DataFrame:
     models while one keyed on model alone would keep them.
     """
     results = pd.read_csv(REPORT / "results_with_scoring.csv")
-    tiers = pd.read_csv(BASE / "hardware_tiers/pooled_f2/hardware_tiers_kiswahili.csv")
+    tiers = pd.read_csv(
+        common.tier_dir(RUN, METRIC, MIN_COVERAGE) / "hardware_tiers_kiswahili.csv"
+    )
     results = results.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
-    results["vocab_set"] = results.vocab_set.apply(eval)
+    # parse_word_set reads the literal without executing it, unlike eval. The
+    # response and label columns are written as lists; they become sets here.
+    results["vocab_set"] = results.vocab_set.map(common.parse_word_set)
     for col in ["response_parsed", "nondecodable_words"]:
-        results[col] = results[col].apply(lambda cell: {w.lower() for w in eval(cell)})
+        results[col] = results[col].map(
+            lambda cell: {w.lower() for w in common.parse_word_set(cell)}
+        )
     return results
 
 
@@ -254,7 +268,7 @@ def build(results: pd.DataFrame | None = None) -> pd.DataFrame:
 
     pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
     profiles = {
-        s: KiswahiliStudentKnowledge.model_validate(eval(s))
+        s: KiswahiliStudentKnowledge.model_validate(ast.literal_eval(s))
         for s in pairs.student_knowledge.unique()
     }
     pairs["failure_mode"] = [
@@ -284,36 +298,6 @@ def build(results: pd.DataFrame | None = None) -> pd.DataFrame:
 # --------------------------------------------------------------------------
 # Scoring
 # --------------------------------------------------------------------------
-def summary_table(words: pd.DataFrame) -> pd.DataFrame:
-    """One row per model: adjusted balanced accuracy (recall - FPR) over all words."""
-    counts = (
-        words.assign(
-            tp=words.predicted & words.is_nondecodable,
-            fp=words.predicted & ~words.is_nondecodable,
-            pos=words.is_nondecodable,
-            neg=~words.is_nondecodable,
-        )
-        .groupby(["hardware_tier", "model"], observed=True)[["tp", "fp", "pos", "neg"]]
-        .sum()
-        .reset_index()
-    )
-    counts["j"] = counts.tp / counts.pos - counts.fp / counts.neg
-    return counts
-
-
-def top_models(summary: pd.DataFrame, tier: str) -> pd.Series:
-    """The TOP_N models with the highest pooled J within one hardware tier.
-
-    Model id breaks ties so the selection is stable across runs. A tier with
-    fewer than TOP_N models contributes all of them.
-    """
-    return (
-        summary[summary.hardware_tier == tier]
-        .sort_values(["j", "model"], ascending=[False, True])
-        .head(TOP_N)["model"]
-    )
-
-
 def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
     """One row per (model, failure mode): error rate and share of the model's errors.
 
@@ -333,17 +317,16 @@ def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def tier_failure_table(failures: pd.DataFrame, summary: pd.DataFrame) -> pd.DataFrame:
-    """One row per (tier, failure mode): means over each tier's top models.
+def tier_failure_table(failures: pd.DataFrame, selected: pd.DataFrame) -> pd.DataFrame:
+    """One row per (tier, failure mode): means over each tier's selected models.
 
-    Each selected model counts equally. n is the mode's item-word count for
-    the best-covered model, which does not depend on the tier.
+    selected is the model and hardware_tier selection from
+    hardware_tier_errors.load_top_models. Each selected model counts equally.
+    n is the mode's item-word count for the best-covered model, which does not
+    depend on the tier.
     """
-    selected = pd.concat(
-        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
-    )
     out = (
-        failures[failures.model.isin(selected)]
+        failures[failures.model.isin(selected.model)]
         .groupby(["hardware_tier", "failure_mode"], observed=True)
         .agg(
             error_rate=("error_rate", "mean"),
@@ -362,12 +345,12 @@ def style(ax: Axes) -> None:
     ax.set_facecolor(SURFACE)
     ax.spines[["top", "right"]].set_visible(False)
     for side in ("left", "bottom"):
-        ax.spines[side].set_color(BASELINE)
+        ax.spines[side].set_color(CONNECTOR)
         ax.spines[side].set_linewidth(0.8)
-    ax.tick_params(colors=INK_MUTED, length=3, width=0.8, labelsize=9)
+    ax.tick_params(colors=MUTED, length=3, width=0.8, labelsize=9)
 
 
-def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
+def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> Figure:
     """Error rate per failure mode, one dot per tier, plus each mode's share of errors.
 
     False alarms on decodable words sit in the top panel and misses on
@@ -400,7 +383,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
             }
             faded = sizes[mode] < MIN_WORDS
             low, high = min(points.values()), max(points.values())
-            ax.plot([low, high], [y, y], color=BASELINE, lw=2, zorder=1)
+            ax.plot([low, high], [y, y], color=CONNECTOR, lw=2, zorder=1)
             for tier, rate in points.items():
                 ax.scatter(
                     rate,
@@ -422,7 +405,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
                     ha="right" if left else "left",
                     va="center",
                     fontsize=9,
-                    color=INK_MUTED if faded else INK_PRIMARY,
+                    color=MUTED if faded else INK,
                 )
             # Right-hand columns: item-words, then each tier's share of errors.
             ax.annotate(
@@ -431,7 +414,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
                 xycoords=("axes fraction", "data"),
                 va="center",
                 fontsize=9,
-                color=INK_MUTED,
+                color=MUTED,
             )
             for x, tier in zip((1.14, 1.23), TIER_ORDER):
                 share = rates.share_of_errors.get((mode, tier), np.nan)
@@ -447,33 +430,32 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
         style(ax)
         # style() greys tick labels; mode names are the content, so restore them.
         for tick, (mode, _) in zip(ax.get_yticklabels(), rows):
-            tick.set_color(INK_MUTED if sizes[mode] < MIN_WORDS else INK_PRIMARY)
+            tick.set_color(MUTED if sizes[mode] < MIN_WORDS else INK)
         ax.set_ylim(-0.6, len(rows) - 0.4)
-        ax.grid(axis="x", color=GRIDLINE, lw=0.8)
+        ax.grid(axis="x", color=GRID, lw=0.8)
         ax.set_axisbelow(True)
         ax.tick_params(axis="y", length=0)
-        ax.set_title(
-            title, loc="left", fontsize=11, fontweight="semibold", color=INK_PRIMARY
-        )
+        ax.set_title(title, loc="left", fontsize=11, fontweight="semibold", color=INK)
     axes[0].annotate(
         "item-words",
         (1.02, 1.02),
         xycoords="axes fraction",
         fontsize=8.5,
-        color=INK_MUTED,
+        color=MUTED,
     )
     axes[0].annotate(
         "share of tier's errors",
         (1.14, 1.02),
         xycoords="axes fraction",
         fontsize=8.5,
-        color=INK_MUTED,
+        color=MUTED,
     )
     # Padding past 0 and 100 leaves room for the value labels.
     axes[-1].set_xlim(-9, 106)
     axes[-1].set_xticks([0, 20, 40, 60, 80, 100])
     axes[-1].set_xlabel(
-        f"Error rate, mean over each tier's top {TOP_N} models", color=INK_SECONDARY
+        f"Error rate, mean over each tier's models {common.tier_title(selected)}",
+        color=SECONDARY,
     )
     fig.legend(
         handles=[
@@ -493,7 +475,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
         ncol=2,
         frameon=False,
         fontsize=10,
-        labelcolor=INK_SECONDARY,
+        labelcolor=SECONDARY,
     )
     fig.suptitle(
         "What do models get wrong, given what the student has been taught?",
@@ -501,7 +483,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
         ha="left",
         fontsize=14,
         fontweight="bold",
-        color=INK_PRIMARY,
+        color=INK,
     )
     fig.text(
         0.01,
@@ -514,7 +496,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
         f"Faded: fewer than {MIN_WORDS} item-words.",
         va="top",
         fontsize=8,
-        color=INK_SECONDARY,
+        color=SECONDARY,
         linespacing=1.5,
     )
     return fig
@@ -528,12 +510,12 @@ if __name__ == "__main__":
         REPORT / "hallucination_summary.csv", index=False
     )
 
-    summary = summary_table(words)
+    selected = common.load_top_models(RUN, "kiswahili", TOP_N, METRIC, MIN_COVERAGE)
     failures = failure_mode_table(words)
-    tier_failures = tier_failure_table(failures, summary)
+    tier_failures = tier_failure_table(failures, selected)
     failures.to_csv(REPORT / "failure_modes.csv", index=False)
     tier_failures.to_csv(REPORT / "failure_modes_by_tier.csv", index=False)
-    plot_failure_modes(tier_failures).savefig(
+    plot_failure_modes(tier_failures, selected).savefig(
         REPORT / "failure_modes.png",
         dpi=300,
         bbox_inches="tight",

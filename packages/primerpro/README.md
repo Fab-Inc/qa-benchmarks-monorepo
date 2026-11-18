@@ -125,7 +125,14 @@ inventory = GraphemeInventory(settings)
 
 gpc_mapping = GPCMapping()
 
-for grapheme, phoneme in [("m", "m"), ("n", "n"), ("b", "b"), ("s", "s"), ("sh", "ʃ"), ("t", "t")]:
+for grapheme, phoneme in [
+    ("m", "m"),
+    ("n", "n"),
+    ("b", "b"),
+    ("s", "s"),
+    ("sh", "ʃ"),
+    ("t", "t"),
+]:
     consonant = Consonant(grapheme)
     inventory.add_consonant(consonant)
 
