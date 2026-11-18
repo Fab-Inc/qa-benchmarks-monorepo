@@ -18,11 +18,12 @@ from fab_benchmark_runner.cloud import (
 )
 from fab_benchmark_runner.config import RunConfig, apply_execution_overrides
 from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.records import MODEL_RECORDS_DIR
 from fab_benchmark_runner.registry import (
     CUSTOM_MODELS_FILE_NAME,
     prepare_model_registry,
 )
-from fab_benchmark_runner.results import model_results_filename
+from fab_benchmark_runner.results import model_record_filename, model_results_filename
 from fab_benchmark_runner.run_sync import RunSync, RunSyncConflictError
 from fab_benchmark_runner.runner import RunOutput, RunPlan
 
@@ -183,14 +184,19 @@ def build_app(benchmark: Benchmark) -> typer.Typer:
             help="Local directory to download the run files into.",
         ),
         model: str | None = typer.Option(
-            None, "--model", help="Download only this model's response file."
+            None,
+            "--model",
+            help="Download only this model's response file and record.",
         ),
     ) -> None:
-        """Download all run files, or one model's response file, from GCS."""
+        """Download all run files, or one model's files, from GCS."""
 
         relative_paths = None
         if model is not None:
-            relative_paths = {f"responses/{model_results_filename(model)}"}
+            relative_paths = {
+                f"responses/{model_results_filename(model)}",
+                f"{MODEL_RECORDS_DIR}/{model_record_filename(model)}",
+            }
         try:
             downloaded_count = RunSync(run_dir, src).pull(relative_paths=relative_paths)
         except EXPECTED_CLI_ERRORS as e:

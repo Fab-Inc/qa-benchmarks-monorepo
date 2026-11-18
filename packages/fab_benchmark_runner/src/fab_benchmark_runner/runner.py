@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -19,10 +17,10 @@ from google.genai.errors import APIError as GoogleAPIError
 from mistralai.exceptions import MistralAPIException, MistralConnectionException
 from openai import APIError as OpenAIAPIError
 
-from fab_benchmark_runner import ids
+from fab_benchmark_runner import ids, records
 from fab_benchmark_runner.config import RunConfig, config_identity_sha256
 from fab_benchmark_runner.errors import ConfigError
-from fab_benchmark_runner.items import ITEM_ID_KEY, validate_items
+from fab_benchmark_runner.items import ITEM_ID_KEY, file_sha256, validate_items
 from fab_benchmark_runner.llm import evaluate_item_with_fdllm
 from fab_benchmark_runner.provenance import git_dirty, git_hash
 from fab_benchmark_runner.registry import (
@@ -119,6 +117,7 @@ class _ModelRunOutput(TypedDict):
     executed_count: int
     skipped_count: int
     error_count: int
+    results_written: bool
 
 
 @dataclass(frozen=True)
@@ -176,7 +175,10 @@ class _ModelState:
 class _RunContext:
     config_id: str
     custom_models_path: Path
-    items_sha256: str
+    registry_sha256: str
+    run_record: dict[str, Any]
+    run_record_path: Path
+    write_run_record: bool
     model_configs: dict[str, Any]
     states: dict[str, _ModelState]
 
@@ -201,55 +203,64 @@ def execute_run(
         evaluator = evaluate_item_with_fdllm
     context = _prepare_run(config, model_configs or {})
 
+    run_dir = config.run_dir
+    run_dir.mkdir(parents=True, exist_ok=True)
+    if context.write_run_record:
+        records.write_json(context.run_record_path, context.run_record)
+        if on_artifact_write is not None:
+            on_artifact_write(context.run_record_path)
+
     code_git_hash = git_hash()
     code_git_dirty = git_dirty()
-    run_dir = config.run_dir
-    config_snapshot_path = run_dir / "config.json"
-    resolved_config = config.to_resolved_dict()
-    resolved_config["custom_models_path"] = str(context.custom_models_path)
-    resolved_config["items_sha256"] = context.items_sha256
-    run_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(
-        config_snapshot_path,
-        {
-            "benchmark": config.benchmark.name,
-            "config_id": context.config_id,
-            "source_config_path": (
-                str(config.config_path) if config.config_path else None
-            ),
-            "raw_config": config.raw_config,
-            "resolved_config": resolved_config,
-            "code_git_hash": code_git_hash,
-            "code_git_dirty": code_git_dirty,
-            "model_configs": context.model_configs,
-        },
-    )
-    if on_artifact_write is not None:
-        on_artifact_write(config_snapshot_path)
+    registry = {
+        "path": str(context.custom_models_path),
+        "uri": config.custom_models_uri,
+        "sha256": context.registry_sha256,
+    }
+
+    def record_model(state: _ModelState, output: _ModelRunOutput) -> None:
+        """Record a model's run, in its own worker, once its results are written."""
+
+        if not output["results_written"]:
+            return
+        path = records.model_record_path(run_dir, state.model)
+        records.update_model_record(
+            path,
+            model_name=state.model,
+            config_id=context.config_id,
+            model_config=state.model_config,
+            registry=registry,
+            rows=state.ordered_rows(),
+            run_entry={
+                "finished_utc": records.utc_now(),
+                "run_id": config.run_id,
+                "executed_calls": output["executed_count"],
+                "dropped_stale_rows": state.stale_count,
+                "force": config.force,
+                "retry_errors": config.retry_errors,
+                "code_git_hash": code_git_hash,
+                "code_git_dirty": code_git_dirty,
+                "run_config_path": (
+                    str(config.config_path) if config.config_path else None
+                ),
+                "run_config": config.raw_config,
+            },
+        )
+        if on_artifact_write is not None:
+            on_artifact_write(path)
 
     model_outputs = _run_models_in_parallel(
         config=config,
         context=context,
-        config_snapshot_path=config_snapshot_path,
         evaluator=evaluator,
         on_artifact_write=on_artifact_write,
-    )
-    executed_models = {
-        output["model_name"] for output in model_outputs if output["executed_count"]
-    }
-    _update_run_log(
-        run_dir,
-        executed_models=executed_models,
-        retry_errors=config.retry_errors,
-        code_git_hash=code_git_hash,
-        code_git_dirty=code_git_dirty,
-        on_artifact_write=on_artifact_write,
+        after_model=record_model,
     )
     return {
         "run_id": config.run_id,
         "config_id": context.config_id,
         "run_dir": run_dir,
-        "config_snapshot_path": config_snapshot_path,
+        "config_snapshot_path": context.run_record_path,
         "results_dir": run_dir / "responses",
         "results_paths": {
             model_name: state.results_path
@@ -271,7 +282,8 @@ def plan_run(
 ) -> RunPlan:
     """Report which calls a run would make and which it would reuse.
 
-    Nothing is called or written. Without ``model_configs`` the model registry is
+    Nothing is called or written, but a run folder that belongs to a different run
+    is still reported as an error. Without ``model_configs`` the model registry is
     registered with FDLLM to read them, exactly as ``execute_run`` does; pass
     ``{}`` to plan a run that uses a supplied evaluator.
     """
@@ -289,7 +301,7 @@ def plan_run(
 
 
 def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunContext:
-    """Validate inputs and plan every model before any call or write."""
+    """Validate inputs and the run folder, and plan every model, before any write."""
 
     config_id = config_identity_sha256(config)
     identity_fields = config.identity_fields()
@@ -315,10 +327,16 @@ def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunCon
     }
     if config.retry_errors:
         _check_retry_caches(states)
+    run_record = records.run_record(config, items_sha256=items_sha256)
+    run_record_path = config.run_dir / records.RUN_RECORD_NAME
+    write_run_record = records.check_run_record(run_record_path, run_record)
     return _RunContext(
         config_id=config_id,
         custom_models_path=custom_models_path,
-        items_sha256=items_sha256,
+        registry_sha256=file_sha256(custom_models_path),
+        run_record=run_record,
+        run_record_path=run_record_path,
+        write_run_record=write_run_record,
         model_configs=sanitized_model_configs,
         states=states,
     )
@@ -443,9 +461,9 @@ def _run_models_in_parallel(
     *,
     config: RunConfig,
     context: _RunContext,
-    config_snapshot_path: Path,
     evaluator: Evaluator,
     on_artifact_write: ArtifactWriteHook | None,
+    after_model: Callable[[_ModelState, _ModelRunOutput], None],
 ) -> list[_ModelRunOutput]:
     """Run up to ``model_workers`` models at once, each model's items in order.
 
@@ -454,14 +472,17 @@ def _run_models_in_parallel(
     """
 
     def run(model_name: str) -> _ModelRunOutput:
-        return _run_model(
+        state = context.states[model_name]
+        output = _run_model(
             config=config,
             config_id=context.config_id,
-            config_snapshot_path=config_snapshot_path,
-            state=context.states[model_name],
+            run_record_path=context.run_record_path,
+            state=state,
             evaluator=evaluator,
             on_artifact_write=on_artifact_write,
         )
+        after_model(state, output)
+        return output
 
     waiting = list(config.models)
     workers = min(config.model_workers, len(waiting))
@@ -494,7 +515,7 @@ def _run_model(
     *,
     config: RunConfig,
     config_id: str,
-    config_snapshot_path: Path,
+    run_record_path: Path,
     state: _ModelState,
     evaluator: Evaluator,
     on_artifact_write: ArtifactWriteHook | None,
@@ -507,26 +528,30 @@ def _run_model(
             on_artifact_write(state.results_path)
 
     executed_count = 0
+    results_written = False
     for chunk in _chunked(state.pending, config.chunk_size):
         for call in chunk:
             state.rows_by_id[call.result_id] = _evaluate_call(
                 config=config,
                 config_id=config_id,
-                config_snapshot_path=config_snapshot_path,
+                run_record_path=run_record_path,
                 model_name=state.model,
                 call=call,
                 evaluator=evaluator,
             )
             executed_count += 1
         checkpoint()
+        results_written = True
     if state.stale_count and not state.pending:
         checkpoint()
+        results_written = True
 
     return {
         "model_name": state.model,
         "executed_count": executed_count,
         "skipped_count": len(state.calls) - len(state.pending),
         "error_count": error_count(state.ordered_rows()),
+        "results_written": results_written,
     }
 
 
@@ -534,7 +559,7 @@ def _evaluate_call(
     *,
     config: RunConfig,
     config_id: str,
-    config_snapshot_path: Path,
+    run_record_path: Path,
     model_name: str,
     call: _PlannedCall,
     evaluator: Evaluator,
@@ -544,7 +569,7 @@ def _evaluate_call(
         "run_id": config.run_id,
         "config_id": config_id,
         "config_path": str(config.config_path) if config.config_path else None,
-        "config_snapshot_path": str(config_snapshot_path),
+        "config_snapshot_path": str(run_record_path),
         **config.identity_fields(),
         "model": model_name,
         "model_call_id": call.model_call_id,
@@ -593,53 +618,3 @@ def _chunked(calls: list[_PlannedCall], chunk_size: int | None) -> list[list[Any
     return [
         calls[start : start + chunk_size] for start in range(0, len(calls), chunk_size)
     ]
-
-
-def _update_run_log(
-    run_dir: Path,
-    *,
-    executed_models: set[str],
-    retry_errors: bool,
-    code_git_hash: str | None,
-    code_git_dirty: bool | None,
-    on_artifact_write: ArtifactWriteHook | None,
-) -> None:
-    if not executed_models:
-        return
-    prefix = "responses_retry" if retry_errors else "responses"
-    fields = {
-        f"{prefix}_timestamp_utc": _utc_now(),
-        f"{prefix}_git_hash": code_git_hash,
-        f"{prefix}_git_dirty": code_git_dirty,
-    }
-    for model_name in sorted(executed_models):
-        update_log(run_dir, model_name, fields, on_artifact_write=on_artifact_write)
-
-
-def update_log(
-    run_dir: Path,
-    model_name: str,
-    fields: dict[str, str | bool | None],
-    *,
-    on_artifact_write: ArtifactWriteHook | None = None,
-) -> None:
-    """Merge-write model provenance fields into log.json, skipping None values."""
-
-    log_path = run_dir / "log.json"
-    log_data: dict[str, dict[str, Any]] = {}
-    if log_path.exists():
-        log_data = json.loads(log_path.read_text(encoding="utf-8"))
-    entry = log_data.setdefault(model_name, {})
-    entry.update({key: value for key, value in fields.items() if value is not None})
-    _write_json(log_path, log_data)
-    if on_artifact_write is not None:
-        on_artifact_write(log_path)
-
-
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(ids.canonical_json(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")

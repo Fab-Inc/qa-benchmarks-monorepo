@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -163,15 +162,6 @@ def test_identity_may_not_override_max_tokens(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="must not include 'max_tokens'"):
         config_identity(config)
-
-
-def test_resolved_dict_includes_params(tmp_path: Path, benchmark: Benchmark) -> None:
-    resolved = _parse(_minimal(), benchmark, tmp_path).to_resolved_dict()
-
-    assert resolved["language"] == "sw"
-    assert resolved["prompt_name"] == "default"
-    assert resolved["items_path"] == str((tmp_path / "items.jsonl").resolve())
-    json.dumps(resolved)
 
 
 @pytest.mark.parametrize(

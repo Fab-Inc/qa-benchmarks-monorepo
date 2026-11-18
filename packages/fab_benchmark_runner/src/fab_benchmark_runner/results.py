@@ -51,7 +51,7 @@ def save_results(rows: Iterable[Mapping[str, Any]], path: str | Path) -> Path:
     results_path = Path(path)
     results_path.parent.mkdir(parents=True, exist_ok=True)
     content = "".join(canonical_json(dict(row)) + "\n" for row in rows)
-    _write_text_atomic(results_path, content)
+    write_text_atomic(results_path, content)
     return results_path
 
 
@@ -64,15 +64,29 @@ def error_count(rows: Iterable[Mapping[str, Any]]) -> int:
 def model_results_filename(model_name: str) -> str:
     """Return the stable per-model response file name."""
 
+    return f"responses_{model_file_key(model_name)}.jsonl"
+
+
+def model_record_filename(model_name: str) -> str:
+    """Return the file name of a model's record in the run folder."""
+
+    return f"{model_file_key(model_name)}.json"
+
+
+def model_file_key(model_name: str) -> str:
+    """Return a file-safe, collision-free key for a model name."""
+
     safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", model_name).strip("._-")
     if not safe_name:
         safe_name = "model"
     if safe_name != model_name:
         safe_name += "-" + sha256(model_name.encode("utf-8")).hexdigest()[:8]
-    return f"responses_{safe_name}.jsonl"
+    return safe_name
 
 
-def _write_text_atomic(path: Path, content: str) -> None:
+def write_text_atomic(path: Path, content: str) -> None:
+    """Write through a temporary file and a rename, so readers never see half."""
+
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",

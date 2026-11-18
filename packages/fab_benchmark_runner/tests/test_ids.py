@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ import pytest
 
 from fab_benchmark_runner import (
     Benchmark,
+    ConfigError,
     config_identity,
     config_identity_sha256,
     execute_run,
@@ -40,6 +42,8 @@ FIREWORKS_CONFIG = {
     "group": "Fireworks",
 }
 SWAHILI_PROMPT = "Soma: Mama analima shamba. Je, ni rahisi?"
+# The phonics config ID of _write_phonics_like_config with default max_tokens.
+PHONICS_CONFIG_ID = "c0013b2a1bd7bc1fdee962da0dccb4010615a278721596e60f644ca472d25700"
 
 
 @dataclass(frozen=True)
@@ -180,3 +184,68 @@ def _write_phonics_like_config(
     config_path = tmp_path / "run.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     return config_path
+
+
+def test_a_phonics_run_folder_is_extended_without_new_calls(
+    tmp_path: Path,
+    read_rows: Callable[..., list[dict[str, Any]]],
+) -> None:
+    """A folder the phonics runner wrote: its result is reused, its record migrated."""
+
+    config = load_run_config(_write_phonics_like_config(tmp_path), PHONICS_LIKE)
+    run_dir = config.run_dir
+    (run_dir / "responses").mkdir(parents=True)
+    phonics_row = {
+        "benchmark_item_id": "item-1",
+        "call_status": "success",
+        "config_id": PHONICS_CONFIG_ID,
+        "model": "model-a",
+        "model_call_id": (
+            "5ec1fa19627f1a22d0ff5b4a3b1f8de7e5e4614861de238eb65ca01cbd2536be"
+        ),
+        "output": "[]",
+        "result_id": "59b5b241008b0c6d0c6c3cc3",
+        "success": True,
+    }
+    (run_dir / "responses" / "responses_model-a.jsonl").write_text(
+        json.dumps(phonics_row) + "\n", encoding="utf-8"
+    )
+    items_sha256 = sha256((tmp_path / "items.jsonl").read_bytes()).hexdigest()
+    phonics_snapshot = {
+        "config_id": phonics_row["config_id"],
+        "raw_config": {"language": "sw"},
+        "resolved_config": {"items_sha256": items_sha256},
+        "model_configs": {},
+    }
+    (run_dir / "config.json").write_text(json.dumps(phonics_snapshot), encoding="utf-8")
+    (run_dir / "log.json").write_text('{"model-a": {}}\n', encoding="utf-8")
+
+    def fail(*_args) -> dict:
+        pytest.fail("the phonics result must be reused")
+
+    output = execute_run(config, evaluator=fail)
+
+    assert (output["executed_count"], output["skipped_count"]) == (0, 1)
+    assert read_rows(output["results_paths"].values()) == [phonics_row]
+    record = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+    assert record["config_id"] == phonics_row["config_id"]
+    assert record["items_sha256"] == items_sha256
+    assert "resolved_config" not in record
+    assert (run_dir / "log.json").read_text(encoding="utf-8") == '{"model-a": {}}\n'
+
+
+def test_a_phonics_run_folder_of_another_run_is_refused(tmp_path: Path) -> None:
+    config = load_run_config(_write_phonics_like_config(tmp_path), PHONICS_LIKE)
+    config.run_dir.mkdir(parents=True)
+    (config.run_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "config_id": PHONICS_CONFIG_ID,
+                "resolved_config": {"items_sha256": "other-items"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="items_sha256 does not match"):
+        execute_run(config, evaluator=lambda *_args: {"output": "[]"})

@@ -44,7 +44,7 @@ def config(benchmark: Benchmark, write_run: Callable[..., Path]) -> RunConfig:
     return load_run_config(write_run(), benchmark)
 
 
-def test_run_writes_linked_rows_snapshot_and_log(
+def test_run_writes_linked_rows_and_records(
     tmp_path: Path, config: RunConfig, read_rows: Rows
 ) -> None:
     calls: list[tuple[str, str, str]] = []
@@ -94,20 +94,50 @@ def test_run_writes_linked_rows_snapshot_and_log(
     assert row["result_id"] == result_id(row["model_call_id"])
     assert len({row["result_id"] for row in rows}) == 4
 
-    snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
-    assert snapshot["benchmark"] == "test-bench"
-    assert snapshot["config_id"] == output["config_id"]
-    assert (snapshot["code_git_hash"], snapshot["code_git_dirty"]) == ("abc123", False)
-    assert snapshot["raw_config"]["language"] == "sw"
-    assert snapshot["resolved_config"]["items_sha256"] == (
-        sha256((tmp_path / "items.jsonl").read_bytes()).hexdigest()
-    )
-    assert snapshot["model_configs"] == {}
+    assert output["config_snapshot_path"] == config.run_dir / "config.json"
+    assert _read_json(output["config_snapshot_path"]) == {
+        "benchmark": "test-bench",
+        "config_id": output["config_id"],
+        "identity": {"language": "sw", "prompt_name": "default", "max_tokens": 10_000},
+        "items_sha256": sha256((tmp_path / "items.jsonl").read_bytes()).hexdigest(),
+        "record_format": 1,
+    }
+    assert not (config.run_dir / "log.json").exists()
 
-    log = json.loads((config.run_dir / "log.json").read_text(encoding="utf-8"))
-    assert set(log) == {"model-a", "model-b"}
-    assert log["model-a"]["responses_git_hash"] == "abc123"
-    assert log["model-a"]["responses_git_dirty"] is False
+    assert sorted(p.name for p in (config.run_dir / "models").iterdir()) == [
+        "model-a.json",
+        "model-b.json",
+    ]
+    record = _read_json(config.run_dir / "models" / "model-a.json")
+    assert record["model"] == "model-a"
+    assert record["config_id"] == output["config_id"]
+    assert record["model_config"] == {}
+    assert record["model_registry"] == {
+        "path": str(config.custom_models_path),
+        "uri": None,
+        "sha256": sha256((tmp_path / "custom_models.yaml").read_bytes()).hexdigest(),
+    }
+    assert record["results"] == {"rows": 2, "errors": 0}
+    [run] = record["runs"]
+    assert run["run_id"] == "experiment-a"
+    assert run["executed_calls"] == 2
+    assert run["dropped_stale_rows"] == 0
+    assert (run["force"], run["retry_errors"]) == (False, False)
+    assert (run["code_git_hash"], run["code_git_dirty"]) == ("abc123", False)
+    assert run["run_config_path"] == str(config.config_path)
+    assert run["run_config"] == config.raw_config
+    assert run["finished_utc"].endswith("Z")
+
+
+def test_a_rerun_writes_no_records(config: RunConfig) -> None:
+    execute_run(config, evaluator=_echo)
+    writes: list[str] = []
+
+    execute_run(
+        config, evaluator=_echo, on_artifact_write=lambda p: writes.append(p.name)
+    )
+
+    assert writes == []
 
 
 def test_rerun_reuses_every_result(config: RunConfig) -> None:
@@ -147,19 +177,72 @@ def test_adding_a_model_keeps_the_other_models_results(
     assert output["skipped_count"] == 2
 
 
-def test_changed_prompts_are_recomputed_and_stale_rows_dropped(
-    benchmark: Benchmark, write_run: Callable[..., Path], read_rows: Rows
+def test_a_run_folder_refuses_another_config_id_before_any_call(
+    benchmark: Benchmark, write_run: Callable[..., Path]
 ) -> None:
-    first = execute_run(load_run_config(write_run(), benchmark), evaluator=_echo)
+    execute_run(load_run_config(write_run(), benchmark), evaluator=_echo)
     changed = load_run_config(write_run(prompt_name="clusters"), benchmark)
 
-    output = execute_run(changed, evaluator=_echo)
+    def fail(*_args) -> dict:
+        pytest.fail("no call may start")
 
-    assert output["config_id"] != first["config_id"]
+    with pytest.raises(ConfigError, match="config_id does not match"):
+        execute_run(changed, evaluator=fail)
+    with pytest.raises(ConfigError, match="config_id does not match"):
+        plan_run(changed, model_configs={})
+
+
+def test_a_run_folder_refuses_changed_items(tmp_path: Path, config: RunConfig) -> None:
+    execute_run(config, evaluator=_echo)
+    (tmp_path / "items.jsonl").write_text(
+        '{"benchmark_item_id": "item-9", "content": "Changed."}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(ConfigError, match="items_sha256 does not match"):
+        execute_run(config, evaluator=_echo)
+
+
+def test_a_run_folder_refuses_another_benchmark(config: RunConfig) -> None:
+    execute_run(config, evaluator=_echo)
+    other = replace(config, benchmark=replace(config.benchmark, name="other-bench"))
+
+    with pytest.raises(ConfigError, match="belongs to the 'test-bench' benchmark"):
+        execute_run(other, evaluator=_echo)
+
+
+def test_a_run_folder_refuses_a_config_file_in_place_of_its_record(
+    config: RunConfig,
+) -> None:
+    config.run_dir.mkdir(parents=True)
+    (config.run_dir / "config.json").write_text('{"models": ["model-a"]}\n')
+
+    with pytest.raises(ConfigError, match="is not a run record"):
+        execute_run(config, evaluator=_echo)
+
+
+def test_changed_prompts_are_recomputed_and_stale_rows_dropped(
+    config: RunConfig, read_rows: Rows
+) -> None:
+    """A prompt builder change keeps the config ID but changes every call ID."""
+
+    first = execute_run(config, evaluator=_echo)
+    reworded = replace(
+        config,
+        benchmark=replace(
+            config.benchmark,
+            build_prompt=lambda item, _params: f"Read: {item['content']}",
+        ),
+    )
+
+    output = execute_run(reworded, evaluator=_echo)
+
+    assert output["config_id"] == first["config_id"]
     assert output["executed_count"] == 4
     rows = read_rows(output["results_paths"].values())
     assert len(rows) == 4
-    assert {row["prompt_name"] for row in rows} == {"clusters"}
+    assert {row["prompt"] for row in rows} == {"Read: A cat sat.", "Read: The dog ran."}
+    record = _read_json(config.run_dir / "models" / "model-a.json")
+    assert [run["dropped_stale_rows"] for run in record["runs"]] == [0, 2]
 
 
 def test_explicit_default_max_tokens_reuses_results(
@@ -170,7 +253,8 @@ def test_explicit_default_max_tokens_reuses_results(
 
     assert execute_run(explicit, evaluator=_echo)["executed_count"] == 0
     changed = load_run_config(write_run(max_tokens=500), benchmark)
-    assert execute_run(changed, evaluator=_echo)["executed_count"] == 4
+    with pytest.raises(ConfigError, match="config_id does not match"):
+        execute_run(changed, evaluator=_echo)
 
 
 def test_system_prompt_feeds_the_call_ids(config: RunConfig, read_rows: Rows) -> None:
@@ -269,8 +353,12 @@ def test_retry_errors_reruns_only_failed_calls(
     assert [(m.to_run, m.retries) for m in plan.models] == [(1, 1), (1, 1)]
     assert retried == [("model-a", "item-2"), ("model-b", "item-2")]
     assert (output["executed_count"], output["error_count"]) == (2, 0)
-    log = json.loads((config.run_dir / "log.json").read_text(encoding="utf-8"))
-    assert "responses_retry_timestamp_utc" in log["model-a"]
+    record = _read_json(config.run_dir / "models" / "model-a.json")
+    assert [(run["executed_calls"], run["retry_errors"]) for run in record["runs"]] == [
+        (2, False),
+        (1, True),
+    ]
+    assert record["results"] == {"rows": 2, "errors": 0}
     assert all(row["success"] for row in read_rows(output["results_paths"].values()))
 
 
@@ -414,7 +502,7 @@ def test_checkpoints_fire_after_each_chunk_in_run_order(
         "write:responses_model-a.jsonl",
         "evaluate:item-3",
         "write:responses_model-a.jsonl",
-        "write:log.json",
+        "write:model-a.json",
     ]
 
 
@@ -448,8 +536,7 @@ def test_custom_item_loader_and_prompt_builder(
 
     [row] = read_rows(output["results_paths"].values())
     assert (row["benchmark_item_id"], row["prompt"]) == ("q-1", "Q: 1+1?")
-    snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
-    assert snapshot["resolved_config"]["items_sha256"] == "loader-hash"
+    assert _read_json(output["config_snapshot_path"])["items_sha256"] == "loader-hash"
 
 
 def test_custom_loader_output_is_validated(write_run: Callable[..., Path]) -> None:
@@ -554,8 +641,9 @@ def test_default_evaluator_uses_fdllm_and_its_model_configs(
         system_prompt=None,
         max_tokens=10_000,
     )
-    snapshot = json.loads(output["config_snapshot_path"].read_text(encoding="utf-8"))
-    assert snapshot["model_configs"]["model-a"] == {
-        "Api_Model_Name": "a",
-        "Client_Args": {},
-    }
+    record = _read_json(config.run_dir / "models" / "model-a.json")
+    assert record["model_config"] == {"Api_Model_Name": "a", "Client_Args": {}}
+
+
+def _read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))

@@ -1,10 +1,9 @@
-"""Cloud configs, GCS items, resume checks and the sync lifecycle."""
+"""Cloud configs, GCS items, the sync lifecycle, and jobs sharing a run folder."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -15,7 +14,6 @@ from fab_benchmark_runner import (
     Benchmark,
     ConfigError,
     RunConfig,
-    config_identity_sha256,
     execute_run,
     load_cloud_run_config,
     load_local_run_config,
@@ -25,28 +23,25 @@ from fab_benchmark_runner.cloud import (
     download_items_file,
     execute_with_optional_sync,
     plan_with_optional_sync,
-    validate_resume_snapshot,
 )
-from fab_benchmark_runner.run_sync import RunSyncConflictError
+from fab_benchmark_runner.run_sync import RunSync, RunSyncConflictError
 
 ITEMS_JSONL = '{"benchmark_item_id": "item-1", "content": "Mama."}\n'
-CONFIG_URI = "gs://results/test-bench/runs/experiment-a/config.json"
+CONFIG_URI = "gs://results/test-bench/runs/experiment-a/run-config.json"
+RUN_PREFIX = "test-bench/runs/experiment-a/"
+RESULTS_DEST = f"gs://results/{RUN_PREFIX}"
 
 
-@pytest.fixture
-def synced_config(benchmark: Benchmark, write_run: Callable[..., Path]) -> RunConfig:
-    return load_run_config(
-        write_run(results_dest="gs://results/test-bench/runs/experiment-a/"),
-        benchmark,
-    )
+def _echo(_config: RunConfig, model: str, item: dict, _prompt: str) -> dict:
+    return {"output": f"{model}:{item['benchmark_item_id']}"}
 
 
 class FakeSync:
-    """Records the sync lifecycle; optionally fails pushes or reconciliation."""
+    """Records the sync lifecycle; optionally fails pushes or the final retry."""
 
     events: list[str]
     fail_push: dict[str, Exception]
-    fail_reconcile: Exception | None
+    fail_pending: Exception | None
 
     def __init__(self, run_dir: Path, dest: str) -> None:
         self.run_dir = run_dir
@@ -61,10 +56,10 @@ class FakeSync:
         if local_path.name in self.fail_push:
             raise self.fail_push[local_path.name]
 
-    def push_missing_or_stale(self) -> int:
-        self.events.append("reconcile")
-        if self.fail_reconcile is not None:
-            raise self.fail_reconcile
+    def push_pending(self) -> int:
+        self.events.append("push_pending")
+        if self.fail_pending is not None:
+            raise self.fail_pending
         return 0
 
 
@@ -72,20 +67,24 @@ class FakeSync:
 def fake_sync() -> type[FakeSync]:
     FakeSync.events = []
     FakeSync.fail_push = {}
-    FakeSync.fail_reconcile = None
+    FakeSync.fail_pending = None
     return FakeSync
+
+
+@pytest.fixture
+def synced_config(benchmark: Benchmark, write_run: Callable[..., Path]) -> RunConfig:
+    return load_run_config(write_run(results_dest=RESULTS_DEST), benchmark)
 
 
 def _execute_writing_artifacts(events: list[str]):
     def execute(config: RunConfig, *, on_artifact_write) -> dict:
         events.append("execute")
-        run_dir = config.run_dir
         for relative in (
             "config.json",
             "responses/responses_model-a.jsonl",
-            "log.json",
+            "models/model-a.json",
         ):
-            path = run_dir / relative
+            path = config.run_dir / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("{}\n", encoding="utf-8")
             on_artifact_write(path)
@@ -94,7 +93,7 @@ def _execute_writing_artifacts(events: list[str]):
     return execute
 
 
-def test_synced_run_pulls_then_pushes_checkpoints_and_reconciles(
+def test_synced_run_pulls_then_pushes_its_own_files(
     synced_config: RunConfig,
     fake_sync: type[FakeSync],
     capsys: pytest.CaptureFixture[str],
@@ -110,16 +109,15 @@ def test_synced_run_pulls_then_pushes_checkpoints_and_reconciles(
         "execute",
         "push:config.json",
         "push:responses_model-a.jsonl",
-        "push:log.json",
-        "push:log.json",
-        "reconcile",
+        "push:model-a.json",
+        "push_pending",
     ]
     stdout = capsys.readouterr().out
-    assert "Reading existing results from gs://results/test-bench/runs/" in stdout
-    assert "Wrote results to gs://results/test-bench/runs/experiment-a/" in stdout
+    assert f"Reading existing results from {RESULTS_DEST}" in stdout
+    assert f"Wrote results to {RESULTS_DEST}" in stdout
 
 
-def test_transient_checkpoint_failures_warn_and_reconcile_later(
+def test_transient_upload_failures_warn_and_are_retried_at_the_end(
     synced_config: RunConfig,
     fake_sync: type[FakeSync],
     capsys: pytest.CaptureFixture[str],
@@ -131,7 +129,7 @@ def test_transient_checkpoint_failures_warn_and_reconcile_later(
             synced_config, execute=_execute_writing_artifacts(fake_sync.events)
         )
 
-    assert fake_sync.events[-1] == "reconcile"
+    assert fake_sync.events[-1] == "push_pending"
     assert "WARNING: could not upload" in capsys.readouterr().err
 
 
@@ -149,15 +147,15 @@ def test_generation_conflicts_abort_the_run(
         )
 
     assert "push:responses_model-a.jsonl" not in fake_sync.events
-    assert fake_sync.events[-1] == "reconcile"
+    assert fake_sync.events[-1] == "push_pending"
 
 
-def test_reconcile_failure_does_not_mask_the_run_failure(
+def test_a_failed_final_retry_does_not_mask_the_run_failure(
     synced_config: RunConfig,
     fake_sync: type[FakeSync],
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    fake_sync.fail_reconcile = RuntimeError("reconcile failed")
+    fake_sync.fail_pending = RuntimeError("retry failed")
 
     def fail(_config: RunConfig, **_kwargs: Any) -> dict:
         raise KeyError("run failed")
@@ -171,14 +169,14 @@ def test_reconcile_failure_does_not_mask_the_run_failure(
     assert "sync cleanup failed" in capsys.readouterr().err
 
 
-def test_reconcile_failure_after_a_successful_run_propagates(
+def test_a_failed_final_retry_after_a_successful_run_propagates(
     synced_config: RunConfig, fake_sync: type[FakeSync]
 ) -> None:
-    fake_sync.fail_reconcile = RuntimeError("reconcile failed")
+    fake_sync.fail_pending = RuntimeError("retry failed")
 
     with (
         patch("fab_benchmark_runner.cloud.RunSync", fake_sync),
-        pytest.raises(RuntimeError, match="reconcile failed"),
+        pytest.raises(RuntimeError, match="retry failed"),
     ):
         execute_with_optional_sync(
             synced_config, execute=_execute_writing_artifacts(fake_sync.events)
@@ -206,39 +204,132 @@ def test_dry_run_pulls_existing_results_but_never_pushes(
     assert fake_sync.events == ["pull"]
 
 
-def test_resume_guard_rejects_changed_config_or_items(
-    tmp_path: Path, benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(), benchmark)
-    execute_run(config, evaluator=lambda *_a: {"output": "x"})
-    snapshot_path = config.run_dir / "config.json"
-    validate_resume_snapshot(config, snapshot_path)
-
-    changed = load_run_config(write_run(prompt_name="clusters"), benchmark)
-    with pytest.raises(ConfigError, match="config_id does not match"):
-        validate_resume_snapshot(changed, snapshot_path)
-
-    (tmp_path / "items.jsonl").write_text(ITEMS_JSONL, encoding="utf-8")
-    with pytest.raises(ConfigError, match="items_sha256 does not match"):
-        validate_resume_snapshot(config, snapshot_path)
+# Jobs sharing one run folder, against an in-memory GCS
 
 
-def test_resume_guard_accepts_the_uploaded_source_config(
-    tmp_path: Path, benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(), benchmark)
-    snapshot_path = tmp_path / "config.json"
-    snapshot_path.write_text(json.dumps({"run_id": "experiment-a"}), encoding="utf-8")
-
-    validate_resume_snapshot(config, snapshot_path)
-
-
-@pytest.mark.parametrize("as_snapshot", [False, True])
-def test_cloud_config_downloads_items_and_resumes_from_snapshots(
-    tmp_path: Path,
+@pytest.fixture
+def shared_folder(
     benchmark: Benchmark,
-    as_snapshot: bool,
-    capsys: pytest.CaptureFixture[str],
+    write_run: Callable[..., Path],
+    storage,
+):
+    """Load configs for jobs that each have a local folder but share one GCS run."""
+
+    groups = {f"provider-{m}": [m] for m in ("model-a", "model-b", "model-c")}
+
+    def job_config(name: str, models: list[str], **overrides: Any) -> RunConfig:
+        config_path = write_run(
+            models=models,
+            groups=groups,
+            output_dir=f"job-{name}",
+            results_dest=RESULTS_DEST,
+            **overrides,
+        )
+        return load_run_config(config_path, benchmark)
+
+    def make_sync(run_dir: Path, dest: str) -> RunSync:
+        return RunSync(run_dir, dest, storage_client=storage)
+
+    with patch("fab_benchmark_runner.cloud.RunSync", make_sync):
+        yield job_config
+
+
+def _run_job(config: RunConfig, evaluator=_echo) -> dict:
+    return execute_with_optional_sync(
+        config,
+        execute=lambda c, **kwargs: execute_run(c, evaluator=evaluator, **kwargs),
+    )
+
+
+def _remote(storage) -> dict[str, bytes]:
+    return {
+        name.removeprefix(RUN_PREFIX): content
+        for name, (_generation, content) in storage.objects.get("results", {}).items()
+    }
+
+
+def test_jobs_running_other_models_share_a_run_folder(shared_folder, storage) -> None:
+    """Job B runs model-b from start to finish while job A is running model-a."""
+
+    job_a = shared_folder("a", ["model-a"])
+    job_b = shared_folder("b", ["model-b"])
+    b_outputs: list[dict] = []
+
+    def evaluator_a(config: RunConfig, model: str, item: dict, prompt: str) -> dict:
+        if not b_outputs:
+            b_outputs.append(_run_job(job_b))
+        return _echo(config, model, item, prompt)
+
+    output_a = _run_job(job_a, evaluator=evaluator_a)
+
+    assert b_outputs[0]["executed_count"] == 2
+    assert output_a["executed_count"] == 2
+    assert b_outputs[0]["config_id"] == output_a["config_id"]
+    remote = _remote(storage)
+    assert sorted(remote) == [
+        "config.json",
+        "models/model-a.json",
+        "models/model-b.json",
+        "responses/responses_model-a.jsonl",
+        "responses/responses_model-b.jsonl",
+    ]
+    assert json.loads(remote["config.json"])["config_id"] == output_a["config_id"]
+    assert len(remote["responses/responses_model-b.jsonl"].splitlines()) == 2
+
+
+def test_adding_a_model_later_reuses_the_folder(shared_folder, storage) -> None:
+    _run_job(shared_folder("first", ["model-a", "model-b"]))
+    record_before = _remote(storage)["config.json"]
+    calls: list[str] = []
+
+    def evaluator(config: RunConfig, model: str, item: dict, prompt: str) -> dict:
+        calls.append(model)
+        return _echo(config, model, item, prompt)
+
+    output = _run_job(
+        shared_folder("later", ["model-a", "model-b", "model-c"]), evaluator=evaluator
+    )
+
+    assert calls == ["model-c", "model-c"]
+    assert output["skipped_count"] == 4
+    remote = _remote(storage)
+    assert remote["config.json"] == record_before
+    assert "models/model-c.json" in remote
+
+
+def test_jobs_running_the_same_model_conflict(shared_folder, storage) -> None:
+    """Two jobs paying for the same calls are stopped, not merged."""
+
+    job_a = shared_folder("a", ["model-a"])
+    job_b = shared_folder("b", ["model-a"])
+    b_outputs: list[dict] = []
+
+    def evaluator_a(config: RunConfig, model: str, item: dict, prompt: str) -> dict:
+        if not b_outputs:
+            b_outputs.append(_run_job(job_b))
+        return _echo(config, model, item, prompt)
+
+    with pytest.raises(RunSyncConflictError, match="responses_model-a.jsonl"):
+        _run_job(job_a, evaluator=evaluator_a)
+
+    assert len(_remote(storage)["responses/responses_model-a.jsonl"].splitlines()) == 2
+
+
+def test_a_job_with_another_config_id_is_refused(shared_folder, storage) -> None:
+    _run_job(shared_folder("a", ["model-a"]))
+    changed = shared_folder("changed", ["model-b"], prompt_name="clusters")
+
+    with pytest.raises(ConfigError, match="config_id does not match"):
+        _run_job(changed)
+
+    assert "models/model-b.json" not in _remote(storage)
+
+
+# Loading cloud and local configs
+
+
+def test_cloud_config_downloads_its_items(
+    tmp_path: Path, benchmark: Benchmark, capsys: pytest.CaptureFixture[str]
 ) -> None:
     raw_config = {
         "run_id": "experiment-a",
@@ -246,22 +337,8 @@ def test_cloud_config_downloads_items_and_resumes_from_snapshots(
         "items_path": "gs://datasets/test-bench/items.jsonl",
         "models": ["model-a"],
     }
-    payload = (
-        {
-            "config_id": "prior",
-            "resolved_config": {},
-            "raw_config": {
-                **raw_config,
-                "items_path": "/workspace/inputs/items.jsonl",
-                "output_dir": "/workspace/outputs",
-                "metadata": {"items_source_uri": raw_config["items_path"]},
-            },
-        }
-        if as_snapshot
-        else raw_config
-    )
 
-    config = _load_cloud(tmp_path, benchmark, payload)
+    config = _load_cloud(tmp_path, benchmark, raw_config)
 
     workdir = tmp_path / "work"
     assert (
@@ -272,7 +349,7 @@ def test_cloud_config_downloads_items_and_resumes_from_snapshots(
     assert config.output_dir == (workdir / "outputs").resolve()
     assert config.inputs_dir == (workdir / "inputs").resolve()
     assert config.custom_models_path is None
-    assert config.results_dest == "gs://results/test-bench/runs/experiment-a/"
+    assert config.results_dest == RESULTS_DEST
     assert config.metadata["items_source_uri"] == raw_config["items_path"]
     assert config.metadata["items_source_generation"] == 17
     assert config.raw_config["items_path"] == raw_config["items_path"]
@@ -332,12 +409,25 @@ def test_cloud_config_rejects_invalid_uris(
         load_cloud_run_config(config_uri, benchmark, workdir=tmp_path)
 
 
-def test_cloud_snapshot_needs_an_object_raw_config(
+def test_a_run_record_is_not_a_config(tmp_path: Path, benchmark: Benchmark) -> None:
+    record = {"benchmark": "test-bench", "config_id": "abc", "items_sha256": "def"}
+
+    with pytest.raises(ConfigError, match="is a run folder's record, not a run config"):
+        _load_cloud(tmp_path, benchmark, record)
+
+
+def test_a_config_cannot_live_where_its_run_record_goes(
     tmp_path: Path, benchmark: Benchmark
 ) -> None:
-    with pytest.raises(ConfigError, match="raw_config must be an object"):
+    raw_config = {
+        "language": "sw",
+        "items_path": "gs://datasets/items.jsonl",
+        "models": ["model-a"],
+    }
+
+    with pytest.raises(ConfigError, match="keeps its run record"):
         _load_cloud(
-            tmp_path, benchmark, {"resolved_config": {}, "raw_config": ["not", "dict"]}
+            tmp_path, benchmark, raw_config, config_uri=f"{RESULTS_DEST}config.json"
         )
 
 
@@ -403,41 +493,25 @@ def test_items_download_is_atomic(tmp_path: Path) -> None:
         download_items_file("https://datasets/items.jsonl", destination)
 
 
-def test_snapshot_resume_keeps_the_config_id(
-    tmp_path: Path, benchmark: Benchmark
-) -> None:
-    fresh = _load_cloud(
-        tmp_path,
-        benchmark,
-        {"language": "sw", "items_path": "gs://d/items.jsonl", "models": ["m"]},
-    )
-    resumed = _load_cloud(
-        tmp_path,
-        benchmark,
-        {"config_id": "x", "resolved_config": {}, "raw_config": fresh.raw_config},
-    )
-
-    assert config_identity_sha256(resumed) == config_identity_sha256(fresh)
-    assert replace(resumed, metadata={}) == replace(fresh, metadata={})
-
-
 def _fake_items_download(**kwargs: Any) -> int:
     assert (kwargs["bucket_name"], kwargs["file_name"]) in {
         ("datasets", "test-bench/items.jsonl"),
         ("datasets", "items.jsonl"),
         ("datasets", "level1.parquet"),
-        ("d", "items.jsonl"),
     }
     Path(kwargs["write_path"]).write_text(ITEMS_JSONL, encoding="utf-8")
     return 17
 
 
-def _load_cloud(tmp_path: Path, benchmark: Benchmark, payload: Any) -> RunConfig:
+def _load_cloud(
+    tmp_path: Path,
+    benchmark: Benchmark,
+    payload: Any,
+    *,
+    config_uri: str = CONFIG_URI,
+) -> RunConfig:
     def fake_config_download(**kwargs: Any) -> None:
-        assert (kwargs["bucket_name"], kwargs["file_name"]) == (
-            "results",
-            "test-bench/runs/experiment-a/config.json",
-        )
+        assert f"gs://{kwargs['bucket_name']}/{kwargs['file_name']}" == config_uri
         assert kwargs.get("require_auth", True) is True
         Path(kwargs["write_path"]).write_text(json.dumps(payload), encoding="utf-8")
 
@@ -450,4 +524,4 @@ def _load_cloud(tmp_path: Path, benchmark: Benchmark, payload: Any) -> RunConfig
             side_effect=_fake_items_download,
         ),
     ):
-        return load_cloud_run_config(CONFIG_URI, benchmark, workdir=tmp_path / "work")
+        return load_cloud_run_config(config_uri, benchmark, workdir=tmp_path / "work")

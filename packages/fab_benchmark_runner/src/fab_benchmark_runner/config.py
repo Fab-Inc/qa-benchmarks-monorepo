@@ -64,30 +64,6 @@ class RunConfig:
 
         return self.benchmark.identity_fields(self.params)
 
-    def to_resolved_dict(self) -> dict[str, Any]:
-        """Return the config with resolved paths for the run snapshot."""
-
-        return {
-            "run_id": self.run_id,
-            "output_dir": str(self.output_dir),
-            "models": self.models,
-            "items_path": str(self.items_path),
-            "inputs_dir": _optional_str(self.inputs_dir),
-            "env_path": _optional_str(self.env_path),
-            "custom_models_path": _optional_str(self.custom_models_path),
-            "custom_models_uri": self.custom_models_uri,
-            "custom_models_sha256": self.custom_models_sha256,
-            "max_tokens": self.max_tokens,
-            "chunk_size": self.chunk_size,
-            "model_workers": self.model_workers,
-            "force": self.force,
-            "retry_errors": self.retry_errors,
-            "results_dest": self.results_dest,
-            "metadata": self.metadata,
-            "extra": self.extra,
-            **self.benchmark.params_dict(self.params),
-        }
-
 
 def config_identity(config: RunConfig) -> dict[str, Any]:
     """Return the payload behind the config ID: what every call shares."""
@@ -380,7 +356,3 @@ def _resolve_path(value: str, base_dir: Path) -> Path:
     if not path.is_absolute():
         path = base_dir / path
     return path.resolve()
-
-
-def _optional_str(value: Path | None) -> str | None:
-    return str(value) if value is not None else None

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Callable
 from dataclasses import replace
@@ -16,7 +15,6 @@ from fab_benchmark_runner import gcs
 from fab_benchmark_runner.benchmark import Benchmark
 from fab_benchmark_runner.config import (
     RunConfig,
-    config_identity_sha256,
     parse_run_config,
     parse_run_id,
     read_config_object,
@@ -45,7 +43,6 @@ def load_local_run_config(config_path: Path, benchmark: Benchmark) -> RunConfig:
         benchmark,
         source_config_path=source_config_path,
         inputs_dir=inputs_root.resolve() / parse_run_id(raw_config.get("run_id")),
-        use_metadata_fallback=False,
     )
 
 
@@ -55,11 +52,11 @@ def load_cloud_run_config(
     *,
     workdir: Path,
 ) -> RunConfig:
-    """Download a run config (or a prior run's snapshot) and its items from GCS.
+    """Download a run config and its items from GCS.
 
     The config object's prefix is the run's results prefix unless the config sets
-    ``results_dest``. Resuming from the ``config.json`` snapshot a run wrote keeps
-    the original raw config, so pinned registries and items carry over.
+    ``results_dest``. To resume a run, run the same config again. A run folder's
+    ``config.json`` is its run record, not a config, and is refused here.
     """
 
     try:
@@ -83,14 +80,12 @@ def load_cloud_run_config(
         downloaded_config_path, description="downloaded cloud config"
     )
 
-    is_snapshot = "resolved_config" in payload and "raw_config" in payload
-    if is_snapshot:
-        raw_config = payload.get("raw_config")
-        if not isinstance(raw_config, dict):
-            raise ConfigError("Remote run snapshot raw_config must be an object")
-        raw_config = dict(raw_config)
-    else:
-        raw_config = dict(payload)
+    if "config_id" in payload and "models" not in payload:
+        raise ConfigError(
+            f"{config_uri} is a run folder's record, not a run config. Run the "
+            "config the run was launched with, for example run-configs/<run_id>.json."
+        )
+    raw_config = dict(payload)
 
     if raw_config.pop("custom_models_path", None) is not None:
         typer.echo(
@@ -100,17 +95,14 @@ def load_cloud_run_config(
         )
     run_prefix = object_name.rsplit("/", 1)[0] + "/"
     raw_config.setdefault("results_dest", f"gs://{bucket_name}/{run_prefix}")
-    if is_snapshot:
-        raw_config["output_dir"] = str(workspace / "outputs")
-    else:
-        raw_config.setdefault("output_dir", str(workspace / "outputs"))
+    _reject_config_inside_its_record(config_uri, raw_config["results_dest"])
+    raw_config.setdefault("output_dir", str(workspace / "outputs"))
     raw_config["inputs_dir"] = str(inputs_dir)
     return materialize_run_config(
         raw_config,
         benchmark,
         source_config_path=downloaded_config_path,
         inputs_dir=inputs_dir / parse_run_id(raw_config.get("run_id")),
-        use_metadata_fallback=True,
     )
 
 
@@ -120,20 +112,17 @@ def materialize_run_config(
     *,
     source_config_path: Path,
     inputs_dir: Path,
-    use_metadata_fallback: bool,
 ) -> RunConfig:
     """Download a GCS items source, then parse the config against local files.
 
-    The returned config keeps the GCS items URI in ``raw_config`` so its snapshot
-    still points at the source, while ``items_path`` points at the local copy.
+    The returned config keeps the GCS items URI in ``raw_config``, so the model
+    records still point at the source, while ``items_path`` points at the local copy.
     """
 
     processed_config = dict(raw_config)
     snapshot_config = dict(raw_config)
-    items_source_uri = _items_source_uri(
-        raw_config, use_metadata_fallback=use_metadata_fallback
-    )
-    if items_source_uri is not None:
+    items_source_uri = raw_config.get("items_path")
+    if isinstance(items_source_uri, str) and items_source_uri.startswith("gs://"):
         metadata_value = raw_config.get("metadata", {})
         if not isinstance(metadata_value, dict):
             raise ConfigError("'metadata' must be an object when provided")
@@ -187,59 +176,24 @@ def download_items_file(items_source_uri: str, destination: Path) -> int:
     return generation
 
 
-def validate_resume_snapshot(config: RunConfig, snapshot_path: Path) -> None:
-    """Reject reusing a run whose semantic inputs have changed."""
-
-    if not snapshot_path.exists():
-        return
-    try:
-        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as e:
-        raise ConfigError(
-            f"Could not read existing config snapshot {snapshot_path}: {e}"
-        ) from e
-    if not isinstance(snapshot, dict):
-        raise ConfigError(f"Existing config snapshot {snapshot_path} must be an object")
-
-    # Before a run's first checkpoint, the uploaded source config occupies this
-    # object. The first snapshot write replaces it; every later resume checks it.
-    if "config_id" not in snapshot and "resolved_config" not in snapshot:
-        return
-    remote_config_id = snapshot.get("config_id")
-    expected_config_id = config_identity_sha256(config)
-    if remote_config_id != expected_config_id:
-        raise ConfigError(
-            "Existing run config_id does not match this run config: "
-            f"{remote_config_id!r} != {expected_config_id!r}"
-        )
-    resolved_config = snapshot.get("resolved_config")
-    if not isinstance(resolved_config, dict):
-        raise ConfigError("Existing run config snapshot lacks resolved_config")
-    remote_items_sha256 = resolved_config.get("items_sha256")
-    _items, local_items_sha256 = config.benchmark.load_items(config.items_path)
-    if remote_items_sha256 != local_items_sha256:
-        raise ConfigError(
-            "Existing run items_sha256 does not match the local items artifact: "
-            f"{remote_items_sha256!r} != {local_items_sha256!r}"
-        )
-
-
 def execute_with_optional_sync(
     config: RunConfig,
     *,
     execute: Callable[..., RunOutput] = execute_run,
 ) -> RunOutput:
-    """Execute locally, or inside the generation-safe GCS sync lifecycle."""
+    """Execute locally, or inside the generation-safe GCS sync lifecycle.
 
-    snapshot_path = config.run_dir / "config.json"
+    The run's GCS folder is downloaded first, so existing results are reused and the
+    runner can check the folder's run record. Uploads then cover only the files
+    this job writes, so jobs running other models in the same folder are unaffected.
+    """
+
     if config.results_dest is None:
-        validate_resume_snapshot(config, snapshot_path)
         return execute(config)
 
     sync = RunSync(config.run_dir, config.results_dest)
     typer.echo(f"Reading existing results from {config.results_dest}")
     sync.pull()
-    validate_resume_snapshot(config, snapshot_path)
     typer.echo(f"Writing results to {config.results_dest}")
 
     def push_with_warning(local_path: Path) -> None:
@@ -254,7 +208,7 @@ def execute_with_optional_sync(
         output = execute(config, on_artifact_write=push_with_warning)
     except BaseException:
         try:
-            _finalize_sync(sync, config.run_dir)
+            _finalize_sync(sync)
         except Exception as cleanup_error:
             typer.echo(
                 "WARNING: sync cleanup failed while preserving the original "
@@ -262,7 +216,7 @@ def execute_with_optional_sync(
                 err=True,
             )
         raise
-    _finalize_sync(sync, config.run_dir)
+    _finalize_sync(sync)
     typer.echo(f"Wrote results to {config.results_dest}")
     return output
 
@@ -280,43 +234,28 @@ def plan_with_optional_sync(
     if config.results_dest is not None:
         typer.echo(f"Reading existing results from {config.results_dest}")
         RunSync(config.run_dir, config.results_dest).pull()
-    validate_resume_snapshot(config, config.run_dir / "config.json")
     return plan(config)
 
 
-def _finalize_sync(sync: RunSync, run_dir: Path) -> None:
-    """Push the final log, then reconcile every artifact."""
+def _finalize_sync(sync: RunSync) -> None:
+    """Retry this job's own uploads that haven't been confirmed."""
 
-    log_path = run_dir / "log.json"
-    if log_path.exists():
-        try:
-            sync.push_file(log_path)
-        except RunSyncConflictError:
-            raise
-        except Exception as e:
-            typer.echo(
-                f"WARNING: could not upload final log {log_path}: {e}",
-                err=True,
-            )
-    sync.push_missing_or_stale()
+    sync.push_pending()
 
 
-def _items_source_uri(
-    raw_config: dict[str, Any],
-    *,
-    use_metadata_fallback: bool,
-) -> str | None:
-    configured_items_path = raw_config.get("items_path")
-    if isinstance(configured_items_path, str) and configured_items_path.startswith(
-        "gs://"
-    ):
-        return configured_items_path
-    if not use_metadata_fallback:
-        return None
-    metadata = raw_config.get("metadata", {})
-    if not isinstance(metadata, dict):
-        raise ConfigError("'metadata' must be an object when provided")
-    items_source_uri = metadata.get("items_source_uri")
-    if isinstance(items_source_uri, str) and items_source_uri.startswith("gs://"):
-        return items_source_uri
-    return None
+def _reject_config_inside_its_record(config_uri: str, results_dest: Any) -> None:
+    """A config stored as the run folder's config.json would be replaced by the
+    folder's run record, so it could never be run again."""
+
+    if not isinstance(results_dest, str):
+        return
+    try:
+        bucket_name, prefix = gcs.parse_gs_uri(results_dest)
+    except ValueError:
+        return  # parse_run_config reports the invalid results_dest
+    record_uri = f"gs://{bucket_name}/{prefix.rstrip('/')}/config.json"
+    if config_uri == record_uri:
+        raise ConfigError(
+            f"{config_uri} is where the run folder keeps its run record. Store the "
+            "run config elsewhere, for example run-configs/<run_id>.json."
+        )

@@ -260,7 +260,10 @@ def test_fetch_results_can_select_one_model(
     assert result.exit_code == 0, result.output
     run_sync.assert_called_once_with(tmp_path / "a", "gs://r/runs/a/")
     run_sync.return_value.pull.assert_called_once_with(
-        relative_paths={"responses/responses_openrouter_qwen-fff03286.jsonl"}
+        relative_paths={
+            "responses/responses_openrouter_qwen-fff03286.jsonl",
+            "models/openrouter_qwen-fff03286.json",
+        }
     )
     assert "Downloaded: 1 from gs://r/runs/a/" in result.output
 

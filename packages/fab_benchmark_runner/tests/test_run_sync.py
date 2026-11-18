@@ -201,3 +201,68 @@ def test_push_rejects_artifacts_outside_run_directory(tmp_path: Path, storage) -
 
     with pytest.raises(ValueError, match="inside run directory"):
         sync.push_file(outside)
+
+
+def test_push_pending_retries_only_this_jobs_unconfirmed_files(
+    tmp_path: Path, storage
+) -> None:
+    prefix = "gs://results/phonics/runs/run-a/"
+    shared = "phonics/runs/run-a/responses/responses_model-a.jsonl"
+    storage.objects["results"] = {shared: (7, b"a v1\n")}
+    job_a = RunSync(tmp_path / "a", prefix, storage_client=storage)
+    job_b = RunSync(tmp_path / "b", prefix, storage_client=storage)
+    job_a.pull()
+    job_b.pull()
+
+    a_file = job_a.run_dir / "responses" / "responses_model-a.jsonl"
+    a_file.write_bytes(b"a v2\n")
+    job_a.push_file(a_file)
+    b_file = job_b.run_dir / "responses" / "responses_model-b.jsonl"
+    b_file.write_bytes(b"b v1\n")
+    storage.fail_next_upload.add("phonics/runs/run-a/responses/responses_model-b.jsonl")
+    with pytest.raises(RuntimeError, match="transient"):
+        job_b.push_file(b_file)
+
+    assert job_b.push_pending() == 1
+    assert job_b.push_pending() == 0
+    assert storage.objects["results"][shared] == (100, b"a v2\n")
+    assert storage.objects["results"][
+        "phonics/runs/run-a/responses/responses_model-b.jsonl"
+    ][1] == (b"b v1\n")
+
+
+def test_two_jobs_creating_the_same_file_with_equal_bytes_agree(
+    tmp_path: Path, storage
+) -> None:
+    prefix = "gs://results/phonics/runs/run-a/"
+    jobs = [RunSync(tmp_path / name, prefix, storage_client=storage) for name in "ab"]
+    for job in jobs:
+        job.pull()
+        record = job.run_dir / "config.json"
+        record.parent.mkdir(parents=True)
+        record.write_bytes(b'{"config_id": "x"}\n')
+
+    for job in jobs:
+        job.push_file(job.run_dir / "config.json")
+        assert job.push_pending() == 0
+
+    assert storage.upload_preconditions == [
+        ("phonics/runs/run-a/config.json", 0),
+        ("phonics/runs/run-a/config.json", 0),
+    ]
+
+
+def test_two_jobs_creating_the_same_file_with_different_bytes_conflict(
+    tmp_path: Path, storage
+) -> None:
+    prefix = "gs://results/phonics/runs/run-a/"
+    jobs = [RunSync(tmp_path / name, prefix, storage_client=storage) for name in "ab"]
+    for job, content in zip(jobs, (b'{"config_id": "x"}\n', b'{"config_id": "y"}\n')):
+        job.pull()
+        record = job.run_dir / "config.json"
+        record.parent.mkdir(parents=True)
+        record.write_bytes(content)
+
+    jobs[0].push_file(jobs[0].run_dir / "config.json")
+    with pytest.raises(RunSyncConflictError, match="config.json"):
+        jobs[1].push_file(jobs[1].run_dir / "config.json")

@@ -143,8 +143,25 @@ class RunSync:
                 self._dirty.discard(object_name)
             return
 
+    def push_pending(self) -> int:
+        """Upload again this sync's own files whose latest version isn't confirmed.
+
+        Only files passed to ``push_file`` count, so files another job writes into
+        the same run folder are never touched. A run calls this when it ends.
+        """
+
+        with self._lock:
+            pending = sorted(self._dirty)
+        for object_name in pending:
+            self.push_file(self._local_path(object_name.removeprefix(self.prefix)))
+        return len(pending)
+
     def push_missing_or_stale(self) -> int:
-        """Reconcile new, failed, or remotely changed local run artifacts."""
+        """Upload every local file that is new, failed, or differs from GCS.
+
+        For backfilling a whole local run folder. A running job uses
+        ``push_pending`` instead, so it never re-uploads other jobs' files.
+        """
 
         remote_generations = {
             remote_object.name: remote_object.generation

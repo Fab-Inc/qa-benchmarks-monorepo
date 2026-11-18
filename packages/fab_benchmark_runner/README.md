@@ -123,7 +123,7 @@ The shared keys are listed in `CORE_CONFIG_KEYS`:
 | `model_workers`                             | Models run in parallel (default 4)                                  |
 | `force`, `retry_errors`                     | Rerun everything, or only failed calls                              |
 | `results_dest`                              | GCS run prefix to mirror results to                                 |
-| `metadata`                                  | Free-form object kept in the run snapshot                           |
+| `metadata`                                  | Free-form object kept in each model record's run entry              |
 
 Other keys belong to the benchmark's params; any left over are kept in
 `RunConfig.extra`.
@@ -134,12 +134,8 @@ Other keys belong to the benchmark's params; any left over are kept in
   model's registered config, the prompt, the system prompt and the effective
   `max_tokens`.
 - `result_id` is the first 24 hex characters of a hash of the `model_call_id`.
-- The config ID hashes the benchmark's identity params plus `max_tokens`. Resuming a run
-  with a different config ID, or with different items, is refused.
-
-Results are one JSONL file per model under `<output_dir>/<run_id>/responses/`. The run
-also writes `config.json`, a snapshot with the resolved config, items hash, code
-revision and model configs, and `log.json` with per-model provenance.
+- The config ID hashes the benchmark's identity params plus `max_tokens`. A run folder
+  refuses a run with a different config ID, or with different items, before any call.
 
 Within a model, a result is reused when its ID exists, unless `force` is set. The runner
 looks only in this run's folder, which is first filled from the run's GCS copy when the
@@ -147,6 +143,33 @@ run has a `results_dest`; results under another `run_id` are not consulted. With
 `retry_errors`, only rows whose call failed are rerun. Rows whose ID is no longer
 planned are dropped at the next write. Provider SDK errors and empty responses become
 error rows; any other exception stops the run.
+
+## Run folders
+
+A run folder, `<output_dir>/<run_id>/` and its GCS copy at `results_dest`, holds:
+
+| File                                | Written by                 | Holds                                                                                                                                      |
+| ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `config.json`                       | The first job, once        | The run record: benchmark, config ID and its payload, items hash                                                                           |
+| `responses/responses_<model>.jsonl` | The job running that model | One row per call                                                                                                                           |
+| `models/<model>.json`               | The job running that model | The model's settings, registry and hash, and one entry per run that wrote its results: when, how many calls, code revision, the run config |
+
+Later jobs check `config.json` against their own run and never rewrite it, so the folder
+keeps describing the same run while models are added over time. The model list of a run
+is the set of model records and response files.
+
+No file is shared between jobs that run different models, and a job only uploads files
+it wrote itself. So jobs running different models can write to the same folder at the
+same time. Two jobs running the same model stop with a conflict instead of paying for
+the same calls twice.
+
+A run folder's `config.json` is not a run config: rerun the config the run was launched
+with. Keep run configs outside their run folder; `launch-run.sh` stores them under
+`run-configs/`.
+
+Folders written by the phonics runner can be extended: their `config.json` is checked in
+its old format and replaced by the new record, and their results are reused. Their
+`log.json` is left as it was.
 
 ## Model registry
 
