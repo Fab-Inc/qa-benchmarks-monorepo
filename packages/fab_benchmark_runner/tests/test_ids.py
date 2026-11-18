@@ -95,6 +95,131 @@ def test_call_ids_match_the_phonics_runner(
     assert result_id(call_id) == expected_result_id
 
 
+def test_an_empty_image_list_keeps_the_text_only_id() -> None:
+    call_id = model_call_id(
+        benchmark_item_id="item-1",
+        model="fw-llama-v3p2-1b-instruct",
+        model_config=sanitize_model_config(FIREWORKS_CONFIG),
+        prompt=SWAHILI_PROMPT,
+        system_prompt=None,
+        max_tokens=10_000,
+        images=(),
+    )
+
+    assert call_id == "c5b9aba56bb7bf59bd475f3227e5710f814cab3bbca3025720ca224a16cd97f5"
+
+
+def test_no_token_limit_hashes_as_null() -> None:
+    """Pinned when unlimited max_tokens was added (2026-11-18)."""
+
+    call_id = model_call_id(
+        benchmark_item_id="item-1",
+        model="fw-llama-v3p2-1b-instruct",
+        model_config=sanitize_model_config(FIREWORKS_CONFIG),
+        prompt=SWAHILI_PROMPT,
+        system_prompt=None,
+        max_tokens=None,
+    )
+
+    assert call_id == "46c453ae440843fef6303728cac78d42cf8f18ec9d764aa7040b7c504e1384e1"
+    assert result_id(call_id) == "a98817139864b328155d65d0"
+
+
+IMAGE_SHA256 = sha256(b"image-1").hexdigest()
+IMAGE_CALL = {
+    "benchmark_item_id": "visual-1",
+    "model": "model-a",
+    "model_config": {},
+    "prompt": "Which shape is shown?",
+    "system_prompt": "Answer with one word.",
+    "max_tokens": 4096,
+}
+
+
+def test_image_call_id_is_pinned() -> None:
+    """Pinned when images were added to call IDs (2026-11-18)."""
+
+    call_id = model_call_id(
+        **IMAGE_CALL, images=[{"detail": "high", "sha256": IMAGE_SHA256}]
+    )
+    payload = {
+        "benchmark_item_id": "visual-1",
+        "generation_parameters": {"max_tokens": 4096},
+        "images": [{"detail": "high", "sha256": IMAGE_SHA256}],
+        "model": "model-a",
+        "model_config": {},
+        "prompt": "Which shape is shown?",
+        "system_prompt": "Answer with one word.",
+    }
+
+    assert call_id == "2fd84796bd99c9e4935b2941888c14ada7050cc42811789f7fd5c4418eb51c99"
+    assert (
+        call_id
+        == sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+    )
+    assert result_id(call_id) == "f638535e22a2d55876b8a41a"
+
+
+def test_where_an_image_is_stored_does_not_change_the_id() -> None:
+    bare = model_call_id(
+        **IMAGE_CALL, images=[{"detail": "high", "sha256": IMAGE_SHA256}]
+    )
+    referenced = model_call_id(
+        **IMAGE_CALL,
+        images=[
+            {
+                "detail": "high",
+                "sha256": IMAGE_SHA256,
+                "uri": "gs://bucket/mathv/images/1.jpg",
+            }
+        ],
+    )
+    copied = model_call_id(
+        **IMAGE_CALL,
+        images=[{"detail": "high", "sha256": IMAGE_SHA256, "uri": "images/1.jpg"}],
+    )
+
+    assert bare == referenced == copied
+
+
+def test_image_content_detail_and_order_change_the_id() -> None:
+    first = {"detail": "high", "sha256": IMAGE_SHA256}
+    second = {"detail": "low", "sha256": sha256(b"image-2").hexdigest()}
+
+    ids = {
+        model_call_id(**IMAGE_CALL),
+        model_call_id(**IMAGE_CALL, images=[first]),
+        model_call_id(**IMAGE_CALL, images=[first, second]),
+        model_call_id(**IMAGE_CALL, images=[second, first]),
+        model_call_id(**IMAGE_CALL, images=[{**first, "detail": "low"}, second]),
+        model_call_id(
+            **IMAGE_CALL,
+            images=[{**first, "sha256": sha256(b"image-3").hexdigest()}, second],
+        ),
+    }
+
+    assert len(ids) == 6
+
+
+@pytest.mark.parametrize(
+    ("image", "message"),
+    [
+        ({"detail": "auto", "sha256": IMAGE_SHA256}, "detail must be"),
+        ({"sha256": IMAGE_SHA256}, "detail must be"),
+        ({"detail": "high", "sha256": IMAGE_SHA256.upper()}, "sha256 must be"),
+        ({"detail": "high", "sha256": IMAGE_SHA256[:63]}, "sha256 must be"),
+        ({"detail": "high"}, "sha256 must be"),
+    ],
+)
+def test_malformed_image_references_are_refused(
+    image: dict[str, str], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        model_call_id(**IMAGE_CALL, images=[image])
+
+
 @pytest.mark.parametrize(
     ("max_tokens", "expected_config_id"),
     [

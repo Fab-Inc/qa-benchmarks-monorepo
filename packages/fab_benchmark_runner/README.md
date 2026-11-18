@@ -132,7 +132,10 @@ Other keys belong to the benchmark's params; any left over are kept in
 
 - `model_call_id` is the SHA-256 of the item's `benchmark_item_id`, the model name, the
   model's registered config, the prompt, the system prompt and the effective
-  `max_tokens`.
+  `max_tokens` (`null` when there is no limit).
+- An item's images enter the ID in order, each by its file's SHA-256 and its detail
+  level (`low` or `high`), not by where it is stored. A call without images hashes
+  exactly as before images were supported.
 - `result_id` is the first 24 hex characters of a hash of the `model_call_id`.
 - The config ID hashes the benchmark's identity params plus `max_tokens`. A run folder
   refuses a run with a different config ID, or with different items, before any call.
@@ -235,6 +238,7 @@ environment.
   model list. A change to provider defaults, or an FDLLM upgrade that changes its
   built-in list, changes the IDs of the affected models. Projects that override the
   FDLLM version can get different IDs for the same model.
-- **Text only.** Prompts are single strings; images are not part of calls or IDs yet.
+- **Images are not sent yet.** Call IDs already cover images, but runs still send only
+  text, and `max_tokens` can't yet be set to no limit in a run config.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in
   parallel, so a run with one or two models gets no faster.
