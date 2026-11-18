@@ -1,16 +1,21 @@
 """Failure modes of models on the Kiswahili decodability benchmark
 
-Change `RUN` to point to a different run. The run needs the hardware-tier
-outputs from ``report_on_benchmark_run.py --hardware-tiers``, which choose the
-models each tier is averaged over (the same selection the other hardware-tier
-error plots use).
+Usage, from repository root:
+    uv run --frozen --package phonics_benchmark python \
+        benchmarks/phonics_benchmark/scripts/kiswahili_word_analysis.py \
+        --run outputs/phonics-relabelled-20261116 [--report-dir DIR]
+
+The run folder needs reports/kiswahili/results_with_scoring.csv and the
+hardware-tier outputs from ``report_on_benchmark_run.py --hardware-tiers``,
+which choose the models each tier is averaged over (the same selection the
+other hardware-tier error plots use).
 
 Every item-word (one word in one benchmark item) is put in exactly one failure
 mode: what, given the item's student profile, could make a model wrong about
 it. Each mode holds words of a single label, so its error rate is a false
 alarm rate (decodable modes) or a miss rate (nondecodable modes).
 
-Outputs, in REPORT:
+Outputs, in --report-dir (default: <run>/reports/kiswahili):
     failure_modes.csv          one row per (model, failure mode)
     failure_modes_by_tier.csv  one row per (hardware tier, failure mode), means
                                over each tier's top TOP_N models
@@ -28,6 +33,7 @@ import hardware_tier_errors as common
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import typer
 from decodability.kiswahili import (
     KiswahiliStudentKnowledge,
     KiswahiliWordAnalysis,
@@ -43,18 +49,13 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from phonics_benchmark.hardware import CONNECTOR, GRID, INK, MUTED, SECONDARY, SURFACE
 
-REPO_ROOT = (
-    Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
-)
-RUN = REPO_ROOT / "outputs/phonics-relabelled-20261116/full"
-BASE = RUN / "reports"
-REPORT = BASE / "kiswahili"
+LANGUAGE = "kiswahili"
 
 # Which hardware-tier outputs to read: the ranking metric, the coverage
 # threshold they were made with (None for none), and N in the top-N selection
 # file hardware_tiers_top{N}_models.csv. A tier with fewer than N eligible
 # models has all of them selected.
-METRIC = "pooled_f2"
+METRIC = "adjusted_balanced_accuracy"
 MIN_COVERAGE: float | None = None
 TOP_N = 10
 
@@ -174,7 +175,7 @@ def failure_mode(
 # --------------------------------------------------------------------------
 # Prepare data
 # --------------------------------------------------------------------------
-def load_results() -> pd.DataFrame:
+def load_results(run: Path) -> pd.DataFrame:
     """Item-level results for tiered models, with the set columns parsed.
 
     Only models the tier file places are kept. Dropping them here rather than
@@ -182,9 +183,10 @@ def load_results() -> pd.DataFrame:
     with a NaN key, so a tally keyed on hardware_tier would lose the untiered
     models while one keyed on model alone would keep them.
     """
-    results = pd.read_csv(REPORT / "results_with_scoring.csv")
+    # Same location hardware_tier_errors.load_scored_items reads from.
+    results = pd.read_csv(run / "reports" / LANGUAGE / "results_with_scoring.csv")
     tiers = pd.read_csv(
-        common.tier_dir(RUN, METRIC, MIN_COVERAGE) / "hardware_tiers_kiswahili.csv"
+        common.tier_dir(run, METRIC, MIN_COVERAGE) / f"hardware_tiers_{LANGUAGE}.csv"
     )
     results = results.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
     # parse_word_set reads the literal without executing it, unlike eval. The
@@ -220,19 +222,17 @@ def hallucination_table(results: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index().sort_values("prop_words", ascending=False)
 
 
-def build(results: pd.DataFrame | None = None) -> pd.DataFrame:
+def build(results: pd.DataFrame) -> pd.DataFrame:
     """Explode items to words and attach each (item, word)'s failure mode.
 
-    Spelling-only inputs (graphemes, consonant runs, syllabic readings) are
-    computed once per unique word. analyse_word_kiswahili also needs the
-    student profile, which is fixed within a benchmark item, so it runs once
-    per (word, profile) pair rather than once per row across all models.
+    results comes from load_results. Spelling-only inputs (graphemes,
+    consonant runs, syllabic readings) are computed once per unique word.
+    analyse_word_kiswahili also needs the student profile, which is fixed
+    within a benchmark item, so it runs once per (word, profile) pair rather
+    than once per row across all models.
     """
-
-    df = load_results() if results is None else results
-
     item_words = (
-        df[
+        results[
             [
                 "benchmark_item_id",
                 "model",
@@ -502,21 +502,45 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
     return fig
 
 
-if __name__ == "__main__":
-    results = load_results()
+# --------------------------------------------------------------------------
+# Command line
+# --------------------------------------------------------------------------
+def analyse_failure_modes(
+    run: Path = typer.Option(
+        ...,
+        "--run",
+        exists=True,
+        file_okay=False,
+        help=(
+            "Run folder holding reports/kiswahili/results_with_scoring.csv "
+            "and reports/hardware_tiers/."
+        ),
+    ),
+    report_dir: Path | None = typer.Option(
+        None,
+        "--report-dir",
+        file_okay=False,
+        help="Where to write the outputs. Defaults to <run>/reports/kiswahili.",
+    ),
+) -> None:
+    """Write the Kiswahili failure-mode tables, chart and hallucination summary."""
+    report_dir = report_dir or run / "reports" / LANGUAGE
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    results = load_results(run)
     words = build(results)
     # Hallucinations: predicted words that are not in the item's vocabulary.
     hallucination_table(results).to_csv(
-        REPORT / "hallucination_summary.csv", index=False
+        report_dir / "hallucination_summary.csv", index=False
     )
 
-    selected = common.load_top_models(RUN, "kiswahili", TOP_N, METRIC, MIN_COVERAGE)
+    selected = common.load_top_models(run, LANGUAGE, TOP_N, METRIC, MIN_COVERAGE)
     failures = failure_mode_table(words)
     tier_failures = tier_failure_table(failures, selected)
-    failures.to_csv(REPORT / "failure_modes.csv", index=False)
-    tier_failures.to_csv(REPORT / "failure_modes_by_tier.csv", index=False)
+    failures.to_csv(report_dir / "failure_modes.csv", index=False)
+    tier_failures.to_csv(report_dir / "failure_modes_by_tier.csv", index=False)
     plot_failure_modes(tier_failures, selected).savefig(
-        REPORT / "failure_modes.png",
+        report_dir / "failure_modes.png",
         dpi=300,
         bbox_inches="tight",
         facecolor=SURFACE,
@@ -524,11 +548,21 @@ if __name__ == "__main__":
 
     # Top failure modes per tier, ranked by error rate, with share of errors.
     n_item_words = len(words.drop_duplicates(["benchmark_item_id", "word"]))
-    print(f"models: {words.model.nunique()}   item-words: {n_item_words:,}")
+    typer.echo(f"models: {words.model.nunique()}   item-words: {n_item_words:,}")
     for tier, group in tier_failures.groupby("hardware_tier"):
-        print(f"\n{tier}: top failure modes by error rate")
+        typer.echo(f"\n{tier}: top failure modes by error rate")
         for row in group.nlargest(5, "error_rate").itertuples():
-            print(
+            typer.echo(
                 f"  {row.error_rate:6.1%}  {row.share_of_errors:5.1%} of errors"
                 f"  n={row.n:<6,} {row.failure_mode}"
             )
+    typer.echo(f"\nWrote to {report_dir}")
+
+
+def main() -> None:
+    """Entry point."""
+    typer.run(analyse_failure_modes)
+
+
+if __name__ == "__main__":
+    main()
