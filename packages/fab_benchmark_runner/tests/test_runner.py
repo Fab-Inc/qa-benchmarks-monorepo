@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from dataclasses import replace
 from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
 from threading import Barrier, Lock
 from time import sleep
@@ -19,10 +20,13 @@ from botocore.exceptions import EndpointConnectionError
 from google.genai.errors import ServerError as GoogleServerError
 from mistralai.exceptions import MistralConnectionException
 from openai import APIConnectionError as OpenAIAPIConnectionError
+from PIL import Image
 
 from fab_benchmark_runner import (
     Benchmark,
     ConfigError,
+    ImageInput,
+    ModelRequest,
     RunConfig,
     execute_run,
     load_run_config,
@@ -49,9 +53,17 @@ def test_run_writes_linked_rows_snapshot_and_log(
 ) -> None:
     calls: list[tuple[str, str, str]] = []
 
-    def evaluator(run_config: RunConfig, model: str, item: dict, prompt: str) -> dict:
+    def evaluator(
+        run_config: RunConfig,
+        model: str,
+        item: dict,
+        prompt: str,
+    ) -> dict:
         calls.append((run_config.params.language, model, item["benchmark_item_id"]))
-        return {"output": f"{model}:{item['benchmark_item_id']}", "seen": prompt}
+        return {
+            "output": f"{model}:{item['benchmark_item_id']}",
+            "seen": prompt,
+        }
 
     with (
         patch("fab_benchmark_runner.runner.git_hash", return_value="abc123"),
@@ -452,6 +464,75 @@ def test_custom_item_loader_and_prompt_builder(
     assert snapshot["resolved_config"]["items_sha256"] == "loader-hash"
 
 
+def test_multimodal_request_is_hashed_stored_and_reused(
+    write_run: Callable[..., Path], read_rows: Rows
+) -> None:
+    image_bytes = _image_bytes()
+
+    def load_items(_path: Path) -> tuple[list[dict[str, Any]], str]:
+        return [
+            {
+                "benchmark_item_id": "visual-1",
+                "question": "Which shape is shown?",
+                "image_bytes": image_bytes,
+            }
+        ], "visual-items-hash"
+
+    benchmark = Benchmark(
+        name="visual",
+        load_items=load_items,
+        build_request=lambda item, _params: ModelRequest(
+            prompt=item["question"],
+            images=(
+                ImageInput(
+                    data=item["image_bytes"],
+                    detail="high",
+                    source_name="shape.jpg",
+                ),
+            ),
+        ),
+    )
+    config = load_run_config(write_run(models=["model-a"]), benchmark)
+    seen_prompts: list[str] = []
+
+    def evaluator(_config, _model, _item, prompt: str) -> dict:
+        seen_prompts.append(prompt)
+        return {"output": "triangle"}
+
+    first = execute_run(config, evaluator=evaluator)
+    [row] = read_rows(first["results_paths"].values())
+    [image] = row["images"]
+
+    assert row["prompt"] == "Which shape is shown?"
+    assert image["source_name"] == "shape.jpg"
+    assert image["detail"] == "high"
+    assert image["source_sha256"] != image["payload_sha256"]
+    assert "image_bytes" not in row
+    assert seen_prompts == ["Which shape is shown?"]
+    assert row["model_call_id"] == model_call_id(
+        benchmark_item_id="visual-1",
+        model="model-a",
+        model_config={},
+        prompt=row["prompt"],
+        system_prompt=None,
+        max_tokens=10_000,
+        images=[
+            {
+                "sha256": image["payload_sha256"],
+                "detail": image["detail"],
+                "width": image["payload_width"],
+                "height": image["payload_height"],
+            }
+        ],
+    )
+
+    second = execute_run(
+        config,
+        evaluator=lambda *_args: pytest.fail("existing result should be reused"),
+    )
+    assert (second["executed_count"], second["skipped_count"]) == (0, 1)
+
+
 def test_custom_loader_output_is_validated(write_run: Callable[..., Path]) -> None:
     duplicate = Benchmark(
         name="dup",
@@ -462,6 +543,12 @@ def test_custom_loader_output_is_validated(write_run: Callable[..., Path]) -> No
 
     with pytest.raises(ConfigError, match="duplicate benchmark_item_id"):
         execute_run(config, evaluator=_echo)
+
+
+def _image_bytes() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (20, 10), color="green").save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 def test_prompts_must_be_strings(write_run: Callable[..., Path]) -> None:

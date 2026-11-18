@@ -91,6 +91,48 @@ def test_call_ids_match_the_phonics_runner(
     assert result_id(call_id) == expected_result_id
 
 
+def test_empty_images_preserve_the_pinned_text_only_id() -> None:
+    call_id = model_call_id(
+        benchmark_item_id="item-1",
+        model="fw-llama-v3p2-1b-instruct",
+        model_config=sanitize_model_config(FIREWORKS_CONFIG),
+        prompt=SWAHILI_PROMPT,
+        system_prompt=None,
+        max_tokens=10_000,
+        images=(),
+    )
+
+    assert call_id == (
+        "c5b9aba56bb7bf59bd475f3227e5710f814cab3bbca3025720ca224a16cd97f5"
+    )
+
+
+def test_multimodal_call_id_depends_on_image_content_detail_and_order() -> None:
+    common = {
+        "benchmark_item_id": "visual-1",
+        "model": "model-a",
+        "model_config": {},
+        "prompt": "Compare these images",
+        "system_prompt": None,
+        "max_tokens": 4096,
+    }
+    first = {"sha256": "a" * 64, "detail": "high", "width": 10, "height": 20}
+    second = {"sha256": "b" * 64, "detail": "low", "width": 30, "height": 40}
+
+    original = model_call_id(**common, images=[first, second])
+    reversed_images = model_call_id(**common, images=[second, first])
+    changed_detail = model_call_id(
+        **common,
+        images=[{**first, "detail": "low"}, second],
+    )
+    changed_content = model_call_id(
+        **common,
+        images=[{**first, "sha256": "c" * 64}, second],
+    )
+
+    assert len({original, reversed_images, changed_detail, changed_content}) == 4
+
+
 @pytest.mark.parametrize(
     ("max_tokens", "expected_config_id"),
     [

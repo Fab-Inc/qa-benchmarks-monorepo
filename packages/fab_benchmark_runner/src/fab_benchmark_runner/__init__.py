@@ -24,6 +24,7 @@ from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.ids import model_call_id, result_id
 from fab_benchmark_runner.items import file_sha256, load_jsonl_items
 from fab_benchmark_runner.registry import prepare_model_registry
+from fab_benchmark_runner.request import ImageInput, ModelRequest
 from fab_benchmark_runner.results import load_results, model_results_filename
 from fab_benchmark_runner.runner import (
     ModelPlan,
@@ -37,7 +38,9 @@ __all__ = [
     "CORE_CONFIG_KEYS",
     "Benchmark",
     "ConfigError",
+    "ImageInput",
     "ModelPlan",
+    "ModelRequest",
     "RunConfig",
     "RunOutput",
     "RunPlan",
