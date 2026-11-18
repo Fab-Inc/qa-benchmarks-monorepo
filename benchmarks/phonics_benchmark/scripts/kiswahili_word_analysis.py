@@ -1,24 +1,42 @@
-"""Word-level failure analysis for Kiswahili
+"""Failure modes of models on the Kiswahili decodability benchmark
 
 Change `BASE` path to point to a different run.
 
-Every score here is adjusted balanced accuracy = recall - FPR.
+Every item-word (one word in one benchmark item) is put in exactly one failure
+mode: what, given the item's student profile, could make a model wrong about
+it. Each mode holds words of a single label, so its error rate is a false
+alarm rate (decodable modes) or a miss rate (nondecodable modes).
 
-Two tables are used for plotting:
-    summary      one row per (model) aggregated across all features
-    marginals    one row per (model, feature, level)
-    combinations one row per (model, cell) where cell is the combination of features
-
-A separate nasal table asks where models trip on nasal + consonant sequences:
-    nasal        one row per (model, nasal case), with the case's error rate
+Outputs, in REPORT:
+    failure_modes.csv          one row per (model, failure mode)
+    failure_modes_by_tier.csv  one row per (hardware tier, failure mode), means
+                               over each tier's top TOP_N models
+    failure_modes.png          the tier table as a dot chart
+    hallucination_summary.csv  one row per model: how often it predicts words
+                               that are not in the item's vocabulary
 """
 
-import textwrap
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from decodability.kiswahili import (
+    KiswahiliStudentKnowledge,
+    KiswahiliWordAnalysis,
+    analyse_word_kiswahili,
+)
+from decodability.kiswahili.segment import (
+    SYLLABIC_NASAL_EXPECTED_CLUSTERS,
+    _consonant_runs,
+    _nasal_verdict,
+    decompose_word,
+)
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 REPO_ROOT = (
     Path(__file__).resolve().parents[3] if "__file__" in globals() else Path.cwd()
@@ -31,104 +49,124 @@ REPORT = BASE / "kiswahili"
 # leaderboards without a visual jump.
 SURFACE, INK_PRIMARY, INK_SECONDARY = "#fcfcfb", "#0b0b0b", "#52514e"
 INK_MUTED, GRIDLINE, BASELINE = "#898781", "#e1e0d9", "#c3c2b7"
+TIER_ORDER = ["Cloud", "Mobile + Tablet"]
 TIER_COLORS = {"Cloud": "#1f4e79", "Mobile + Tablet": "#b5651d"}
-FEATURES = [
-    "is_known_word",
-    "grapheme_bin",
-    "has_multigraph",
-    "has_cluster",
-    "has_nonnasal_cluster",
-    "has_nasal_cluster",
-]
-TAGS = {
-    "is_known_word": "known",
-    "has_multigraph": "multi",
-    "has_cluster": "CLUST",
-    "has_nonnasal_cluster": "clust",
-    "has_nasal_cluster": "NASAL",
-}
-GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 4), (4, 7), (7, 14)])
-# Level order for plotting. `level` is stored as a label rather than a mix of
-# Interval and bool, because pandas cannot sort those two types against each
-# other once all four features are stacked into one long table.
-LEVEL_ORDER = {
-    "is_known_word": ["False", "True"],
-    "grapheme_bin": ["2-4", "5-7", "8-14"],
-    "has_multigraph": ["False", "True"],
-    "has_cluster": ["False", "True"],
-    "has_nonnasal_cluster": ["False", "True"],
-    "has_nasal_cluster": ["False", "True"],
-}
+TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
+# Models per tier that the tier table averages over; a tier with fewer
+# contributes all of them.
+TOP_N = 10
+# Below this many item-words, a mode is faded in the chart.
+MIN_WORDS = 20
+
+# Word length bins, in graphemes, for decodable words with no consonant run.
+# 2-5 / 6-14 splits those item-words most evenly (12,094 / 11,084 on the
+# 20261110 run); the next cut, 2-6 / 7-14, would split them 73 / 27.
+GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)])
 
 
-def is_nasal(cluster):
+def length_label(span: pd.Interval) -> str:
+    """'2-4' for the interval (1, 4]."""
+    return f"{int(span.left) + 1}-{int(span.right)}"
+
+
+def is_nasal(cluster: str) -> bool:
     """Nasal-initial cluster, excluding ng/ng'/ny, which are single sounds."""
     return cluster[:1] in "mn" and not cluster.startswith(("ng", "ng'", "ny"))
 
 
-# Rows of the nasal chart, grouped by the error that matters for them. Every
-# case holds words of one label only (see nasal_case), so a decodable case's
-# error rate is its false alarm rate and a nondecodable case's is its miss rate.
-# The non-nasal rows are baselines for the nasal rows beneath them.
-NASAL_ROWS = {
+# --------------------------------------------------------------------------
+# Failure modes
+# --------------------------------------------------------------------------
+# Rows in the order the chart draws them, grouped by the error that matters.
+FAILURE_ROWS = {
     "Decodable words: share falsely flagged": [
-        ("no cluster", "No cluster"),
-        ("non-nasal cluster, taught", "Non-nasal cluster, taught"),
-        ("fused nasal, taught", "Fused nasal, taught"),
-        ("ambiguous nasal, taught", "Ambiguous nasal, taught"),
-        ("syllabic nasal", "Syllabic nasal"),
+        ("known whole word", "Known whole word"),
+        *[
+            (
+                f"no consonant run, {length_label(b)} graphemes",
+                f"No consonant run, {length_label(b)} graphemes",
+            )
+            for b in GRAPHEME_BINS
+        ],
+        ("taught cluster", "Every cluster taught"),
+        ("syllabic nasal, m/n+C taught", "Syllabic nasal, m/n + C taught as a cluster"),
+        ("syllabic nasal, m/n+C untaught", "Syllabic nasal, m/n + C not taught"),
     ],
     "Nondecodable words: share missed": [
-        ("non-nasal cluster, untaught", "Non-nasal cluster, untaught"),
-        ("fused nasal, untaught", "Fused nasal, untaught"),
-        ("ambiguous nasal, untaught", "Ambiguous nasal, untaught"),
+        ("untaught unigraph", "Untaught single-letter grapheme"),
+        ("untaught multigraph", "Untaught multigraph"),
+        ("untaught non-nasal cluster", "Untaught non-nasal cluster, graphemes taught"),
+        ("untaught nasal cluster", "Untaught nasal cluster, graphemes taught"),
+        ("invalid grapheme", "Invalid grapheme"),
+        ("several reasons", "More than one of the above"),
     ],
 }
 
 
-def nasal_case(nasal_runs, n_runs, analysis, taught_clusters):
-    """The NASAL_ROWS case a (word, student) pair belongs to, or None.
+def failure_mode(
+    analysis: KiswahiliWordAnalysis,
+    taught_clusters: set[str],
+    syllabic_onsets: list[tuple[str, str]],
+    n_graphemes: int,
+    has_run: bool,
+    on_syllabic_list: bool,
+) -> str:
+    """The FAILURE_ROWS mode a (word, student) pair falls in.
 
-    nasal_runs lists (reading, run) for each consonant run headed by m or n,
-    where reading is the package's verdict: "fused", "syllabic" or
-    "ambiguous". n_runs counts all runs of two or more consonants.
+    Nondecodable words are split by what the student has not been taught,
+    with words untaught on more than one count kept apart so each other mode
+    has a single cause. Decodable words are split by what could still trip a
+    model: being a known whole word, a syllabic nasal, a taught cluster, or
+    else only their length.
 
-    A pair qualifies only if clusters alone decide its label: every grapheme
-    is taught and the word is not a known whole word. A nasal case also
-    requires the nasal runs to be the word's only clusters and to share one
-    reading, so an error there can be pinned on the nasal and nothing else.
-    Labels follow the strict rule (ambiguous boundaries count as fused), which
-    is what the relabelled benchmark uses.
+    A syllabic nasal is only a trap when the student has not been taught the
+    nasal and the next consonant as a cluster (mt in mtoto): a model that
+    misreads it as a cluster then wrongly finds it untaught. syllabic_onsets
+    lists (nasal + next grapheme, whole run) for each syllabic run, and either
+    being taught counts as the misreading being harmless.
+
+    Nasal clusters include ambiguous boundaries, which the dataset labels as
+    fused (gated).
     """
-    if (
-        analysis.known_whole_word
-        or analysis.invalid_graphemes
-        or analysis.unknown_graphemes
-    ):
-        return None
-    taught = "untaught" if analysis.unknown_clusters else "taught"
-    if not nasal_runs:
-        return "no cluster" if n_runs == 0 else f"non-nasal cluster, {taught}"
-    readings = {reading for reading, _ in nasal_runs}
-    if len(readings) > 1 or len(nasal_runs) < n_runs:
-        return None
-    (reading,) = readings
-    if reading == "syllabic":
-        # The trap is reading the syllabic nasal as part of a cluster, so it
-        # only exists when that naive cluster (e.g. mt in mtoto) is untaught.
-        # Whatever follows the nasal (e.g. bw in mbwa) must be taught, so the
-        # word is decodable and the only possible error is a false alarm.
-        naive_taught = any(run in taught_clusters for _, run in nasal_runs)
-        if analysis.unknown_clusters or naive_taught:
-            return None
-        return "syllabic nasal"
-    return f"{reading} nasal, {taught}"
+    if analysis.known_whole_word:
+        return "known whole word"
+    untaught = {
+        "untaught unigraph": [
+            g for g in analysis.unknown_graphemes if len(g.normalised) == 1
+        ],
+        "untaught multigraph": [
+            g for g in analysis.unknown_graphemes if len(g.normalised) > 1
+        ],
+        "untaught nasal cluster": [
+            c for c in analysis.unknown_clusters if is_nasal(c.normalised)
+        ],
+        "untaught non-nasal cluster": [
+            c for c in analysis.unknown_clusters if not is_nasal(c.normalised)
+        ],
+        "invalid grapheme": analysis.invalid_graphemes,
+    }
+    reasons = [mode for mode, spans in untaught.items() if spans]
+    if len(reasons) > 1:
+        return "several reasons"
+    if reasons:
+        return reasons[0]
+    # Every grapheme and cluster is taught from here on, so the word is decodable.
+    if on_syllabic_list and syllabic_onsets:
+        harmless = any(
+            pair in taught_clusters or run in taught_clusters
+            for pair, run in syllabic_onsets
+        )
+        return f"syllabic nasal, m/n+C {'taught' if harmless else 'untaught'}"
+    if has_run:
+        return "taught cluster"
+    (span,) = [b for b in GRAPHEME_BINS if n_graphemes in b]
+    return f"no consonant run, {length_label(span)} graphemes"
 
 
 # --------------------------------------------------------------------------
 # Prepare data
 # --------------------------------------------------------------------------
-def load_results():
+def load_results() -> pd.DataFrame:
     """Item-level results for tiered models, with the set columns parsed.
 
     Only models the tier file places are kept. Dropping them here rather than
@@ -145,7 +183,7 @@ def load_results():
     return results
 
 
-def hallucination_table(results):
+def hallucination_table(results: pd.DataFrame) -> pd.DataFrame:
     """Per model: items containing an out-of-vocabulary word, and the share of
     predicted words that are out of vocabulary."""
     frame = results.assign(
@@ -168,27 +206,14 @@ def hallucination_table(results):
     return out.reset_index().sort_values("prop_words", ascending=False)
 
 
-def build(results=None):
-    """Explode items to words and attach decodability features.
+def build(results: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Explode items to words and attach each (item, word)'s failure mode.
 
-    The two library calls have different keys, so they are deduplicated
-    separately. decompose_word depends only on spelling, so it runs once per
-    unique word. analyse_word_kiswahili also needs the student profile, which
-    is fixed within a benchmark item, so it runs once per (word, profile) pair
-    rather than once per row across all models.
-
+    Spelling-only inputs (graphemes, consonant runs, syllabic readings) are
+    computed once per unique word. analyse_word_kiswahili also needs the
+    student profile, which is fixed within a benchmark item, so it runs once
+    per (word, profile) pair rather than once per row across all models.
     """
-    from decodability.kiswahili import KiswahiliStudentKnowledge, analyse_word_kiswahili
-
-    # _consonant_runs and _nasal_verdict are private helpers, imported so the
-    # nasal readings come from exactly the rules the labels use. A rename
-    # upstream breaks this import loudly rather than letting the two drift apart.
-    from decodability.kiswahili.segment import (
-        _consonant_runs,
-        _nasal_verdict,
-        decompose_word,
-        find_cluster_spans,
-    )
 
     df = load_results() if results is None else results
 
@@ -208,22 +233,23 @@ def build(results=None):
         .rename(columns={"vocab_set": "word"})
     )
 
-    words = pd.DataFrame({"word": item_words.word.unique()})
-    # decompose_word returns the word's graphemes as a list of spans; clusters
-    # are derived from those graphemes in a second step.
-    graphemes = [decompose_word(w) for w in words.word]
-    clusters = [find_cluster_spans(g) for g in graphemes]
-    # Every run of consecutive consonants, and the nasal reading of each run
-    # headed by m or n. Both depend only on spelling, so they are keyed by word.
-    runs = [list(_consonant_runs(g)) for g in graphemes]
-    n_runs = {w: sum(len(r) >= 2 for r in rs) for w, rs in zip(words.word, runs)}
-    nasal_runs = {
+    graphemes = {w: decompose_word(w) for w in item_words.word.unique()}
+    # Runs of two or more consecutive consonants, as grapheme indices.
+    runs = {
+        w: [r for r in _consonant_runs(g) if len(r) >= 2] for w, g in graphemes.items()
+    }
+    # For each syllabic run: the nasal + next grapheme a model might misread as
+    # a cluster (mt), and the whole run (mbw), both as normalised text.
+    syllabic_onsets = {
         w: [
-            (verdict.value, "".join(g[i].normalised for i in r))
-            for r in rs
-            if (verdict := _nasal_verdict(g, r)) is not None
+            (
+                g[r[0]].normalised + g[r[1]].normalised,
+                "".join(g[i].normalised for i in r),
+            )
+            for r in runs[w]
+            if (v := _nasal_verdict(g, r)) is not None and v.value == "syllabic"
         ]
-        for w, g, rs in zip(words.word, graphemes, runs)
+        for w, g in graphemes.items()
     }
 
     pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
@@ -231,28 +257,18 @@ def build(results=None):
         s: KiswahiliStudentKnowledge.model_validate(eval(s))
         for s in pairs.student_knowledge.unique()
     }
-    analyses = [
-        analyse_word_kiswahili(w, profiles[s])
+    pairs["failure_mode"] = [
+        failure_mode(
+            analyse_word_kiswahili(w, profiles[s]),
+            profiles[s].all_known_clusters,
+            syllabic_onsets[w],
+            len(graphemes[w]),
+            bool(runs[w]),
+            w.lower() in SYLLABIC_NASAL_EXPECTED_CLUSTERS,
+        )
         for w, s in zip(pairs.word, pairs.student_knowledge)
     ]
-    pairs["is_known_word"] = [a.known_whole_word for a in analyses]
-    pairs["nasal_case"] = [
-        nasal_case(nasal_runs[w], n_runs[w], a, profiles[s].all_known_clusters)
-        for w, s, a in zip(pairs.word, pairs.student_knowledge, analyses)
-    ]
     item_words = item_words.merge(pairs, on=["word", "student_knowledge"])
-
-    words["n_graphemes"] = [len(gs) for gs in graphemes]
-    words["grapheme_bin"] = pd.cut(
-        words.n_graphemes, GRAPHEME_BINS, include_lowest=True
-    )
-    words["has_multigraph"] = [any(len(g.text) > 1 for g in gs) for gs in graphemes]
-    words["has_nonnasal_cluster"] = [
-        any(not is_nasal(c.text) for c in cs) for cs in clusters
-    ]
-    words["has_nasal_cluster"] = [any(is_nasal(c.text) for c in cs) for cs in clusters]
-    words["has_cluster"] = [len(cs) > 0 for cs in clusters]
-    item_words = item_words.merge(words, on="word")
 
     item_words["predicted"] = [
         w.lower() in r for w, r in zip(item_words.word, item_words.response_parsed)
@@ -268,12 +284,8 @@ def build(results=None):
 # --------------------------------------------------------------------------
 # Scoring
 # --------------------------------------------------------------------------
-def tally(words, keys, min_pos=50, min_neg=50):
-    """Counts and Youden's J per group.
-
-    J is blanked, not the row dropped, where a group holds too few actual
-    positives or negatives for a stable rate.
-    """
+def summary_table(words: pd.DataFrame) -> pd.DataFrame:
+    """One row per model: adjusted balanced accuracy (recall - FPR) over all words."""
     counts = (
         words.assign(
             tp=words.predicted & words.is_nondecodable,
@@ -281,312 +293,15 @@ def tally(words, keys, min_pos=50, min_neg=50):
             pos=words.is_nondecodable,
             neg=~words.is_nondecodable,
         )
-        .groupby(keys, observed=True)[["tp", "fp", "pos", "neg"]]
-        .sum()
-    )
-    counts["n"] = counts.pos + counts.neg
-    counts["recall"] = counts.tp / counts.pos
-    counts["fpr"] = counts.fp / counts.neg
-    counts["j"] = counts.recall - counts.fpr
-    # counts.loc[(counts.pos < min_pos) | (counts.neg < min_neg), "j"] = np.nan
-    return counts.reset_index()
-
-
-def summary_table(words, **kwargs):
-    """One row per model, aggregated across all features."""
-    summary = tally(words, ["hardware_tier", "model"], **kwargs, min_pos=0, min_neg=0)
-    cols = [
-        "hardware_tier",
-        "model",
-        "n",
-        "tp",
-        "fp",
-        "pos",
-        "neg",
-        "recall",
-        "fpr",
-        "j",
-    ]
-    return summary[cols]
-
-
-def marginal_table(words, **kwargs):
-    """One row per (model, feature, level), marginalising over other features."""
-    frames = [
-        tally(words, ["hardware_tier", "model", feature], **kwargs)
-        .rename(columns={feature: "level"})
-        .assign(feature=feature, level=lambda d: d.level.map(level_label))
-        for feature in FEATURES
-    ]
-    cols = [
-        "hardware_tier",
-        "model",
-        "feature",
-        "level",
-        "n",
-        "pos",
-        "neg",
-        "recall",
-        "fpr",
-        "j",
-    ]
-    return pd.concat(frames, ignore_index=True)[cols]
-
-
-def combination_table(words, **kwargs):
-    """One row per (model, cell) over the full cross product of the features."""
-    combos = tally(words, ["hardware_tier", "model"] + FEATURES, **kwargs)
-    combos["cell"] = combos.apply(cell_label, axis=1)
-    combos["group"] = combos.apply(cell_group, axis=1)
-    return combos
-
-
-def tier_combination_table(combinations, summary):
-    """One row per (tier, cell): mean J, FPR and FNR over each tier's top models.
-
-    The models are the same top-N per tier as the dumbbell chart. Each model
-    counts equally, as there, rather than pooling words across models. Since
-    J = recall - FPR = 1 - FNR - FPR for each model, the means satisfy the
-    same identity cell by cell wherever all three are defined.
-
-    pos and neg are each cell's item-word counts from the best-covered model,
-    which is the full item set. They do not depend on the tier.
-    """
-    selected = pd.concat(
-        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
-    )
-    top = combinations[combinations.model.isin(selected)].assign(
-        fnr=lambda d: 1 - d.recall
-    )
-    out = (
-        top.groupby(["hardware_tier", "cell"], observed=True)
-        .agg(
-            j=("j", "mean"),
-            fpr=("fpr", "mean"),
-            fnr=("fnr", "mean"),
-            n_models=("model", "nunique"),
-        )
-        .reset_index()
-    )
-    sizes = combinations.groupby("cell").agg(
-        group=("group", "first"), pos=("pos", "max"), neg=("neg", "max")
-    )
-    return out.merge(sizes, on="cell")
-
-
-def nasal_table(words):
-    """One row per (model, nasal case): how often the model gets those words wrong.
-
-    error_rate counts every disagreement with the label. Each case holds one
-    label by construction, so this is the false alarm rate for a decodable
-    case and the miss rate for a nondecodable one. pos and neg are kept so a
-    case that breaks that rule would show up in the CSV.
-    """
-    frame = words.dropna(subset=["nasal_case"]).assign(
-        wrong=lambda d: d.predicted != d.is_nondecodable,
-        pos=lambda d: d.is_nondecodable,
-        neg=lambda d: ~d.is_nondecodable,
-    )
-    out = (
-        frame.groupby(["hardware_tier", "model", "nasal_case"], observed=True)[
-            ["wrong", "pos", "neg"]
-        ]
+        .groupby(["hardware_tier", "model"], observed=True)[["tp", "fp", "pos", "neg"]]
         .sum()
         .reset_index()
     )
-    out["n"] = out.pos + out.neg
-    out["error_rate"] = out.wrong / out.n
-    return out
+    counts["j"] = counts.tp / counts.pos - counts.fp / counts.neg
+    return counts
 
 
-def tier_nasal_table(nasal, summary):
-    """One row per (tier, nasal case): mean error rate over each tier's top models.
-
-    The models and the equal weighting per model match tier_combination_table.
-    n is the case's item-word count for the best-covered model, which does not
-    depend on the tier.
-    """
-    selected = pd.concat(
-        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
-    )
-    out = (
-        nasal[nasal.model.isin(selected)]
-        .groupby(["hardware_tier", "nasal_case"], observed=True)
-        .agg(error_rate=("error_rate", "mean"), n_models=("model", "nunique"))
-        .reset_index()
-    )
-    return out.merge(nasal.groupby("nasal_case").n.max(), on="nasal_case")
-
-
-def cell_group(row):
-    """Reading order for the heatmap columns.
-
-    Known words first, then words with neither multigraph nor cluster, then
-    multigraphs, then non-nasal clusters, then nasal clusters. A word carrying
-    both cluster kinds lands in the nasal group, and a multigraph alongside a
-    cluster is ordered by the cluster, so every cell appears exactly once.
-    """
-    if row.is_known_word:
-        return 0
-    # No separate has_cluster check: every cluster is nasal or non-nasal, and
-    # checking has_cluster first would put nasal cells in group 3.
-    if row.has_nasal_cluster:
-        return 4
-    if row.has_nonnasal_cluster:
-        return 3
-    if row.has_multigraph:
-        return 2
-    return 1
-
-
-def ordered_cells(combinations):
-    """Cell names in reading order: group, then word length, then multigraph."""
-    spec = combinations[
-        ["cell", "group", "grapheme_bin", "has_multigraph"]
-    ].drop_duplicates()
-    return spec.sort_values(["group", "grapheme_bin", "has_multigraph"]).cell.tolist()
-
-
-def cell_label(row):
-    span = row.grapheme_bin
-    return " ".join(
-        [
-            f"{int(span.left) + 1}-{int(span.right)}g",
-            *[tag for col, tag in TAGS.items() if row[col]],
-        ]
-    )
-
-
-def level_label(value):
-    if isinstance(value, pd.Interval):
-        return f"{int(value.left) + 1}-{int(value.right)}"
-    return str(value)
-
-
-# --------------------------------------------------------------------------
-# Plots
-# --------------------------------------------------------------------------
-PLOT_FEATURES = [f for f in FEATURES if f != "is_known_word"]
-
-
-def overall_ranking(words):
-    """Models ordered by Youden's J over every word, best first.
-
-    This is J on the pooled confusion matrix, not the average of the per-level
-    J values shown in the panels. Averaging levels would give a level holding
-    400 words the same weight as one holding 400,000.
-    """
-    return (
-        tally(words, ["model"]).set_index("model").j.sort_values(ascending=False).index
-    )
-
-
-def display_names():
-    """Model ids mapped to the display names the F2 leaderboards use."""
-    tiers = pd.read_csv(BASE / "hardware_tiers/pooled_f2/hardware_tiers_kiswahili.csv")
-    return dict(zip(tiers.model, tiers.display_name.fillna(tiers.model)))
-
-
-def style(ax):
-    ax.set_facecolor(SURFACE)
-    ax.spines[["top", "right"]].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(BASELINE)
-        ax.spines[side].set_linewidth(0.8)
-    ax.tick_params(colors=INK_MUTED, length=3, width=0.8, labelsize=9)
-
-
-def plot_marginals(marginals, fig, models):
-    """One heatmap per feature, models shared down the y axis.
-
-    Marginals put every model at every level, so these panels have no gaps.
-    Each square is annotated because nine columns leave room for it, and a
-    printed number beats reading a value off a colour ramp.
-    """
-    grids = []
-    for feature in PLOT_FEATURES:
-        panel = marginals[marginals.feature == feature]
-        grid = panel.pivot_table(index="model", columns="level", values="j")
-        grids.append(
-            grid.reindex(columns=[lv for lv in LEVEL_ORDER[feature] if lv in grid])
-        )
-
-    names, tiers = (
-        display_names(),
-        marginals.drop_duplicates("model").set_index("model").hardware_tier,
-    )
-    fig.set_facecolor(SURFACE)
-    axes = fig.subplots(
-        1, len(grids), sharey=True, width_ratios=[g.shape[1] for g in grids]
-    )
-
-    for ax, feature, grid in zip(axes, PLOT_FEATURES, grids):
-        grid = grid.loc[models]
-        # Missing values get their own neutral, so a cell nobody can score is
-        # not mistaken for a cell everybody scores badly.
-        cmap = plt.get_cmap("YlGnBu").with_extremes(bad=GRIDLINE)
-        im = ax.imshow(grid.values, cmap=cmap, vmin=0, vmax=1, aspect="auto")
-        for row, col in np.ndindex(grid.shape):
-            value = grid.values[row, col]
-            if not np.isnan(value):
-                ax.text(
-                    col,
-                    row,
-                    f"{value:.2f}",
-                    ha="center",
-                    va="center",
-                    fontsize=7,
-                    color=SURFACE if value > 0.55 else INK_PRIMARY,
-                )
-        ax.set_xticks(range(grid.shape[1]), grid.columns, fontsize=8)
-        ax.set_title(
-            feature.replace("has_", "").replace("_", " "),
-            fontsize=10,
-            fontweight="semibold",
-            color=INK_PRIMARY,
-        )
-        style(ax)
-
-    axes[0].set_yticks(
-        range(len(models)), [names.get(m, m) for m in models], fontsize=9
-    )
-    for label, model in zip(axes[0].get_yticklabels(), models):
-        label.set_color(TIER_COLORS[tiers[model]])
-    fig.colorbar(
-        im, ax=axes, label="Adj. Balanced Accuracy (0 = chance)", shrink=0.5, pad=0.02
-    )
-    return models
-
-
-# Dumbbell furniture ported from plot_dumbbell in analyze_phonics_hardware_tiers.py
-# on add-phonics-local-merge. The two series are the levels of a word feature
-# rather than the two languages, since everything here is Kiswahili.
-TIER_ORDER = ["Mobile + Tablet", "Cloud"]
-TIER_LABELS = {
-    "Cloud": ("Cloud", "Datacenter or API-only"),
-    "Mobile + Tablet": ("Mobile + tablet", "Up to 12GB RAM, INT4"),
-}
-# Green and dark pink rather than the language charts' blue and orange, so a
-# feature split and a language split stay distinguishable side by side.
-LEVEL_COLORS = {"False": "#63b7bb", "True": "#0b4f52"}
-TOP_N = 10
-FEATURE_PLOTS = {
-    "has_multigraph": ("multigraphs", "No multigraph", "Has a multigraph"),
-    "has_cluster": ("consonant clusters", "No cluster", "Has a cluster"),
-    # "has_nonnasal_cluster": (
-    #     "non-nasal consonant clusters",
-    #     "No non-nasal cluster",
-    #     "Has a non-nasal cluster",
-    # ),
-    # "has_nasal_cluster": (
-    #     "nasal consonant clusters",
-    #     "No nasal cluster",
-    #     "Has a nasal cluster",
-    # ),
-}
-
-
-def top_models(summary, tier):
+def top_models(summary: pd.DataFrame, tier: str) -> pd.Series:
     """The TOP_N models with the highest pooled J within one hardware tier.
 
     Model id breaks ties so the selection is stable across runs. A tier with
@@ -599,449 +314,91 @@ def top_models(summary, tier):
     )
 
 
-def top_n_stats(summary, marginals, feature):
-    """Mean Adj. balanced accuracy of the best TOP_N models per (tier, level)
-    for one feature.
+def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
+    """One row per (model, failure mode): error rate and share of the model's errors.
 
-    Top-N is picked within each hardware_tier.
+    Each mode holds one label, so error_rate is the false alarm rate for a
+    decodable mode and the miss rate for a nondecodable one. share_of_errors
+    is the mode's part of everything the model got wrong; the modes partition
+    the item-words, so it sums to 1 per model.
     """
-    panel = marginals[marginals.feature == feature].dropna(subset=["j"])
-    rows = []
-    for (tier, level), group in panel.groupby(
-        ["hardware_tier", "level"], observed=True
-    ):
-        top = group[group.model.isin(top_models(summary, tier))]
-        rows.append(
-            {
-                "hardware_tier": tier,
-                "level": level,
-                "median_j": top.j.mean(),
-                "n_models": len(top),
-                "n_available": len(group),
-                "words": top.n.median(),
-            }
-        )
-    return pd.DataFrame(rows)
-
-
-def draw_dumbbell(ax, y, points, size=170, fontsize=15):
-    """One row: two dots joined by a connector, each labelled with its value.
-
-    Y is categorical, so near-equal values are nudged apart vertically instead
-    of overprinting.
-    """
-    close = max(points.values()) - min(points.values()) < 3
-    point_y = {
-        lv: y + ({"False": -0.12, "True": 0.12}[lv] if close else 0) for lv in points
-    }
-    low, high = min(points.values()), max(points.values())
-    if close:
-        ax.plot(
-            list(points.values()),
-            list(point_y.values()),
-            color=BASELINE,
-            lw=2,
-            zorder=1,
-        )
-    elif high - low > 1.2:
-        ax.plot([low + 0.6, high - 0.6], [y, y], color=BASELINE, lw=2, zorder=1)
-    for level, score in points.items():
-        ax.scatter(
-            score,
-            point_y[level],
-            s=size,
-            color=LEVEL_COLORS[level],
-            zorder=3,
-            edgecolors=SURFACE,
-            linewidths=2,
-        )
-        left = score <= min(v for lv, v in points.items() if lv != level)
-        ax.annotate(
-            f"{score:.1f}%",
-            (score, point_y[level]),
-            xytext=(-12 if left else 12, 0),
-            textcoords="offset points",
-            ha="right" if left else "left",
-            va="center",
-            fontsize=fontsize,
-            color=INK_PRIMARY,
-        )
-
-
-def level_legend(fig, off_label, on_label, anchor):
-    fig.legend(
-        handles=[
-            plt.Line2D(
-                [],
-                [],
-                marker="o",
-                linestyle="none",
-                markersize=11,
-                markerfacecolor=LEVEL_COLORS[lv],
-                markeredgecolor=SURFACE,
-                label=label,
-            )
-            for lv, label in [("False", off_label), ("True", on_label)]
-        ],
-        loc="upper left",
-        bbox_to_anchor=anchor,
-        ncol=2,
-        frameon=False,
-        fontsize=12,
-        labelcolor=INK_SECONDARY,
+    out = (
+        words.assign(wrong=words.predicted != words.is_nondecodable)
+        .groupby(["hardware_tier", "model", "failure_mode"], observed=True)
+        .agg(n=("wrong", "size"), wrong=("wrong", "sum"))
+        .reset_index()
     )
+    out["error_rate"] = out.wrong / out.n
+    out["share_of_errors"] = out.wrong / out.groupby("model").wrong.transform("sum")
+    return out
 
 
-def plot_feature_summary_dumbell(summary, marginals):
-    """All three features on one axis: a block of two tier rows per feature.
+def tier_failure_table(failures: pd.DataFrame, summary: pd.DataFrame) -> pd.DataFrame:
+    """One row per (tier, failure mode): means over each tier's top models.
 
-    Each block is the single-feature chart repeated, so the eye compares tiers
-    within a feature and features within a tier without switching charts. The
-    per-row model and word counts are dropped here because six rows cannot
-    carry them; they stay on the single-feature charts and in the CSV. The
-    right-hand column is the gap in percentage points, which is what the
-    connector length already encodes.
+    Each selected model counts equally. n is the mode's item-word count for
+    the best-covered model, which does not depend on the tier.
     """
-    features = list(FEATURE_PLOTS)
-    # y grows upward, so build bottom-up and the first feature lands on top.
-    layout = [(f, t) for f in reversed(features) for t in TIER_ORDER]
+    selected = pd.concat(
+        [top_models(summary, tier) for tier in summary.hardware_tier.unique()]
+    )
+    out = (
+        failures[failures.model.isin(selected)]
+        .groupby(["hardware_tier", "failure_mode"], observed=True)
+        .agg(
+            error_rate=("error_rate", "mean"),
+            share_of_errors=("share_of_errors", "mean"),
+            n_models=("model", "nunique"),
+        )
+        .reset_index()
+    )
+    return out.merge(failures.groupby("failure_mode").n.max(), on="failure_mode")
 
-    fig, ax = plt.subplots(figsize=(11.5, 7.2))
-    fig.set_facecolor(SURFACE)
+
+# --------------------------------------------------------------------------
+# Plot
+# --------------------------------------------------------------------------
+def style(ax: Axes) -> None:
     ax.set_facecolor(SURFACE)
-
-    for y, (feature, tier) in enumerate(layout):
-        stats = top_n_stats(summary, marginals, feature)
-        group = stats[stats.hardware_tier.eq(tier)]
-        points = dict(zip(group.level, group.median_j * 100))
-        draw_dumbbell(ax, y, points, size=130, fontsize=12)
-        ax.annotate(
-            TIER_LABELS[tier][0],
-            (-0.02, y),
-            xycoords=("axes fraction", "data"),
-            ha="right",
-            va="center",
-            fontsize=12,
-            color=INK_SECONDARY,
-        )
-
-    # Feature heading sits between its two tier rows; a rule separates blocks.
-    for block, feature in enumerate(reversed(features)):
-        ax.annotate(
-            textwrap.fill(FEATURE_PLOTS[feature][0], 19),
-            (-0.02, 2 * block + 0.5),
-            xycoords=("axes fraction", "data"),
-            xytext=(-118, 0),
-            textcoords="offset points",
-            ha="right",
-            va="center",
-            fontsize=13,
-            fontweight="semibold",
-            color=INK_PRIMARY,
-            linespacing=1.3,
-        )
-        if block:
-            ax.axhline(2 * block - 0.5, color=GRIDLINE, lw=1, zorder=0)
-
-    ax.set_xlim(-14, 112)
-    ax.set_xticks([0, 20, 40, 60, 80, 100])
-    ax.set_ylim(-0.7, len(layout) - 0.3)
-    ax.set_yticks([])
-    ax.set_xlabel(
-        "Mean adjusted balanced accuracy (0% = chance, 100% = perfect)",
-        fontsize=12,
-        color=INK_MUTED,
-    )
-    ax.tick_params(axis="x", labelsize=12, colors=INK_MUTED, length=0)
-    ax.grid(axis="x", color=GRIDLINE, lw=1)
-    ax.set_axisbelow(True)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.spines["bottom"].set_color(GRIDLINE)
-    fig.subplots_adjust(left=0.38, right=0.96, top=0.78, bottom=0.14)
-
-    fig.text(
-        0.025,
-        0.975,
-        "How well do models handle Kiswahili's multigraphs and consonant clusters?",
-        va="top",
-        fontsize=18,
-        fontweight="bold",
-        color=INK_PRIMARY,
-    )
-    fig.text(
-        0.025,
-        0.915,
-        f"Mean adjusted balanced accuracy of the top {TOP_N} eligible models per group,"
-        "by word feature.",
-        va="top",
-        fontsize=11,
-        color=INK_SECONDARY,
-    )
-    level_legend(fig, "Without the feature", "With the feature", (0.025, 0.855))
-    fig.text(
-        0.025,
-        0.02,
-        "Kiswahili only; Eligibility: >80% coverage; minimum scored "
-        "items."
-        "Device tiers assume quantized weights; "
-        "benchmark scores do not establish quality after quantization.",
-        va="bottom",
-        fontsize=8.5,
-        color=INK_SECONDARY,
-        linespacing=1.55,
-    )
-    return fig
+    ax.spines[["top", "right"]].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(BASELINE)
+        ax.spines[side].set_linewidth(0.8)
+    ax.tick_params(colors=INK_MUTED, length=3, width=0.8, labelsize=9)
 
 
-def plot_combinations(combinations, ax, models):
-    """Models against the full cross product of features, plain to clustered.
+def plot_failure_modes(tier_failures: pd.DataFrame) -> Figure:
+    """Error rate per failure mode, one dot per tier, plus each mode's share of errors.
 
-    A cell no model can score is dropped from the axis rather than left as a
-    blank column. With the 2-4 / 5-7 / 8-14 grapheme bins that removes only the
-    known-word cells, whose J is undefined because every known word is
-    decodable.
+    False alarms on decodable words sit in the top panel and misses on
+    nondecodable words in the bottom, since the two are different errors.
+    Rate says how often a model slips on that kind of word; share of errors
+    says how much of the tier's total error it accounts for, which also
+    depends on how common the words are.
     """
-    grid = combinations.pivot_table(index="model", columns="cell", values="j")
-    order = [cell for cell in ordered_cells(combinations) if cell in grid]
-    grid = grid[order].loc[models]
-
-    cmap = plt.get_cmap("YlGnBu").with_extremes(bad=GRIDLINE)
-    im = ax.imshow(grid.values, cmap=cmap, vmin=0, vmax=1, aspect="auto")
-    for row, col in np.ndindex(grid.shape):
-        value = grid.values[row, col]
-        if not np.isnan(value):
-            ax.text(
-                col,
-                row,
-                f"{value:.2f}",
-                ha="center",
-                va="center",
-                fontsize=6.5,
-                color=SURFACE if value > 0.55 else INK_PRIMARY,
-            )
-    names = display_names()
-    tiers = combinations.drop_duplicates("model").set_index("model").hardware_tier
-    ax.set_xticks(
-        range(grid.shape[1]), grid.columns, rotation=45, ha="right", fontsize=8
-    )
-    ax.set_yticks(range(len(grid)), [names.get(m, m) for m in grid.index], fontsize=9)
-    for label, model in zip(ax.get_yticklabels(), grid.index):
-        label.set_color(TIER_COLORS[tiers[model]])
-    ax.set_title(
-        "Adj. BA by word-type combination, ordered plain to clustered",
-        fontsize=12,
-        fontweight="semibold",
-        color=INK_PRIMARY,
-    )
-    style(ax)
-    ax.figure.colorbar(im, ax=ax, label="Adj. BA  (0 = chance)", shrink=0.5, pad=0.02)
-    return grid
-
-
-TIER_COLUMNS = ["Cloud", "Mobile + Tablet"]
-TIER_HEADERS = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile +\ntablet"}
-# J keeps the ramp the other heatmaps use. The two error rates share a
-# separate warm ramp and one 0-1 scale, so FPR and FNR compare directly.
-TIER_METRICS = {
-    "j": ("Adj. balanced accuracy", "YlGnBu"),
-    "fpr": ("False positive rate", "YlOrRd"),
-    "fnr": ("False negative rate", "YlOrRd"),
-}
-# Below this many nondecodable or decodable item-words, a cell's values are faded.
-MIN_WORDS = 20
-
-
-def plot_tier_combinations(tier_combos, order, fig):
-    """Each tier's top models against the full cross product, one panel per metric.
-
-    Rows are word types in the per-model heatmap's reading order, with a gap
-    between groups. In each panel the two columns are the tiers, so the tier
-    gap reads across a row and the error type behind a low J reads across
-    panels. The right-hand column gives the word counts behind each row.
-    """
-    cells = [cell for cell in order if cell in set(tier_combos.cell)]
-    sizes = tier_combos.drop_duplicates("cell").set_index("cell").loc[cells]
-    # Known-word rows have no nondecodable words by definition, so pos == 0
-    # there is expected, not thin. It already greys out J and FNR.
-    thin = (sizes.pos.between(1, MIN_WORDS - 1) | (sizes.neg < MIN_WORDS)).to_numpy()
-    breaks = [
-        i
-        for i in range(1, len(cells))
-        if sizes.group.iloc[i] != sizes.group.iloc[i - 1]
-    ]
-    n_models = tier_combos.groupby("hardware_tier").n_models.max()
-
-    fig.set_facecolor(SURFACE)
-    axes = fig.subplots(1, 4, sharey=True, width_ratios=[2, 2, 2, 1.7])
-    images = {}
-    for ax, (metric, (title, cmap_name)) in zip(axes, TIER_METRICS.items()):
-        grid = tier_combos.pivot(index="cell", columns="hardware_tier", values=metric)
-        grid = grid.reindex(index=cells, columns=TIER_COLUMNS)
-        cmap = plt.get_cmap(cmap_name).with_extremes(bad=GRIDLINE)
-        images[metric] = ax.imshow(
-            grid.values, cmap=cmap, vmin=0, vmax=1, aspect="auto"
-        )
-        for row, col in np.ndindex(grid.shape):
-            value = grid.values[row, col]
-            if not np.isnan(value):
-                ax.text(
-                    col,
-                    row,
-                    f"{value:.2f}",
-                    ha="center",
-                    va="center",
-                    fontsize=8,
-                    color=SURFACE if value > 0.55 else INK_PRIMARY,
-                    alpha=0.4 if thin[row] else 1,
-                )
-        # A surface-coloured rule opens a visible gap between cell groups.
-        for b in breaks:
-            ax.axhline(b - 0.5, color=SURFACE, lw=3)
-        # style() resets tick label colours, so it runs before the tier colours.
-        style(ax)
-        ax.tick_params(length=0)
-        ax.xaxis.tick_top()
-        ax.set_xticks(
-            range(len(TIER_COLUMNS)),
-            [f"{TIER_HEADERS[t]}\n{n_models[t]} models" for t in TIER_COLUMNS],
-            fontsize=8.5,
-        )
-        for label, tier in zip(ax.get_xticklabels(), TIER_COLUMNS):
-            label.set_color(TIER_COLORS[tier])
-        ax.set_title(title, fontsize=10, fontweight="semibold", color=INK_PRIMARY)
-
-    axes[0].set_yticks(range(len(cells)), cells, fontsize=9)
-    for label, faded in zip(axes[0].get_yticklabels(), thin):
-        label.set_color(INK_MUTED if faded else INK_SECONDARY)
-
-    # Word counts as a text column sharing the heatmaps' rows.
-    counts = axes[-1]
-    for row, (pos, neg) in enumerate(zip(sizes.pos, sizes.neg)):
-        counts.text(
-            0.05,
-            row,
-            f"{pos:,} / {neg:,}",
-            va="center",
-            fontsize=8.5,
-            color=INK_MUTED if thin[row] else INK_SECONDARY,
-        )
-    counts.set_xlim(0, 1)
-    counts.set_title(
-        "Item-words\nnondecodable / decodable",
-        fontsize=9,
-        color=INK_SECONDARY,
-    )
-    counts.axis("off")
-
-    fig.colorbar(
-        images["j"],
-        ax=axes[0],
-        location="bottom",
-        shrink=0.9,
-        pad=0.01,
-        label="Adj. BA (0 = chance)",
-    )
-    fig.colorbar(
-        images["fpr"],
-        ax=axes[1:3],
-        location="bottom",
-        shrink=0.6,
-        pad=0.01,
-        label="Error rate (lower is better)",
-    )
-    fig.suptitle(
-        "Adj. BA and error rates by word type, top models per hardware tier",
-        fontsize=12,
-        fontweight="semibold",
-        color=INK_PRIMARY,
-    )
-    fig.text(
-        0.01,
-        -0.01,
-        f"Values are means over each tier's top {TOP_N} models by adjusted balanced "
-        "accuracy over all words; a tier with fewer models contributes all of them.\n"
-        "Adj. BA = 1 - FPR - FNR in every cell. Grey: undefined, because every "
-        "known word is decodable. "
-        f"Faded: fewer than {MIN_WORDS} nondecodable or decodable item-words.",
-        va="top",
-        fontsize=8,
-        color=INK_SECONDARY,
-        linespacing=1.5,
-    )
-    return fig
-
-
-def plot_known_word_alarms(words, ax, models):
-    """Known whole words are decodable by definition, so J is undefined there.
-
-    What remains is how often a model flags a word the student already knows,
-    which is a prompt-following failure rather than a phonics one.
-    """
-    names = display_names()
-    # Same model order as the marginals panel, so the two figures line up row
-    # for row, rather than each sorting by its own quantity.
-    rate = (
-        words[words.is_known_word]
-        .groupby("model", observed=True)
-        .predicted.mean()
-        .reindex(models)
-    )
-    tiers = words.drop_duplicates("model").set_index("model").hardware_tier
-    ax.figure.set_facecolor(SURFACE)
-    ax.barh(
-        range(len(rate)),
-        rate.values,
-        height=0.65,
-        zorder=3,
-        color=[TIER_COLORS[tiers[m]] for m in rate.index],
-    )
-    ax.set_yticks(range(len(rate)), [names.get(m, m) for m in rate.index], fontsize=9)
-    ax.set_ylim(len(rate) - 0.3, -0.8)
-    ax.set_xlabel("share of known words falsely flagged", color=INK_SECONDARY)
-    ax.set_title(
-        "False alarms on words the student already knows",
-        fontsize=12,
-        fontweight="semibold",
-        color=INK_PRIMARY,
-    )
-    ax.set_axisbelow(True)
-    ax.grid(axis="x", color=GRIDLINE, linewidth=0.8)
-    style(ax)
-
-
-def plot_nasal_errors(tier_nasal):
-    """Where top models trip on nasals: one row per nasal case, one dot per tier.
-
-    The top panel holds decodable words, where the error is a false alarm; the
-    bottom holds nondecodable words, where it is a miss. Mixing the two on one
-    axis would compare different errors, so they get separate panels. Within
-    each panel the non-nasal rows come first, in grey, as baselines.
-    """
-    stats = tier_nasal.set_index(["nasal_case", "hardware_tier"]).error_rate * 100
-    sizes = tier_nasal.drop_duplicates("nasal_case").set_index("nasal_case").n
-    groups = list(NASAL_ROWS.items())
+    rates = tier_failures.set_index(["failure_mode", "hardware_tier"])
+    sizes = tier_failures.drop_duplicates("failure_mode").set_index("failure_mode").n
+    groups = list(FAILURE_ROWS.items())
     fig, axes = plt.subplots(
         len(groups),
         1,
         sharex=True,
-        figsize=(10, 6.8),
+        figsize=(11.5, 8.2),
         height_ratios=[len(rows) for _, rows in groups],
         layout="constrained",
     )
     fig.set_facecolor(SURFACE)
 
     for ax, (title, rows) in zip(axes, groups):
-        # y grows upward, so reverse to keep NASAL_ROWS order top to bottom.
-        rows = rows[::-1]
-        for y, (case, _) in enumerate(rows):
+        # y grows upward, so reverse to keep FAILURE_ROWS order top to bottom.
+        rows = [row for row in rows[::-1] if row[0] in sizes.index]
+        for y, (mode, _) in enumerate(rows):
             points = {
-                tier: stats[(case, tier)]
+                tier: rates.error_rate[(mode, tier)] * 100
                 for tier in TIER_ORDER
-                if (case, tier) in stats.index
+                if (mode, tier) in rates.index
             }
-            if not points:
-                continue
-            faded = sizes.get(case, 0) < MIN_WORDS
+            faded = sizes[mode] < MIN_WORDS
             low, high = min(points.values()), max(points.values())
             ax.plot([low, high], [y, y], color=BASELINE, lw=2, zorder=1)
             for tier, rate in points.items():
@@ -1055,8 +412,7 @@ def plot_nasal_errors(tier_nasal):
                     zorder=3,
                     alpha=0.4 if faded else 1,
                 )
-                # The lower value is labelled on its left, the higher on its
-                # right, so the two labels never sit on top of each other.
+                # Lower value labelled on its left, higher on its right.
                 left = rate == low and len(points) > 1
                 ax.annotate(
                     f"{rate:.0f}%",
@@ -1068,20 +424,30 @@ def plot_nasal_errors(tier_nasal):
                     fontsize=9,
                     color=INK_MUTED if faded else INK_PRIMARY,
                 )
+            # Right-hand columns: item-words, then each tier's share of errors.
             ax.annotate(
-                f"{sizes.get(case, 0):,}",
-                (1.01, y),
+                f"{sizes[mode]:,}",
+                (1.02, y),
                 xycoords=("axes fraction", "data"),
                 va="center",
                 fontsize=9,
                 color=INK_MUTED,
             )
+            for x, tier in zip((1.14, 1.23), TIER_ORDER):
+                share = rates.share_of_errors.get((mode, tier), np.nan)
+                ax.annotate(
+                    f"{share:.0%}",
+                    (x, y),
+                    xycoords=("axes fraction", "data"),
+                    va="center",
+                    fontsize=9,
+                    color=TIER_COLORS[tier],
+                )
         ax.set_yticks(range(len(rows)), [label for _, label in rows], fontsize=10)
         style(ax)
-        # style() resets tick label colours, so baselines are greyed after it.
-        for tick, (case, _) in zip(ax.get_yticklabels(), rows):
-            baseline = case.startswith(("no cluster", "non-nasal"))
-            tick.set_color(INK_MUTED if baseline else INK_PRIMARY)
+        # style() greys tick labels; mode names are the content, so restore them.
+        for tick, (mode, _) in zip(ax.get_yticklabels(), rows):
+            tick.set_color(INK_MUTED if sizes[mode] < MIN_WORDS else INK_PRIMARY)
         ax.set_ylim(-0.6, len(rows) - 0.4)
         ax.grid(axis="x", color=GRIDLINE, lw=0.8)
         ax.set_axisbelow(True)
@@ -1091,13 +457,19 @@ def plot_nasal_errors(tier_nasal):
         )
     axes[0].annotate(
         "item-words",
-        (1.01, 1.02),
+        (1.02, 1.02),
         xycoords="axes fraction",
         fontsize=8.5,
         color=INK_MUTED,
     )
-    # Padding past 0 and 100 leaves room for the value labels, so a 0% label
-    # does not run into the row names nor a high one into the counts column.
+    axes[0].annotate(
+        "share of tier's errors",
+        (1.14, 1.02),
+        xycoords="axes fraction",
+        fontsize=8.5,
+        color=INK_MUTED,
+    )
+    # Padding past 0 and 100 leaves room for the value labels.
     axes[-1].set_xlim(-9, 106)
     axes[-1].set_xticks([0, 20, 40, 60, 80, 100])
     axes[-1].set_xlabel(
@@ -1113,7 +485,7 @@ def plot_nasal_errors(tier_nasal):
                 markersize=9,
                 markerfacecolor=TIER_COLORS[tier],
                 markeredgecolor=SURFACE,
-                label=TIER_LABELS[tier][0],
+                label=TIER_NAMES[tier],
             )
             for tier in TIER_ORDER
         ],
@@ -1124,7 +496,7 @@ def plot_nasal_errors(tier_nasal):
         labelcolor=INK_SECONDARY,
     )
     fig.suptitle(
-        "Where do models trip on Kiswahili nasals?",
+        "What do models get wrong, given what the student has been taught?",
         x=0.02,
         ha="left",
         fontsize=14,
@@ -1134,12 +506,11 @@ def plot_nasal_errors(tier_nasal):
     fig.text(
         0.01,
         -0.01,
-        "Only words whose label turns on the nasal: every grapheme taught, not a "
-        "known whole word, and the nasal run is the word's only cluster.\n"
-        "Fused: a taught onset (nd, nj, nz, nw; medial mw, my). Syllabic: m before "
-        "another consonant (mtoto), or an initial nasal on a one-vowel root (mbwa).\n"
-        "Ambiguous: m before b/v, or initial mw/my; labelled strictly, as a "
-        "cluster the student must know. "
+        "Every item-word sits in exactly one mode, judged against its item's "
+        "student profile. Untaught modes hold words with that one problem only.\n"
+        "Syllabic nasal (expert-reviewed list): a trap only when the student has "
+        "not been taught m/n + the next consonant as a cluster (mt in mtoto).\n"
+        "Nasal clusters include ambiguous boundaries, labelled as fused. "
         f"Faded: fewer than {MIN_WORDS} item-words.",
         va="top",
         fontsize=8,
@@ -1152,91 +523,30 @@ def plot_nasal_errors(tier_nasal):
 if __name__ == "__main__":
     results = load_results()
     words = build(results)
-    # hallucinations - to be analyzed separately
-    hallucinations = hallucination_table(results)
-    hallucinations.to_csv(REPORT / "hallucination_summary.csv", index=False)
+    # Hallucinations: predicted words that are not in the item's vocabulary.
+    hallucination_table(results).to_csv(
+        REPORT / "hallucination_summary.csv", index=False
+    )
 
-    # word-level analysis
     summary = summary_table(words)
-    marginals = marginal_table(words, min_pos=20, min_neg=20)
-    combinations = combination_table(words)
-    order = {cell: i for i, cell in enumerate(ordered_cells(combinations))}
-    combinations = combinations.sort_values(
-        ["model", "cell"], key=lambda c: c.map(order) if c.name == "cell" else c
-    )
-    marginals.to_csv(REPORT / "word_feature_marginals.csv", index=False)
-    combinations.to_csv(REPORT / "word_feature_combinations.csv", index=False)
-
-    # Height tracks the model count, as the F2 leaderboards do.
-    n = words.model.nunique()
-    ranking = overall_ranking(words)
-    fig = plt.figure(figsize=(11, max(5, 2.0 + 0.34 * n)), layout="constrained")
-    plot_marginals(marginals, fig, ranking)
-    fig.suptitle(
-        "Marginal model performance by word feature",
-        fontsize=12,
-        fontweight="semibold",
-        color=INK_PRIMARY,
-    )
-    fig.savefig(
-        REPORT / "word_feature_marginals.png",
+    failures = failure_mode_table(words)
+    tier_failures = tier_failure_table(failures, summary)
+    failures.to_csv(REPORT / "failure_modes.csv", index=False)
+    tier_failures.to_csv(REPORT / "failure_modes_by_tier.csv", index=False)
+    plot_failure_modes(tier_failures).savefig(
+        REPORT / "failure_modes.png",
         dpi=300,
         bbox_inches="tight",
         facecolor=SURFACE,
     )
 
-    fig, ax = plt.subplots(figsize=(12, max(5, 2.0 + 0.34 * n)), layout="constrained")
-    shown = plot_combinations(combinations, ax, ranking)
-    fig.savefig(
-        REPORT / "word_type_heatmap.png",
-        dpi=300,
-        bbox_inches="tight",
-        facecolor=SURFACE,
-    )
-
-    # Must run before `summary` is reused for the dumbbell figure below.
-    tier_combos = tier_combination_table(combinations, summary)
-    tier_combos.to_csv(REPORT / "word_feature_combinations_by_tier.csv", index=False)
-    fig = plt.figure(figsize=(11, 9.5), layout="constrained")
-    plot_tier_combinations(tier_combos, ordered_cells(combinations), fig)
-    fig.savefig(
-        REPORT / "word_type_heatmap_by_tier.png",
-        dpi=300,
-        bbox_inches="tight",
-        facecolor=SURFACE,
-    )
-
-    # Nasal breakdown. Also needs `summary` before it is reused below.
-    nasal = nasal_table(words)
-    tier_nasal = tier_nasal_table(nasal, summary)
-    nasal.to_csv(REPORT / "nasal_error_rates.csv", index=False)
-    tier_nasal.to_csv(REPORT / "nasal_error_rates_by_tier.csv", index=False)
-    plot_nasal_errors(tier_nasal).savefig(
-        REPORT / "nasal_error_rates.png",
-        dpi=300,
-        bbox_inches="tight",
-        facecolor=SURFACE,
-    )
-
-    fig, ax = plt.subplots(figsize=(9, max(5, 2.0 + 0.34 * n)), layout="constrained")
-    plot_known_word_alarms(words, ax, ranking)
-    fig.savefig(
-        REPORT / "known_word_false_alarms.png",
-        dpi=300,
-        bbox_inches="tight",
-        facecolor=SURFACE,
-    )
-
-    summary = plot_feature_summary_dumbell(summary, marginals)
-    summary.savefig(
-        REPORT / "tier_medians_all_features.png", dpi=300, facecolor=SURFACE
-    )
-
-    dropped = sorted(set(combinations.cell) - set(shown.columns))
-    sizes = combinations.groupby("cell").n.median()
-    print(
-        f"models: {n}   marginal rows: {len(marginals)}"
-        f"   cells: {combinations.cell.nunique()}"
-    )
-    print(f"heatmap shows {shown.shape[1]}; dropped {len(dropped)} no model can score:")
-    print("  " + ", ".join(f"{cell} (median n={int(sizes[cell])})" for cell in dropped))
+    # Top failure modes per tier, ranked by error rate, with share of errors.
+    n_item_words = len(words.drop_duplicates(["benchmark_item_id", "word"]))
+    print(f"models: {words.model.nunique()}   item-words: {n_item_words:,}")
+    for tier, group in tier_failures.groupby("hardware_tier"):
+        print(f"\n{tier}: top failure modes by error rate")
+        for row in group.nlargest(5, "error_rate").itertuples():
+            print(
+                f"  {row.error_rate:6.1%}  {row.share_of_errors:5.1%} of errors"
+                f"  n={row.n:<6,} {row.failure_mode}"
+            )
