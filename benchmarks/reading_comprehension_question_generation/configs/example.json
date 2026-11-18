@@ -1,0 +1,10 @@
+{
+  "run_id": "english-example",
+  "language": "english",
+  "items_path": "../data/english/benchmark_items.jsonl",
+  "output_dir": "../outputs",
+  "models": ["your-registered-model-name"],
+  "max_tokens": 30000,
+  "chunk_size": 20,
+  "model_workers": 4
+}
