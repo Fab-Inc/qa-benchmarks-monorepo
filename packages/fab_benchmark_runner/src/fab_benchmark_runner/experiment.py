@@ -30,16 +30,17 @@ from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.gcs import (
     create_storage_client,
     download_file_with_generation,
-    download_to_path,
     list_gcs_objects,
     parse_gs_uri,
     upload_file_with_generation,
 )
 from fab_benchmark_runner.ids import canonical_json, sha256_json
 from fab_benchmark_runner.inputs import (
+    IMAGE_READ_WORKERS,
     ImageRef,
     ModelInput,
     check_inputs,
+    fetch_image,
     load_inputs_file,
     parse_input_row,
 )
@@ -59,7 +60,6 @@ EXPERIMENT_RECORD_FORMAT = 1
 DEFAULT_EXPERIMENT_ID_LENGTH = 16
 IDENTITY_KEYS = ("benchmark", "experiment_id", "inputs_sha256")
 RAISE_MAX_TOKENS_HINT = "raise it with fab-bench raise-max-tokens"
-IMAGE_READ_WORKERS = 32
 _EXPERIMENT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _IMAGE_SUFFIX = re.compile(r"\.[a-z0-9]{1,5}")
 
@@ -466,23 +466,10 @@ def _store_images(
 def _fetch_and_hash(
     uri: str, downloads: Path, storage_client: Any | None
 ) -> tuple[Path, str]:
-    source = _fetch(uri, downloads, storage_client)
+    source = fetch_image(uri, downloads, storage_client)
+    if source is None:
+        raise ConfigError(f"Image {uri} does not exist")
     return source, file_sha256(source)
-
-
-def _fetch(uri: str, downloads: Path, storage_client: Any | None) -> Path:
-    if not uri.startswith("gs://"):
-        path = Path(uri)
-        if not path.is_file():
-            raise ConfigError(f"Image {uri} does not exist")
-        return path
-    downloads.mkdir(parents=True, exist_ok=True)
-    target = downloads / sha256(uri.encode("utf-8")).hexdigest()
-    try:
-        download_to_path(uri, target, storage_client=storage_client)
-    except NotFound as e:
-        raise ConfigError(f"Image {uri} does not exist") from e
-    return target
 
 
 def _suffix(uri: str) -> str:

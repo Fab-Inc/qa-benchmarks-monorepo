@@ -12,11 +12,13 @@ import pytest
 from fab_benchmark_runner import (
     ConfigError,
     ImageRef,
+    InputsError,
     ModelInput,
+    check_inputs_file,
     read_inputs,
     write_inputs,
 )
-from fab_benchmark_runner.inputs import load_inputs_file, parse_input_row
+from fab_benchmark_runner.inputs import ITEM_ID_KEY, load_inputs_file, parse_input_row
 
 
 def _write(path: Path, rows: list[Any]) -> Path:
@@ -218,3 +220,66 @@ def test_a_missing_inputs_file_on_gcs_is_refused(storage: Any) -> None:
 
     with pytest.raises(ConfigError, match="gs://data/no.jsonl does not exist"):
         read_inputs("gs://data/no.jsonl", storage_client=storage)
+
+
+def test_a_row_reports_every_problem_it_has() -> None:
+    row = {
+        "benchmark_item_id": 7,
+        "prompt": "",
+        "notes": "x",
+        "images": [{"uri": " a.png", "detail": "high"}, "b.png"],
+    }
+
+    with pytest.raises(InputsError) as raised:
+        parse_input_row(row, where="f:3")
+
+    assert raised.value.problems == (
+        "f:3: unknown keys ['notes']",
+        "f:3: image 1: uri must be a non-empty string without surrounding spaces",
+        "f:3: image 2: an image must be a JSON object",
+        'f:3: benchmark_item_id must be a string: write the number 7 as "7"',
+        "f:3: prompt must be a string with more than whitespace",
+    )
+
+
+def test_python_values_report_every_problem_too() -> None:
+    with pytest.raises(ValueError, match='as "7"; prompt must be'):
+        ModelInput(7, " ")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="Image detail must .*; Image sha256 must"):
+        ImageRef("a.png", "medium", sha256="abc")
+
+
+def test_a_message_lists_the_first_twenty_problems(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path / "inputs.jsonl",
+        [{"benchmark_item_id": number, "prompt": "p"} for number in range(25)],
+    )
+
+    with pytest.raises(InputsError) as raised:
+        read_inputs(path)
+
+    lines = str(raised.value).splitlines()
+    assert len(raised.value.problems) == 25
+    assert lines[0] == f"25 problems in {path}:"
+    assert (
+        lines[1]
+        == f'  {path}:1: {ITEM_ID_KEY} must be a string: write the number 0 as "0"'
+    )
+    assert len(lines) == 22
+    assert lines[-1] == (
+        f"  … and 5 more; fab-bench check-inputs {path} lists them all"
+    )
+
+
+def test_a_check_raises_only_when_the_file_cant_be_read(
+    tmp_path: Path, storage: Any
+) -> None:
+    storage.objects["data"] = {}
+
+    with pytest.raises(ConfigError, match="Could not read inputs file"):
+        check_inputs_file(tmp_path / "missing.jsonl")
+    with pytest.raises(ConfigError, match="gs://data/no.jsonl does not exist"):
+        check_inputs_file("gs://data/no.jsonl", storage_client=storage)
+    assert check_inputs_file(_write(tmp_path / "e.jsonl", [])).problems == (
+        f"{tmp_path / 'e.jsonl'}: no inputs",
+    )

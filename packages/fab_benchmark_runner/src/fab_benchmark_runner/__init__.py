@@ -23,7 +23,15 @@ from fab_benchmark_runner.experiment import (
 )
 from fab_benchmark_runner.ids import model_call_id, result_id
 from fab_benchmark_runner.images import ImageFiles
-from fab_benchmark_runner.inputs import ImageRef, ModelInput, read_inputs, write_inputs
+from fab_benchmark_runner.inputs import (
+    ImageRef,
+    InputsCheck,
+    InputsError,
+    ModelInput,
+    check_inputs_file,
+    read_inputs,
+    write_inputs,
+)
 from fab_benchmark_runner.jobs import (
     fetch_results,
     plan_job,
@@ -48,6 +56,8 @@ __all__ = [
     "ExperimentCreation",
     "ImageFiles",
     "ImageRef",
+    "InputsCheck",
+    "InputsError",
     "MaxTokensChange",
     "ModelInput",
     "ModelPlan",
@@ -55,6 +65,7 @@ __all__ = [
     "RunPlan",
     "RunResult",
     "apply_execution_overrides",
+    "check_inputs_file",
     "create_experiment",
     "default_experiment_id",
     "execute_run",

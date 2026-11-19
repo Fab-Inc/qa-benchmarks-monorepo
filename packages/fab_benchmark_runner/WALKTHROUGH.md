@@ -85,8 +85,19 @@ builds a prompt. The example's file:
 - Any other key is refused, so a misspelled key fails instead of silently dropping part
   of an input. Answers stay with your benchmark: the example keeps them in
   `answers.jsonl`, and scoring joins them to results on `benchmark_item_id`.
-- `fab-bench create-experiment … --dry-run` checks a file without writing anything, and
-  names the line of any problem.
+
+`fab-bench check-inputs` checks a file and lists every problem, each with its line. It
+also reads each image to check that it exists. The example passes:
+
+```bash
+fab-bench check-inputs "$RUNNER/examples/smoke/inputs.jsonl"
+```
+
+```text
+Items: 4
+Images: 2 files, used 3 times, all found
+No problems in …/examples/smoke/inputs.jsonl.
+```
 
 The full specification is [INPUTS.md](INPUTS.md).
 
@@ -366,7 +377,8 @@ new execution reuses every result the first one uploaded.
            inputs.write(json.dumps(row, ensure_ascii=False) + "\n")
    ```
 
-1. Check it with `fab-bench create-experiment … --dry-run`.
+1. Check it with `fab-bench check-inputs build/inputs.jsonl` and fix every problem it
+   lists.
 
 1. Create a small subset as its own experiment first, say 20 items, and run it as in
    walkthrough 1 or 4.

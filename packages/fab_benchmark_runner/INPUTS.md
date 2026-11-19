@@ -101,12 +101,33 @@ values directly.
 ## Checking a file
 
 ```bash
-fab-bench create-experiment --inputs inputs.jsonl --dest <folder or gs://…> \
-  --benchmark mathv --max-tokens 64000 --dry-run
+fab-bench check-inputs inputs.jsonl
 ```
 
-This checks every row, reads every image to hash it, and writes nothing. An error names
-the line and, for an image, its position in the item.
+This checks every rule above and lists every problem at once, each with its line and,
+for an image, its position in the item. It exits with status 1 if there is any:
+
+```text
+inputs.jsonl:2: unknown keys ['answer']
+inputs.jsonl:2: benchmark_item_id must be a string: write the number 1042 as "1042"
+inputs.jsonl:4: image 1: /data/mathv/images/1042.png does not exist
+3 problems in inputs.jsonl
+```
+
+It reads every image, local or on GCS, to check that it exists and, where the file gives
+a `sha256`, that the file matches it. Whether an image opens is checked when a run sends
+it. A file without problems gets its counts:
+
+```text
+Items: 4
+Images: 2 files, used 3 times, all found
+No problems in inputs.jsonl.
+```
+
+The file can be local or a `gs://` URI. From Python, `check_inputs_file(path)` returns
+the same as an `InputsCheck`. Creating an experiment checks the same rules: it lists
+every problem in the rows, then stops at the first image that is missing or doesn't
+match.
 
 ## Not in this format
 

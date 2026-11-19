@@ -73,11 +73,17 @@ def image_identity(image: Mapping[str, Any]) -> dict[str, str]:
     digest = image.get("sha256")
     if detail not in IMAGE_DETAILS:
         raise ValueError(f"Image detail must be 'low' or 'high', not {detail!r}")
-    if not isinstance(digest, str) or not _SHA256_HEX.fullmatch(digest):
+    if not is_sha256(digest):
         raise ValueError(
             f"Image sha256 must be 64 lowercase hex characters, not {digest!r}"
         )
     return {"detail": detail, "sha256": digest}
+
+
+def is_sha256(value: Any) -> bool:
+    """Whether a value is a SHA-256 hex digest: 64 lowercase hex characters."""
+
+    return isinstance(value, str) and _SHA256_HEX.fullmatch(value) is not None
 
 
 def result_id(model_call_id: str) -> str:

@@ -7,6 +7,10 @@ Decisions this file describes:
 - A benchmark writes its inputs with its own code, and the runner sends them as they
   are. The runner checks them strictly instead: every rule below is refused at
   creation, naming the line, before anything is stored.
+- ``fab-bench check-inputs`` (``check_inputs_file``) checks a file on its own and lists
+  every problem at once, each with its line, so one pass finds them all. It reads each
+  image to check that it exists and matches a SHA-256 the file gives, but leaves
+  checking that it opens to the run that sends it.
 - Keys the format doesn't define are refused, so a misspelled field can't silently
   drop part of an input. Item data the model doesn't see, such as answer keys,
   subjects or levels, stays with the benchmark and is joined to results on
@@ -31,7 +35,9 @@ import pytest
 from fab_benchmark_runner import (
     ConfigError,
     ImageRef,
+    InputsError,
     ModelInput,
+    check_inputs_file,
     create_experiment,
     read_experiment,
     write_inputs,
@@ -106,6 +112,79 @@ def test_errors_name_the_line_and_the_image(bench: Bench) -> None:
 
     with pytest.raises(ConfigError, match=r"inputs\.jsonl:2: image 2: "):
         _create(bench, _lines(ITEM, bad_image))
+
+
+def test_a_check_lists_every_problem_with_its_line(bench: Bench) -> None:
+    (bench.root / "figure.png").write_bytes(png("red"))
+    right, wrong = (sha256(png(color)).hexdigest() for color in ("red", "blue"))
+    images = [
+        {"uri": "missing.png", "detail": "low"},
+        {"uri": "figure.png", "detail": "low", "sha256": wrong},
+    ]
+    path = bench.root / "inputs.jsonl"
+    path.write_bytes(
+        _lines(
+            ITEM,
+            {**ITEM, "benchmark_item_id": 1042, "answer": "B"},
+            {**ITEM, "prompt": " ", "images": [{"uri": "figure.png", "detail": "mid"}]},
+            {**ITEM, "benchmark_item_id": "c", "images": images},
+        )
+    )
+
+    check = check_inputs_file(path, storage_client=bench.storage)
+
+    figure, missing = (bench.root.resolve() / i["uri"] for i in reversed(images))
+    assert check.problems == (
+        f"{path}:2: unknown keys ['answer']",
+        f"{path}:2: benchmark_item_id must be a string: write the number 1042 as "
+        '"1042"',
+        f"{path}:3: image 1: detail must be 'low' or 'high', not 'mid'",
+        f"{path}:3: prompt must be a string with more than whitespace",
+        f"{path}:3: duplicate benchmark_item_id 'a', first on line 1",
+        f"{path}:4: image 1: {missing} does not exist",
+        f"{path}:4: image 2: {figure} has SHA-256 {right}, not the {wrong} the "
+        "file gives",
+    )
+    with pytest.raises(InputsError) as refused:
+        _create(bench, path.read_bytes())
+    assert refused.value.problems == check.problems[:5]
+
+
+def test_a_check_counts_items_and_images_and_writes_nothing(bench: Bench) -> None:
+    (bench.root / "figure.png").write_bytes(png())
+    twice = [
+        {"uri": "figure.png", "detail": "low"},
+        {"uri": "figure.png", "detail": "high"},
+    ]
+    path = bench.root / "inputs.jsonl"
+    path.write_bytes(
+        _lines({**ITEM, "images": twice}, {**ITEM, "benchmark_item_id": "b"})
+    )
+    before = sorted(bench.root.rglob("*"))
+
+    check = check_inputs_file(path, storage_client=bench.storage)
+
+    assert (check.problems, check.items) == ((), 2)
+    assert (check.image_files, check.image_uses) == (1, 2)
+    assert sorted(bench.root.rglob("*")) == before
+
+
+def test_a_check_reads_a_file_and_its_images_on_gcs(bench: Bench) -> None:
+    bench.put("gs://bucket/mathv/images/1.png", png())
+    images = [
+        {"uri": "images/1.png", "detail": "high"},
+        {"uri": "images/2.png", "detail": "high"},
+    ]
+    bench.put("gs://bucket/mathv/inputs.jsonl", _lines({**ITEM, "images": images}))
+
+    check = check_inputs_file(
+        "gs://bucket/mathv/inputs.jsonl", storage_client=bench.storage
+    )
+
+    assert check.problems == (
+        "gs://bucket/mathv/inputs.jsonl:1: image 2: gs://bucket/mathv/images/2.png "
+        "does not exist",
+    )
 
 
 # Items

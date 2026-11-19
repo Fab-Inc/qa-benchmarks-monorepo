@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fab_benchmark_runner import ImageFiles, create_experiment, read_experiment
+from fab_benchmark_runner import (
+    ImageFiles,
+    check_inputs_file,
+    create_experiment,
+    read_experiment,
+)
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "smoke"
 
@@ -41,3 +46,10 @@ def test_the_answers_stay_outside_the_inputs_and_cover_every_item() -> None:
 
     assert ids("answers.jsonl") == ids("inputs.jsonl")
     assert "answer" not in (EXAMPLE / "inputs.jsonl").read_text(encoding="utf-8")
+
+
+def test_the_smoke_example_passes_a_check() -> None:
+    check = check_inputs_file(EXAMPLE / "inputs.jsonl")
+
+    assert check.problems == ()
+    assert (check.items, check.image_files, check.image_uses) == (4, 2, 3)

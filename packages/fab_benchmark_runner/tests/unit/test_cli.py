@@ -411,3 +411,60 @@ def test_create_experiment_reports_a_missing_inputs_file(tmp_path: Path) -> None
     assert result.exit_code == 1
     assert "Could not read inputs file" in result.output
     assert not (tmp_path / "exp").exists()
+
+
+def test_check_inputs_reports_a_valid_file(tmp_path: Path) -> None:
+    (tmp_path / "a.png").write_bytes(b"pixels")
+    image = {"uri": "a.png", "detail": "low"}
+    _write_rows(
+        tmp_path / "inputs.jsonl",
+        [
+            {"benchmark_item_id": "a", "prompt": "p", "images": [image, image]},
+            {"benchmark_item_id": "b", "prompt": "q"},
+        ],
+    )
+
+    result = CliRunner().invoke(
+        fab_bench, ["check-inputs", str(tmp_path / "inputs.jsonl")]
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == (
+        "Items: 2\n"
+        "Images: 1 file, used 2 times, all found\n"
+        f"No problems in {tmp_path / 'inputs.jsonl'}.\n"
+    )
+
+
+def test_check_inputs_lists_problems_and_fails(tmp_path: Path) -> None:
+    path = _write_rows(
+        tmp_path / "inputs.jsonl",
+        [
+            {"benchmark_item_id": "a", "prompt": " "},
+            {"benchmark_item_id": "a", "prompt": "p"},
+        ],
+    )
+
+    result = CliRunner().invoke(fab_bench, ["check-inputs", str(path)])
+
+    assert result.exit_code == 1
+    assert result.stdout == (
+        f"{path}:1: prompt must be a string with more than whitespace\n"
+        f"{path}:2: duplicate benchmark_item_id 'a', first on line 1\n"
+        f"2 problems in {path}\n"
+    )
+
+
+def test_check_inputs_reports_a_file_it_cannot_read(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        fab_bench, ["check-inputs", str(tmp_path / "missing.jsonl")]
+    )
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "ERROR: Could not read inputs file" in result.stderr
+
+
+def _write_rows(path: Path, rows: list[dict[str, Any]]) -> Path:
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    return path

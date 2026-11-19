@@ -79,6 +79,8 @@ format, what models receive and how it is stored are specified in
 {"benchmark_item_id": "1042", "prompt": "Which shape …?", "images": [{"uri": "gs://bucket/mathv/1042.jpg", "detail": "high"}]}
 ```
 
+- `fab-bench check-inputs inputs.jsonl` lists every problem in a file, each with its
+  line.
 - `system_prompt` is optional and set per item. `images` go into the item's one user
   message, in order. An image `uri` is a `gs://` URI, an absolute path, or a path
   relative to the inputs file; `detail` is `low` or `high`.
@@ -139,6 +141,7 @@ Adding a model means writing another run config; nothing shared is rewritten.
 
 | Command                                       | What it does                                             |
 | --------------------------------------------- | -------------------------------------------------------- |
+| `fab-bench check-inputs inputs.jsonl`         | List every problem in an inputs file, with its line      |
 | `fab-bench run --config run.json`             | Run a local or `gs://` config                            |
 | `fab-bench run-cloud --config gs://…`         | The same, as a Cloud Run job does, in `/workspace`       |
 | `fab-bench raise-max-tokens --experiment …`   | Raise an experiment's token limit                        |

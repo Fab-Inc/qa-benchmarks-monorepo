@@ -21,6 +21,7 @@ from fab_benchmark_runner.experiment import (
     raise_max_tokens,
 )
 from fab_benchmark_runner.ids import canonical_json
+from fab_benchmark_runner.inputs import InputsCheck, check_inputs_file
 from fab_benchmark_runner.jobs import (
     fetch_results,
     plan_job,
@@ -58,6 +59,47 @@ def _fab_bench(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit()
+
+
+@app.command("check-inputs")
+def check_inputs_cmd(
+    inputs: str = typer.Argument(..., help="Inputs file: a local path or a gs:// URI."),
+) -> None:
+    """Check an inputs file and list every problem, each with its line.
+
+    Each image is read to check that it exists and, where the file gives its
+    SHA-256, that it matches. Nothing is written.
+    """
+
+    try:
+        check = check_inputs_file(inputs)
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    echo_inputs_check(check)
+    if check.problems:
+        raise typer.Exit(1)
+
+
+def echo_inputs_check(check: InputsCheck) -> None:
+    for problem in check.problems:
+        typer.echo(problem)
+    if check.problems:
+        typer.echo(f"{_count(len(check.problems), 'problem')} in {check.source}")
+        return
+    typer.echo(f"Items: {check.items}")
+    if check.image_files:
+        typer.echo(
+            f"Images: {_count(check.image_files, 'file')}, used "
+            f"{_count(check.image_uses, 'time')}, all found"
+        )
+    else:
+        typer.echo("Images: none")
+    typer.echo(f"No problems in {check.source}.")
+
+
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}" + ("" if number == 1 else "s")
 
 
 @app.command("create-experiment")
