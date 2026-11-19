@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fab_benchmark_runner import ConfigError, parse_run_config
+from fab_benchmark_runner import ConfigError, model_configs, parse_run_config
 from fab_benchmark_runner.registry import (
     ModelRegistry,
     check_provider_groups,
@@ -236,6 +236,7 @@ def test_prepare_fdllm_registers_the_registry_and_returns_model_configs(
     tmp_path: Path,
 ) -> None:
     registry = ModelRegistry(tmp_path / "models.yaml", "a" * 64)
+    registry.path.write_text("Example:\n  models:\n    model-a: {}\n")
 
     with (
         patch("fab_benchmark_runner.registry.load_environment") as load_env,
@@ -339,3 +340,49 @@ def test_provider_group_check_rejects_invalid_registries(
 
     with pytest.raises(ConfigError, match=message):
         check_provider_groups(registry_path, ["model-a"])
+
+
+def test_model_configs_returns_what_a_run_hashes(tmp_path: Path) -> None:
+    """Through FDLLM itself: the registry entry expanded with its group's
+    settings, secrets removed."""
+
+    path = tmp_path / "custom_models.yaml"
+    path.write_text(
+        "Example:\n"
+        "  Api_Interface: OpenAI\n"
+        "  Api_Key_Env_Var: EXAMPLE_API_KEY\n"
+        "  Token_Window: 128000\n"
+        "  models:\n"
+        "    example-model:\n"
+        "      Vision: True\n"
+        "      api_key: not-a-real-key\n",
+        encoding="utf-8",
+    )
+
+    configs = model_configs(path, ["example-model"])
+
+    assert configs == {
+        "example-model": {
+            "Api_Interface": "OpenAI",
+            "Api_Key_Env_Var": "EXAMPLE_API_KEY",
+            "Token_Window": 128000,
+            "Vision": True,
+            "group": "Example",
+        }
+    }
+    assert (
+        prepare_fdllm(ModelRegistry(path, "a" * 64), ["example-model"], env_path=None)
+        == configs
+    )
+
+
+def test_model_configs_refuses_unknown_models_and_missing_files(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "custom_models.yaml"
+    path.write_text("Example:\n  models:\n    model-a: {}\n", encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="not registered with FDLLM: nobody"):
+        model_configs(path, ["nobody"])
+    with pytest.raises(FileNotFoundError, match="Custom models file not found"):
+        model_configs(tmp_path / "missing.yaml", ["model-a"])

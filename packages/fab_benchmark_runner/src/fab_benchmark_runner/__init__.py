@@ -37,6 +37,7 @@ from fab_benchmark_runner.jobs import (
     upload_experiment,
     upload_run_config,
 )
+from fab_benchmark_runner.registry import model_configs
 from fab_benchmark_runner.results import load_results, model_results_filename
 from fab_benchmark_runner.runner import (
     CallModel,
@@ -70,6 +71,7 @@ __all__ = [
     "load_results",
     "load_run_config",
     "model_call_id",
+    "model_configs",
     "model_results_filename",
     "parse_run_config",
     "plan_job",

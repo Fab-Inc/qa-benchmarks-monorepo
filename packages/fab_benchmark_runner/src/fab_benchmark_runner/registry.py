@@ -88,11 +88,31 @@ def prepare_fdllm(
 ) -> dict[str, Any]:
     """Load provider keys, register the registry, and return the models' configs."""
 
-    model_names = list(model_names)
     load_environment(env_path)
-    register_custom_models(registry.path)
-    validate_registered_models(model_names)
-    return snapshot_model_configs(model_names)
+    return model_configs(registry.path, model_names)
+
+
+def model_configs(
+    custom_models_path: str | Path, models: Iterable[str]
+) -> dict[str, dict[str, Any]]:
+    """Return each model's config exactly as a run hashes it into call IDs.
+
+    Registers the registry file with FDLLM, as a run does, and returns FDLLM's
+    expanded config for each model, with secrets removed. Pass the file the run
+    will use: its ``custom_models_path``, the pinned file, or the public
+    ``custom_models.yaml`` a run downloads. With it, a benchmark that converts
+    results from before fab-bench computes the same result IDs a run does.
+
+    Raises ConfigError for a model the registry doesn't define.
+    """
+
+    path = Path(custom_models_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Custom models file not found: {path}")
+    names = list(models)
+    register_custom_models(path)
+    validate_registered_models(names)
+    return snapshot_model_configs(names)
 
 
 def download_public_registry(destination: Path) -> Path:
