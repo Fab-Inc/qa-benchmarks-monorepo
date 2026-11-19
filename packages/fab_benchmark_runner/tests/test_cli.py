@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator
 from hashlib import sha256
 from pathlib import Path
@@ -12,6 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fab_benchmark_runner import Benchmark, build_app, load_run_config
+from fab_benchmark_runner.cli import app as fab_bench
 
 REGISTRY = b"provider:\n  models:\n    model-a: {}\n"
 
@@ -298,3 +300,134 @@ def _output() -> dict[str, Any]:
         "skipped_count": 0,
         "error_count": 0,
     }
+
+
+def _write_experiment_inputs(path: Path) -> Path:
+    rows = [
+        {"benchmark_item_id": "a", "prompt": "First?", "system_prompt": "Be brief."},
+        {"benchmark_item_id": "b", "prompt": "Second?"},
+    ]
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    return path
+
+
+def test_create_experiment_dry_run_then_create(tmp_path: Path) -> None:
+    inputs = _write_experiment_inputs(tmp_path / "inputs.jsonl")
+    dest = tmp_path / "exp"
+    command = [
+        "create-experiment",
+        "--inputs",
+        str(inputs),
+        "--dest",
+        str(dest),
+        "--benchmark",
+        "lk",
+        "--max-tokens",
+        "none",
+        "--experiment-id",
+        "sw-v1",
+        "--label",
+        "language=sw",
+    ]
+
+    planned = CliRunner().invoke(fab_bench, [*command, "--dry-run"])
+    assert planned.exit_code == 0, planned.output
+    assert "Experiment: sw-v1" in planned.output
+    assert "Items: 2" in planned.output
+    assert "Max tokens: none" in planned.output
+    assert "Dry run: nothing was written. First inputs:" in planned.output
+    assert '"prompt": "First?"' in planned.output
+    assert not dest.exists()
+
+    created = CliRunner().invoke(fab_bench, command)
+    assert created.exit_code == 0, created.output
+    assert "Created." in created.output
+    record = json.loads((dest / "experiment.json").read_text(encoding="utf-8"))
+    assert (record["experiment_id"], record["labels"]) == ("sw-v1", {"language": "sw"})
+    assert record["max_tokens"] is None
+
+    again = CliRunner().invoke(fab_bench, command)
+    assert again.exit_code == 0, again.output
+    assert "already exists; nothing was written" in again.output
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (["--max-tokens", "0"], "positive whole number or 'none'"),
+        (["--max-tokens", "many"], "positive whole number or 'none'"),
+        (["--max-tokens", "10", "--label", "subset"], "is not key=value"),
+        (
+            ["--max-tokens", "10", "--label", "a=1", "--label", "a=2"],
+            "'a' is given twice",
+        ),
+    ],
+)
+def test_create_experiment_refuses_bad_options(
+    tmp_path: Path, extra: list[str], message: str
+) -> None:
+    inputs = _write_experiment_inputs(tmp_path / "inputs.jsonl")
+
+    result = CliRunner().invoke(
+        fab_bench,
+        [
+            "create-experiment",
+            "--inputs",
+            str(inputs),
+            "--dest",
+            str(tmp_path / "exp"),
+            "--benchmark",
+            "lk",
+            *extra,
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert message in result.output
+    assert not (tmp_path / "exp").exists()
+
+
+def test_create_experiment_reports_a_folder_it_cannot_use(tmp_path: Path) -> None:
+    inputs = _write_experiment_inputs(tmp_path / "inputs.jsonl")
+    (tmp_path / "exp").mkdir()
+    (tmp_path / "exp" / "log.json").write_text("{}", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        fab_bench,
+        [
+            "create-experiment",
+            "--inputs",
+            str(inputs),
+            "--dest",
+            str(tmp_path / "exp"),
+            "--benchmark",
+            "lk",
+            "--max-tokens",
+            "10",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "ERROR:" in result.output
+    assert "holds other files (log.json)" in result.output
+
+
+def test_create_experiment_reports_a_missing_inputs_file(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        fab_bench,
+        [
+            "create-experiment",
+            "--inputs",
+            str(tmp_path / "missing.jsonl"),
+            "--dest",
+            str(tmp_path / "exp"),
+            "--benchmark",
+            "lk",
+            "--max-tokens",
+            "100",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Could not read inputs file" in result.output
+    assert not (tmp_path / "exp").exists()

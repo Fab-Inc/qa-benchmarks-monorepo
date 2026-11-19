@@ -21,7 +21,15 @@ from fab_benchmark_runner.config import (
     parse_run_config,
 )
 from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.experiment import (
+    Experiment,
+    ExperimentCreation,
+    create_experiment,
+    default_experiment_id,
+    read_experiment,
+)
 from fab_benchmark_runner.ids import model_call_id, result_id
+from fab_benchmark_runner.inputs import ImageRef, ModelInput, read_inputs, write_inputs
 from fab_benchmark_runner.items import file_sha256, load_jsonl_items
 from fab_benchmark_runner.registry import prepare_model_registry
 from fab_benchmark_runner.results import load_results, model_results_filename
@@ -37,6 +45,10 @@ __all__ = [
     "CORE_CONFIG_KEYS",
     "Benchmark",
     "ConfigError",
+    "Experiment",
+    "ExperimentCreation",
+    "ImageRef",
+    "ModelInput",
     "ModelPlan",
     "RunConfig",
     "RunOutput",
@@ -45,6 +57,8 @@ __all__ = [
     "build_app",
     "config_identity",
     "config_identity_sha256",
+    "create_experiment",
+    "default_experiment_id",
     "execute_run",
     "execute_with_optional_sync",
     "file_sha256",
@@ -59,5 +73,8 @@ __all__ = [
     "plan_run",
     "plan_with_optional_sync",
     "prepare_model_registry",
+    "read_experiment",
+    "read_inputs",
     "result_id",
+    "write_inputs",
 ]

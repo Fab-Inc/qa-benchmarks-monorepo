@@ -1,4 +1,5 @@
-"""The command-line interface a benchmark gets from its adapter."""
+"""The command-line interfaces: ``fab-bench``, and the one a benchmark gets from its
+adapter until runs move to experiments."""
 
 from __future__ import annotations
 
@@ -18,6 +19,8 @@ from fab_benchmark_runner.cloud import (
 )
 from fab_benchmark_runner.config import RunConfig, apply_execution_overrides
 from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.experiment import ExperimentCreation, create_experiment
+from fab_benchmark_runner.ids import canonical_json
 from fab_benchmark_runner.records import MODEL_RECORDS_DIR
 from fab_benchmark_runner.registry import (
     CUSTOM_MODELS_FILE_NAME,
@@ -36,6 +39,134 @@ EXPECTED_CLI_ERRORS = (
     RunSyncConflictError,
     ValueError,
 )
+
+
+SAMPLE_ROWS = 3
+SAMPLE_ROW_CHARACTERS = 300
+
+app = typer.Typer(
+    name="fab-bench",
+    help="Create benchmark experiments and run models on them.",
+)
+
+
+@app.callback(invoke_without_command=True)
+def _fab_bench(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+
+
+@app.command("create-experiment")
+def create_experiment_cmd(
+    inputs: str = typer.Option(
+        ...,
+        "--inputs",
+        help=(
+            "Inputs file, a local path or a gs:// URI: one rendered input per item, "
+            "as JSON lines."
+        ),
+    ),
+    dest: str = typer.Option(
+        ..., "--dest", help="Experiment folder: a local path or a gs:// URI."
+    ),
+    benchmark: str = typer.Option(..., "--benchmark", help="The benchmark's name."),
+    max_tokens: str = typer.Option(
+        ...,
+        "--max-tokens",
+        help="Response token limit for every call, or 'none' for no limit.",
+    ),
+    experiment_id: str | None = typer.Option(
+        None,
+        "--experiment-id",
+        help="The experiment's name. Defaults to a short hash of its contents.",
+    ),
+    label: list[str] | None = typer.Option(
+        None,
+        "--label",
+        help="A key=value note for analysis, such as subset=level1. Repeatable.",
+    ),
+    copy_images: bool = typer.Option(
+        False,
+        "--copy-images",
+        help="Copy images into the experiment folder instead of referencing them.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Check everything and show a few inputs, without writing anything.",
+    ),
+) -> None:
+    """Store an inputs file as an experiment that any number of models can run on."""
+
+    try:
+        creation = create_experiment(
+            inputs,
+            dest=dest,
+            benchmark=benchmark,
+            max_tokens=_parse_max_tokens(max_tokens),
+            experiment_id=experiment_id,
+            labels=_parse_labels(label or []),
+            copy_images=copy_images,
+            dry_run=dry_run,
+        )
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    echo_creation(creation)
+
+
+def echo_creation(creation: ExperimentCreation) -> None:
+    experiment = creation.experiment
+    record = experiment.record
+    limit = "none" if record["max_tokens"] is None else record["max_tokens"]
+    typer.echo(f"Experiment: {record['experiment_id']}")
+    typer.echo(f"Folder: {experiment.location}")
+    typer.echo(f"Benchmark: {record['benchmark']}")
+    typer.echo(f"Items: {record['item_count']}")
+    typer.echo(f"Images: {record['image_count']}")
+    typer.echo(f"Max tokens: {limit}")
+    typer.echo(f"Inputs SHA-256: {record['inputs_sha256']}")
+    if creation.status == "created":
+        typer.echo("Created.")
+    elif creation.status == "exists":
+        typer.echo("This experiment already exists; nothing was written.")
+    else:
+        typer.echo("Dry run: nothing was written. First inputs:")
+        for model_input in experiment.inputs[:SAMPLE_ROWS]:
+            row = canonical_json(model_input.to_row())
+            if len(row) > SAMPLE_ROW_CHARACTERS:
+                row = row[:SAMPLE_ROW_CHARACTERS] + "…"
+            typer.echo(f"  {row}")
+
+
+def _parse_max_tokens(value: str) -> int | None:
+    if value.strip().lower() == "none":
+        return None
+    try:
+        max_tokens = int(value)
+    except ValueError:
+        max_tokens = 0
+    if max_tokens < 1:
+        raise typer.BadParameter(
+            "must be a positive whole number or 'none'", param_hint="--max-tokens"
+        )
+    return max_tokens
+
+
+def _parse_labels(values: list[str]) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    for value in values:
+        key, separator, label = value.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            raise typer.BadParameter(
+                f"{value!r} is not key=value", param_hint="--label"
+            )
+        if key in labels:
+            raise typer.BadParameter(f"{key!r} is given twice", param_hint="--label")
+        labels[key] = label
+    return labels
 
 
 def build_app(benchmark: Benchmark) -> typer.Typer:

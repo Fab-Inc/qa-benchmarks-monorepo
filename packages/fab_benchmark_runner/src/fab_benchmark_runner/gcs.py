@@ -59,6 +59,17 @@ def download_file(
     client.bucket(bucket_name).blob(file_name).download_to_filename(str(write_path))
 
 
+def download_to_path(uri: str, write_path: str | Path, *, storage_client: Any) -> None:
+    """Download the object at a ``gs://`` URI to a local path."""
+
+    bucket_name, object_name = parse_gs_uri(uri)
+    destination = Path(write_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    storage_client.bucket(bucket_name).blob(object_name).download_to_filename(
+        str(destination)
+    )
+
+
 def list_gcs_objects(
     *,
     bucket_name: str,

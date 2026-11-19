@@ -106,7 +106,7 @@ class RunSync:
             raise FileNotFoundError(f"Run artifact does not exist: {resolved_path}")
 
         object_name = self.prefix + relative_name
-        local_crc32c = _file_crc32c(resolved_path)
+        local_crc32c = file_crc32c(resolved_path)
         with self._lock:
             expected_generation = self._generations.get(object_name, 0)
             self._dirty.add(object_name)
@@ -247,7 +247,7 @@ class RunSync:
         return local_path
 
 
-def _file_crc32c(path: Path) -> str:
+def file_crc32c(path: Path) -> str:
     """Return the base64-encoded CRC32C representation used by GCS."""
 
     checksum = google_crc32c.Checksum()

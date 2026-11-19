@@ -85,6 +85,12 @@ def model_file_key(model_name: str) -> str:
 
 
 def write_text_atomic(path: Path, content: str) -> None:
+    """Write UTF-8 text through a temporary file and a rename."""
+
+    write_bytes_atomic(path, content.encode("utf-8"))
+
+
+def write_bytes_atomic(path: Path, content: bytes) -> None:
     """Write through a temporary file and a rename, so readers never see half."""
 
     fd, temporary_name = tempfile.mkstemp(
@@ -94,7 +100,7 @@ def write_text_atomic(path: Path, content: str) -> None:
     )
     temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as temporary_file:
+        with os.fdopen(fd, "wb") as temporary_file:
             temporary_file.write(content)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())

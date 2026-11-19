@@ -155,7 +155,10 @@ class FakeBlob:
     def download_to_filename(
         self, filename: str, *, if_generation_match: int | None = None
     ) -> None:
-        generation, content = self.client.objects[self.bucket_name][self.name]
+        try:
+            generation, content = self.client.objects[self.bucket_name][self.name]
+        except KeyError as e:
+            raise NotFound(self.name) from e
         if if_generation_match is not None and generation != if_generation_match:
             raise PreconditionFailed(self.name)
         Path(filename).write_bytes(content)

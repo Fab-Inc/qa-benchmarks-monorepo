@@ -40,6 +40,47 @@ choose one version for both with an override:
 override-dependencies = ["fabdata-llm @ git+https://github.com/AI-for-Education/fabdata-llm.git@dev"]
 ```
 
+## Experiments
+
+An experiment stores a benchmark's rendered inputs once, so every model run on it, now
+or later, gets identical input. Runs don't use experiments yet; that is the next step.
+
+A benchmark writes an inputs file with its own code, one JSON object per line:
+
+```json
+{"benchmark_item_id": "sw-1", "prompt": "Evaluate …", "system_prompt": "You are …"}
+{"benchmark_item_id": "1042", "prompt": "Which shape …?", "images": [{"uri": "gs://bucket/mathv/1042.jpg", "detail": "high"}]}
+```
+
+- `system_prompt` is optional and set per item. `images` go into the item's one user
+  message, in order. An image `uri` is a `gs://` URI, an absolute path, or a path
+  relative to the inputs file; `detail` is `low` or `high`.
+- The inputs file can be local or on GCS. In a file on GCS, relative image paths resolve
+  against its GCS folder, and local paths are refused.
+- Unknown keys are refused, so a misspelled field can't silently drop part of an input.
+- From Python, build `ModelInput` values and call `write_inputs`, or pass them straight
+  to `create_experiment`.
+
+Then store it:
+
+```bash
+fab-bench create-experiment --inputs inputs.jsonl \
+  --dest gs://bucket/mathv/experiments/level1-v1 \
+  --benchmark mathv --experiment-id level1-v1 --max-tokens 64000 \
+  --label subset=level1 --dry-run
+```
+
+- `--dry-run` checks every row and image and shows the first inputs, writing nothing.
+- Every image is read once, 32 at a time, to record its SHA-256. Images stay where they
+  are unless `--copy-images` copies them into the experiment's `images/` folder, named
+  by their hash. Images at local paths must be copied into an experiment on GCS.
+- `--max-tokens` is required: a number, or `none` for no limit.
+- `--experiment-id` names the experiment; it defaults to a short hash of the benchmark,
+  inputs and `max_tokens`. It doesn't have to match the folder name.
+- The folder gets `inputs.jsonl`, then `experiment.json`, written last so an interrupted
+  creation never looks finished. Creating the same experiment again changes nothing; a
+  folder holding a different experiment, or other files, is refused.
+
 ## Plug in a benchmark
 
 A benchmark describes itself with a `Benchmark` adapter and exposes the generated CLI as

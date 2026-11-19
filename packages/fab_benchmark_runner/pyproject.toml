@@ -19,6 +19,9 @@ dependencies = [
   "typer>=0.12.0",
 ]
 
+[project.scripts]
+fab-bench = "fab_benchmark_runner.cli:app"
+
 [tool.ruff]
 extend = "../../pyproject.toml"
 target-version = "py312"
