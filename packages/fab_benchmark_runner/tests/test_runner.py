@@ -319,6 +319,30 @@ def test_empty_responses_become_error_rows(config: RunConfig, read_rows: Rows) -
     assert output["error_count"] == 4
 
 
+def test_fdllm_response_errors_become_error_rows_with_their_stop_reason(
+    config: RunConfig, read_rows: Rows
+) -> None:
+    errors = pytest.importorskip("fdllm.errors")
+
+    def evaluator(_config, _model, item, _prompt) -> dict:
+        if item["benchmark_item_id"] == "item-1":
+            raise errors.EmptyLLMResponse("Empty response", stop_reason="length")
+        raise errors.LLMContentFiltered("Refused", stop_reason="content_filter")
+
+    output = execute_run(config, evaluator=evaluator)
+
+    rows = read_rows(output["results_paths"].values())
+    assert output["error_count"] == 4
+    assert {
+        (row["benchmark_item_id"], row["error_type"], row["stop_reason"])
+        for row in rows
+    } == {
+        ("item-1", "EmptyLLMResponse", "length"),
+        ("item-2", "LLMContentFiltered", "content_filter"),
+    }
+    assert all(row["max_tokens"] == config.effective_max_tokens for row in rows)
+
+
 @pytest.mark.parametrize(
     "error", [RuntimeError("bug"), KeyError("bug"), ValueError("bug")]
 )

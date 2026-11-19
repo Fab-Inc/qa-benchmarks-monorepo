@@ -17,6 +17,11 @@ from google.genai.errors import APIError as GoogleAPIError
 from mistralai.exceptions import MistralAPIException, MistralConnectionException
 from openai import APIError as OpenAIAPIError
 
+try:
+    from fdllm.errors import LLMResponseError
+except ImportError:  # FDLLM's main branch has no typed response errors yet
+    LLMResponseError = None
+
 from fab_benchmark_runner import ids, records
 from fab_benchmark_runner.config import RunConfig, config_identity_sha256
 from fab_benchmark_runner.errors import ConfigError
@@ -43,8 +48,10 @@ RunOutput = dict[str, Any]
 ArtifactWriteHook = Callable[[Path], None]
 Evaluator = Callable[[RunConfig, str, Mapping[str, Any], str], dict[str, Any]]
 
-# FDLLM propagates provider SDK failures unchanged. Only these known call failures
-# become error rows, so setup and result-processing bugs still fail fast.
+# FDLLM propagates provider SDK failures unchanged, and from its dev branch on it
+# raises LLMResponseError for responses it can't use, such as an empty one. Only
+# these known call failures become error rows, so setup and result-processing bugs
+# still fail fast. The runner works with FDLLM versions with and without them.
 PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
     AnthropicAPIError,
     BedrockAPIError,
@@ -54,7 +61,7 @@ PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
     MistralAPIException,
     MistralConnectionException,
     OpenAIAPIError,
-)
+) + ((LLMResponseError,) if LLMResponseError is not None else ())
 
 # Columns every result row starts with; benchmark identity fields may not reuse them.
 _BASE_ROW_KEYS = frozenset(
@@ -74,6 +81,7 @@ _BASE_ROW_KEYS = frozenset(
         "call_status",
         "error_type",
         "error_message",
+        "stop_reason",
     }
 )
 
@@ -580,7 +588,12 @@ def _evaluate_call(
     try:
         payload = evaluator(config, model_name, call.item, call.prompt)
     except PROVIDER_ERRORS as e:
-        return _error_row(base_row, error_type=type(e).__name__, message=str(e))
+        return _error_row(
+            base_row,
+            error_type=type(e).__name__,
+            message=str(e),
+            stop_reason=getattr(e, "stop_reason", None),
+        )
 
     if not payload["output"]:
         return _error_row(
@@ -599,8 +612,18 @@ def _evaluate_call(
 
 
 def _error_row(
-    base_row: dict[str, Any], *, error_type: str, message: str
+    base_row: dict[str, Any],
+    *,
+    error_type: str,
+    message: str,
+    stop_reason: str | None = None,
 ) -> dict[str, Any]:
+    """Build an error row; ``stop_reason`` is the provider's, when FDLLM reports it.
+
+    A stop reason of ``length``, ``max_tokens`` or ``MAX_TOKENS`` means the response
+    ran out of tokens.
+    """
+
     return {
         **base_row,
         "output": "",
@@ -608,6 +631,7 @@ def _error_row(
         "call_status": CALL_STATUS_ERROR,
         "error_type": error_type,
         "error_message": message,
+        "stop_reason": stop_reason,
     }
 
 

@@ -31,14 +31,27 @@ fab-benchmark-runner = { git = "https://github.com/Fab-Inc/qa-benchmarks-monorep
 `uv.lock` pins the exact commit; `uv lock --upgrade-package fab-benchmark-runner` picks
 up new ones. It supports Python 3.12 and later.
 
-The package takes FDLLM (`fabdata-llm`) from the monorepo's git source, its `main`
-branch. A project that pins another FDLLM branch gets a conflicting-URL error from uv;
-choose one version for both with an override:
+The package locks its own dependencies and takes FDLLM (`fabdata-llm`) from its `dev`
+branch. A project that installs it without an FDLLM source of its own gets `dev` too. A
+project that names another FDLLM source gets a conflicting-URL error from uv; use the
+same source, or choose one version for both with an override:
 
 ```toml
 [tool.uv]
-override-dependencies = ["fabdata-llm @ git+https://github.com/AI-for-Education/fabdata-llm.git@dev"]
+override-dependencies = ["fabdata-llm @ git+https://github.com/AI-for-Education/fabdata-llm.git@main"]
 ```
+
+An environment holds one FDLLM, so an override also decides what the runner runs on
+there; it works with FDLLM's `main` and `dev` branches. A benchmark that only hands over
+an inputs file doesn't need to import the package: running `fab-bench` from its own
+environment keeps the two FDLLM versions apart.
+
+```bash
+uvx --from "git+https://github.com/Fab-Inc/qa-benchmarks-monorepo@feat/benchmark-runner-package#subdirectory=packages/fab_benchmark_runner" fab-bench --help
+```
+
+In the monorepo the package is not a member of the uv workspace, so its tests run from
+its folder: `uv run --frozen pytest`.
 
 ## Experiments
 
@@ -188,8 +201,11 @@ Within a model, a result is reused when its ID exists, unless `force` is set. Th
 looks only in this run's folder, which is first filled from the run's GCS copy when the
 run has a `results_dest`; results under another `run_id` are not consulted. With
 `retry_errors`, only rows whose call failed are rerun. Rows whose ID is no longer
-planned are dropped at the next write. Provider SDK errors and empty responses become
-error rows; any other exception stops the run.
+planned are dropped at the next write. Provider SDK errors, FDLLM's response errors
+(from its `dev` branch: empty, filtered or malformed responses) and empty responses
+become error rows; any other exception stops the run. An error row carries the
+provider's `stop_reason` when FDLLM reports one; `length`, `max_tokens` or `MAX_TOKENS`
+means the response ran out of tokens.
 
 ## Run folders
 

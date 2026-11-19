@@ -24,13 +24,15 @@ exclude-newer = "7 days"
 [tool.uv.workspace]
 members = [
   "packages/fab_benchmark_publisher",
-  "packages/fab_benchmark_runner",
   "packages/primerpro",
   "packages/decodability",
   "benchmarks/phonics_benchmark",
   "benchmarks/linguistic_knowledge_benchmark",
   "benchmarks/decodable_text_generation",
 ]
+# fab-benchmark-runner locks its own dependencies, so it can follow FDLLM's dev
+# branch while the benchmarks here stay on main. Its tests run from its own folder.
+exclude = ["packages/fab_benchmark_runner"]
 
 [tool.uv.sources]
 fab-benchmark-publisher = { workspace = true }
@@ -46,6 +48,7 @@ skip_covered = true
 [tool.pytest.ini_options]
 addopts = [
   "--import-mode=importlib",
+  "--ignore=packages/fab_benchmark_runner",
 ]
 markers = [
   "integration: requires real GCS credentials (opt-in, never run in CI)",

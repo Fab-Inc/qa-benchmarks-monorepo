@@ -22,6 +22,28 @@ dependencies = [
 [project.scripts]
 fab-bench = "fab_benchmark_runner.cli:app"
 
+[dependency-groups]
+dev = [
+  "pytest>=8.0.0",
+  "ruff>=0.6.0",
+]
+
+# The package is not a member of the monorepo's uv workspace: it has its own lock,
+# resolved for Python 3.12 like the legacy benchmarks that install it.
+[tool.uv]
+required-version = ">=0.11.8"
+# Ignore brand new dependency versions, for cybersecurity and robustness
+exclude-newer = "7 days"
+
+[tool.uv.sources]
+fabdata-llm = { git = "https://github.com/AI-for-Education/fabdata-llm.git", rev = "dev" }
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+markers = [
+  "integration: requires real GCS credentials (opt-in, never run in CI)",
+]
+
 [tool.ruff]
 extend = "../../pyproject.toml"
 target-version = "py312"
