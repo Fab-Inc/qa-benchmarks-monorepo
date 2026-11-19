@@ -129,7 +129,7 @@ MANUAL_DEFAULT_MODELS: list[str] = [
 # Benchmark types THIS script publishes, used to validate SOURCES and to build each
 # pair's benchmark_domain ("LK" + "sw" -> "LK-sw") and label ("LK Kiswahili"). The
 # cluster holds other types -- DA, DTG -- but those are other benchmarks' to publish,
-# and the full column list lives in the repo-root leaderboard_pairs.json rather than
+# and the full column list lives in the repo-root leaderboard_config.json rather than
 # being restated here where the two could drift.
 BENCHMARK_TYPES: dict[str, str] = {
     "LK": "Linguistic Knowledge",
@@ -144,7 +144,7 @@ LANGUAGES: dict[str, dict[str, str]] = {
 
 # One row per pair THIS benchmark owns. Pairs owned by another benchmark are not
 # listed: each writes its own records file, and the full set of leaderboard columns
-# lives in the repo-root leaderboard_pairs.json. Nothing here decides the column order
+# lives in the repo-root leaderboard_config.json. Nothing here decides the column order
 # on the website -- that comes from the pairs config when the bundle is built.
 #
 # summary_csv names the scores file to publish for that pair. Which experiment reaches

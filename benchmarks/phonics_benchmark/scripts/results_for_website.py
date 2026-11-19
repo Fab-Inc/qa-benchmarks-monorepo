@@ -79,7 +79,7 @@ ROOT = HERE.parent
 
 # One row per leaderboard column this benchmark owns.
 #
-# benchmark_domain must match a row in the repo-root leaderboard_pairs.json, which is
+# benchmark_domain must match a row in the repo-root leaderboard_config.json, which is
 # what decides the column order on the site; display_name only has to not contradict
 # it. summary_csv is relative to the run folder (outputs/<run-id>/) and is named
 # explicitly rather than derived, so adding a language is one visible line here and

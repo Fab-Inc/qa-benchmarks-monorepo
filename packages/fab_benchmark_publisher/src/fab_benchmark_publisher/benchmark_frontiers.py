@@ -1,197 +1,121 @@
-"""The frontiers file: one per metrics file, built from it.
+"""The content of the frontier file, <benchmark>_<metric>_frontier.json: one frontier
+per axis over a metrics table's overall rows:
 
-    <benchmark_slug>_<metric_slug>_<experiment_slug>_frontiers.json
+  price   blended price in USD per million tokens, every priced model
+  size    parameter count, open-weight models only
 
-holding every frontier as a crosstab of
-
-  axis               price (models.csv blended_price) or size (open-weight only)
-  benchmark_subset   the overall result ("") and every subset in the metrics
-
-Each frontier is the raw Pareto frontier -- the same line the leaderboard draws, not
-the concave hull used for default-model selection -- stored as plain points. Turning
-points into step segments, provider ids and so on is presentation, which belongs to
-the bundle step.
-
-Frontiers are computed once per metrics file because model prices and sizes are
-fixed: a frontier saved today does not go stale.
+both read from the models CSV passed to build_frontier (via leaderboard.load_models).
+Each frontier is the raw Pareto frontier -- the same line the leaderboard draws --
+stored as plain points; turning them into line segments is presentation, which
+belongs to the bundle step.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from fab_benchmark_publisher.frontier import compute_frontier
-from fab_benchmark_publisher.leaderboard import load_models
-from fab_benchmark_publisher.metrics import (
-    KEY_COLUMNS,
-    OVERALL,
-    metrics_file_name,
-    validate_metrics,
-)
-from fab_benchmark_publisher.result_metadata import MetricMeta
+from fab_benchmark_publisher.leaderboard import BLENDED_PRICE, load_models
+from fab_benchmark_publisher.metrics import KEY_COLUMNS, OVERALL_SUBSET
 
-# axis name -> models.csv-derived field it is plotted against.
-FRONTIER_AXES = {"price": "blended_price", "size": "size"}
-
-_TOP_LEVEL_KEYS = (
-    *KEY_COLUMNS,
-    "is_higher_better",
-    "models_without_metadata",
-    "frontiers",
-)
-
-
-def frontiers_file_name(
-    benchmark_slug: str, metric_slug: str, experiment_slug: str
-) -> str:
-    stem = metrics_file_name(benchmark_slug, metric_slug, experiment_slug)
-    return stem.removesuffix(".csv") + "_frontiers.json"
-
-
-def _axis_population(axis: str, model_slugs: list[str], models_db: dict) -> list[dict]:
-    """(model_slug, x) for every model that can be placed on `axis`.
-
-    Matches the website's population: a positive price, or for size an open-weight
-    model with a positive parameter count. Anything else would let a model with an
-    unknown x land on the frontier at a made-up position.
-    """
-    field = FRONTIER_AXES[axis]
-    population = []
-    for model_slug in model_slugs:
-        meta = models_db.get(model_slug)
-        if meta is None:
-            continue
-        if axis == "size" and not meta["open"]:
-            continue
-        x = meta[field]
-        if x is not None and x > 0:
-            population.append({"model_slug": model_slug, "x": float(x)})
-    return population
+# Frontier axes: axis name -> the load_models field used as its x value.
+X_FIELD_BY_AXIS = {"price": BLENDED_PRICE, "size": "size"}
 
 
 def _frontier_points(
-    rows: pd.DataFrame, axis: str, models_db: dict, *, is_higher_better: bool
+    metric_value_by_model: dict[str, float],
+    axis: str,
+    model_metadata: dict[str, dict],
+    *,
+    is_higher_better: bool,
 ) -> list[dict]:
-    values = dict(zip(rows["model_slug"], rows["metric_value"].astype(float)))
-    population = _axis_population(axis, sorted(values), models_db)
-    if not population:
+    """Compute one axis's frontier.
+
+    Only models that can be placed on the axis are candidates: listed in the models
+    CSV, with a positive x value, and open-weight for the size axis. Anything else
+    would land on the frontier at a made-up position.
+
+    Args:
+        metric_value_by_model: the score per model, {model_slug: value}.
+        axis: "price" or "size", a key of X_FIELD_BY_AXIS.
+        model_metadata: load_models' {model_id: metadata} from the models CSV.
+        is_higher_better: direction in which the metric improves.
+
+    Returns:
+        The frontier models in order of increasing x, as
+        [{"model_slug", "x", "y"}, ...]; empty if no model can be placed.
+    """
+    x_field = X_FIELD_BY_AXIS[axis]
+    placeable = [
+        {"model_slug": model_slug, "x": float(metadata[x_field]), "y": metric_value}
+        for model_slug, metric_value in sorted(metric_value_by_model.items())
+        if (metadata := model_metadata.get(model_slug)) is not None
+        and (axis != "size" or metadata["open"])
+        and metadata[x_field] is not None
+        and metadata[x_field] > 0
+    ]
+    if not placeable:
         return []
-    df = pd.DataFrame(population)
-    df["y"] = df["model_slug"].map(values)
+    candidates = pd.DataFrame(placeable)
     # compute_frontier keeps whatever is largest so far; flip the sign for metrics
-    # where smaller is better rather than teaching it a direction.
-    df["_score"] = df["y"] if is_higher_better else -df["y"]
-    frontier = compute_frontier(df, acc_col="_score", sorting_col="x", smooth=False)
+    # where smaller is better.
+    candidates["score"] = candidates["y"] if is_higher_better else -candidates["y"]
+    frontier = compute_frontier(
+        candidates, acc_col="score", sorting_col="x", smooth=False
+    )
     return [
-        {"model_slug": r["model_slug"], "x": float(r["x"]), "y": float(r["y"])}
-        for _, r in frontier.sort_values("x").iterrows()
+        {"model_slug": point["model_slug"], "x": point["x"], "y": point["y"]}
+        for _, point in frontier.sort_values("x").iterrows()
     ]
 
 
-def build_frontiers(
-    metrics: pd.DataFrame, *, metric: MetricMeta, models_csv: str | Path
+def build_frontier(
+    metrics: pd.DataFrame, *, is_higher_better: bool, models_csv: str | Path
 ) -> dict[str, Any]:
-    """Every (axis x benchmark_subset) frontier of one metrics file.
+    """Build the content of <benchmark>_<metric>_frontier.json from a metrics table.
 
-    Models absent from models.csv cannot be placed on any axis; they are listed in
-    `models_without_metadata` rather than dropped silently.
+    Args:
+        metrics: a metrics table (build_metrics, or the CSV read back). Only its
+            overall rows are used; an empty benchmark_subset read back as NaN counts
+            as overall.
+        is_higher_better: the metric's direction, from its definition.
+        models_csv: the models CSV giving each model's price, size and open weights.
+
+    Returns:
+        A dict with the metrics file's key (benchmark_slug, metric_slug,
+        experiment_slug), is_higher_better, models_without_metadata (models absent
+        from the models CSV, listed rather than dropped silently since they cannot
+        be placed on any axis) and frontiers: one {"axis", "x", "points"} entry per
+        X_FIELD_BY_AXIS axis.
     """
-    validate_metrics(metrics, metric=metric)
-    models_db, _ = load_models(models_csv)
-    scored = metrics[metrics["metric_value"].notna()]
-    subsets = sorted(
-        set(scored["benchmark_subset"].fillna(OVERALL)),
-        key=lambda s: (s != OVERALL, s),
+    model_metadata, _ = load_models(models_csv)
+    overall_rows = metrics[
+        metrics["benchmark_subset"].fillna(OVERALL_SUBSET) == OVERALL_SUBSET
+    ]
+    metric_value_by_model = dict(
+        zip(overall_rows["model_slug"], overall_rows["metric_value"].astype(float))
     )
-
-    frontiers = []
-    for axis in FRONTIER_AXES:
-        for subset in subsets:
-            rows = scored[scored["benchmark_subset"].fillna(OVERALL) == subset]
-            frontiers.append(
-                {
-                    "axis": axis,
-                    "x": FRONTIER_AXES[axis],
-                    "benchmark_subset": subset,
-                    "points": _frontier_points(
-                        rows, axis, models_db, is_higher_better=metric.is_higher_better
-                    ),
-                }
-            )
-
-    first = metrics.iloc[0]
-    result = {
-        **{c: str(first[c]) for c in KEY_COLUMNS},
-        "is_higher_better": metric.is_higher_better,
-        "models_without_metadata": sorted(set(metrics["model_slug"]) - set(models_db)),
-        "frontiers": frontiers,
+    key_row = metrics.iloc[0]
+    return {
+        **{column: str(key_row[column]) for column in KEY_COLUMNS},
+        "is_higher_better": is_higher_better,
+        "models_without_metadata": sorted(
+            set(metric_value_by_model) - set(model_metadata)
+        ),
+        "frontiers": [
+            {
+                "axis": axis,
+                "x": x_field,
+                "points": _frontier_points(
+                    metric_value_by_model,
+                    axis,
+                    model_metadata,
+                    is_higher_better=is_higher_better,
+                ),
+            }
+            for axis, x_field in X_FIELD_BY_AXIS.items()
+        ],
     }
-    validate_frontiers(result, metrics)
-    return result
-
-
-def validate_frontiers(frontiers: dict[str, Any], metrics: pd.DataFrame) -> None:
-    """Raise ValueError listing every way `frontiers` breaks the file's contract or
-    disagrees with the metrics file it was built from."""
-    missing = [k for k in _TOP_LEVEL_KEYS if k not in frontiers]
-    if missing:
-        raise ValueError(f"invalid frontiers: missing key(s) {', '.join(missing)}")
-
-    problems: list[str] = []
-    first = metrics.iloc[0]
-    for col in KEY_COLUMNS:
-        if frontiers[col] != first[col]:
-            problems.append(
-                f"{col} is {frontiers[col]!r} but the metrics say {first[col]!r}"
-            )
-    subsets = metrics["benchmark_subset"].fillna(OVERALL)
-    values = dict(zip(zip(metrics["model_slug"], subsets), metrics["metric_value"]))
-    better = 1.0 if frontiers["is_higher_better"] else -1.0
-
-    seen: set[tuple[str, str]] = set()
-    for f in frontiers["frontiers"]:
-        label = f"{f.get('axis')}/{f.get('benchmark_subset')!r}"
-        if f.get("axis") not in FRONTIER_AXES:
-            problems.append(f"{label}: unknown axis")
-        key = (f.get("axis"), f.get("benchmark_subset"))
-        if key in seen:
-            problems.append(f"{label}: appears more than once")
-        seen.add(key)
-
-        points = f.get("points", [])
-        for prev, cur in zip(points, points[1:]):
-            if not cur["x"] > prev["x"]:
-                problems.append(f"{label}: x is not strictly increasing")
-                break
-            if not (cur["y"] - prev["y"]) * better > 0:
-                problems.append(f"{label}: a point does not improve on the last one")
-                break
-        for p in points:
-            expected = values.get((p["model_slug"], f.get("benchmark_subset")))
-            if expected is None or pd.isna(expected):
-                problems.append(f"{label}: '{p['model_slug']}' has no metric value")
-            elif abs(float(expected) - p["y"]) > 1e-9:
-                problems.append(f"{label}: '{p['model_slug']}' y differs from metrics")
-
-    if problems:
-        raise ValueError(
-            "invalid frontiers:\n" + "\n".join(f"  - {p}" for p in problems)
-        )
-
-
-def write_frontiers_json(frontiers: dict[str, Any], outdir: str | Path) -> Path:
-    """Write to <outdir>/<benchmark>_<metric>_<experiment>_frontiers.json."""
-    path = Path(outdir) / frontiers_file_name(*(frontiers[c] for c in KEY_COLUMNS))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(frontiers, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    return path
-
-
-def read_frontiers_json(path: str | Path) -> dict[str, Any]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
