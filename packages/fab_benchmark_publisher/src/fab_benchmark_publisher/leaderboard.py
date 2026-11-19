@@ -61,6 +61,15 @@ from fab_benchmark_publisher.frontier import (
     create_default_models_list,
 )
 from fab_benchmark_publisher.results import validate_records
+from fab_benchmark_publisher.website_names import website_name
+
+# Model prices, USD per million tokens. The first two are models.csv's column names;
+# the blended price is derived from them in load_models. The website still reads the
+# pre-rename names -- see website_names.py, applied where configmeta is built.
+INPUT_PRICE = "input_price_usd_per_mtok"
+OUTPUT_PRICE = "output_price_usd_per_mtok"
+BLENDED_PRICE = "blended_price_usd_per_mtok"
+PRICE_COLUMNS = (INPUT_PRICE, OUTPUT_PRICE)
 
 # Default-model curation, matching the CDPK leaderboard's production settings. See
 # frontier.create_default_models_list for what each does.
@@ -249,26 +258,40 @@ def load_providers(providers_csv: str | Path) -> dict[str, dict]:
 
 
 def load_models(models_csv: str | Path) -> tuple[dict[str, dict], dict[str, int]]:
-    """(model_id -> metadata, model_id -> 0-based row index in models.csv)."""
+    """(model_id -> metadata, model_id -> 0-based row index in models.csv).
+
+    Prices are USD per million tokens, keyed INPUT_PRICE / OUTPUT_PRICE (models.csv's
+    own column names) plus the derived BLENDED_PRICE.
+    """
     models_db: dict[str, dict] = {}
     models_row_index: dict[str, int] = {}
     with open(models_csv, newline="", encoding="utf-8") as f:
-        for i, row in enumerate(csv.DictReader(f)):
+        reader = csv.DictReader(f)
+        # Without the price columns every model would read as having no price, and
+        # every price frontier would silently come out empty.
+        missing = [c for c in PRICE_COLUMNS if c not in (reader.fieldnames or [])]
+        if missing:
+            raise ValueError(
+                f"{models_csv} has no {', '.join(missing)} column(s); it is probably "
+                "an outdated copy. Delete it so it is fetched again from "
+                "gs://fab-open-configs/models.csv."
+            )
+        for i, row in enumerate(reader):
             mid = row["model_id"].strip()
             models_row_index[mid] = i
-            inp = _float_or_none(row.get("input_cost"))
-            out = _float_or_none(row.get("output_cost"))
+            inp = _float_or_none(row.get(INPUT_PRICE))
+            out = _float_or_none(row.get(OUTPUT_PRICE))
             models_db[mid] = {
                 "provider": row["provider"].strip(),
                 "open": row["open"].strip().lower() == "true",
                 "url": row.get("url", "").strip() or None,
                 "release_date": row.get("release_date", "").strip() or None,
                 "size": _float_or_none(row.get("size")),
-                "input_cost": inp,
-                "output_cost": out,
+                INPUT_PRICE: inp,
+                OUTPUT_PRICE: out,
                 # blended = 3:1 input:output weighted average, matching the CDPK
                 # leaderboard.
-                "blended_price": round((inp * 3 + out) / 4, 6)
+                BLENDED_PRICE: round((inp * 3 + out) / 4, 6)
                 if inp is not None and out is not None
                 else None,
                 "display_name": row.get("display_name", "").strip() or mid,
@@ -469,7 +492,7 @@ def build_leaderboard_bundle(
                     "benchmark": pair.benchmark_domain,
                     "model": model_name,
                     "accuracy": entry["accuracy"],
-                    "cost": meta["blended_price"],
+                    BLENDED_PRICE: meta[BLENDED_PRICE],
                     "size": meta["size"],
                     "open": meta["open"],
                     "providerId": pid,
@@ -483,7 +506,7 @@ def build_leaderboard_bundle(
             "benchmark",
             "model",
             "accuracy",
-            "cost",
+            BLENDED_PRICE,
             "size",
             "open",
             "providerId",
@@ -512,7 +535,7 @@ def build_leaderboard_bundle(
         _selected, default_by_domain = create_default_models_list(
             benchmark_dfs,
             models_csv_path=models_csv,
-            cost_var="cost",
+            cost_var=BLENDED_PRICE,
             max_models=max_models,
             add_missing_models=add_missing_models,
             filter_by_provider_family=filter_by_family,
@@ -564,11 +587,11 @@ def build_leaderboard_bundle(
                 {"id": pair.benchmark_domain, "displayName": pair.display_name}
                 for pair in benchmarks
             ],
-            "axes": {"x": "blended_price", "y": "accuracy"},
+            "axes": {"x": website_name(BLENDED_PRICE), "y": "accuracy"},
         },
         "benchmarks": benchmarks_meta,
         "axes": {
-            "x": {"blended_price": "log", "size": "log"},
+            "x": {website_name(BLENDED_PRICE): "log", "size": "log"},
             "y": {"accuracy": "linear"},
         },
     }
@@ -580,11 +603,11 @@ def build_leaderboard_bundle(
         domain = pair.benchmark_domain
         df = bench_df[bench_df["benchmark"] == domain]
 
-        cost_df = df[df["cost"].notnull() & (df["cost"] > 0)]
+        cost_df = df[df[BLENDED_PRICE].notnull() & (df[BLENDED_PRICE] > 0)]
         cost_frontier.append(
             {
                 "benchmark_domain": domain,
-                "lineSegments": frontier_line_segments(cost_df, "cost"),
+                "lineSegments": frontier_line_segments(cost_df, BLENDED_PRICE),
                 "categories": [],
             }
         )
@@ -603,7 +626,7 @@ def build_leaderboard_bundle(
         # A drawn frontier vertex that is not pre-selected renders as a line with no
         # dot on it -- the one curation regression a visitor would actually see.
         chosen = set(default_by_domain.get(domain, []))
-        for sorting_col, subset in (("cost", cost_df), ("size", size_df)):
+        for sorting_col, subset in ((BLENDED_PRICE, cost_df), ("size", size_df)):
             if subset.empty:
                 continue
             vertices = compute_frontier(
