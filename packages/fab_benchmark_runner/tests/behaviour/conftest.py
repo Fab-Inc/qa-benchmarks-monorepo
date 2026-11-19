@@ -1,8 +1,8 @@
 """The harness behind the behaviour tests: a bench with fake models.
 
 The behaviour tests describe what the runner is meant to do, through the same
-entry points people use: ``create_experiment``, ``raise_max_tokens`` and a job
-running a run config (``run_job``/``plan_job``, which ``fab-bench run`` calls).
+entry points people use: ``create_experiment``, ``check_inputs_file`` and a
+job running a run config (``run_job``/``plan_job``, which ``fab-bench run`` calls).
 Only the model calls are faked, by ``FakeModels``, and GCS by an in-memory fake.
 Tests about what FDLLM is handed run through FDLLM instead, with only the providers
 behind it faked, by ``FakeProviders``.

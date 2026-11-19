@@ -15,11 +15,7 @@ from fab_benchmark_runner.config import (
     load_run_config,
 )
 from fab_benchmark_runner.errors import ConfigError
-from fab_benchmark_runner.experiment import (
-    ExperimentCreation,
-    create_experiment,
-    raise_max_tokens,
-)
+from fab_benchmark_runner.experiment import ExperimentCreation, create_experiment
 from fab_benchmark_runner.ids import canonical_json
 from fab_benchmark_runner.inputs import InputsCheck, check_inputs_file
 from fab_benchmark_runner.jobs import (
@@ -212,38 +208,6 @@ def _parse_labels(values: list[str]) -> dict[str, str]:
             raise typer.BadParameter(f"{key!r} is given twice", param_hint="--label")
         labels[key] = label
     return labels
-
-
-@app.command("raise-max-tokens")
-def raise_max_tokens_cmd(
-    experiment: str = typer.Option(
-        ..., "--experiment", help="Experiment folder: a local path or a gs:// URI."
-    ),
-    max_tokens: str = typer.Option(
-        ...,
-        "--max-tokens",
-        help="The new, higher token limit, or 'none' for no limit.",
-    ),
-) -> None:
-    """Raise an experiment's token limit; results that finished stay valid.
-
-    Then run with --retry-errors to rerun the calls that failed, including those
-    the old limit left empty.
-    """
-
-    try:
-        change = raise_max_tokens(experiment, _parse_max_tokens(max_tokens))
-    except EXPECTED_CLI_ERRORS as e:
-        typer.echo(f"ERROR: {e}", err=True)
-        raise typer.Exit(1) from e
-    if change.status == "unchanged":
-        typer.echo(f"max_tokens is already {_limit_text(change.max_tokens)}.")
-        return
-    typer.echo(
-        f"Raised max_tokens from {_limit_text(change.previous)} to "
-        f"{_limit_text(change.max_tokens)}. Run with --retry-errors to rerun the "
-        "calls that failed."
-    )
 
 
 @app.command("run")

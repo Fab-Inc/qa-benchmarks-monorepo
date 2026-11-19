@@ -15,10 +15,8 @@ from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.experiment import (
     Experiment,
     ExperimentCreation,
-    MaxTokensChange,
     create_experiment,
     default_experiment_id,
-    raise_max_tokens,
     read_experiment,
 )
 from fab_benchmark_runner.ids import model_call_id, result_id
@@ -58,7 +56,6 @@ __all__ = [
     "ImageRef",
     "InputsCheck",
     "InputsError",
-    "MaxTokensChange",
     "ModelInput",
     "ModelPlan",
     "RunConfig",
@@ -77,7 +74,6 @@ __all__ = [
     "parse_run_config",
     "plan_job",
     "plan_run",
-    "raise_max_tokens",
     "read_experiment",
     "read_inputs",
     "result_id",

@@ -184,10 +184,10 @@ Optionally, break things on purpose; each should stop with a message naming the 
   it: the run stops before any call, naming the image.
 
 If a row has `"call_status": "error"`, its `error_type` and `error_message` say why. A
-`stop_reason` of `MAX_TOKENS` or `length` means the answer ran out of tokens: raise the
-limit with
-`fab-bench raise-max-tokens --experiment experiments/smoke-v1 --max-tokens 8192` and
-rerun with `--retry-errors`, which reruns only the error rows.
+`stop_reason` of `MAX_TOKENS` or `length` means the answer ran out of tokens: create the
+experiment again in another folder with a higher `--max-tokens`, or `none`, and run
+there. `--retry-errors` reruns only the error rows, for failures that a second try can
+fix, such as a provider outage.
 
 ## Walkthrough 2: inputs and config on GCS
 

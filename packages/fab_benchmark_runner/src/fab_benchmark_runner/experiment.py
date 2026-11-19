@@ -24,15 +24,11 @@ from hashlib import sha256
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from google.api_core.exceptions import NotFound, PreconditionFailed
-
 from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.gcs import (
     create_storage_client,
-    download_file_with_generation,
     list_gcs_objects,
     parse_gs_uri,
-    upload_file_with_generation,
 )
 from fab_benchmark_runner.ids import canonical_json, sha256_json
 from fab_benchmark_runner.inputs import (
@@ -59,7 +55,6 @@ IMAGES_DIR = "images"
 EXPERIMENT_RECORD_FORMAT = 1
 DEFAULT_EXPERIMENT_ID_LENGTH = 16
 IDENTITY_KEYS = ("benchmark", "experiment_id", "inputs_sha256")
-RAISE_MAX_TOKENS_HINT = "raise it with fab-bench raise-max-tokens"
 _EXPERIMENT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _IMAGE_SUFFIX = re.compile(r"\.[a-z0-9]{1,5}")
 
@@ -97,25 +92,22 @@ class ExperimentCreation:
     experiment: Experiment
 
 
-@dataclass(frozen=True)
-class MaxTokensChange:
-    """What ``raise_max_tokens`` did: ``raised`` or ``unchanged``."""
-
-    status: str
-    previous: int | None
-    max_tokens: int | None
-    record: Mapping[str, Any]
-
-
-def default_experiment_id(*, benchmark: str, inputs_sha256: str) -> str:
+def default_experiment_id(
+    *, benchmark: str, inputs_sha256: str, max_tokens: int | None
+) -> str:
     """Return the ID used when none is given: a short hash of what defines it.
 
-    ``max_tokens`` is left out, because raising it keeps the experiment.
+    An experiment's limit never changes, so experiments that differ only in their
+    limit are different experiments, with different IDs.
     """
 
-    return sha256_json({"benchmark": benchmark, "inputs_sha256": inputs_sha256})[
-        :DEFAULT_EXPERIMENT_ID_LENGTH
-    ]
+    return sha256_json(
+        {
+            "benchmark": benchmark,
+            "inputs_sha256": inputs_sha256,
+            "max_tokens": max_tokens,
+        }
+    )[:DEFAULT_EXPERIMENT_ID_LENGTH]
 
 
 def create_experiment(
@@ -141,7 +133,7 @@ def create_experiment(
     Creating an experiment that already exists with the same benchmark, ID, inputs
     and ``max_tokens`` changes nothing. Raises ConfigError when ``dest`` holds a
     different experiment or other files, or this experiment with another
-    ``max_tokens``: only ``raise_max_tokens`` changes the limit.
+    ``max_tokens``: an experiment's limit never changes.
     """
 
     _check_settings(benchmark=benchmark, max_tokens=max_tokens, labels=labels)
@@ -193,7 +185,7 @@ def create_experiment(
         inputs_sha256 = sha256(inputs_text.encode("utf-8")).hexdigest()
         if experiment_id is None:
             experiment_id = default_experiment_id(
-                benchmark=benchmark, inputs_sha256=inputs_sha256
+                benchmark=benchmark, inputs_sha256=inputs_sha256, max_tokens=max_tokens
             )
         created_utc = utc_now()
         record = {
@@ -212,7 +204,6 @@ def create_experiment(
             "item_count": len(stored_inputs),
             "labels": dict(labels or {}),
             "max_tokens": max_tokens,
-            "max_tokens_history": [{"max_tokens": max_tokens, "utc": created_utc}],
             "record_format": EXPERIMENT_RECORD_FORMAT,
         }
         experiment = Experiment(
@@ -275,64 +266,6 @@ def read_experiment(directory: str | Path) -> Experiment:
     )
     check_inputs(inputs, source=inputs_path)
     return Experiment(location=str(folder), record=record, inputs=inputs)
-
-
-def raise_max_tokens(
-    location: str | Path, max_tokens: int | None, *, storage_client: Any | None = None
-) -> MaxTokensChange:
-    """Raise an experiment's token limit in place; None means no limit.
-
-    Call IDs leave the limit out, so every result keeps its ID: results that
-    finished within the old limit stay, and a run with ``retry_errors`` reruns the
-    error rows, which include responses the old limit left empty. The record keeps
-    each limit with when it was set. Lowering is refused, because results that
-    finished above a lower limit are not ones a model could give under it.
-    """
-
-    _check_settings(benchmark="experiment", max_tokens=max_tokens, labels=None)
-    text = str(location)
-    if not text.startswith("gs://"):
-        path = Path(location) / EXPERIMENT_RECORD_NAME
-        if not path.exists():
-            raise ConfigError(f"{location} holds no experiment ({path} is missing)")
-        change = _raised(_read_record(path), max_tokens, location=text)
-        if change.status == "raised":
-            write_text_atomic(path, canonical_json(change.record, indent=2) + "\n")
-        return change
-
-    client = storage_client or create_storage_client()
-    record_uri = f"{text.rstrip('/')}/{EXPERIMENT_RECORD_NAME}"
-    bucket_name, object_name = parse_gs_uri(record_uri)
-    with tempfile.TemporaryDirectory(prefix="fab-bench-raise-") as temporary:
-        local = Path(temporary) / EXPERIMENT_RECORD_NAME
-        try:
-            generation = download_file_with_generation(
-                bucket_name=bucket_name,
-                file_name=object_name,
-                write_path=local,
-                storage_client=client,
-            )
-        except NotFound as e:
-            raise ConfigError(
-                f"{text} holds no experiment ({record_uri} is missing)"
-            ) from e
-        change = _raised(_read_record(local), max_tokens, location=text)
-        if change.status == "raised":
-            write_text_atomic(local, canonical_json(change.record, indent=2) + "\n")
-            try:
-                upload_file_with_generation(
-                    source_path=local,
-                    bucket_name=bucket_name,
-                    file_name=object_name,
-                    if_generation_match=generation,
-                    storage_client=client,
-                )
-            except PreconditionFailed as e:
-                raise ConfigError(
-                    f"{record_uri} changed while its limit was being raised; run the "
-                    "command again"
-                ) from e
-    return change
 
 
 def check_experiment_id(experiment_id: str) -> str:
@@ -547,40 +480,22 @@ def _check_only_experiment_files(names: set[str], *, location: str) -> None:
 def _check_same_experiment(
     existing: Mapping[str, Any], record: Mapping[str, Any], *, location: str
 ) -> None:
+    same_inputs = all(
+        existing.get(key) == record[key] for key in ("benchmark", "inputs_sha256")
+    )
+    if same_inputs and existing.get("max_tokens") != record["max_tokens"]:
+        raise ConfigError(
+            f"{location} already holds these inputs with max_tokens "
+            f"{_limit_text(existing.get('max_tokens'))}, not "
+            f"{_limit_text(record['max_tokens'])}. An experiment's limit never "
+            "changes; create one with the new limit in another folder"
+        )
     differences = [key for key in IDENTITY_KEYS if existing.get(key) != record[key]]
     if differences:
         raise ConfigError(
             f"{location} already holds experiment {existing.get('experiment_id')!r}, "
             f"which differs in {', '.join(differences)}; choose another folder"
         )
-    if existing.get("max_tokens") != record["max_tokens"]:
-        raise ConfigError(
-            f"{location} already holds this experiment with max_tokens "
-            f"{_limit_text(existing.get('max_tokens'))}, not "
-            f"{_limit_text(record['max_tokens'])}. Creating it again never changes "
-            f"the limit; {RAISE_MAX_TOKENS_HINT}"
-        )
-
-
-def _raised(
-    record: Mapping[str, Any], max_tokens: int | None, *, location: str
-) -> MaxTokensChange:
-    current = record["max_tokens"]
-    if max_tokens == current:
-        return MaxTokensChange("unchanged", current, current, record)
-    if _limit_rank(max_tokens) < _limit_rank(current):
-        raise ConfigError(
-            f"{location} has max_tokens {_limit_text(current)}; a limit can only be "
-            f"raised, not lowered to {_limit_text(max_tokens)}"
-        )
-    history = [*record.get("max_tokens_history", [])]
-    history.append({"max_tokens": max_tokens, "utc": utc_now()})
-    raised = {**record, "max_tokens": max_tokens, "max_tokens_history": history}
-    return MaxTokensChange("raised", current, max_tokens, raised)
-
-
-def _limit_rank(max_tokens: int | None) -> float:
-    return float("inf") if max_tokens is None else float(max_tokens)
 
 
 def _limit_text(max_tokens: int | None) -> str:
@@ -592,7 +507,7 @@ def _read_record(path: Path) -> dict[str, Any]:
         record = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         raise ConfigError(f"Could not read the experiment record {path}: {e}") from e
-    required = (*IDENTITY_KEYS, "max_tokens", "max_tokens_history")
+    required = (*IDENTITY_KEYS, "max_tokens")
     if not isinstance(record, dict) or any(key not in record for key in required):
         raise ConfigError(f"{path} is not an experiment record")
     if record.get("record_format") != EXPERIMENT_RECORD_FORMAT:

@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from fab_benchmark_runner import ConfigError, parse_run_config, read_experiment
+from fab_benchmark_runner import ConfigError, parse_run_config
 from fab_benchmark_runner.cli import app as fab_bench
 
 REGISTRY = b"provider:\n  models:\n    model-a: {}\n"
@@ -192,23 +192,6 @@ def test_the_dry_run_says_how_many_images_it_checked(tmp_path: Path) -> None:
     assert "Images: 3 to send, each fetched and checked" in result.output
 
 
-def test_raise_max_tokens(tmp_path: Path) -> None:
-    _experiment(tmp_path)
-    command = ["raise-max-tokens", "--experiment", str(tmp_path / "exp")]
-
-    raised = CliRunner().invoke(fab_bench, [*command, "--max-tokens", "400"])
-    same = CliRunner().invoke(fab_bench, [*command, "--max-tokens", "400"])
-    lower = CliRunner().invoke(fab_bench, [*command, "--max-tokens", "200"])
-
-    assert raised.exit_code == 0, raised.output
-    assert "Raised max_tokens from 100 to 400" in raised.output
-    assert "--retry-errors" in raised.output
-    assert "already 400" in same.output
-    assert lower.exit_code == 1
-    assert "can only be raised" in lower.output
-    assert read_experiment(tmp_path / "exp").max_tokens == 400
-
-
 def test_fetch_results_and_upload_experiment(tmp_path: Path) -> None:
     with (
         patch("fab_benchmark_runner.cli.fetch_results", return_value=4) as fetch,
@@ -279,7 +262,7 @@ def test_fab_bench_without_a_command_shows_help() -> None:
 
     assert result.exit_code == 0
     assert "create-experiment" in result.output
-    assert "raise-max-tokens" in result.output
+    assert "check-inputs" in result.output
 
 
 def _write_experiment_inputs(path: Path) -> Path:

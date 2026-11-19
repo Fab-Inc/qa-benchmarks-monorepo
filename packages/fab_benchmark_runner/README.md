@@ -4,9 +4,9 @@ Shared run machinery for FAB benchmarks. A benchmark hands over its rendered inp
 runner stores them once as an experiment and runs any number of models on it, now or
 later:
 
-- **Experiments.** An experiment holds a benchmark's inputs, one row per item, and never
-  changes after creation, except that its `max_tokens` can be raised. Every model gets
-  identical input, however the benchmark's code changes later.
+- **Experiments.** An experiment holds a benchmark's inputs, one row per item, and its
+  token limit, and never changes after creation. Every model gets identical input,
+  however the benchmark's code changes later.
 - **Result IDs.** Every model call gets a `model_call_id` from its input, model and
   registered config. A rerun reuses every result whose ID already exists.
 - **Images.** Inputs reference images by URI; the experiment records each file's
@@ -103,10 +103,10 @@ fab-bench create-experiment --inputs inputs.jsonl \
 - Every image is read once, 32 at a time, to record its SHA-256. Images stay where they
   are unless `--copy-images` copies them into the experiment's `images/` folder, named
   by their hash. Images at local paths must be copied into an experiment on GCS.
-- `--max-tokens` is required: a number, or `none` for no limit. It can be raised later,
-  never lowered; see [Token limits](#token-limits).
-- `--experiment-id` names the experiment; it defaults to a short hash of the benchmark
-  and inputs. It doesn't have to match the folder name.
+- `--max-tokens` is required: a number, or `none` for no limit. It never changes; see
+  [Token limits](#token-limits).
+- `--experiment-id` names the experiment; it defaults to a short hash of the benchmark,
+  the inputs and the limit. It doesn't have to match the folder name.
 - The folder gets `inputs.jsonl`, then `experiment.json`, written last so an interrupted
   creation never looks finished. Creating the same experiment again changes nothing; a
   folder holding a different experiment, or other files, is refused.
@@ -144,7 +144,6 @@ Adding a model means writing another run config; nothing shared is rewritten.
 | `fab-bench check-inputs inputs.jsonl`         | List every problem in an inputs file, with its line      |
 | `fab-bench run --config run.json`             | Run a local or `gs://` config                            |
 | `fab-bench run-cloud --config gs://…`         | The same, as a Cloud Run job does, in `/workspace`       |
-| `fab-bench raise-max-tokens --experiment …`   | Raise an experiment's token limit                        |
 | `fab-bench fetch-results --experiment gs://…` | Download inputs, records and results (`--model` for one) |
 | `fab-bench upload-experiment <folder> gs://…` | Copy a local experiment, with its results, to GCS        |
 | `fab-bench upload-run-config run.json`        | Check a config for Cloud Run, upload it, print its URI   |
@@ -229,24 +228,25 @@ carries the provider's `stop_reason` when FDLLM reports one; `length`, `max_toke
 
 ## Token limits
 
-Every call gets the experiment's current `max_tokens`, and every row records it. With
-`none`, FDLLM asks for what the model's context window leaves after the input, capped by
-the registry's `Token_Limit_Completion`; set that for models whose output limit is below
+Every call gets the experiment's `max_tokens`, and every row records it. With `none`,
+FDLLM asks for what the model's context window leaves after the input, capped by the
+registry's `Token_Limit_Completion`; set that for models whose output limit is below
 their window. For Anthropic and Google models FDLLM counts the input with an extra API
 call first.
 
-When some items hit the limit:
+An experiment's limit never changes, so every result in it ran under the same limit.
+When answers hit it, create the experiment again in another folder with a higher limit,
+or `none`, and run the models there:
 
 ```bash
-fab-bench raise-max-tokens --experiment gs://bucket/mathv/experiments/level1-v1 --max-tokens 128000
-fab-bench run --config run.json --retry-errors
+fab-bench create-experiment --inputs inputs.jsonl \
+  --dest gs://bucket/mathv/experiments/level1-v1-128k \
+  --benchmark mathv --experiment-id level1-v1-128k --max-tokens 128000
 ```
 
-Results that finished within the old limit keep their IDs and stay; the error rows,
-which include responses the limit left empty, rerun at the new limit. The limit can only
-be raised, and `experiment.json` keeps each limit it had in `max_tokens_history`.
-Creating the experiment again never changes it. A response cut off mid-answer counts as
-an answer: FDLLM reports no stop reason for a response that isn't empty.
+The first experiment and its results stay as they were. Creating an experiment again in
+its own folder with another limit is refused. A response cut off mid-answer counts as an
+answer: FDLLM reports no stop reason for a response that isn't empty.
 
 ## Model registry
 

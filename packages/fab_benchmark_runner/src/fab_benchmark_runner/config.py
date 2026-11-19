@@ -46,7 +46,7 @@ _REPLACED_KEYS = {
     "items_path": "inputs now belong to an experiment; create one with "
     "fab-bench create-experiment and name it in 'experiment'",
     "max_tokens": "max_tokens belongs to the experiment; set it when creating the "
-    "experiment, and raise it with fab-bench raise-max-tokens",
+    "experiment",
     "output_dir": "results are written into the experiment's folder",
     "results_dest": "results are written into the experiment's folder",
     "run_id": "a run is named by its experiment and models",
