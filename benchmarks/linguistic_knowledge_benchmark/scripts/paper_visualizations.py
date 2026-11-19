@@ -105,7 +105,7 @@ IO_PRICE_RATIO = (0.75, 0.25)
 # code path with different columns.
 COST_SIZE_AXES = {
     "cost": {
-        "column": "blended_price",
+        "column": "blended_price_usd_per_mtok",
         "label": "Cost ($/1M tokens)",
         "title": "Accuracy vs Cost",
         "tick_fmt": lambda v, _: f"{v:g}" if v >= 0.01 else f"{v:g}",
@@ -290,13 +290,15 @@ def build_cost_size_table(
         )
 
     rows = meta.loc[known["model"]]
-    inp, out = rows["input_cost"].to_numpy(), rows["output_cost"].to_numpy()
+    inp = rows["input_price_usd_per_mtok"].to_numpy()
+    out = rows["output_price_usd_per_mtok"].to_numpy()
     model_provider, provider_color = load_provider_colors(models_csv, providers_csv)
     table = pd.DataFrame(
         {
             "model": known["model"].to_numpy(),
             "accuracy": known["accuracy"].to_numpy(),
-            "blended_price": IO_PRICE_RATIO[0] * inp + IO_PRICE_RATIO[1] * out,
+            "blended_price_usd_per_mtok": IO_PRICE_RATIO[0] * inp
+            + IO_PRICE_RATIO[1] * out,
             "size": rows["size"].to_numpy(),
             "provider": [model_provider.get(m, "Unknown") for m in known["model"]],
         }

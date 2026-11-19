@@ -9,7 +9,7 @@ Two cost components, tracked with different precision:
   * run-bench (the model under test): EXACT. Every row of responses_<model>.csv already
     carries total_tokens/completion_tokens from the real API call (fdllm's
     TokensUsed/TokensUsedCompletion); input_tokens = total_tokens - completion_tokens.
-    Cost = input_tokens/1e6 * input_cost + completion_tokens/1e6 * output_cost, priced
+    Cost = input_tokens/1e6 * input_price_usd_per_mtok + completion_tokens/1e6 * output_price_usd_per_mtok, priced
     from models.csv (USD per 1M tokens) for the model under test.
     completion_tokens include the reasoning tokens.
 
@@ -92,12 +92,12 @@ def est_tokens(text) -> int:
 
 
 def load_model_prices(models_csv: str) -> dict[str, tuple[float | None, float | None]]:
-    """model_id -> (input_cost, output_cost), USD per 1M tokens, from models.csv.
+    """model_id -> (input_price_usd_per_mtok, output_price_usd_per_mtok), USD per 1M tokens, from models.csv.
     Either value is None where models.csv leaves that model's pricing blank."""
     df = pd.read_csv(models_csv)
     prices: dict[str, tuple[float | None, float | None]] = {}
     for _, row in df.iterrows():
-        ic, oc = row["input_cost"], row["output_cost"]
+        ic, oc = row["input_price_usd_per_mtok"], row["output_price_usd_per_mtok"]
         prices[row["model_id"]] = (
             float(ic) if pd.notna(ic) else None,
             float(oc) if pd.notna(oc) else None,
@@ -106,7 +106,9 @@ def load_model_prices(models_csv: str) -> dict[str, tuple[float | None, float | 
 
 
 def run_bench_cost(
-    responses_df: pd.DataFrame, input_cost: float | None, output_cost: float | None
+    responses_df: pd.DataFrame,
+    input_price_usd_per_mtok: float | None,
+    output_price_usd_per_mtok: float | None,
 ) -> tuple[float | None, int, int]:
     """(cost, prompt_tokens, completion_tokens) for one model's run-bench pass -- exact,
     from the real total_tokens/completion_tokens columns fdllm recorded per call. cost is
@@ -115,9 +117,12 @@ def run_bench_cost(
     total = responses_df["total_tokens"].fillna(0)
     input_tokens = (total - completion).clip(lower=0)
     prompt_tokens, completion_tokens = int(input_tokens.sum()), int(completion.sum())
-    if input_cost is None or output_cost is None:
+    if input_price_usd_per_mtok is None or output_price_usd_per_mtok is None:
         return None, prompt_tokens, completion_tokens
-    cost = prompt_tokens / 1e6 * input_cost + completion_tokens / 1e6 * output_cost
+    cost = (
+        prompt_tokens / 1e6 * input_price_usd_per_mtok
+        + completion_tokens / 1e6 * output_price_usd_per_mtok
+    )
     return cost, prompt_tokens, completion_tokens
 
 
@@ -162,8 +167,13 @@ def judge_call_cost(
         if scored.empty:
             continue
         n_calls += len(scored)
-        input_cost, output_cost = prices.get(jm, (None, None))
-        priced = input_cost is not None and output_cost is not None
+        input_price_usd_per_mtok, output_price_usd_per_mtok = prices.get(
+            jm, (None, None)
+        )
+        priced = (
+            input_price_usd_per_mtok is not None
+            and output_price_usd_per_mtok is not None
+        )
         for _, row in scored.iterrows():
             question = question_map.get(row["question_id"], "")
             expected = str(row["expected_answers"]).split("|")
@@ -176,7 +186,10 @@ def judge_call_cost(
             prompt_tokens += p_tok
             completion_tokens += c_tok
             if priced:
-                total_cost += p_tok / 1e6 * input_cost + c_tok / 1e6 * output_cost
+                total_cost += (
+                    p_tok / 1e6 * input_price_usd_per_mtok
+                    + c_tok / 1e6 * output_price_usd_per_mtok
+                )
             else:
                 unpriced_calls += 1
     cost = None if unpriced_calls > 0 else total_cost
@@ -283,9 +296,11 @@ def main() -> None:
         responses_df = pd.read_csv(
             os.path.join(responses_dir, f"responses_{model}.csv")
         )
-        input_cost, output_cost = prices.get(model, (None, None))
+        input_price_usd_per_mtok, output_price_usd_per_mtok = prices.get(
+            model, (None, None)
+        )
         rb_cost, rb_prompt_tok, rb_completion_tok = run_bench_cost(
-            responses_df, input_cost, output_cost
+            responses_df, input_price_usd_per_mtok, output_price_usd_per_mtok
         )
 
         judge_cost, judge_calls, judge_prompt_tok, judge_completion_tok = (

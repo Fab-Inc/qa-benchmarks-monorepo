@@ -107,7 +107,9 @@ PROVIDER_FAMILY_FILTERS = {
 }
 
 
-def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=None):
+def compute_frontier(
+    data, acc_col="accuracy", sorting_col="input_price_usd_per_mtok", smooth=None
+):
     """
     Computes the value frontier from a set of models.
 
@@ -119,7 +121,8 @@ def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=
     Args:
         data: DataFrame containing model data
         acc_col: Column name for accuracy metric (default: 'accuracy')
-        sorting_col: Column name for cost/size variable (default: 'input_cost')
+        sorting_col: Column name for cost/size variable
+            (default: 'input_price_usd_per_mtok')
         smooth: If True, enforces concavity (decreasing slope) (default: None)
 
     Returns:
@@ -212,7 +215,11 @@ def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=
 
 
 def compute_layers(
-    df, frontier_var="input_cost", acc_col="accuracy", smooth=True, max_models=None
+    df,
+    frontier_var="input_price_usd_per_mtok",
+    acc_col="accuracy",
+    smooth=True,
+    max_models=None,
 ):
     """
     Computes successive concave frontier layers ("peeling").

@@ -24,7 +24,8 @@ LK_EN = BenchmarkPair(benchmark_domain="LK-en", display_name="LK English")
 LK_SW = BenchmarkPair(benchmark_domain="LK-sw", display_name="LK Kiswahili")
 
 MODELS_HEADER = (
-    "model_id,provider,open,url,release_date,size,input_cost,output_cost,display_name"
+    "model_id,provider,open,url,release_date,size,"
+    "input_price_usd_per_mtok,output_price_usd_per_mtok,display_name"
 )
 
 
@@ -73,16 +74,16 @@ def test_load_models_blends_price_three_to_one(csvs) -> None:
     models_db, _ = load_models(models_csv)
 
     # (0.1*3 + 0.2) / 4
-    assert models_db["cheap-open"]["blended_price"] == 0.125
+    assert models_db["cheap-open"]["blended_price_usd_per_mtok"] == 0.125
 
 
-def test_load_models_leaves_blended_price_unset_without_both_costs(csvs) -> None:
+def test_load_models_leaves_blended_price_unset_without_both_prices(csvs) -> None:
     models_csv, _ = csvs
 
     models_db, _ = load_models(models_csv)
 
-    assert models_db["free-open"]["blended_price"] is None
-    assert models_db["free-open"]["input_cost"] is None
+    assert models_db["free-open"]["blended_price_usd_per_mtok"] is None
+    assert models_db["free-open"]["input_price_usd_per_mtok"] is None
 
 
 def test_load_models_parses_open_as_a_bool_and_falls_back_to_the_id(csvs) -> None:
@@ -334,6 +335,23 @@ def test_build_marks_models_scored_elsewhere_as_disabled(csvs) -> None:
     meta = bundle.payloads["configmeta"]["benchmarks"]
     assert meta["LK-en"]["disabled_models"] == ["1"]
     assert meta["LK-sw"]["disabled_models"] == ["0"]
+
+
+def test_build_writes_the_website_price_name_in_configmeta(csvs) -> None:
+    """The website still reads the pre-rename name; see website_names.py."""
+    models_csv, providers_csv = csvs
+
+    bundle = build_leaderboard_bundle(
+        [record("cheap-open", 50.0)],
+        benchmarks=[LK_EN],
+        models_csv=models_csv,
+        providers_csv=providers_csv,
+        curate_defaults=False,
+    )
+
+    config = bundle.payloads["configmeta"]
+    assert config["base_options"]["axes"]["x"] == "blended_price"
+    assert config["axes"]["x"] == {"blended_price": "log", "size": "log"}
 
 
 def test_build_orders_default_models_by_accuracy(csvs) -> None:
