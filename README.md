@@ -12,6 +12,9 @@ It contains:
 - `benchmarks/phonics_benchmark`: benchmark-specific package for the phonics benchmark.
 - `benchmarks/decodable_text_generation`: the decodable text generation benchmarks
   (child and curriculum), reusing the phonics run harness.
+- `benchmarks/reading_comprehension_question_generation`: the reading comprehension
+  question generation benchmark (passage in, Q&A pairs out), reusing the phonics run
+  harness. The judge is not built yet.
 - `benchmarks/linguistic_knowledge_benchmark`: benchmark-specific package for the
   linguistic knowledge benchmark.
 

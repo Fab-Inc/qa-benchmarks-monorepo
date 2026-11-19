@@ -39,6 +39,7 @@ jobs:
           --cov=phonics_benchmark
           --cov=linguistic_knowledge_benchmark
           --cov=decodable_text_generation
+          --cov=reading_comprehension_question_generation
           --cov-branch
           --cov-report=term-missing
           --cov-fail-under=95
