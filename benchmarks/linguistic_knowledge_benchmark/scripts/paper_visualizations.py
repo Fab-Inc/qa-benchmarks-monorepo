@@ -97,17 +97,17 @@ DEFAULT_EXPERIMENT_ID = {
 LANGUAGE_LABEL = {"english": "English", "kiswahili": "Kiswahili"}
 
 # Blended $/1M tokens = 0.75*input + 0.25*output (a 3:1 input:output mix). Identical to
-# results_for_website.py's blend and to the CDPK leaderboard's, so a cost read off this
+# results_for_website.py's blend and to the CDPK leaderboard's, so a price read off this
 # figure matches the one on the website.
 IO_PRICE_RATIO = (0.75, 0.25)
 
 # The accuracy-vs-X scatters: one entry per x variable, so both figures are the same
 # code path with different columns.
-COST_SIZE_AXES = {
-    "cost": {
+PRICE_SIZE_AXES = {
+    "price": {
         "column": "blended_price_usd_per_mtok",
-        "label": "Cost ($/1M tokens)",
-        "title": "Accuracy vs Cost",
+        "label": "Price ($/1M tokens)",
+        "title": "Accuracy vs Price",
         "tick_fmt": lambda v, _: f"{v:g}" if v >= 0.01 else f"{v:g}",
     },
     "size": {
@@ -259,14 +259,14 @@ def _draw_frontier_steps(
             )
 
 
-def build_cost_size_table(
+def build_price_size_table(
     summary: str, models_csv: str, providers_csv: str
 ) -> pd.DataFrame:
     """One row per scored model: accuracy, blended price, parameter count, provider.
 
-    Cost and size come from models.csv, so a model is plottable on an axis only
+    Price and size come from models.csv, so a model is plottable on an axis only
     where that column is populated: closed-weight models rarely publish a parameter
-    count, which is why the size figure carries far fewer points than the cost one.
+    count, which is why the size figure carries far fewer points than the price one.
     Rather than silently dropping them here, both columns are kept as NaN and each
     figure filters to its own axis, reporting how many it dropped.
     """
@@ -319,7 +319,7 @@ def plot_accuracy_vs(
     language: str,
     dpi: int = 300,
 ) -> pd.DataFrame:
-    """Accuracy against a log-scaled cost or size axis, with the Pareto frontier drawn.
+    """Accuracy against a log-scaled price or size axis, with the Pareto frontier drawn.
 
     Returns the plotted subset (the CSV twin), which is smaller than `table` wherever
     the x column is missing.
@@ -819,9 +819,9 @@ def run_mcq_short_gap_bars(args: argparse.Namespace, root: str) -> None:
     )
 
 
-def _run_cost_size_figure(args: argparse.Namespace, root: str, *, which: str) -> None:
-    """Shared body of the two accuracy-vs-X scatters (cost and size)."""
-    axis = COST_SIZE_AXES[which]
+def _run_price_size_figure(args: argparse.Namespace, root: str, *, which: str) -> None:
+    """Shared body of the two accuracy-vs-X scatters (price and size)."""
+    axis = PRICE_SIZE_AXES[which]
     summary = args.summary or summary_path(root, args.language, args.experiment_id)
 
     _section("CONFIG")
@@ -830,7 +830,7 @@ def _run_cost_size_figure(args: argparse.Namespace, root: str, *, which: str) ->
     _kv("x axis", axis["label"])
     _kv("outdir", args.outdir)
 
-    table = build_cost_size_table(summary, args.models_csv, args.providers_csv)
+    table = build_price_size_table(summary, args.models_csv, args.providers_csv)
     if args.models_json:
         _kv("models_json", os.path.relpath(args.models_json, root))
         table = filter_to_default_models(table, args.models_json)
@@ -847,7 +847,7 @@ def _run_cost_size_figure(args: argparse.Namespace, root: str, *, which: str) ->
     _section(f"PARETO FRONTIER ({axis['label']})")
     for _, r in plotted[plotted["on_frontier"]].sort_values(axis["column"]).iterrows():
         x = r[axis["column"]]
-        shown = f"{x:,.4g}" if which == "cost" else _si_params(x)
+        shown = f"{x:,.4g}" if which == "price" else _si_params(x)
         print(f"  {r['display_name']:<30} {shown:>12}   {r['accuracy']:5.1f}%")
 
     plotted[
@@ -856,18 +856,18 @@ def _run_cost_size_figure(args: argparse.Namespace, root: str, *, which: str) ->
     print(f"\nWrote:\n  {fig_path}\n  {csv_path}")
 
 
-def run_accuracy_vs_cost(args: argparse.Namespace, root: str) -> None:
-    _run_cost_size_figure(args, root, which="cost")
+def run_accuracy_vs_price(args: argparse.Namespace, root: str) -> None:
+    _run_price_size_figure(args, root, which="price")
 
 
 def run_accuracy_vs_size(args: argparse.Namespace, root: str) -> None:
-    _run_cost_size_figure(args, root, which="size")
+    _run_price_size_figure(args, root, which="size")
 
 
 FIGURES = {
     "mcq-short-gap": run_mcq_short_gap,
     "mcq-short-gap-bars": run_mcq_short_gap_bars,
-    "accuracy-vs-cost": run_accuracy_vs_cost,
+    "accuracy-vs-price": run_accuracy_vs_price,
     "accuracy-vs-size": run_accuracy_vs_size,
 }
 
@@ -918,7 +918,7 @@ def build_parser(root: str) -> argparse.ArgumentParser:
         dest="models_csv",
         default=str(MODELS_CSV),
         help="source of model display names, and of price/parameter-count for the "
-        "accuracy-vs-cost / accuracy-vs-size figures",
+        "accuracy-vs-price / accuracy-vs-size figures",
     )
     common.add_argument(
         "--providers-csv",
@@ -938,7 +938,7 @@ def build_parser(root: str) -> argparse.ArgumentParser:
         "all-models one.",
     )
 
-    # The cost/size scatters are per-language, so they take --language/--experiment-id
+    # The price/size scatters are per-language, so they take --language/--experiment-id
     # rather than the cross-language pair the gap figures need.
     single = argparse.ArgumentParser(add_help=False)
     single.add_argument(
@@ -972,7 +972,7 @@ def build_parser(root: str) -> argparse.ArgumentParser:
         "bottom, shared scales)",
     )
     sub.add_parser(
-        "accuracy-vs-cost",
+        "accuracy-vs-price",
         parents=[common, single],
         help="accuracy against blended $/1M tokens (log x), with the Pareto frontier",
     )

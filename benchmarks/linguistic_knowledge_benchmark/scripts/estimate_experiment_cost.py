@@ -110,8 +110,8 @@ def run_bench_cost(
     input_price_usd_per_mtok: float | None,
     output_price_usd_per_mtok: float | None,
 ) -> tuple[float | None, int, int]:
-    """(cost, prompt_tokens, completion_tokens) for one model's run-bench pass -- exact,
-    from the real total_tokens/completion_tokens columns fdllm recorded per call. cost is
+    """(cost_usd, prompt_tokens, completion_tokens) for one model's run-bench pass -- exact,
+    from the real total_tokens/completion_tokens columns fdllm recorded per call. cost_usd is
     None if this model has no pricing in models.csv."""
     completion = responses_df["completion_tokens"].fillna(0)
     total = responses_df["total_tokens"].fillna(0)
@@ -119,11 +119,11 @@ def run_bench_cost(
     prompt_tokens, completion_tokens = int(input_tokens.sum()), int(completion.sum())
     if input_price_usd_per_mtok is None or output_price_usd_per_mtok is None:
         return None, prompt_tokens, completion_tokens
-    cost = (
+    cost_usd = (
         prompt_tokens / 1e6 * input_price_usd_per_mtok
         + completion_tokens / 1e6 * output_price_usd_per_mtok
     )
-    return cost, prompt_tokens, completion_tokens
+    return cost_usd, prompt_tokens, completion_tokens
 
 
 def build_judge_user_prompt(
@@ -149,14 +149,14 @@ def judge_call_cost(
     *,
     prices: dict[str, tuple[float | None, float | None]],
 ) -> tuple[float | None, int, int, int]:
-    """Estimated (cost, n_calls, prompt_tokens, completion_tokens) across every judge in
+    """Estimated (cost_usd, n_calls, prompt_tokens, completion_tokens) across every judge in
     `judge_models`, for whichever rows the main judge-bench pass actually sent to a judge
     (short_form rows). A row counts as "sent to this judge" when its
     is_correct_<judge> column is non-null (judge_bench.py always populates it, even for
-    a False verdict; only never-attempted rows are null). cost is 0.0 when there's
+    a False verdict; only never-attempted rows are null). cost_usd is 0.0 when there's
     nothing to price (n_calls == 0); None if there WERE calls but at least one judge
     involved has no pricing in models.csv (a true "can't price this")."""
-    total_cost = 0.0
+    total_cost_usd = 0.0
     unpriced_calls = 0
     n_calls = prompt_tokens = completion_tokens = 0
     for jm in judge_models:
@@ -186,14 +186,14 @@ def judge_call_cost(
             prompt_tokens += p_tok
             completion_tokens += c_tok
             if priced:
-                total_cost += (
+                total_cost_usd += (
                     p_tok / 1e6 * input_price_usd_per_mtok
                     + c_tok / 1e6 * output_price_usd_per_mtok
                 )
             else:
                 unpriced_calls += 1
-    cost = None if unpriced_calls > 0 else total_cost
-    return cost, n_calls, prompt_tokens, completion_tokens
+    cost_usd = None if unpriced_calls > 0 else total_cost_usd
+    return cost_usd, n_calls, prompt_tokens, completion_tokens
 
 
 def discover_models(responses_dir: str) -> list[str]:
@@ -299,11 +299,11 @@ def main() -> None:
         input_price_usd_per_mtok, output_price_usd_per_mtok = prices.get(
             model, (None, None)
         )
-        rb_cost, rb_prompt_tok, rb_completion_tok = run_bench_cost(
+        rb_cost_usd, rb_prompt_tok, rb_completion_tok = run_bench_cost(
             responses_df, input_price_usd_per_mtok, output_price_usd_per_mtok
         )
 
-        judge_cost, judge_calls, judge_prompt_tok, judge_completion_tok = (
+        judge_cost_usd, judge_calls, judge_prompt_tok, judge_completion_tok = (
             None,
             0,
             0,
@@ -316,7 +316,7 @@ def main() -> None:
             judge_models = log_data.get(model, {}).get("short_form_llm_judges") or list(
                 DEFAULT_JUDGE_MODELS[:1]
             )
-            judge_cost, judge_calls, judge_prompt_tok, judge_completion_tok = (
+            judge_cost_usd, judge_calls, judge_prompt_tok, judge_completion_tok = (
                 judge_call_cost(
                     judged_df,
                     question_map,
@@ -326,25 +326,27 @@ def main() -> None:
                 )
             )
 
-        missing_pricing = rb_cost is None or (has_judged and judge_cost is None)
+        missing_pricing = rb_cost_usd is None or (has_judged and judge_cost_usd is None)
         # total_cost_est_usd is None (not a partial sum) whenever any component is
         # unpriced -- a partial total would understate cost while looking complete.
-        total_cost = None if missing_pricing else (rb_cost or 0.0) + (judge_cost or 0.0)
+        total_cost_usd = (
+            None if missing_pricing else (rb_cost_usd or 0.0) + (judge_cost_usd or 0.0)
+        )
 
         rows.append(
             {
                 "model": model,
                 "run_bench_cost_usd": (
-                    round(rb_cost, 4) if rb_cost is not None else None
+                    round(rb_cost_usd, 4) if rb_cost_usd is not None else None
                 ),
                 "run_bench_prompt_tokens": rb_prompt_tok,
                 "run_bench_completion_tokens": rb_completion_tok,
                 "judge_cost_est_usd": (
-                    round(judge_cost, 4) if judge_cost is not None else None
+                    round(judge_cost_usd, 4) if judge_cost_usd is not None else None
                 ),
                 "judge_calls": judge_calls,
                 "total_cost_est_usd": (
-                    round(total_cost, 4) if total_cost is not None else None
+                    round(total_cost_usd, 4) if total_cost_usd is not None else None
                 ),
                 "missing_pricing": missing_pricing,
             }
