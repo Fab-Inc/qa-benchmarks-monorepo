@@ -8,6 +8,7 @@ with the decisions it describes; each test name states one behaviour.
 | Module                      | Describes                                                      |
 | --------------------------- | -------------------------------------------------------------- |
 | `test_experiments.py`       | Inputs stored once: what models get, IDs, images               |
+| `test_images.py`            | Images: what models are sent, checked before any call          |
 | `test_running_models.py`    | Results per model, reuse, resuming, errors, run configs        |
 | `test_token_limits.py`      | `max_tokens`: recorded per row, raised in place, never lowered |
 | `test_jobs_on_gcs.py`       | Many jobs on one experiment on GCS, without overwrites         |
@@ -15,7 +16,8 @@ with the decisions it describes; each test name states one behaviour.
 
 `conftest.py` holds the harness: a `Bench` with a model registry, a fake GCS, and
 `FakeModels`, which answer every call unless a test makes one fail, crash or depend on
-the token limit.
+the token limit. Tests about what FDLLM is handed, such as images and a missing token
+limit, run through FDLLM with `FakeProviders` standing in for the providers behind it.
 
 The detailed mechanics, such as validation messages, checkpoint order and upload
 retries, are pinned in `tests/unit/`.

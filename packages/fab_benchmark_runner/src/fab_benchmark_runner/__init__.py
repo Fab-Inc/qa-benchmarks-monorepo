@@ -22,6 +22,7 @@ from fab_benchmark_runner.experiment import (
     read_experiment,
 )
 from fab_benchmark_runner.ids import model_call_id, result_id
+from fab_benchmark_runner.images import ImageFiles
 from fab_benchmark_runner.inputs import ImageRef, ModelInput, read_inputs, write_inputs
 from fab_benchmark_runner.jobs import (
     fetch_results,
@@ -44,6 +45,7 @@ __all__ = [
     "ConfigError",
     "Experiment",
     "ExperimentCreation",
+    "ImageFiles",
     "ImageRef",
     "MaxTokensChange",
     "ModelInput",

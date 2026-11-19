@@ -24,7 +24,7 @@ import pytest
 
 from fab_benchmark_runner import ConfigError, create_experiment, read_experiment
 
-from .conftest import TEXT_INPUTS, Bench
+from .conftest import TEXT_INPUTS, Bench, png
 
 
 def test_models_get_exactly_the_stored_inputs_with_each_items_system_prompt(
@@ -138,7 +138,7 @@ def test_images_are_identified_by_their_content_not_where_they_are(
     IDs, so results don't depend on where images are stored."""
 
     image = bench.root / "figure.png"
-    image.write_bytes(b"pixels")
+    image.write_bytes(png("red"))
     inputs = [
         {
             "benchmark_item_id": "visual-1",
@@ -155,5 +155,5 @@ def test_images_are_identified_by_their_content_not_where_they_are(
     [referenced] = bench.rows(experiment="referenced")
     [copied] = bench.rows(experiment="copied")
     assert referenced["result_id"] == copied["result_id"]
-    assert referenced["images"][0]["sha256"] == sha256(b"pixels").hexdigest()
+    assert referenced["images"][0]["sha256"] == sha256(png("red")).hexdigest()
     assert copied["images"][0]["uri"].startswith("images/")

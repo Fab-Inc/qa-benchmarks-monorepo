@@ -9,6 +9,8 @@ later:
   identical input, however the benchmark's code changes later.
 - **Result IDs.** Every model call gets a `model_call_id` from its input, model and
   registered config. A rerun reuses every result whose ID already exists.
+- **Images.** Inputs reference images by URI; the experiment records each file's
+  SHA-256, and every run checks the images it sends against it before any call.
 - **One set of files per model.** Each model's results and record are written only by
   the job running that model, so jobs for different models can share an experiment.
 - **GCS.** An experiment can live on GCS; jobs work on a local copy and upload with
@@ -142,6 +144,29 @@ Adding a model means writing another run config; nothing shared is rewritten.
 Library callers can use `run_job` and `plan_job`, or `execute_run` and `plan_run` on a
 local experiment folder.
 
+## Images
+
+Images stay where the inputs put them, usually on GCS, and creation records each file's
+SHA-256. When a run sends them:
+
+- Before its first call, a run fetches the images of the calls it still has to make,
+  each once however many items and models use it, 32 at a time, into a temporary folder
+  that goes when the run ends. A dry run fetches and checks them too, so a broken image
+  shows up before a launch. On Cloud Run that folder is in memory.
+- Each copy must match its recorded SHA-256 and open with Pillow. An image that changed,
+  disappeared or can't be opened stops the run before any call, naming the image.
+- Images copied into an experiment with `--copy-images` are read from its folder, local
+  or on GCS.
+- FDLLM gets a fresh image per call, loaded from the checked copy, in the item's one
+  user message, in order and with its detail level. FDLLM resizes as it sends (`low` to
+  512×512; `high` to at most 2048 on the long side and 768 on the short side) and puts
+  images before the prompt text. Experiments store the originals; each run records
+  FDLLM's commit and Pillow's version, which is enough to rebuild what was sent.
+- FDLLM sends images only to models whose registry entry has `Vision: true`, so a run on
+  an experiment with images refuses other models before any call.
+- A call function of your own gets each image's `uri` pointing at its checked local
+  copy, with `source_uri` saying where it came from.
+
 ## Experiment folders
 
 | File                                | Written by                 | Holds                                                  |
@@ -194,8 +219,13 @@ carries the provider's `stop_reason` when FDLLM reports one; `length`, `max_toke
 
 ## Token limits
 
-Every call gets the experiment's current `max_tokens`, and every row records it. When
-some items hit the limit:
+Every call gets the experiment's current `max_tokens`, and every row records it. With
+`none`, FDLLM asks for what the model's context window leaves after the input, capped by
+the registry's `Token_Limit_Completion`; set that for models whose output limit is below
+their window. For Anthropic and Google models FDLLM counts the input with an extra API
+call first.
+
+When some items hit the limit:
 
 ```bash
 fab-bench raise-max-tokens --experiment gs://bucket/mathv/experiments/level1-v1 --max-tokens 128000
@@ -276,8 +306,6 @@ environment.
   model list. A change to provider defaults, or an FDLLM upgrade that changes its
   built-in list, changes the IDs of the affected models. Projects that override the
   FDLLM version can get different IDs for the same model.
-- **Images and unlimited calls are not sent yet.** Experiments and call IDs cover images
-  and `max_tokens: none`, but runs through FDLLM refuse them before any call.
 - **Responses cut off mid-answer are scored as they are.** FDLLM reports no stop reason
   for a response that isn't empty, so they can't be told apart yet.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in

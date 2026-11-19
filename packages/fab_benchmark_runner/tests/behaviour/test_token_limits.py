@@ -3,8 +3,9 @@
 Decisions this file describes:
 
 - ``max_tokens`` is set when an experiment is created, as a number or none (no
-  limit). Every call gets the experiment's current limit, and every row records the
-  limit it ran with.
+  limit, as the linguistic knowledge benchmark uses; FDLLM then sizes each call).
+  Every call gets the experiment's current limit, and every row records the limit
+  it ran with.
 - The limit is not part of call IDs. When some items hit it, raising the limit in
   place keeps every result that finished within the old one; a run with
   ``retry_errors`` then reruns only the error rows, which include responses the
@@ -28,7 +29,7 @@ from fab_benchmark_runner import (
     read_experiment,
 )
 
-from .conftest import Bench
+from .conftest import Bench, FakeProviders
 
 
 def test_every_call_gets_the_experiments_limit_and_every_row_records_it(
@@ -40,6 +41,20 @@ def test_every_call_gets_the_experiments_limit_and_every_row_records_it(
 
     assert {max_tokens for _, _, max_tokens in bench.models.calls} == {1000}
     assert {row["max_tokens"] for row in bench.rows()} == {1000}
+
+
+def test_without_a_limit_fdllm_decides_how_long_each_answer_may_be(
+    bench: Bench, providers: FakeProviders
+) -> None:
+    """FDLLM asks for what the model's context window leaves after the input,
+    capped by the registry's Token_Limit_Completion."""
+
+    bench.create(max_tokens=None)
+
+    bench.run("model-a", through_fdllm=True)
+
+    assert {request.max_tokens for request in providers.requests} == {None}
+    assert {row["max_tokens"] for row in bench.rows()} == {None}
 
 
 def test_raising_the_limit_reruns_only_the_answers_it_cut_off(bench: Bench) -> None:

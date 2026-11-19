@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 from fab_benchmark_runner import (
     ConfigError,
@@ -134,29 +135,24 @@ def test_a_missing_experiment_is_reported(setup: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    ("inputs", "max_tokens", "message"),
+    ("with_images", "model_config", "refused"),
     [
-        (
-            [
-                {
-                    "benchmark_item_id": "v",
-                    "prompt": "?",
-                    "images": [{"uri": "f.png", "detail": "low"}],
-                }
-            ],
-            100,
-            "has images",
-        ),
-        (ITEMS, None, "has no token limit"),
+        (True, {"Vision": True}, False),
+        (True, {"Vision": False}, True),
+        (True, {}, True),  # FDLLM's default is no vision
+        (False, {}, False),  # text needs no vision
     ],
 )
-def test_fdllm_runs_refuse_what_they_cant_send_yet_before_any_call(
-    tmp_path: Path, write_registry, inputs, max_tokens, message: str
+def test_fdllm_runs_send_images_only_to_models_marked_with_vision(
+    tmp_path: Path, write_registry, with_images: bool, model_config, refused: bool
 ) -> None:
-    (tmp_path / "f.png").write_bytes(b"pixels")
+    Image.new("RGB", (4, 4), "red").save(tmp_path / "f.png")
+    row = {"benchmark_item_id": "v", "prompt": "?"}
+    if with_images:
+        row["images"] = [{"uri": "f.png", "detail": "low"}]
     path = tmp_path / "inputs.jsonl"
-    path.write_text("".join(json.dumps(row) + "\n" for row in inputs))
-    create_experiment(path, dest=tmp_path / "exp", benchmark="t", max_tokens=max_tokens)
+    path.write_text(json.dumps(row) + "\n")
+    create_experiment(path, dest=tmp_path / "exp", benchmark="t", max_tokens=None)
     config = parse_run_config(
         {
             "experiment": "exp",
@@ -166,13 +162,27 @@ def test_fdllm_runs_refuse_what_they_cant_send_yet_before_any_call(
         base_dir=tmp_path,
     )
 
+    job = {"workdir": tmp_path / "job", "download_public_registry": False}
+
     with (
-        patch("fab_benchmark_runner.jobs.prepare_fdllm", return_value={}),
-        patch("fab_benchmark_runner.jobs.call_model_with_fdllm") as call,
-        pytest.raises(ConfigError, match=message),
+        patch(
+            "fab_benchmark_runner.jobs.prepare_fdllm",
+            return_value={"model-a": model_config},
+        ),
+        patch(
+            "fab_benchmark_runner.jobs.call_model_with_fdllm",
+            return_value={"output": "red"},
+        ) as call,
     ):
-        run_job(config, workdir=tmp_path / "job", download_public_registry=False)
-    call.assert_not_called()
+        if refused:
+            with pytest.raises(ConfigError, match="Vision: true"):
+                run_job(config, **job)
+            with pytest.raises(ConfigError, match="Vision: true"):
+                plan_job(config, **job)
+        else:
+            run_job(config, **job)
+
+    assert call.call_count == (0 if refused else 1)
 
 
 def test_fetch_results_downloads_everything_but_images_or_one_model(

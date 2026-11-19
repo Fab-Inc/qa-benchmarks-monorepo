@@ -6,11 +6,16 @@ every model's record, and the results of the models it runs, never another model
 results. It uploads only the files it writes, each with a GCS generation check, so
 jobs running other models on the same experiment never conflict, and a second job
 on the same model stops instead of overwriting the first one's results.
+
+Every job, and every dry run, fetches the images of the calls it would make into a
+temporary folder and checks them before any call; the folder goes when it ends.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import tempfile
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +30,7 @@ from fab_benchmark_runner.experiment import (
     INPUTS_FILE_NAME,
     read_experiment,
 )
+from fab_benchmark_runner.images import ImageFiles
 from fab_benchmark_runner.llm import call_model_with_fdllm
 from fab_benchmark_runner.records import MODEL_RECORDS_DIR, RESPONSES_DIR
 from fab_benchmark_runner.registry import (
@@ -55,7 +61,10 @@ def plan_job(
     call_model: CallModel | None = None,
     storage_client: Any | None = None,
 ) -> RunPlan:
-    """Report what a job would do. An experiment on GCS is read, never written."""
+    """Report what a job would do. An experiment on GCS is read, never written.
+
+    The images of the calls to make are fetched and checked, as the job would.
+    """
 
     _registry, model_configs, _call = _prepare_models(
         config,
@@ -72,7 +81,16 @@ def plan_job(
         )
     else:
         experiment_dir = Path(config.experiment)
-    return plan_run(config, experiment_dir, model_configs=model_configs)
+    _check_models_take_images(
+        experiment_dir, config, model_configs, uses_fdllm=call_model is None
+    )
+    with _image_files(config, storage_client) as image_files:
+        return plan_run(
+            config,
+            experiment_dir,
+            model_configs=model_configs,
+            image_files=image_files,
+        )
 
 
 def run_job(
@@ -100,19 +118,25 @@ def run_job(
     )
     if not config.experiment_is_gcs:
         experiment_dir = Path(config.experiment)
-        _check_runnable(experiment_dir, uses_fdllm=call_model is None)
-        return execute_run(
-            config,
-            experiment_dir,
-            model_configs=model_configs,
-            call_model=call,
-            registry=registry.record(),
+        _check_models_take_images(
+            experiment_dir, config, model_configs, uses_fdllm=call_model is None
         )
+        with _image_files(config, storage_client) as image_files:
+            return execute_run(
+                config,
+                experiment_dir,
+                model_configs=model_configs,
+                call_model=call,
+                registry=registry.record(),
+                image_files=image_files,
+            )
 
     experiment_dir = experiment_mirror(workdir, config.experiment)
     sync = RunSync(experiment_dir, config.experiment, storage_client=storage_client)
     _pull_job_files(sync, config)
-    _check_runnable(experiment_dir, uses_fdllm=call_model is None)
+    _check_models_take_images(
+        experiment_dir, config, model_configs, uses_fdllm=call_model is None
+    )
     typer.echo(f"Writing results to {config.experiment}")
 
     def push_with_warning(local_path: Path) -> None:
@@ -124,14 +148,16 @@ def run_job(
             typer.echo(f"WARNING: could not upload {local_path}: {e}", err=True)
 
     try:
-        result = execute_run(
-            config,
-            experiment_dir,
-            model_configs=model_configs,
-            call_model=call,
-            registry=registry.record(),
-            on_artifact_write=push_with_warning,
-        )
+        with _image_files(config, storage_client) as image_files:
+            result = execute_run(
+                config,
+                experiment_dir,
+                model_configs=model_configs,
+                call_model=call,
+                registry=registry.record(),
+                image_files=image_files,
+                on_artifact_write=push_with_warning,
+            )
     except BaseException:
         try:
             sync.push_pending()
@@ -260,21 +286,45 @@ def _is_job_file(name: str, models: Iterable[str]) -> bool:
     }
 
 
-def _check_runnable(experiment_dir: Path, *, uses_fdllm: bool) -> None:
-    """Refuse, before any call, what FDLLM calls can't send yet."""
+@contextmanager
+def _image_files(config: RunConfig, storage_client: Any | None) -> Iterator[ImageFiles]:
+    """Give a job a temporary folder for its checked image copies."""
+
+    with tempfile.TemporaryDirectory(prefix="fab-bench-images-") as folder:
+        yield ImageFiles(
+            Path(folder),
+            experiment_location=config.experiment,
+            storage_client=storage_client,
+        )
+
+
+def _check_models_take_images(
+    experiment_dir: Path,
+    config: RunConfig,
+    model_configs: Mapping[str, Any],
+    *,
+    uses_fdllm: bool,
+) -> None:
+    """Refuse, before any call, models FDLLM won't send images to.
+
+    FDLLM sends images only to models whose registry entry says ``Vision: true``,
+    and raises on the call otherwise.
+    """
 
     if not uses_fdllm:
         return
     experiment = read_experiment(experiment_dir)
-    if any(model_input.images for model_input in experiment.inputs):
+    if not any(model_input.images for model_input in experiment.inputs):
+        return
+    without_vision = [
+        model
+        for model in config.models
+        if not model_configs.get(model, {}).get("Vision", False)
+    ]
+    if without_vision:
         raise ConfigError(
-            f"Experiment {experiment.experiment_id!r} has images, which runs don't "
-            "send yet"
-        )
-    if experiment.max_tokens is None:
-        raise ConfigError(
-            f"Experiment {experiment.experiment_id!r} has no token limit, which runs "
-            "don't support yet"
+            f"Experiment {experiment.experiment_id!r} has images, but the registry "
+            f"doesn't mark {', '.join(without_vision)} as taking them (Vision: true)"
         )
 
 

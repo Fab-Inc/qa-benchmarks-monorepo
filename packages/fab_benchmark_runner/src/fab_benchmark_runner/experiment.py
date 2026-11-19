@@ -44,7 +44,12 @@ from fab_benchmark_runner.inputs import (
     parse_input_row,
 )
 from fab_benchmark_runner.provenance import git_dirty, git_hash
-from fab_benchmark_runner.results import utc_now, write_bytes_atomic, write_text_atomic
+from fab_benchmark_runner.results import (
+    file_sha256,
+    utc_now,
+    write_bytes_atomic,
+    write_text_atomic,
+)
 from fab_benchmark_runner.run_sync import RunSync, file_crc32c
 
 EXPERIMENT_RECORD_NAME = "experiment.json"
@@ -462,7 +467,7 @@ def _fetch_and_hash(
     uri: str, downloads: Path, storage_client: Any | None
 ) -> tuple[Path, str]:
     source = _fetch(uri, downloads, storage_client)
-    return source, _file_sha256(source)
+    return source, file_sha256(source)
 
 
 def _fetch(uri: str, downloads: Path, storage_client: Any | None) -> Path:
@@ -478,14 +483,6 @@ def _fetch(uri: str, downloads: Path, storage_client: Any | None) -> Path:
     except NotFound as e:
         raise ConfigError(f"Image {uri} does not exist") from e
     return target
-
-
-def _file_sha256(path: Path) -> str:
-    digest = sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _suffix(uri: str) -> str:

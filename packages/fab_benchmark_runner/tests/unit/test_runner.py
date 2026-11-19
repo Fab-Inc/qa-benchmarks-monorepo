@@ -15,9 +15,12 @@ from typing import Any
 
 import pytest
 from fdllm.errors import EmptyLLMResponse, LLMContentFiltered
+from mistralai.exceptions import MistralConnectionException
+from PIL import Image
 
 from fab_benchmark_runner import (
     ConfigError,
+    ImageFiles,
     ModelInput,
     create_experiment,
     execute_run,
@@ -345,3 +348,64 @@ def test_a_model_record_of_another_experiment_is_refused(
             call_model=_echo,
             registry={},
         )
+
+
+@pytest.fixture
+def visual_experiment(tmp_path: Path) -> Path:
+    Image.new("RGB", (4, 4), "red").save(tmp_path / "red.png")
+    Image.new("RGB", (4, 4), "blue").save(tmp_path / "blue.png")
+    rows = [
+        {"benchmark_item_id": "v-1", "prompt": "?", "images": [_image("red.png")]},
+        {
+            "benchmark_item_id": "v-2",
+            "prompt": "?",
+            "images": [_image("red.png"), _image("blue.png")],
+        },
+    ]
+    inputs = tmp_path / "inputs.jsonl"
+    inputs.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    create_experiment(inputs, dest=tmp_path / "exp", benchmark="t", max_tokens=100)
+    return tmp_path / "exp"
+
+
+def _image(name: str) -> dict[str, str]:
+    return {"uri": name, "detail": "low"}
+
+
+def test_a_run_with_images_needs_image_files(visual_experiment: Path) -> None:
+    with pytest.raises(ConfigError, match="pass image_files"):
+        execute_run(
+            _config(visual_experiment),
+            visual_experiment,
+            model_configs={},
+            call_model=_echo,
+            registry={},
+        )
+    assert not (visual_experiment / "responses").exists()
+
+
+def test_the_plan_counts_distinct_images_of_calls_still_to_make(
+    visual_experiment: Path, tmp_path: Path
+) -> None:
+    def fail_v2(model: str, model_input: ModelInput, _max_tokens) -> dict[str, Any]:
+        if model_input.benchmark_item_id == "v-2":
+            raise MistralConnectionException("down")
+        return _echo(model, model_input, _max_tokens)
+
+    image_files = ImageFiles(tmp_path / "copies", experiment_location=visual_experiment)
+    config = _config(visual_experiment, "model-a", "model-b")
+    assert plan_run(config, visual_experiment, model_configs={}).images_to_send == 2
+
+    execute_run(
+        config,
+        visual_experiment,
+        model_configs={},
+        call_model=fail_v2,
+        registry={},
+        image_files=image_files,
+    )
+
+    retry = _config(visual_experiment, "model-a", retry_errors=True)
+    assert plan_run(retry, visual_experiment, model_configs={}).images_to_send == 2
+    done = _config(visual_experiment, "model-a")
+    assert plan_run(done, visual_experiment, model_configs={}).images_to_send == 0

@@ -1,7 +1,8 @@
 """Plan and run models on an experiment, with resumable, per-model result files.
 
 Everything here works on a local experiment folder. Jobs on an experiment on GCS
-run on a local mirror of it; ``jobs`` handles the mirroring.
+run on a local mirror of it; ``jobs`` handles the mirroring. Images are fetched and
+checked by ``images.ImageFiles`` before any call.
 """
 
 from __future__ import annotations
@@ -30,7 +31,8 @@ from fab_benchmark_runner.config import RunConfig
 from fab_benchmark_runner.environment import run_environment, version_differences
 from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.experiment import Experiment, read_experiment
-from fab_benchmark_runner.inputs import ITEM_ID_KEY, ModelInput
+from fab_benchmark_runner.images import ImageFiles
+from fab_benchmark_runner.inputs import ITEM_ID_KEY, ImageRef, ModelInput
 from fab_benchmark_runner.registry import sanitize_model_config
 from fab_benchmark_runner.results import (
     CALL_STATUS_ERROR,
@@ -41,6 +43,9 @@ from fab_benchmark_runner.results import (
     utc_now,
 )
 
+# A call function gets the model name, the item's stored input with each image at a
+# checked local copy, and the experiment's token limit (None for no limit). It
+# returns the row fields of the response, such as "output".
 CallModel = Callable[[str, ModelInput, "int | None"], Mapping[str, Any]]
 ArtifactWriteHook = Callable[[Path], None]
 
@@ -77,6 +82,7 @@ class ModelPlan:
 class RunPlan:
     """What a run would do, without calling any model or writing anything.
 
+    ``images_to_send`` counts the distinct images of the calls to make.
     ``version_warnings`` describe how the versions of earlier runs on the
     experiment differ from this one's.
     """
@@ -86,6 +92,7 @@ class RunPlan:
     max_tokens: int | None
     models: tuple[ModelPlan, ...]
     version_warnings: tuple[str, ...] = ()
+    images_to_send: int = 0
 
     @property
     def planned(self) -> int:
@@ -159,22 +166,28 @@ def plan_run(
     experiment_dir: Path,
     *,
     model_configs: Mapping[str, Any],
+    image_files: ImageFiles | None = None,
 ) -> RunPlan:
     """Report which calls a run would make and which results it would reuse.
 
     ``model_configs`` are FDLLM's configs of the run's models, which enter every
-    call ID; pass ``{}`` for models called some other way. Nothing is called or
-    written.
+    call ID; pass ``{}`` for models called some other way. With ``image_files``,
+    the images of the calls to make are fetched and checked, as a run would.
+    No model is called and the experiment is not written.
     """
 
     experiment = read_experiment(experiment_dir)
     states = _plan_models(config, experiment, experiment_dir, model_configs)
+    images = _images_to_send(states)
+    if image_files is not None:
+        image_files.fetch(images)
     return RunPlan(
         experiment_id=experiment.experiment_id,
         experiment_dir=experiment_dir,
         max_tokens=experiment.max_tokens,
         models=tuple(state.summary() for state in states.values()),
         version_warnings=tuple(_version_warnings(experiment_dir)),
+        images_to_send=len({image.sha256 for image in images}),
     )
 
 
@@ -185,17 +198,27 @@ def execute_run(
     model_configs: Mapping[str, Any],
     call_model: CallModel,
     registry: Mapping[str, Any],
+    image_files: ImageFiles | None = None,
     on_artifact_write: ArtifactWriteHook | None = None,
 ) -> RunResult:
     """Run every planned call without a reusable result, checkpointing as it goes.
 
     Each model gets the experiment's stored inputs and its current ``max_tokens``,
-    which every row records. A model's results and record are written only by
-    the job running it; ``on_artifact_write`` sees each file as it is written.
+    which every row records. Before any call, ``image_files`` fetches and checks
+    the images of the calls to make; it is needed only when there are some. A
+    model's results and record are written only by the job running it;
+    ``on_artifact_write`` sees each file as it is written.
     """
 
     experiment = read_experiment(experiment_dir)
     states = _plan_models(config, experiment, experiment_dir, model_configs)
+    images = _images_to_send(states)
+    if images:
+        if image_files is None:
+            raise ConfigError(
+                "This run sends images; pass image_files to fetch and check them"
+            )
+        image_files.fetch(images)
     warnings = tuple(_version_warnings(experiment_dir))
     environment = run_environment()
 
@@ -230,6 +253,7 @@ def execute_run(
         experiment=experiment,
         states=states,
         call_model=call_model,
+        image_files=image_files,
         on_artifact_write=on_artifact_write,
         after_model=record_model,
     )
@@ -264,6 +288,17 @@ def _row_input_fields(
         "result_id": call.result_id,
         "system_prompt": model_input.system_prompt,
     }
+
+
+def _images_to_send(states: Mapping[str, _ModelState]) -> list[ImageRef]:
+    """Return the images of every call to make, in model then item order."""
+
+    return [
+        image
+        for state in states.values()
+        for call in state.pending
+        for image in call.model_input.images
+    ]
 
 
 def _version_warnings(experiment_dir: Path) -> list[str]:
@@ -411,6 +446,7 @@ def _run_models_in_parallel(
     experiment: Experiment,
     states: Mapping[str, _ModelState],
     call_model: CallModel,
+    image_files: ImageFiles | None,
     on_artifact_write: ArtifactWriteHook | None,
     after_model: Callable[[_ModelState, int, bool], None],
 ) -> dict[str, int]:
@@ -428,6 +464,7 @@ def _run_models_in_parallel(
             experiment=experiment,
             state=state,
             call_model=call_model,
+            image_files=image_files,
             on_artifact_write=on_artifact_write,
         )
         after_model(state, executed, written)
@@ -464,6 +501,7 @@ def _run_model(
     experiment: Experiment,
     state: _ModelState,
     call_model: CallModel,
+    image_files: ImageFiles | None,
     on_artifact_write: ArtifactWriteHook | None,
 ) -> tuple[int, bool]:
     """Run one model's pending calls in item order, checkpointing each chunk.
@@ -485,6 +523,7 @@ def _run_model(
                 model_name=state.model,
                 call=call,
                 call_model=call_model,
+                image_files=image_files,
             )
             executed += 1
         checkpoint()
@@ -501,10 +540,14 @@ def _evaluate_call(
     model_name: str,
     call: _PlannedCall,
     call_model: CallModel,
+    image_files: ImageFiles | None,
 ) -> dict[str, Any]:
     input_fields = _row_input_fields(experiment, model_name, call)
+    sent_input = call.model_input
+    if image_files is not None:
+        sent_input = image_files.local_input(sent_input)
     try:
-        payload = call_model(model_name, call.model_input, experiment.max_tokens)
+        payload = call_model(model_name, sent_input, experiment.max_tokens)
     except PROVIDER_ERRORS as e:
         return _error_row(
             input_fields,

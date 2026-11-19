@@ -78,6 +78,7 @@ class FakeBlob:
             generation, content = self.client.objects[self.bucket_name][self.name]
         except KeyError as e:
             raise NotFound(self.name) from e
+        self.client.downloads.append(self.name)
         if if_generation_match is not None and generation != if_generation_match:
             raise PreconditionFailed(self.name)
         Path(filename).write_bytes(content)
@@ -115,6 +116,7 @@ class FakeStorageClient:
         self.objects: dict[str, dict[str, tuple[int, bytes]]] = {}
         self.next_generation = 100
         self.upload_preconditions: list[tuple[str, int]] = []
+        self.downloads: list[str] = []
         self.fail_next_upload: set[str] = set()
         self.commit_then_fail_next_upload: set[str] = set()
 

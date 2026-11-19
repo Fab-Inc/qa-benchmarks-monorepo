@@ -4,18 +4,25 @@ The behaviour tests describe what the runner is meant to do, through the same
 entry points people use: ``create_experiment``, ``raise_max_tokens`` and a job
 running a run config (``run_job``/``plan_job``, which ``fab-bench run`` calls).
 Only the model calls are faked, by ``FakeModels``, and GCS by an in-memory fake.
+Tests about what FDLLM is handed run through FDLLM instead, with only the providers
+behind it faked, by ``FakeProviders``.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import fdllm
 import pytest
 from fdllm.errors import EmptyLLMResponse
 from mistralai.exceptions import MistralConnectionException
+from PIL import Image
 
 from fab_benchmark_runner import (
     ModelInput,
@@ -26,6 +33,8 @@ from fab_benchmark_runner import (
     plan_job,
     run_job,
 )
+from fab_benchmark_runner import jobs as jobs_module
+from fab_benchmark_runner.gcs import parse_gs_uri
 
 TEXT_INPUTS = (
     {
@@ -41,6 +50,21 @@ TEXT_INPUTS = (
     {"benchmark_item_id": "open-1", "prompt": "Write a sentence about a cat."},
 )
 MODELS = ("model-a", "model-b", "model-c")
+
+
+def png(color: str = "red", size: tuple[int, int] = (40, 30)) -> bytes:
+    """Return a PNG file of one color."""
+
+    buffer = BytesIO()
+    Image.new("RGB", size, color=color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def color_of(picture: Image.Image) -> tuple[int, int, int]:
+    """Return the color of an image's top-left pixel."""
+
+    return picture.convert("RGB").getpixel((0, 0))
+
 
 Behaviour = Callable[[ModelInput, "int | None"], Mapping[str, Any]]
 
@@ -131,6 +155,63 @@ class FakeModels:
         self._behaviours[(None, item_id)] = behave
 
 
+@dataclass
+class ProviderRequest:
+    """One request as FDLLM's caller received it: its messages and limit."""
+
+    model: str
+    messages: list[Any]
+    max_tokens: int | None
+
+    @property
+    def user_message(self) -> Any:
+        return self.messages[-1]
+
+
+class FakeProviders:
+    """Stands in for the providers behind FDLLM, so a run goes through FDLLM.
+
+    The runner builds FDLLM's messages and images as for a real call; each request
+    is recorded as FDLLM's caller received it, and answered. Every model takes
+    images unless a test sets ``vision[model] = False``, as for a registry entry
+    without ``Vision: true``.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.vision: dict[str, bool] = {}
+        self.requests: list[ProviderRequest] = []
+        monkeypatch.setattr(jobs_module, "prepare_fdllm", self._prepare)
+        monkeypatch.setattr(fdllm, "get_caller", self._caller)
+
+    def request(self, prompt: str, model: str = "model-a") -> ProviderRequest:
+        [request] = [
+            r
+            for r in self.requests
+            if r.model == model and r.user_message.Message == prompt
+        ]
+        return request
+
+    def _prepare(
+        self, _registry: Any, models: Iterable[str], *, env_path: Any
+    ) -> dict[str, Any]:
+        return {
+            model: {"Api_Interface": "OpenAI", "Vision": self.vision.get(model, True)}
+            for model in models
+        }
+
+    def _caller(self, model: str) -> Any:
+        providers = self
+
+        class Caller:
+            def call(self, messages: list[Any], max_tokens: int | None) -> Any:
+                providers.requests.append(
+                    ProviderRequest(model, list(messages), max_tokens)
+                )
+                return SimpleNamespace(Message=f"{model} answers", ResponseModel=model)
+
+        return Caller()
+
+
 class Bench:
     """A working folder with a model registry, fake models and a fake GCS."""
 
@@ -193,15 +274,20 @@ class Bench:
         *models: str,
         experiment: str | None = None,
         job: str = "job",
+        through_fdllm: bool = False,
         **settings: Any,
     ) -> RunResult:
-        """Run models on an experiment as one job; ``job`` names its workdir."""
+        """Run models on an experiment as one job; ``job`` names its workdir.
+
+        Models are ``FakeModels`` unless ``through_fdllm``, which needs the
+        ``providers`` fixture.
+        """
 
         return run_job(
             self.config(*models, experiment=experiment, **settings),
             workdir=self.root / job,
             download_public_registry=False,
-            call_model=self.models,
+            call_model=None if through_fdllm else self.models,
             storage_client=self.storage,
         )
 
@@ -210,15 +296,33 @@ class Bench:
         *models: str,
         experiment: str | None = None,
         job: str = "job",
+        through_fdllm: bool = False,
         **settings: Any,
     ) -> RunPlan:
         return plan_job(
             self.config(*models, experiment=experiment, **settings),
             workdir=self.root / job,
             download_public_registry=False,
-            call_model=self.models,
+            call_model=None if through_fdllm else self.models,
             storage_client=self.storage,
         )
+
+    def put(self, uri: str, content: bytes) -> None:
+        """Write a file to the fake GCS, as a new generation."""
+
+        bucket_name, name = parse_gs_uri(uri)
+        generation = self.storage.next_generation
+        self.storage.next_generation += 1
+        self.storage.objects.setdefault(bucket_name, {})[name] = (generation, content)
+
+    def remove(self, uri: str) -> None:
+        bucket_name, name = parse_gs_uri(uri)
+        del self.storage.objects[bucket_name][name]
+
+    def image_downloads(self) -> list[str]:
+        """Return the GCS images downloaded so far: objects in an images folder."""
+
+        return [name for name in self.storage.downloads if "/images/" in name]
 
     def folder(self, experiment: str = "experiment") -> Path:
         return self.root / experiment
@@ -258,3 +362,8 @@ class Bench:
 @pytest.fixture
 def bench(tmp_path: Path, storage: Any) -> Bench:
     return Bench(tmp_path, storage)
+
+
+@pytest.fixture
+def providers(monkeypatch: pytest.MonkeyPatch) -> FakeProviders:
+    return FakeProviders(monkeypatch)

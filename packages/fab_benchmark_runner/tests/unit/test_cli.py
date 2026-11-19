@@ -175,6 +175,23 @@ def test_the_dry_run_prints_version_warnings(tmp_path: Path) -> None:
     assert "fdllm: 0.29.0 in earlier results" in result.output
 
 
+def test_the_dry_run_says_how_many_images_it_checked(tmp_path: Path) -> None:
+    from fab_benchmark_runner.runner import RunPlan
+
+    plan = RunPlan("e", tmp_path, None, (), images_to_send=3)
+    with (
+        patch("fab_benchmark_runner.cli.load_run_config", return_value=CONFIG),
+        patch("fab_benchmark_runner.cli.plan_job", return_value=plan),
+    ):
+        result = CliRunner().invoke(
+            fab_bench, ["run", "--config", "run.json", "--dry-run"]
+        )
+
+    assert result.exit_code == 0
+    assert "Max tokens: none" in result.output
+    assert "Images: 3 to send, each fetched and checked" in result.output
+
+
 def test_raise_max_tokens(tmp_path: Path) -> None:
     _experiment(tmp_path)
     command = ["raise-max-tokens", "--experiment", str(tmp_path / "exp")]

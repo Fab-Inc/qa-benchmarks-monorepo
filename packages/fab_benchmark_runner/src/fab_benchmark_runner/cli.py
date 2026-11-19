@@ -405,6 +405,11 @@ def echo_plan(plan: RunPlan) -> None:
     typer.echo(
         f"Total: {plan.planned} planned, {plan.reused} reused, {plan.to_run} to run"
     )
+    if plan.images_to_send:
+        typer.echo(
+            f"Images: {plan.images_to_send} to send, each fetched and checked against "
+            "its SHA-256"
+        )
 
 
 def _limit_text(max_tokens: int | None) -> str:
