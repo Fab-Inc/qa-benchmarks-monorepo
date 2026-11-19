@@ -1,11 +1,9 @@
 """The inputs file a benchmark hands to the runner: one rendered input per item.
 
 Each line is a JSON object with ``benchmark_item_id``, ``prompt``, an optional
-``system_prompt`` and an optional ``images`` list. Each image has a ``uri`` (a
-``gs://`` URI, an absolute path, or a path relative to the inputs file) and a
-``detail`` of ``low`` or ``high``. Images go into the item's one user message, in
-order. The inputs file itself can be local or on GCS. The runner never builds
-prompts: what is in this file is what models see.
+``system_prompt`` and an optional ``images`` list. The runner never builds
+prompts: what is in this file is what models see. INPUTS.md, next to the package's
+README, specifies the format; ``tests/behaviour/test_inputs_file.py`` checks it.
 """
 
 from __future__ import annotations
@@ -81,16 +79,23 @@ class ModelInput:
 
     def __post_init__(self) -> None:
         item_id = self.benchmark_item_id
+        if isinstance(item_id, int | float) and not isinstance(item_id, bool):
+            raise ValueError(
+                f"{ITEM_ID_KEY} must be a string; write the number {item_id} as "
+                f'"{item_id}"'
+            )
         if not isinstance(item_id, str) or not item_id or item_id != item_id.strip():
             raise ValueError(
                 f"{ITEM_ID_KEY} must be a non-empty string without surrounding spaces"
             )
-        if not isinstance(self.prompt, str) or not self.prompt:
-            raise ValueError("prompt must be a non-empty string")
+        if not isinstance(self.prompt, str) or not self.prompt.strip():
+            raise ValueError("prompt must be a string with more than whitespace")
         if self.system_prompt is not None and (
-            not isinstance(self.system_prompt, str) or not self.system_prompt
+            not isinstance(self.system_prompt, str) or not self.system_prompt.strip()
         ):
-            raise ValueError("system_prompt must be a non-empty string or null")
+            raise ValueError(
+                "system_prompt must be null or a string with more than whitespace"
+            )
         if not isinstance(self.images, tuple) or not all(
             isinstance(image, ImageRef) for image in self.images
         ):

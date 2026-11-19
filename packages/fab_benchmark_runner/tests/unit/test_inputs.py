@@ -61,8 +61,11 @@ def test_reads_text_and_image_inputs(tmp_path: Path) -> None:
         ({"benchmark_item_id": "a", "prompt": "p", "system": "s"}, "unknown keys"),
         ({"benchmark_item_id": "a"}, "prompt must be"),
         ({"benchmark_item_id": "a", "prompt": ""}, "prompt must be"),
+        ({"benchmark_item_id": "a", "prompt": " \n"}, "more than whitespace"),
+        ({"benchmark_item_id": 7, "prompt": "p"}, 'write the number 7 as "7"'),
         ({"benchmark_item_id": " a", "prompt": "p"}, "benchmark_item_id must be"),
         ({"benchmark_item_id": "a", "prompt": "p", "system_prompt": ""}, "system_"),
+        ({"benchmark_item_id": "a", "prompt": "p", "system_prompt": " "}, "system_"),
         ({"benchmark_item_id": "a", "prompt": "p", "images": {}}, "must be a list"),
         (
             {"benchmark_item_id": "a", "prompt": "p", "images": [{"uri": "x.png"}]},

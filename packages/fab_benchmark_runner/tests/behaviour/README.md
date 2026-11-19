@@ -7,6 +7,7 @@ with the decisions it describes; each test name states one behaviour.
 
 | Module                      | Describes                                                      |
 | --------------------------- | -------------------------------------------------------------- |
+| `test_inputs_file.py`       | The inputs file format, rule by rule, as `INPUTS.md` gives it  |
 | `test_experiments.py`       | Inputs stored once: what models get, IDs, images               |
 | `test_images.py`            | Images: what models are sent, checked before any call          |
 | `test_running_models.py`    | Results per model, reuse, resuming, errors, run configs        |
