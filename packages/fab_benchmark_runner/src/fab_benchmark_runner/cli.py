@@ -26,6 +26,7 @@ from fab_benchmark_runner.jobs import (
     plan_job,
     run_job,
     upload_experiment,
+    upload_run_config,
 )
 from fab_benchmark_runner.registry import CUSTOM_MODELS_FILE_NAME
 from fab_benchmark_runner.run_sync import RunSyncConflictError
@@ -331,6 +332,30 @@ def upload_experiment_cmd(
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
     typer.echo(f"Uploaded {count} files to {dest}")
+
+
+@app.command("upload-run-config")
+def upload_run_config_cmd(
+    config: Path = typer.Argument(..., dir_okay=False, help="Local run config."),
+    dest: str | None = typer.Option(
+        None,
+        "--dest",
+        help="gs:// folder for run configs; default: run-configs/ in the "
+        "experiment's bucket.",
+    ),
+) -> None:
+    """Check a run config as a Cloud Run job reads it, upload it, print its URI.
+
+    The upload is named by the config's content, so the same config always gets
+    the same URI. deploy/launch-run.sh runs this, then the job with the URI.
+    """
+
+    try:
+        uri = upload_run_config(config, dest_uri=dest)
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    typer.echo(uri)
 
 
 def _run_or_plan(

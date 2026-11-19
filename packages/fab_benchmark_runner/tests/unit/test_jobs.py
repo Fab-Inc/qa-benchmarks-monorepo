@@ -7,6 +7,8 @@ these tests pin the mechanics underneath.
 from __future__ import annotations
 
 import json
+import re
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -22,6 +24,7 @@ from fab_benchmark_runner import (
     plan_job,
     run_job,
     upload_experiment,
+    upload_run_config,
 )
 from fab_benchmark_runner.jobs import experiment_mirror
 from fab_benchmark_runner.run_sync import RunSync, RunSyncConflictError
@@ -256,4 +259,70 @@ def test_upload_refuses_images_at_local_paths(tmp_path: Path, storage: Any) -> N
 
     with pytest.raises(ConfigError, match="--copy-images"):
         upload_experiment(tmp_path / "exp", "gs://bucket/up", storage_client=storage)
+    assert storage.upload_preconditions == []
+
+
+def _run_config(tmp_path: Path, **raw: Any) -> Path:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps({"experiment": EXPERIMENT, "models": ["m"], **raw}))
+    return path
+
+
+def test_a_run_config_is_stored_as_canonical_json_named_by_its_hash(
+    tmp_path: Path, storage: Any
+) -> None:
+    uri = upload_run_config(_run_config(tmp_path), storage_client=storage)
+
+    bucket, name = uri.removeprefix("gs://").split("/", 1)
+    _generation, content = storage.objects[bucket][name]
+    assert content == (
+        b'{\n  "experiment": "gs://bucket/exp",\n  "models": [\n    "m"\n  ]\n}\n'
+    )
+    assert name == f"run-configs/{sha256(content).hexdigest()}.json"
+
+
+def test_uploading_a_run_config_again_changes_nothing(
+    tmp_path: Path, storage: Any
+) -> None:
+    first = upload_run_config(_run_config(tmp_path), storage_client=storage)
+    bucket, name = first.removeprefix("gs://").split("/", 1)
+    generation = storage.objects[bucket][name][0]
+
+    second = upload_run_config(_run_config(tmp_path), storage_client=storage)
+
+    assert second == first
+    assert storage.objects[bucket][name][0] == generation
+
+
+@pytest.mark.parametrize(
+    ("dest", "folder"),
+    [
+        (None, "gs://bucket/run-configs/"),
+        ("gs://configs/mathv/", "gs://configs/mathv/"),
+    ],
+)
+def test_run_configs_go_to_the_experiments_bucket_unless_told_otherwise(
+    tmp_path: Path, storage: Any, dest: str | None, folder: str
+) -> None:
+    uri = upload_run_config(
+        _run_config(tmp_path), dest_uri=dest, storage_client=storage
+    )
+
+    assert uri.startswith(folder)
+    assert re.fullmatch(r"[0-9a-f]{64}\.json", uri.removeprefix(folder))
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        ({"experiment": "exp"}, "upload it with fab-bench upload-experiment"),
+        ({"custom_models_path": "custom_models.yaml"}, "custom_models_uri"),
+        ({"max_tokens": 100}, "no longer take 'max_tokens'"),
+    ],
+)
+def test_a_run_config_cloud_run_could_not_run_is_not_uploaded(
+    tmp_path: Path, storage: Any, raw: dict[str, Any], message: str
+) -> None:
+    with pytest.raises(ConfigError, match=message):
+        upload_run_config(_run_config(tmp_path, **raw), storage_client=storage)
     assert storage.upload_preconditions == []

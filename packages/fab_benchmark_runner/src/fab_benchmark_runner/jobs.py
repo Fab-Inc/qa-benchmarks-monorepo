@@ -16,13 +16,19 @@ from __future__ import annotations
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 import typer
+from google.api_core.exceptions import PreconditionFailed
 
 from fab_benchmark_runner import gcs
-from fab_benchmark_runner.config import RunConfig
+from fab_benchmark_runner.config import (
+    RunConfig,
+    parse_run_config,
+    read_config_object,
+)
 from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.experiment import (
     EXPERIMENT_RECORD_NAME,
@@ -30,6 +36,7 @@ from fab_benchmark_runner.experiment import (
     INPUTS_FILE_NAME,
     read_experiment,
 )
+from fab_benchmark_runner.ids import canonical_json
 from fab_benchmark_runner.images import ImageFiles
 from fab_benchmark_runner.llm import call_model_with_fdllm
 from fab_benchmark_runner.records import MODEL_RECORDS_DIR, RESPONSES_DIR
@@ -50,6 +57,7 @@ from fab_benchmark_runner.runner import (
 )
 
 MIRRORS_DIR = "experiments"
+RUN_CONFIGS_DIR = "run-configs"
 
 
 def plan_job(
@@ -236,6 +244,45 @@ def upload_experiment(
     return sum(path.is_file() for path in ordered)
 
 
+def upload_run_config(
+    path: Path, *, dest_uri: str | None = None, storage_client: Any | None = None
+) -> str:
+    """Upload a run config for a Cloud Run job, named by its content; return its URI.
+
+    The config is checked as the job will read it: its experiment and any pinned
+    registry must be on GCS. It is stored as canonical JSON at
+    ``<dest_uri>/<sha256>.json``, by default in ``run-configs/`` in the
+    experiment's bucket. The same config always gets the same URI and is uploaded
+    once, so launching it again resumes the same work.
+    """
+
+    raw = read_config_object(Path(path), description=f"run config {path}")
+    parse_run_config(raw, base_dir=None, source=str(path))
+    if dest_uri is None:
+        experiment_bucket, _ = gcs.parse_gs_uri(raw["experiment"].rstrip("/") + "/")
+        dest_uri = f"gs://{experiment_bucket}/{RUN_CONFIGS_DIR}"
+    content = canonical_json(raw, indent=2) + "\n"
+    digest = sha256(content.encode("utf-8")).hexdigest()
+    uri = f"{_gcs_folder(dest_uri)}/{digest}.json"
+
+    bucket_name, object_name = gcs.parse_gs_uri(uri)
+    client = storage_client or gcs.create_storage_client()
+    with tempfile.TemporaryDirectory(prefix="fab-bench-run-config-") as temporary:
+        local = Path(temporary) / "run.json"
+        local.write_text(content, encoding="utf-8")
+        try:
+            gcs.upload_file_with_generation(
+                source_path=local,
+                bucket_name=bucket_name,
+                file_name=object_name,
+                if_generation_match=0,
+                storage_client=client,
+            )
+        except PreconditionFailed:
+            pass  # uploaded before: the name is its content's hash
+    return uri
+
+
 def experiment_mirror(workdir: Path, experiment_uri: str) -> Path:
     """Return where a job keeps its local copy of an experiment on GCS."""
 
@@ -329,10 +376,14 @@ def _check_models_take_images(
 
 
 def _gcs_experiment(uri: str) -> str:
+    return _gcs_folder(uri, what="experiment URI")
+
+
+def _gcs_folder(uri: str, *, what: str = "GCS folder") -> str:
     if not isinstance(uri, str) or not uri.startswith("gs://"):
         raise ConfigError(f"{uri!r} is not a gs:// URI")
     try:
         gcs.parse_gs_uri(uri.rstrip("/") + "/")
     except ValueError as e:
-        raise ConfigError(f"Invalid experiment URI {uri}: {e}") from e
+        raise ConfigError(f"Invalid {what} {uri}: {e}") from e
     return uri.rstrip("/")

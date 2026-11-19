@@ -1,82 +1,37 @@
 #!/usr/bin/env bash
-# Upload a local run config and items to GCS, then execute the Cloud Run job on them.
-# Rerunning with the same RUN_ID resumes the run.
-# From fab-benchmark-runner's deploy/ folder.
+# Launch a run config on the fab-bench Cloud Run job. fab-bench checks the config
+# as the job will read it and uploads it once, named by its content, so launching
+# the same config again resumes it.
 set -euo pipefail
 
-# SET: the benchmark's name. It names the image, the Cloud Run job and the GCS
-# prefix; each can also be overridden on its own.
-BENCHMARK="${BENCHMARK:-my-benchmark}"
-
-if [[ "$#" -ne 3 ]]; then
-  echo "Usage: $0 LOCAL_CONFIG LOCAL_ITEMS RUN_ID" >&2
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: $0 RUN_CONFIG" >&2
   exit 2
 fi
 
-: "${PROJECT_ID:?Set PROJECT_ID to the Google Cloud project ID}"
-: "${RESULTS_BUCKET:?Set RESULTS_BUCKET to a gs:// bucket URI}"
+: "${PROJECT_ID:?Set PROJECT_ID to the project the job runs in}"
 
-CONFIG_PATH="$1"
-ITEMS_PATH="$2"
-RUN_ID="$3"
 REGION="${REGION:-europe-west1}"
-JOB_NAME="${JOB_NAME:-${BENCHMARK}-run}"
-GCS_PREFIX="${GCS_PREFIX:-${BENCHMARK}}"
-BUCKET_URI="${RESULTS_BUCKET%/}"
-items_name="$(basename "${ITEMS_PATH}")"
-items_extension=""
-if [[ "${items_name}" == *.* ]]; then
-  items_extension=".${items_name##*.}"
+JOB_NAME="${JOB_NAME:-fab-bench}"
+# The fab-bench command, for example "uvx --from <runner> fab-bench".
+read -r -a fab_bench <<<"${FAB_BENCH:-fab-bench}"
+
+upload_args=(upload-run-config "$1")
+# Where run configs go; by default run-configs/ in the experiment's bucket.
+if [[ -n "${RUN_CONFIGS_URI:-}" ]]; then
+  upload_args+=(--dest "${RUN_CONFIGS_URI}")
 fi
-ITEMS_URI="${BUCKET_URI}/${GCS_PREFIX}/datasets/${RUN_ID}${items_extension}"
-RUN_CONFIG_URI="${BUCKET_URI}/${GCS_PREFIX}/run-configs/${RUN_ID}.json"
-RUN_PREFIX="${BUCKET_URI}/${GCS_PREFIX}/runs/${RUN_ID}/"
+config_uri="$("${fab_bench[@]}" "${upload_args[@]}")"
+echo "Run config: ${config_uri}"
 
-command -v jq >/dev/null || {
-  echo "jq is required to prepare the cloud config" >&2
-  exit 1
-}
-
-if gcloud storage ls "${RUN_CONFIG_URI}" >/dev/null 2>&1; then
-  echo "Remote run config already exists; executing it as a resume: ${RUN_CONFIG_URI}"
-else
-  prepared_config="$(mktemp "${TMPDIR:-/tmp}/benchmark-cloud-config.XXXXXX")"
-  existing_items="$(mktemp "${TMPDIR:-/tmp}/benchmark-cloud-items.XXXXXX")"
-  trap 'rm -f "${prepared_config}" "${existing_items}"' EXIT
-
-  jq \
-    --arg run_id "${RUN_ID}" \
-    --arg items_uri "${ITEMS_URI}" \
-    --arg results_dest "${RUN_PREFIX}" \
-    '.run_id = $run_id
-      | .items_path = $items_uri
-      | .results_dest = $results_dest
-      | del(.output_dir)' \
-    "${CONFIG_PATH}" >"${prepared_config}"
-
-  if gcloud storage ls "${ITEMS_URI}" >/dev/null 2>&1; then
-    gcloud storage cp "${ITEMS_URI}" "${existing_items}" >/dev/null
-    if cmp -s "${ITEMS_PATH}" "${existing_items}"; then
-      echo "Reusing the identical existing run items object: ${ITEMS_URI}"
-    else
-      echo "Remote items differ for reused RUN_ID '${RUN_ID}': ${ITEMS_URI}" >&2
-      echo "Choose a new RUN_ID or explicitly remove the old run objects." >&2
-      exit 1
-    fi
-  else
-    gcloud storage cp \
-      --if-generation-match=0 \
-      "${ITEMS_PATH}" \
-      "${ITEMS_URI}"
-  fi
-  gcloud storage cp \
-    --if-generation-match=0 \
-    "${prepared_config}" \
-    "${RUN_CONFIG_URI}"
+execute_args=(
+  gcloud run jobs execute "${JOB_NAME}"
+  --project="${PROJECT_ID}"
+  --region="${REGION}"
+  --args="run-cloud,--config,${config_uri}"
+)
+if [[ "${WAIT:-false}" == true ]]; then
+  execute_args+=(--wait)
 fi
 
-gcloud run jobs execute "${JOB_NAME}" \
-  --project="${PROJECT_ID}" \
-  --region="${REGION}" \
-  --args="run-cloud,--config,${RUN_CONFIG_URI}" \
-  --wait
+"${execute_args[@]}"

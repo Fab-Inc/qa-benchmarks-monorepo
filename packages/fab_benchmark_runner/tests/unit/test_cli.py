@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from fab_benchmark_runner import parse_run_config, read_experiment
+from fab_benchmark_runner import ConfigError, parse_run_config, read_experiment
 from fab_benchmark_runner.cli import app as fab_bench
 
 REGISTRY = b"provider:\n  models:\n    model-a: {}\n"
@@ -234,6 +234,34 @@ def test_fetch_results_and_upload_experiment(tmp_path: Path) -> None:
     fetch.assert_called_once_with("gs://bucket/exp", tmp_path / "out", model="model-a")
     assert "Uploaded 3 files to gs://bucket/exp" in uploaded.output
     upload.assert_called_once_with(tmp_path, "gs://bucket/exp")
+
+
+def test_upload_run_config_prints_only_the_uri() -> None:
+    """launch-run.sh reads the URI from standard output."""
+
+    uri = "gs://bucket/run-configs/" + "a" * 64 + ".json"
+    with patch(
+        "fab_benchmark_runner.cli.upload_run_config", return_value=uri
+    ) as upload:
+        result = CliRunner().invoke(
+            fab_bench, ["upload-run-config", "run.json", "--dest", "gs://c/x"]
+        )
+
+    assert result.exit_code == 0
+    assert result.stdout == uri + "\n"
+    upload.assert_called_once_with(Path("run.json"), dest_uri="gs://c/x")
+
+
+def test_a_refused_run_config_prints_no_uri() -> None:
+    with patch(
+        "fab_benchmark_runner.cli.upload_run_config",
+        side_effect=ConfigError("local experiment"),
+    ):
+        result = CliRunner().invoke(fab_bench, ["upload-run-config", "run.json"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "ERROR: local experiment" in result.stderr
 
 
 def test_unexpected_exceptions_keep_their_traceback(tmp_path: Path) -> None:

@@ -29,6 +29,7 @@ from fab_benchmark_runner.jobs import (
     plan_job,
     run_job,
     upload_experiment,
+    upload_run_config,
 )
 from fab_benchmark_runner.results import load_results, model_results_filename
 from fab_benchmark_runner.runner import (
@@ -71,5 +72,6 @@ __all__ = [
     "result_id",
     "run_job",
     "upload_experiment",
+    "upload_run_config",
     "write_inputs",
 ]

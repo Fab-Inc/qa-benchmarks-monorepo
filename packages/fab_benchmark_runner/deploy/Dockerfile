@@ -1,14 +1,12 @@
 # syntax=docker/dockerfile:1
 
-# Benchmark image for Cloud Run jobs, from fab-benchmark-runner's deploy/ folder.
-# Copy it to deploy/Dockerfile in the benchmark's repository and set the values
-# marked SET. deploy/build-image.sh builds it with the repository root as context.
+# The shared fab-bench image for Cloud Run jobs: the runner and its locked
+# dependencies, and no benchmark code. A job runs `fab-bench run-cloud --config
+# gs://…`. deploy/build-image.sh builds it with the runner package's folder as the
+# context.
 
 ARG UV_VERSION=0.11.8
-# SET: the Python version the benchmark runs on.
 ARG PYTHON_VERSION=3.12
-ARG CODE_GIT_HASH=unknown
-ARG CODE_GIT_DIRTY=unknown
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
@@ -16,7 +14,7 @@ FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
 COPY --from=uv /uv /uvx /bin/
 
-# git fetches git-sourced dependencies such as fab-benchmark-runner and fabdata-llm.
+# git fetches FDLLM, which is installed from its git repository.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -26,38 +24,34 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 
-# .dockerignore limits the build context to what the install needs.
+# .dockerignore keeps the context to what the install needs.
 COPY . .
-
-# SET in a uv workspace: the member that provides the benchmark CLI. Leave it
-# empty for a single-project repository.
-ARG UV_PACKAGE=
-RUN uv sync --frozen --no-dev --no-editable ${UV_PACKAGE:+--package "$UV_PACKAGE"}
+RUN uv sync --frozen --no-dev --no-editable
 
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
-ARG CODE_GIT_HASH
-ARG CODE_GIT_DIRTY
+# The runner's git commit: the install above carries no git metadata, so runs
+# read it from FAB_BENCH_RUNNER_COMMIT.
+ARG RUNNER_COMMIT
+RUN test -n "${RUNNER_COMMIT}" || { echo "Set the RUNNER_COMMIT build arg" >&2; exit 1; }
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
-    CODE_GIT_HASH="${CODE_GIT_HASH}" \
-    CODE_GIT_DIRTY="${CODE_GIT_DIRTY}"
+    FAB_BENCH_RUNNER_COMMIT="${RUNNER_COMMIT}"
 
-LABEL org.opencontainers.image.revision="${CODE_GIT_HASH}"
+LABEL org.opencontainers.image.revision="${RUNNER_COMMIT}"
 
-RUN groupadd --system benchmark \
-    && useradd --system --gid benchmark --home-dir /workspace benchmark \
+RUN groupadd --system fab-bench \
+    && useradd --system --gid fab-bench --home-dir /workspace fab-bench \
     && mkdir -p /workspace \
-    && chown benchmark:benchmark /workspace
+    && chown fab-bench:fab-bench /workspace
 
-# Installed code stays immutable; downloads and run outputs live under /workspace.
+# Installed code stays immutable; downloads and results live under /workspace.
 COPY --from=builder /app/.venv /app/.venv
 
-USER benchmark
+USER fab-bench
 WORKDIR /workspace
 
-# SET: the benchmark's console script, from [project.scripts].
-ENTRYPOINT ["my-benchmark"]
+ENTRYPOINT ["fab-bench"]
 CMD ["run-cloud", "--help"]

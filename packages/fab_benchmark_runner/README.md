@@ -66,7 +66,9 @@ its folder: `uv run --frozen pytest`.
 An experiment stores a benchmark's rendered inputs once, so every model run on it, now
 or later, gets identical input.
 
-A benchmark writes an inputs file with its own code, one JSON object per line:
+A benchmark writes an inputs file with its own code, one JSON object per line. The full
+format, what models receive and how it is stored are specified in
+[INPUTS.md](INPUTS.md):
 
 ```json
 {"benchmark_item_id": "sw-1", "prompt": "Evaluate …", "system_prompt": "You are …"}
@@ -138,6 +140,7 @@ Adding a model means writing another run config; nothing shared is rewritten.
 | `fab-bench raise-max-tokens --experiment …`   | Raise an experiment's token limit                        |
 | `fab-bench fetch-results --experiment gs://…` | Download inputs, records and results (`--model` for one) |
 | `fab-bench upload-experiment <folder> gs://…` | Copy a local experiment, with its results, to GCS        |
+| `fab-bench upload-run-config run.json`        | Check a config for Cloud Run, upload it, print its URI   |
 
 `run` and `run-cloud` accept `--dry-run` and `--skip-models-download`; `run` also takes
 `--force`, `--retry-errors`, `--model-workers` and `--workdir` (default `.fab-bench`).
@@ -259,45 +262,70 @@ model's calls.
 
 ## Cloud Run
 
-The deploy files still build one image per benchmark and launch the old run configs;
-they move to one shared runner image running `fab-bench run-cloud` in the next step.
+One image, built from this package, runs every benchmark: it holds the runner and its
+locked dependencies, and no benchmark code. A Cloud Run job runs
+`fab-bench run-cloud --config gs://…` on a run config whose experiment is on GCS. The
+scripts are in this package's `deploy/` folder.
 
-The `deploy/` folder next to this README holds the files a benchmark copies into its own
-repository, once:
-
-| File              | Copy to                  | What it does                                                  |
-| ----------------- | ------------------------ | ------------------------------------------------------------- |
-| `Dockerfile`      | `deploy/Dockerfile`      | Installs the project with `uv sync --frozen` and runs its CLI |
-| `cloudbuild.yaml` | `deploy/cloudbuild.yaml` | Builds the image, checks `run-cloud --help`, pushes it        |
-| `build-image.sh`  | `deploy/build-image.sh`  | Submits the build with the git revision baked in              |
-| `deploy-job.sh`   | `deploy/deploy-job.sh`   | Creates or updates the Cloud Run job                          |
-| `launch-run.sh`   | `deploy/launch-run.sh`   | Uploads a local config and items, then executes the job       |
-| `dockerignore`    | `.dockerignore`          | Keeps the build context to what the install needs             |
-| `gcloudignore`    | `.gcloudignore`          | Uploads only those files to Cloud Build                       |
-
-Then set the values marked `SET`:
-
-- In the Dockerfile: `PYTHON_VERSION`, the console script in `ENTRYPOINT` and, in a uv
-  workspace, `UV_PACKAGE`.
-- In the three scripts: `BENCHMARK`, which names the image, the job (`<name>-run`) and
-  the GCS prefix. Exporting `BENCHMARK` works too.
-
-The ignore files are written for a single-project repository with a `src/` layout. In a
-uv workspace, also allow each member's `pyproject.toml`, `README.md` and `src/`.
-
-Run the scripts from the repository root:
+**Build the image**, after committing any change to the package:
 
 ```bash
-PROJECT_ID=my-project deploy/build-image.sh
-PROJECT_ID=my-project SERVICE_ACCOUNT=runner@my-project.iam.gserviceaccount.com \
-  SECRET_MAPPINGS="OPENAI_API_KEY=openai-api-key:latest" deploy/deploy-job.sh
-PROJECT_ID=my-project RESULTS_BUCKET=gs://my-bucket \
-  deploy/launch-run.sh run.json items.jsonl my-run-id
+PROJECT_ID=registry-project deploy/build-image.sh
 ```
 
-Launching again with the same run ID resumes that run. The scripts also read `REGION`,
-`IMAGE_NAME`, `JOB_NAME`, `GCS_PREFIX`, `CPU`, `MEMORY` and `TASK_TIMEOUT` from the
-environment.
+Cloud Build builds it from this folder and pushes
+`<region>-docker.pkg.dev/<project>/fab-benchmarks/fab-bench:<commit>`, tagged with the
+runner's commit; the script refuses uncommitted changes, so the tag names what the image
+holds. The build checks that the image starts and that its runs will record the runner's
+and FDLLM's commits. The script also reads `REGION`, `ARTIFACT_REPOSITORY` and
+`IMAGE_NAME`.
+
+**Deploy the job**, once per project and again for each new image:
+
+```bash
+PROJECT_ID=my-project IMAGE=<the image URI build-image.sh printed> \
+  SERVICE_ACCOUNT=runner@my-project.iam.gserviceaccount.com \
+  SECRET_MAPPINGS="OPENAI_API_KEY=openai-api-key:latest" deploy/deploy-job.sh
+```
+
+- This creates or updates the job `fab-bench` (`JOB_NAME`) with the image, provider keys
+  from Secret Manager, and `FAB_BENCH_IMAGE`, which every run records. It also reads
+  `REGION`, `CPU`, `MEMORY` (default `2Gi`), `TASK_TIMEOUT` (`48h`) and `MAX_RETRIES`
+  (`2`); a retried task reruns its config and resumes.
+- The job's service account reads and writes the experiments' buckets.
+- A job in another project than the image's needs read access to its registry: grant
+  `roles/artifactregistry.reader` on the repository to that project's Cloud Run service
+  agent, `service-<project number>@serverless-robot-prod.iam.gserviceaccount.com`.
+- Images a job sends are held in a temporary folder, which on Cloud Run is memory; raise
+  `MEMORY` for large image sets.
+
+**Launch a run:**
+
+1. Create the experiment on GCS with `create-experiment --dest gs://…`, or copy a local
+   one with `upload-experiment`.
+
+1. Write a run config naming that experiment. Pin the registry with `custom_models_uri`
+   and `custom_models_sha256`, or leave it out for the public one; local paths are
+   refused.
+
+1. Launch it:
+
+   ```bash
+   PROJECT_ID=my-project deploy/launch-run.sh run.json
+   ```
+
+   The script runs `fab-bench upload-run-config`, which checks the config as the job
+   will read it and uploads it to `run-configs/<sha256>.json` in the experiment's
+   bucket, then starts the job on that URI. The same config always gets the same URI and
+   is uploaded once, so launching it again resumes it. `FAB_BENCH` sets the command,
+   such as `uvx --from "git+…" fab-bench`; `RUN_CONFIGS_URI` sets another folder;
+   `WAIT=true` waits for the job to finish. The upload uses your application default
+   credentials (`gcloud auth application-default login`).
+
+1. Download the results with `fab-bench fetch-results --experiment gs://…`.
+
+Jobs running different models can share an experiment at the same time; see
+[Experiment folders](#experiment-folders).
 
 ## Known limitations
 

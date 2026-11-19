@@ -19,6 +19,9 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 IMAGE_ENV_VAR = "FAB_BENCH_IMAGE"
+# The runner image installs the runner from its build context, which carries no git
+# metadata, so the image records the commit it was built from here.
+RUNNER_COMMIT_ENV_VAR = "FAB_BENCH_RUNNER_COMMIT"
 # What can change a model's input or the IDs of its results; Python and the image
 # are recorded but not compared.
 COMPARED_PACKAGES = ("fdllm", "pillow", "runner")
@@ -27,12 +30,15 @@ COMPARED_PACKAGES = ("fdllm", "pillow", "runner")
 def run_environment() -> dict[str, Any]:
     """Return the versions this process runs with."""
 
+    runner = package_version("fab-benchmark-runner")
+    if runner["commit"] is None and os.environ.get(RUNNER_COMMIT_ENV_VAR):
+        runner["commit"] = os.environ[RUNNER_COMMIT_ENV_VAR]
     return {
         "fdllm": package_version("fabdata-llm"),
         "image": os.environ.get(IMAGE_ENV_VAR) or None,
         "pillow": package_version("pillow").get("version"),
         "python": platform.python_version(),
-        "runner": package_version("fab-benchmark-runner"),
+        "runner": runner,
     }
 
 

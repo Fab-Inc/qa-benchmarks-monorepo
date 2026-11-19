@@ -1,5 +1,6 @@
-# Builds deploy/Dockerfile, checks that the image's command starts, then pushes it.
-# From fab-benchmark-runner's deploy/ folder; copy it to deploy/cloudbuild.yaml.
+# Builds the shared fab-bench image, checks that it starts and records its
+# versions, then pushes it. deploy/build-image.sh submits it from the runner
+# package's folder.
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -7,9 +8,7 @@ steps:
       - --file
       - deploy/Dockerfile
       - --build-arg
-      - CODE_GIT_HASH=${_CODE_GIT_HASH}
-      - --build-arg
-      - CODE_GIT_DIRTY=${_CODE_GIT_DIRTY}
+      - RUNNER_COMMIT=${_RUNNER_COMMIT}
       - --tag
       - ${_IMAGE_URI}
       - .
@@ -21,6 +20,21 @@ steps:
       - ${_IMAGE_URI}
       - run-cloud
       - --help
+
+  # Runs record the runner's and FDLLM's commits; refuse an image that can't.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - --entrypoint
+      - python
+      - ${_IMAGE_URI}
+      - -c
+      - >-
+        from fab_benchmark_runner.environment import run_environment;
+        found = run_environment();
+        assert found["runner"]["commit"] and found["fdllm"]["commit"], found;
+        print(found)
 
 images:
   - ${_IMAGE_URI}

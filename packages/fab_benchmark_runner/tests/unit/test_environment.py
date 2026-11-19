@@ -96,6 +96,32 @@ def test_the_image_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -
     assert run_environment()["image"] == "europe-docker.pkg.dev/p/r/fab-bench:1"
 
 
+def test_the_runner_image_supplies_the_runners_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The image installs the runner without git metadata; its build records it."""
+
+    _with_distribution(
+        monkeypatch,
+        FakeDistribution("0.1.0", {"url": "file:///app", "dir_info": {}}),
+    )
+    monkeypatch.setenv("FAB_BENCH_RUNNER_COMMIT", "0123456789ab")
+
+    assert run_environment()["runner"] == {"commit": "0123456789ab", "version": "0.1.0"}
+
+
+def test_the_installed_commit_wins_over_the_images(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _with_distribution(
+        monkeypatch,
+        FakeDistribution("0.1.0", {"url": "x", "vcs_info": {"commit_id": "abc"}}),
+    )
+    monkeypatch.setenv("FAB_BENCH_RUNNER_COMMIT", "0123456789ab")
+
+    assert run_environment()["runner"]["commit"] == "abc"
+
+
 def test_differences_name_each_changed_package_once() -> None:
     current = {
         "fdllm": {"commit": "bbbbbbb1", "version": "0.30.1"},

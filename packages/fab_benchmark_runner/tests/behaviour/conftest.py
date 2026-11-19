@@ -29,6 +29,7 @@ from fab_benchmark_runner import (
     RunPlan,
     RunResult,
     create_experiment,
+    load_run_config,
     parse_run_config,
     plan_job,
     run_job,
@@ -304,6 +305,21 @@ class Bench:
             workdir=self.root / job,
             download_public_registry=False,
             call_model=None if through_fdllm else self.models,
+            storage_client=self.storage,
+        )
+
+    def run_cloud(self, config_uri: str, *, job: str = "cloud") -> RunResult:
+        """Run a config on GCS as a Cloud Run job does, in a fresh workdir.
+
+        The config names no registry, so the job uses the shared one.
+        """
+
+        return run_job(
+            load_run_config(config_uri, storage_client=self.storage),
+            workdir=self.root / job,
+            download_public_registry=False,
+            public_registry_path=self.registry,
+            call_model=self.models,
             storage_client=self.storage,
         )
 

@@ -87,9 +87,9 @@ def load_run_config(
     """Read and validate a run config from a local file or a ``gs://`` URI.
 
     Relative paths in a local config resolve against its folder. A config on GCS
-    is meant for Cloud Run: it must name an experiment on GCS and pin its registry
-    with ``custom_models_uri``, and its ``env_path`` is ignored, because jobs get
-    provider keys from their environment.
+    is meant for Cloud Run: it must name an experiment on GCS, and its registry can
+    only be pinned with ``custom_models_uri`` or left to the public one. Its
+    ``env_path`` is ignored, because jobs get provider keys from their environment.
     """
 
     text = str(source)

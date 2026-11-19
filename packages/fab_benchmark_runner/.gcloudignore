@@ -1,0 +1,15 @@
+# Uploads only what the image build needs to Cloud Build.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!.dockerignore
+!src/
+!deploy/
+deploy/*
+!deploy/Dockerfile
+!deploy/cloudbuild.yaml
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*

@@ -14,13 +14,23 @@ Decisions this file describes:
 - A job that crashed or timed out is resumed by launching the same run config
   again: what it uploaded is reused.
 - A local experiment can be uploaded and continued on GCS.
+- A launch uploads its run config once, checked as the job will read it and named
+  by its content, so the same config always has the same URI and launching it
+  again resumes it. Nothing else names a run: its results live in the experiment.
 """
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from fab_benchmark_runner import ConfigError, parse_run_config, upload_experiment
+from fab_benchmark_runner import (
+    ConfigError,
+    parse_run_config,
+    upload_experiment,
+    upload_run_config,
+)
 from fab_benchmark_runner.run_sync import RunSyncConflictError
 
 from .conftest import Bench
@@ -155,3 +165,41 @@ def test_a_run_config_on_gcs_runs_an_experiment_on_gcs(bench: Bench) -> None:
             base_dir=None,
             source="gs://bucket/run-configs/abc.json",
         )
+
+
+def test_a_launched_config_is_uploaded_once_so_launching_it_again_resumes(
+    bench: Bench,
+) -> None:
+    """Rewriting the config in another layout still finds the same upload. Each
+    call is checkpointed, so the crashed job uploaded what it finished."""
+
+    bench.create(dest=EXPERIMENT)
+    settings = {"experiment": EXPERIMENT, "models": ["model-a"], "chunk_size": 1}
+    config = bench.root / "run.json"
+    config.write_text(json.dumps(settings))
+    first = upload_run_config(config, storage_client=bench.storage)
+    bench.models.crash("open-1")
+    with pytest.raises(RuntimeError):
+        bench.run_cloud(first, job="crashed")
+
+    config.write_text(json.dumps(dict(reversed(settings.items())), indent=4))
+    second = upload_run_config(config, storage_client=bench.storage)
+    bench.models.recover("open-1")
+    bench.models.forget_calls()
+    bench.run_cloud(second, job="relaunched")
+
+    assert second == first
+    assert first.startswith("gs://bucket/run-configs/")
+    assert bench.models.called() == ["open-1"]
+
+
+def test_a_launch_refuses_a_config_the_job_could_not_run(bench: Bench) -> None:
+    """Checked before anything is uploaded or started."""
+
+    bench.create()
+    config = bench.root / "run.json"
+    config.write_text(json.dumps({"experiment": "experiment", "models": ["model-a"]}))
+
+    with pytest.raises(ConfigError, match="upload it with fab-bench"):
+        upload_run_config(config, storage_client=bench.storage)
+    assert not any(name.startswith("run-configs/") for name in bench.gcs_files())
