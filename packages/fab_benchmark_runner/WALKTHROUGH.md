@@ -166,6 +166,10 @@ What to check:
   EOF
   ```
 
+  Small models get some answers wrong: both flash-lite models tend to answer `compare-1`
+  with `first`. A wrong answer is the model's; what matters here is that every call
+  succeeds.
+
 - [ ] Running `fab-bench run --config run.json` again prints `Executed: 0` and
   `Reused: 4`: nothing is called twice.
 
@@ -350,7 +354,9 @@ with `"models": ["gemini-3.5-flash-lite"]`, and launch it the same way.
   first model's file with its old time, and the new model's file next to it.
 - [ ] Two launches for different models on one experiment can run at the same time. Two
   launches for the same model at the same time can't both write: the one that uploads
-  second stops with an error saying its results changed since they were pulled.
+  second stops with `GCS object changed since it was pulled`. Cloud Run then retries its
+  task, which reuses the other's results, so both executions succeed and only the first
+  attempt's log shows the error.
 
 To try resuming, use an inputs file large enough to take a few minutes, set
 `"chunk_size": 1` in the run config, cancel the execution part-way with
