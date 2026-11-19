@@ -313,7 +313,6 @@ def test_call_ids_do_not_depend_on_where_images_are(tmp_path: Path) -> None:
             model_config={},
             prompt=model_input.prompt,
             system_prompt=model_input.system_prompt,
-            max_tokens=100,
             images=[asdict(image) for image in model_input.images],
         )
 

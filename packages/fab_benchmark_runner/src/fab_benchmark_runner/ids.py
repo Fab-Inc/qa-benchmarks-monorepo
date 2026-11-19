@@ -36,21 +36,22 @@ def model_call_id(
     model_config: Mapping[str, Any],
     prompt: str,
     system_prompt: str | None,
-    max_tokens: int | None,
     images: Sequence[Mapping[str, Any]] = (),
 ) -> str:
-    """Identify one model call by everything that shapes its response.
+    """Identify one model call by what the model is asked.
 
     ``model_config`` is the sanitized configuration FDLLM registered for the model.
-    ``max_tokens`` is the limit sent to the provider; None means no limit.
     ``images`` are the item's image references in the order they are sent. Only each
     image's file hash and detail level count, so where an image is stored doesn't
     change the ID. A call without images hashes exactly as before images existed.
+
+    The token limit is left out on purpose: raising an experiment's limit keeps the
+    ID, so results that finished within the old limit are kept and only calls that
+    hit it need rerunning. Each result row records the limit it ran with.
     """
 
     payload: dict[str, Any] = {
         "benchmark_item_id": benchmark_item_id,
-        "generation_parameters": {"max_tokens": max_tokens},
         "model": model,
         "model_config": model_config,
         "prompt": prompt,

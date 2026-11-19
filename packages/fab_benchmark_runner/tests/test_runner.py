@@ -89,7 +89,6 @@ def test_run_writes_linked_rows_and_records(
         model_config={},
         prompt=row["prompt"],
         system_prompt=None,
-        max_tokens=10_000,
     )
     assert row["result_id"] == result_id(row["model_call_id"])
     assert len({row["result_id"] for row in rows}) == 4
@@ -271,7 +270,6 @@ def test_system_prompt_feeds_the_call_ids(config: RunConfig, read_rows: Rows) ->
         model_config={},
         prompt=row["prompt"],
         system_prompt="Be brief.",
-        max_tokens=10_000,
     )
 
 
@@ -317,6 +315,7 @@ def test_empty_responses_become_error_rows(config: RunConfig, read_rows: Rows) -
 
     rows = read_rows(output["results_paths"].values())
     assert {row["error_type"] for row in rows} == {"EmptyLLMResponse"}
+    assert {row["max_tokens"] for row in rows} == {config.effective_max_tokens}
     assert output["error_count"] == 4
 
 
@@ -639,7 +638,6 @@ def test_default_evaluator_uses_fdllm_and_its_model_configs(
         model_config={"Api_Model_Name": "a", "Client_Args": {}},
         prompt=row["prompt"],
         system_prompt=None,
-        max_tokens=10_000,
     )
     record = _read_json(config.run_dir / "models" / "model-a.json")
     assert record["model_config"] == {"Api_Model_Name": "a", "Client_Args": {}}

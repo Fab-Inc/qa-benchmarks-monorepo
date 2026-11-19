@@ -172,8 +172,11 @@ Other keys belong to the benchmark's params; any left over are kept in
 ## Result IDs
 
 - `model_call_id` is the SHA-256 of the item's `benchmark_item_id`, the model name, the
-  model's registered config, the prompt, the system prompt and the effective
-  `max_tokens` (`null` when there is no limit).
+  model's registered config, the prompt and the system prompt.
+- `max_tokens` is left out, so raising the limit keeps every result's ID and only calls
+  that hit the old limit need rerunning. Every row, error rows included, records the
+  `max_tokens` it ran with. These IDs differ from the phonics runner's, which hash
+  `max_tokens`; its results need their IDs recomputed before they can be reused here.
 - An item's images enter the ID in order, each by its file's SHA-256 and its detail
   level (`low` or `high`), not by where it is stored. A call without images hashes
   exactly as before images were supported.
@@ -281,5 +284,8 @@ environment.
   FDLLM version can get different IDs for the same model.
 - **Images are not sent yet.** Call IDs already cover images, but runs still send only
   text, and `max_tokens` can't yet be set to no limit in a run config.
+- **A raised `max_tokens` can't reuse results yet.** The config ID still includes
+  `max_tokens`, so a run folder refuses a config with a new limit. Runs on experiments
+  will allow it.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in
   parallel, so a run with one or two models gets no faster.

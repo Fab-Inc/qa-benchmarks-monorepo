@@ -68,6 +68,7 @@ _BASE_ROW_KEYS = frozenset(
         "model_call_id",
         ITEM_ID_KEY,
         "prompt",
+        "max_tokens",
         "output",
         "success",
         "call_status",
@@ -372,7 +373,6 @@ def _plan_model(
             model_config=model_config,
             prompt=prepared.prompt,
             system_prompt=config.benchmark.system_prompt,
-            max_tokens=config.effective_max_tokens,
         )
         calls.append(
             _PlannedCall(
@@ -575,6 +575,7 @@ def _evaluate_call(
         "model_call_id": call.model_call_id,
         ITEM_ID_KEY: call.item[ITEM_ID_KEY],
         "prompt": call.prompt,
+        "max_tokens": config.effective_max_tokens,
     }
     try:
         payload = evaluator(config, model_name, call.item, call.prompt)

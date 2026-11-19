@@ -64,35 +64,37 @@ PHONICS_LIKE = Benchmark(
 )
 
 
-@pytest.mark.parametrize(
-    ("max_tokens", "expected_model_call_id", "expected_result_id"),
-    [
-        (
-            10_000,
-            "c5b9aba56bb7bf59bd475f3227e5710f814cab3bbca3025720ca224a16cd97f5",
-            "60a446cdd97b26cc47693999",
-        ),
-        (
-            2048,
-            "a9fc73c9d11230de2b3e6c97016bf72a3f409f63a57b914db236992084fd67f5",
-            "0a0d7300364ef3469bbd71c0",
-        ),
-    ],
-)
-def test_call_ids_match_the_phonics_runner(
-    max_tokens: int, expected_model_call_id: str, expected_result_id: str
-) -> None:
+def test_text_call_id_is_pinned() -> None:
+    """Re-pinned on 2026-11-19, when max_tokens left call IDs.
+
+    Until then these IDs matched the phonics runner's. Phonics and text generation
+    results need their IDs recomputed before they can move to this package.
+    """
+
+    model_config = sanitize_model_config(FIREWORKS_CONFIG)
     call_id = model_call_id(
         benchmark_item_id="item-1",
         model="fw-llama-v3p2-1b-instruct",
-        model_config=sanitize_model_config(FIREWORKS_CONFIG),
+        model_config=model_config,
         prompt=SWAHILI_PROMPT,
         system_prompt=None,
-        max_tokens=max_tokens,
     )
+    payload = {
+        "benchmark_item_id": "item-1",
+        "model": "fw-llama-v3p2-1b-instruct",
+        "model_config": model_config,
+        "prompt": SWAHILI_PROMPT,
+        "system_prompt": None,
+    }
 
-    assert call_id == expected_model_call_id
-    assert result_id(call_id) == expected_result_id
+    assert call_id == "72a62fa2640945d4ed2325a35b4fcd33eaab7a1f57afecfde8037d6ef3f19fe8"
+    assert (
+        call_id
+        == sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+    )
+    assert result_id(call_id) == "8ac3fa6eec8e7803187de266"
 
 
 def test_an_empty_image_list_keeps_the_text_only_id() -> None:
@@ -102,27 +104,10 @@ def test_an_empty_image_list_keeps_the_text_only_id() -> None:
         model_config=sanitize_model_config(FIREWORKS_CONFIG),
         prompt=SWAHILI_PROMPT,
         system_prompt=None,
-        max_tokens=10_000,
         images=(),
     )
 
-    assert call_id == "c5b9aba56bb7bf59bd475f3227e5710f814cab3bbca3025720ca224a16cd97f5"
-
-
-def test_no_token_limit_hashes_as_null() -> None:
-    """Pinned when unlimited max_tokens was added (2026-11-18)."""
-
-    call_id = model_call_id(
-        benchmark_item_id="item-1",
-        model="fw-llama-v3p2-1b-instruct",
-        model_config=sanitize_model_config(FIREWORKS_CONFIG),
-        prompt=SWAHILI_PROMPT,
-        system_prompt=None,
-        max_tokens=None,
-    )
-
-    assert call_id == "46c453ae440843fef6303728cac78d42cf8f18ec9d764aa7040b7c504e1384e1"
-    assert result_id(call_id) == "a98817139864b328155d65d0"
+    assert call_id == "72a62fa2640945d4ed2325a35b4fcd33eaab7a1f57afecfde8037d6ef3f19fe8"
 
 
 IMAGE_SHA256 = sha256(b"image-1").hexdigest()
@@ -132,19 +117,18 @@ IMAGE_CALL = {
     "model_config": {},
     "prompt": "Which shape is shown?",
     "system_prompt": "Answer with one word.",
-    "max_tokens": 4096,
 }
 
 
 def test_image_call_id_is_pinned() -> None:
-    """Pinned when images were added to call IDs (2026-11-18)."""
+    """Pinned when images were added to call IDs (2026-11-18), re-pinned without
+    max_tokens (2026-11-19)."""
 
     call_id = model_call_id(
         **IMAGE_CALL, images=[{"detail": "high", "sha256": IMAGE_SHA256}]
     )
     payload = {
         "benchmark_item_id": "visual-1",
-        "generation_parameters": {"max_tokens": 4096},
         "images": [{"detail": "high", "sha256": IMAGE_SHA256}],
         "model": "model-a",
         "model_config": {},
@@ -152,14 +136,14 @@ def test_image_call_id_is_pinned() -> None:
         "system_prompt": "Answer with one word.",
     }
 
-    assert call_id == "2fd84796bd99c9e4935b2941888c14ada7050cc42811789f7fd5c4418eb51c99"
+    assert call_id == "5ce8a30909deff8b84e5ac137698bb3bef949b59efa06b594e1e8359ba4d4bae"
     assert (
         call_id
         == sha256(
             json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         ).hexdigest()
     )
-    assert result_id(call_id) == "f638535e22a2d55876b8a41a"
+    assert result_id(call_id) == "5bf97359ae9bdef04aa46434"
 
 
 def test_where_an_image_is_stored_does_not_change_the_id() -> None:
@@ -243,11 +227,15 @@ def test_config_id_matches_the_phonics_runner(
     assert config_identity_sha256(config) == expected_config_id
 
 
-def test_runner_rows_carry_the_phonics_ids(
+def test_runner_rows_carry_pinned_ids(
     tmp_path: Path,
     read_rows: Callable[..., list[dict[str, Any]]],
 ) -> None:
-    """A whole run, with an injected evaluator and so empty model configs."""
+    """A whole run, with an injected evaluator and so empty model configs.
+
+    The call IDs were the phonics runner's until max_tokens left them (2026-11-19);
+    the config ID still is.
+    """
 
     config = load_run_config(_write_phonics_like_config(tmp_path), PHONICS_LIKE)
 
@@ -255,9 +243,9 @@ def test_runner_rows_carry_the_phonics_ids(
 
     [row] = read_rows(output["results_paths"].values())
     assert row["model_call_id"] == (
-        "5ec1fa19627f1a22d0ff5b4a3b1f8de7e5e4614861de238eb65ca01cbd2536be"
+        "0812464e4b3b4b8d6706099ef30bada6f56dfef1413bf125e3d5b6a079fdec22"
     )
-    assert row["result_id"] == "59b5b241008b0c6d0c6c3cc3"
+    assert row["result_id"] == "354db67328a229c3c6588e02"
     assert row["config_id"] == (
         "c0013b2a1bd7bc1fdee962da0dccb4010615a278721596e60f644ca472d25700"
     )
@@ -315,7 +303,11 @@ def test_a_phonics_run_folder_is_extended_without_new_calls(
     tmp_path: Path,
     read_rows: Callable[..., list[dict[str, Any]]],
 ) -> None:
-    """A folder the phonics runner wrote: its result is reused, its record migrated."""
+    """A folder the phonics runner wrote: its result is reused, its record migrated.
+
+    The row carries IDs already converted to this package's, as phonics results must
+    be before they can be reused here.
+    """
 
     config = load_run_config(_write_phonics_like_config(tmp_path), PHONICS_LIKE)
     run_dir = config.run_dir
@@ -326,10 +318,10 @@ def test_a_phonics_run_folder_is_extended_without_new_calls(
         "config_id": PHONICS_CONFIG_ID,
         "model": "model-a",
         "model_call_id": (
-            "5ec1fa19627f1a22d0ff5b4a3b1f8de7e5e4614861de238eb65ca01cbd2536be"
+            "0812464e4b3b4b8d6706099ef30bada6f56dfef1413bf125e3d5b6a079fdec22"
         ),
         "output": "[]",
-        "result_id": "59b5b241008b0c6d0c6c3cc3",
+        "result_id": "354db67328a229c3c6588e02",
         "success": True,
     }
     (run_dir / "responses" / "responses_model-a.jsonl").write_text(
