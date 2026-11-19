@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -17,65 +17,82 @@ import yaml
 from fab_benchmark_runner import gcs
 from fab_benchmark_runner.config import RunConfig
 from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.results import file_sha256
 
 CUSTOM_MODELS_BUCKET = "fab-open-configs"
 CUSTOM_MODELS_FILE_NAME = "custom_models.yaml"
 ENV_FILE_NAME = ".env"
+PINNED_REGISTRY_DIR = "registry"
 
 
-def default_custom_models_path(config: RunConfig) -> Path:
-    """Return where the shared public registry lives for local runs."""
+@dataclass(frozen=True)
+class ModelRegistry:
+    """The registry file a run uses, its SHA-256, and the pinned URI it came from."""
 
-    return (
-        config.benchmark.default_custom_models_path
-        or Path.cwd() / CUSTOM_MODELS_FILE_NAME
-    )
+    path: Path
+    sha256: str
+    uri: str | None = None
 
+    def record(self) -> dict[str, Any]:
+        """Return what a model's record keeps about the registry."""
 
-def pinned_registry_path(config: RunConfig) -> Path:
-    """Return the run-specific location of a pinned registry download."""
-
-    if config.inputs_dir is not None:
-        inputs_root = config.inputs_dir
-    elif config.config_path is not None:
-        inputs_root = config.config_path.parent / "inputs"
-    else:
-        inputs_root = Path.cwd() / "inputs"
-    return inputs_root / config.run_id / CUSTOM_MODELS_FILE_NAME
+        return {"sha256": self.sha256, "uri": self.uri}
 
 
 def prepare_model_registry(
     config: RunConfig,
     *,
+    workdir: Path,
     download_public: bool,
     public_path: Path | None = None,
-) -> RunConfig:
-    """Make the run's model registry available locally; return the updated config.
+) -> ModelRegistry:
+    """Make the run's model registry available locally.
 
-    - ``custom_models_uri``: download the pinned file and verify its SHA-256. This
-      always happens, because a fresh container has no local copy.
+    - ``custom_models_uri``: download the pinned file into ``workdir`` and verify
+      its SHA-256. This always happens, because a fresh container has no copy.
     - ``custom_models_path``: use that file as it is.
-    - Neither: use the shared public registry at ``public_path``, refreshing it
-      first when ``download_public`` is set.
+    - Neither: use the shared public registry at ``public_path`` (by default
+      ``custom_models.yaml`` in the working directory), refreshing it first when
+      ``download_public`` is set.
     """
 
     if config.custom_models_uri is not None:
         if config.custom_models_sha256 is None:  # pragma: no cover - parse-time check
             raise ConfigError("custom_models_uri requires custom_models_sha256")
-        destination = pinned_registry_path(config)
+        destination = (
+            workdir.expanduser().resolve()
+            / PINNED_REGISTRY_DIR
+            / f"custom_models-{config.custom_models_sha256}.yaml"
+        )
         download_pinned_registry(
             config.custom_models_uri,
             expected_sha256=config.custom_models_sha256,
             destination=destination,
         )
-        return replace(config, custom_models_path=destination)
+        return ModelRegistry(
+            destination, config.custom_models_sha256, config.custom_models_uri
+        )
     if config.custom_models_path is not None:
-        return config
+        path = config.custom_models_path
+    else:
+        path = public_path or Path.cwd() / CUSTOM_MODELS_FILE_NAME
+        if download_public:
+            download_public_registry(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Custom models file not found: {path}")
+    return ModelRegistry(path, file_sha256(path))
 
-    destination = public_path or default_custom_models_path(config)
-    if download_public:
-        download_public_registry(destination)
-    return replace(config, custom_models_path=destination)
+
+def prepare_fdllm(
+    registry: ModelRegistry, model_names: Iterable[str], *, env_path: Path | None
+) -> dict[str, Any]:
+    """Load provider keys, register the registry, and return the models' configs."""
+
+    model_names = list(model_names)
+    load_environment(env_path)
+    register_custom_models(registry.path)
+    validate_registered_models(model_names)
+    return snapshot_model_configs(model_names)
 
 
 def download_public_registry(destination: Path) -> Path:
@@ -129,40 +146,22 @@ def download_pinned_registry(
     return destination
 
 
-def resolve_custom_models_path(config: RunConfig) -> Path:
-    """Return the existing registry file the run uses."""
+def load_environment(env_path: Path | None) -> Path | None:
+    """Load provider API keys from a .env file without overriding the environment.
 
-    path = config.custom_models_path or default_custom_models_path(config)
+    Without ``env_path``, a ``.env`` in the working directory is used if present.
+    """
+
+    path = env_path or Path.cwd() / ENV_FILE_NAME
+    if env_path is not None and not path.exists():
+        raise FileNotFoundError(f"Environment file not found: {path}")
     if not path.exists():
-        raise FileNotFoundError(f"Custom models file not found: {path}")
-    return path
-
-
-def prepare_fdllm_for_run(config: RunConfig) -> None:
-    """Load provider keys, register the run's registry, and validate its models."""
-
-    load_environment(config)
-    register_custom_models(resolve_custom_models_path(config))
-    validate_registered_models(config.models)
-
-
-def load_environment(config: RunConfig) -> Path | None:
-    """Load provider API keys from a .env file without overriding the environment."""
-
-    env_path = (
-        config.env_path
-        or config.benchmark.default_env_path
-        or Path.cwd() / ENV_FILE_NAME
-    )
-    if config.env_path is not None and not env_path.exists():
-        raise FileNotFoundError(f"Environment file not found: {env_path}")
-    if not env_path.exists():
         return None
 
     from dotenv import load_dotenv
 
-    load_dotenv(env_path, override=False)
-    return env_path
+    load_dotenv(path, override=False)
+    return path
 
 
 def register_custom_models(custom_models_path: Path) -> None:

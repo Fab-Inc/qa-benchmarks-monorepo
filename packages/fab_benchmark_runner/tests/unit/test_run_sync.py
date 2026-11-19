@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -266,3 +267,17 @@ def test_two_jobs_creating_the_same_file_with_different_bytes_conflict(
     jobs[0].push_file(jobs[0].run_dir / "config.json")
     with pytest.raises(RunSyncConflictError, match="config.json"):
         jobs[1].push_file(jobs[1].run_dir / "config.json")
+
+
+def test_pull_can_select_files_by_name(tmp_path: Path, storage: Any) -> None:
+    storage.objects["bucket"] = {
+        "run/keep.json": (1, b"{}"),
+        "run/skip/x.json": (2, b"{}"),
+    }
+
+    pulled = RunSync(tmp_path, "gs://bucket/run", storage_client=storage).pull(
+        select=lambda name: not name.startswith("skip/")
+    )
+
+    assert pulled == 1
+    assert [p.name for p in tmp_path.rglob("*") if p.is_file()] == ["keep.json"]

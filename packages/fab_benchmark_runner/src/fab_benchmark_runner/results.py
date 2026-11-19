@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -108,3 +109,19 @@ def write_bytes_atomic(path: Path, content: bytes) -> None:
     except BaseException:
         temporary_path.unlink(missing_ok=True)
         raise
+
+
+def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string ending in Z."""
+
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def file_sha256(path: str | Path) -> str:
+    """Return the SHA-256 of a file's bytes."""
+
+    digest = sha256()
+    with Path(path).open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()

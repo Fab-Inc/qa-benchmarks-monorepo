@@ -27,9 +27,9 @@ from fab_benchmark_runner.gcs import (
     parse_gs_uri,
 )
 from fab_benchmark_runner.ids import IMAGE_DETAILS, canonical_json, image_identity
-from fab_benchmark_runner.items import ITEM_ID_KEY
 from fab_benchmark_runner.results import write_text_atomic
 
+ITEM_ID_KEY = "benchmark_item_id"
 INPUT_KEYS = frozenset({ITEM_ID_KEY, "prompt", "system_prompt", "images"})
 IMAGE_KEYS = frozenset({"uri", "detail", "sha256"})
 STORED_IMAGE_KEYS = IMAGE_KEYS | {"source_uri"}

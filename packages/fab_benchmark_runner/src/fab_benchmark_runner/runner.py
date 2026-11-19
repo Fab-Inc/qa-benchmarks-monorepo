@@ -1,13 +1,16 @@
-"""Plan and execute benchmark runs with resumable, per-model result files."""
+"""Plan and run models on an experiment, with resumable, per-model result files.
+
+Everything here works on a local experiment folder. Jobs on an experiment on GCS
+run on a local mirror of it; ``jobs`` handles the mirroring.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from anthropic import APIError as AnthropicAPIError
 from botocore.exceptions import ClientError as BedrockAPIError
@@ -23,30 +26,23 @@ except ImportError:  # FDLLM's main branch has no typed response errors yet
     LLMResponseError = None
 
 from fab_benchmark_runner import ids, records
-from fab_benchmark_runner.config import RunConfig, config_identity_sha256
+from fab_benchmark_runner.config import RunConfig
+from fab_benchmark_runner.environment import run_environment, version_differences
 from fab_benchmark_runner.errors import ConfigError
-from fab_benchmark_runner.items import ITEM_ID_KEY, file_sha256, validate_items
-from fab_benchmark_runner.llm import evaluate_item_with_fdllm
-from fab_benchmark_runner.provenance import git_dirty, git_hash
-from fab_benchmark_runner.registry import (
-    check_provider_groups,
-    prepare_fdllm_for_run,
-    resolve_custom_models_path,
-    sanitize_model_config,
-    snapshot_model_configs,
-)
+from fab_benchmark_runner.experiment import Experiment, read_experiment
+from fab_benchmark_runner.inputs import ITEM_ID_KEY, ModelInput
+from fab_benchmark_runner.registry import sanitize_model_config
 from fab_benchmark_runner.results import (
     CALL_STATUS_ERROR,
     CALL_STATUS_SUCCESS,
     error_count,
     load_results,
-    model_results_filename,
     save_results,
+    utc_now,
 )
 
-RunOutput = dict[str, Any]
+CallModel = Callable[[str, ModelInput, "int | None"], Mapping[str, Any]]
 ArtifactWriteHook = Callable[[Path], None]
-Evaluator = Callable[[RunConfig, str, Mapping[str, Any], str], dict[str, Any]]
 
 # FDLLM propagates provider SDK failures unchanged, and from its dev branch on it
 # raises LLMResponseError for responses it can't use, such as an empty one. Only
@@ -63,28 +59,6 @@ PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
     OpenAIAPIError,
 ) + ((LLMResponseError,) if LLMResponseError is not None else ())
 
-# Columns every result row starts with; benchmark identity fields may not reuse them.
-_BASE_ROW_KEYS = frozenset(
-    {
-        "result_id",
-        "run_id",
-        "config_id",
-        "config_path",
-        "config_snapshot_path",
-        "model",
-        "model_call_id",
-        ITEM_ID_KEY,
-        "prompt",
-        "max_tokens",
-        "output",
-        "success",
-        "call_status",
-        "error_type",
-        "error_message",
-        "stop_reason",
-    }
-)
-
 
 @dataclass(frozen=True)
 class ModelPlan:
@@ -93,7 +67,7 @@ class ModelPlan:
     model: str
     results_path: Path
     planned: int
-    skipped: int
+    reused: int
     to_run: int
     retries: int
     stale: int
@@ -101,44 +75,48 @@ class ModelPlan:
 
 @dataclass(frozen=True)
 class RunPlan:
-    """What a run would do, without calling any model or writing results."""
+    """What a run would do, without calling any model or writing anything.
 
-    run_id: str
-    config_id: str
-    run_dir: Path
+    ``version_warnings`` describe how the versions of earlier runs on the
+    experiment differ from this one's.
+    """
+
+    experiment_id: str
+    experiment_dir: Path
+    max_tokens: int | None
     models: tuple[ModelPlan, ...]
+    version_warnings: tuple[str, ...] = ()
 
     @property
     def planned(self) -> int:
         return sum(model.planned for model in self.models)
 
     @property
-    def skipped(self) -> int:
-        return sum(model.skipped for model in self.models)
+    def reused(self) -> int:
+        return sum(model.reused for model in self.models)
 
     @property
     def to_run(self) -> int:
         return sum(model.to_run for model in self.models)
 
 
-class _ModelRunOutput(TypedDict):
-    model_name: str
-    executed_count: int
-    skipped_count: int
-    error_count: int
-    results_written: bool
-
-
 @dataclass(frozen=True)
-class _PreparedItem:
-    item: dict[str, Any]
-    prompt: str
+class RunResult:
+    """What a run did."""
+
+    experiment_id: str
+    experiment_dir: Path
+    results_paths: dict[str, Path]
+    planned: int
+    executed: int
+    reused: int
+    errors: int
+    version_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class _PlannedCall:
-    item: dict[str, Any]
-    prompt: str
+    model_input: ModelInput
     model_call_id: str
     result_id: str
 
@@ -157,15 +135,11 @@ class _ModelState:
     missing_cached_count: int = 0
     invalid_status_count: int = 0
 
-    @property
-    def expected_result_ids(self) -> list[str]:
-        return [call.result_id for call in self.calls]
-
     def ordered_rows(self) -> list[dict[str, Any]]:
         return [
-            self.rows_by_id[result_id]
-            for result_id in self.expected_result_ids
-            if result_id in self.rows_by_id
+            self.rows_by_id[call.result_id]
+            for call in self.calls
+            if call.result_id in self.rows_by_id
         ]
 
     def summary(self) -> ModelPlan:
@@ -173,219 +147,186 @@ class _ModelState:
             model=self.model,
             results_path=self.results_path,
             planned=len(self.calls),
-            skipped=len(self.calls) - len(self.pending),
+            reused=len(self.calls) - len(self.pending),
             to_run=len(self.pending),
             retries=self.retry_count,
             stale=self.stale_count,
         )
 
 
-@dataclass(frozen=True)
-class _RunContext:
-    config_id: str
-    custom_models_path: Path
-    registry_sha256: str
-    run_record: dict[str, Any]
-    run_record_path: Path
-    write_run_record: bool
-    model_configs: dict[str, Any]
-    states: dict[str, _ModelState]
+def plan_run(
+    config: RunConfig,
+    experiment_dir: Path,
+    *,
+    model_configs: Mapping[str, Any],
+) -> RunPlan:
+    """Report which calls a run would make and which results it would reuse.
+
+    ``model_configs`` are FDLLM's configs of the run's models, which enter every
+    call ID; pass ``{}`` for models called some other way. Nothing is called or
+    written.
+    """
+
+    experiment = read_experiment(experiment_dir)
+    states = _plan_models(config, experiment, experiment_dir, model_configs)
+    return RunPlan(
+        experiment_id=experiment.experiment_id,
+        experiment_dir=experiment_dir,
+        max_tokens=experiment.max_tokens,
+        models=tuple(state.summary() for state in states.values()),
+        version_warnings=tuple(_version_warnings(experiment_dir)),
+    )
 
 
 def execute_run(
     config: RunConfig,
+    experiment_dir: Path,
     *,
-    evaluator: Evaluator | None = None,
+    model_configs: Mapping[str, Any],
+    call_model: CallModel,
+    registry: Mapping[str, Any],
     on_artifact_write: ArtifactWriteHook | None = None,
-) -> RunOutput:
-    """Run every planned call that has no reusable result, checkpointing as it goes.
+) -> RunResult:
+    """Run every planned call without a reusable result, checkpointing as it goes.
 
-    Without an ``evaluator`` the models are called through FDLLM, after registering
-    the run's model registry. A supplied evaluator skips FDLLM entirely and the
-    model configs in call IDs are empty, which tests rely on.
+    Each model gets the experiment's stored inputs and its current ``max_tokens``,
+    which every row records. A model's results and record are written only by
+    the job running it; ``on_artifact_write`` sees each file as it is written.
     """
 
-    model_configs: dict[str, Any] | None = None
-    if evaluator is None:
-        prepare_fdllm_for_run(config)
-        model_configs = snapshot_model_configs(config.models)
-        evaluator = evaluate_item_with_fdllm
-    context = _prepare_run(config, model_configs or {})
+    experiment = read_experiment(experiment_dir)
+    states = _plan_models(config, experiment, experiment_dir, model_configs)
+    warnings = tuple(_version_warnings(experiment_dir))
+    environment = run_environment()
 
-    run_dir = config.run_dir
-    run_dir.mkdir(parents=True, exist_ok=True)
-    if context.write_run_record:
-        records.write_json(context.run_record_path, context.run_record)
-        if on_artifact_write is not None:
-            on_artifact_write(context.run_record_path)
-
-    code_git_hash = git_hash()
-    code_git_dirty = git_dirty()
-    registry = {
-        "path": str(context.custom_models_path),
-        "uri": config.custom_models_uri,
-        "sha256": context.registry_sha256,
-    }
-
-    def record_model(state: _ModelState, output: _ModelRunOutput) -> None:
-        """Record a model's run, in its own worker, once its results are written."""
-
-        if not output["results_written"]:
+    def record_model(state: _ModelState, executed: int, written: bool) -> None:
+        if not written:
             return
-        path = records.model_record_path(run_dir, state.model)
+        path = records.model_record_path(experiment_dir, state.model)
         records.update_model_record(
             path,
+            experiment=experiment,
             model_name=state.model,
-            config_id=context.config_id,
             model_config=state.model_config,
             registry=registry,
             rows=state.ordered_rows(),
             run_entry={
-                "finished_utc": records.utc_now(),
-                "run_id": config.run_id,
-                "executed_calls": output["executed_count"],
                 "dropped_stale_rows": state.stale_count,
+                "environment": environment,
+                "executed_calls": executed,
+                "finished_utc": utc_now(),
                 "force": config.force,
+                "max_tokens": experiment.max_tokens,
                 "retry_errors": config.retry_errors,
-                "code_git_hash": code_git_hash,
-                "code_git_dirty": code_git_dirty,
-                "run_config_path": (
-                    str(config.config_path) if config.config_path else None
-                ),
-                "run_config": config.raw_config,
+                "run_config": dict(config.raw),
+                "run_config_source": config.source,
             },
         )
         if on_artifact_write is not None:
             on_artifact_write(path)
 
-    model_outputs = _run_models_in_parallel(
+    executed = _run_models_in_parallel(
         config=config,
-        context=context,
-        evaluator=evaluator,
+        experiment=experiment,
+        states=states,
+        call_model=call_model,
         on_artifact_write=on_artifact_write,
         after_model=record_model,
     )
-    return {
-        "run_id": config.run_id,
-        "config_id": context.config_id,
-        "run_dir": run_dir,
-        "config_snapshot_path": context.run_record_path,
-        "results_dir": run_dir / "responses",
-        "results_paths": {
-            model_name: state.results_path
-            for model_name, state in context.states.items()
-        },
-        "total_expected_results": sum(
-            len(state.calls) for state in context.states.values()
-        ),
-        "executed_count": sum(output["executed_count"] for output in model_outputs),
-        "skipped_count": sum(output["skipped_count"] for output in model_outputs),
-        "error_count": sum(output["error_count"] for output in model_outputs),
-    }
-
-
-def plan_run(
-    config: RunConfig,
-    *,
-    model_configs: Mapping[str, Any] | None = None,
-) -> RunPlan:
-    """Report which calls a run would make and which it would reuse.
-
-    Nothing is called or written, but a run folder that belongs to a different run
-    is still reported as an error. Without ``model_configs`` the model registry is
-    registered with FDLLM to read them, exactly as ``execute_run`` does; pass
-    ``{}`` to plan a run that uses a supplied evaluator.
-    """
-
-    if model_configs is None:
-        prepare_fdllm_for_run(config)
-        model_configs = snapshot_model_configs(config.models)
-    context = _prepare_run(config, model_configs)
-    return RunPlan(
-        run_id=config.run_id,
-        config_id=context.config_id,
-        run_dir=config.run_dir,
-        models=tuple(state.summary() for state in context.states.values()),
+    rows = [row for state in states.values() for row in state.ordered_rows()]
+    return RunResult(
+        experiment_id=experiment.experiment_id,
+        experiment_dir=experiment_dir,
+        results_paths={name: state.results_path for name, state in states.items()},
+        planned=sum(len(state.calls) for state in states.values()),
+        executed=sum(executed.values()),
+        reused=sum(len(state.calls) - len(state.pending) for state in states.values()),
+        errors=error_count(rows),
+        version_warnings=warnings,
     )
 
 
-def _prepare_run(config: RunConfig, model_configs: Mapping[str, Any]) -> _RunContext:
-    """Validate inputs and the run folder, and plan every model, before any write."""
+def _row_input_fields(
+    experiment: Experiment, model_name: str, call: _PlannedCall
+) -> dict[str, Any]:
+    """Return the columns every row starts with: IDs, and the input repeated."""
 
-    config_id = config_identity_sha256(config)
-    identity_fields = config.identity_fields()
-    clashes = sorted(set(identity_fields) & _BASE_ROW_KEYS)
-    if clashes:
-        raise ConfigError(
-            "Benchmark identity fields clash with result columns: " + ", ".join(clashes)
-        )
-    custom_models_path = resolve_custom_models_path(config)
-    items, items_sha256 = config.benchmark.load_items(config.items_path)
-    validate_items(items, source=config.items_path)
-    prepared_items = [_prepare_item(config, item) for item in items]
-    check_provider_groups(custom_models_path, config.models)
-    sanitized_model_configs = sanitize_model_config(dict(model_configs))
+    model_input = call.model_input
+    return {
+        "benchmark": experiment.benchmark,
+        ITEM_ID_KEY: model_input.benchmark_item_id,
+        "experiment_id": experiment.experiment_id,
+        "images": model_input.to_row().get("images", []),
+        "max_tokens": experiment.max_tokens,
+        "model": model_name,
+        "model_call_id": call.model_call_id,
+        "prompt": model_input.prompt,
+        "result_id": call.result_id,
+        "system_prompt": model_input.system_prompt,
+    }
+
+
+def _version_warnings(experiment_dir: Path) -> list[str]:
+    earlier = [
+        run["environment"]
+        for record in records.read_model_records(experiment_dir)
+        for run in record["runs"]
+        if isinstance(run, Mapping) and isinstance(run.get("environment"), Mapping)
+    ]
+    return version_differences(run_environment(), earlier)
+
+
+def _plan_models(
+    config: RunConfig,
+    experiment: Experiment,
+    experiment_dir: Path,
+    model_configs: Mapping[str, Any],
+) -> dict[str, _ModelState]:
+    sanitized = sanitize_model_config(dict(model_configs))
     states = {
         model_name: _plan_model(
             config,
+            experiment,
+            experiment_dir,
             model_name=model_name,
-            model_config=sanitized_model_configs.get(model_name, {}),
-            items=deepcopy(prepared_items),
+            model_config=sanitized.get(model_name, {}),
         )
         for model_name in config.models
     }
     if config.retry_errors:
         _check_retry_caches(states)
-    run_record = records.run_record(config, items_sha256=items_sha256)
-    run_record_path = config.run_dir / records.RUN_RECORD_NAME
-    write_run_record = records.check_run_record(run_record_path, run_record)
-    return _RunContext(
-        config_id=config_id,
-        custom_models_path=custom_models_path,
-        registry_sha256=file_sha256(custom_models_path),
-        run_record=run_record,
-        run_record_path=run_record_path,
-        write_run_record=write_run_record,
-        model_configs=sanitized_model_configs,
-        states=states,
-    )
-
-
-def _prepare_item(config: RunConfig, item: dict[str, Any]) -> _PreparedItem:
-    prompt = config.benchmark.build_prompt(item, config.params)
-    if not isinstance(prompt, str):
-        raise ConfigError(
-            f"Prompt builder returned {type(prompt).__name__} for item "
-            f"{item[ITEM_ID_KEY]}; expected str"
-        )
-    return _PreparedItem(item=item, prompt=prompt)
+    return states
 
 
 def _plan_model(
     config: RunConfig,
+    experiment: Experiment,
+    experiment_dir: Path,
     *,
     model_name: str,
     model_config: dict[str, Any],
-    items: list[_PreparedItem],
 ) -> _ModelState:
-    results_path = config.run_dir / "responses" / model_results_filename(model_name)
+    results_path = records.results_path(experiment_dir, model_name)
     existing_rows = {
         str(row["result_id"]): row
         for row in load_results(results_path, force=config.force)
     }
     calls = []
-    for prepared in items:
+    for model_input in experiment.inputs:
         model_call_id = ids.model_call_id(
-            benchmark_item_id=prepared.item[ITEM_ID_KEY],
+            benchmark_item_id=model_input.benchmark_item_id,
             model=model_name,
             model_config=model_config,
-            prompt=prepared.prompt,
-            system_prompt=config.benchmark.system_prompt,
+            prompt=model_input.prompt,
+            system_prompt=model_input.system_prompt,
+            images=[
+                {"detail": image.detail, "sha256": image.sha256}
+                for image in model_input.images
+            ],
         )
         calls.append(
             _PlannedCall(
-                item=prepared.item,
-                prompt=prepared.prompt,
+                model_input=model_input,
                 model_call_id=model_call_id,
                 result_id=ids.result_id(model_call_id),
             )
@@ -425,16 +366,16 @@ def _plan_model(
 
 
 def _check_retry_caches(states: Mapping[str, _ModelState]) -> None:
-    """Validate every retry cache before any model worker starts."""
+    """With retry_errors, refuse before any call unless every call has a row."""
 
     missing_models = [
         name for name, state in states.items() if not state.results_file_exists
     ]
     if missing_models:
-        raise FileNotFoundError(
-            "No cached results found for "
+        raise ConfigError(
+            "No results to retry for "
             + ", ".join(missing_models)
-            + "; cannot use --retry-errors."
+            + "; run without retry_errors first."
         )
     missing_calls = {
         name: state.missing_cached_count
@@ -446,9 +387,8 @@ def _check_retry_caches(states: Mapping[str, _ModelState]) -> None:
             f"{name} ({count})" for name, count in missing_calls.items()
         )
         raise ConfigError(
-            "--retry-errors requires cached results for every planned call; "
-            f"missing calls by model: {details}. Run normally first to execute "
-            "new or changed calls."
+            "retry_errors needs a result for every planned call; missing calls by "
+            f"model: {details}. Run without retry_errors first."
         )
     invalid_statuses = {
         name: state.invalid_status_count
@@ -460,159 +400,136 @@ def _check_retry_caches(states: Mapping[str, _ModelState]) -> None:
             f"{name} ({count})" for name, count in invalid_statuses.items()
         )
         raise ConfigError(
-            "--retry-errors found cached rows with invalid call_status values "
-            f"by model: {details}."
+            "retry_errors found rows with invalid call_status values by model: "
+            f"{details}."
         )
 
 
 def _run_models_in_parallel(
     *,
     config: RunConfig,
-    context: _RunContext,
-    evaluator: Evaluator,
+    experiment: Experiment,
+    states: Mapping[str, _ModelState],
+    call_model: CallModel,
     on_artifact_write: ArtifactWriteHook | None,
-    after_model: Callable[[_ModelState, _ModelRunOutput], None],
-) -> list[_ModelRunOutput]:
+    after_model: Callable[[_ModelState, int, bool], None],
+) -> dict[str, int]:
     """Run up to ``model_workers`` models at once, each model's items in order.
 
     Models start in config order. Once a model fails with an exception, no further
     model starts; the models already running finish before the error propagates.
+    Returns the number of calls made per model.
     """
 
-    def run(model_name: str) -> _ModelRunOutput:
-        state = context.states[model_name]
-        output = _run_model(
+    def run(model_name: str) -> int:
+        state = states[model_name]
+        executed, written = _run_model(
             config=config,
-            config_id=context.config_id,
-            run_record_path=context.run_record_path,
+            experiment=experiment,
             state=state,
-            evaluator=evaluator,
+            call_model=call_model,
             on_artifact_write=on_artifact_write,
         )
-        after_model(state, output)
-        return output
+        after_model(state, executed, written)
+        return executed
 
     waiting = list(config.models)
     workers = min(config.model_workers, len(waiting))
-    outputs: dict[str, _ModelRunOutput] = {}
+    executed: dict[str, int] = {}
     if workers <= 1:
         for model_name in waiting:
-            outputs[model_name] = run(model_name)
-    else:
-        with ThreadPoolExecutor(
-            max_workers=workers, thread_name_prefix="model"
-        ) as pool:
-            running: dict[Future[_ModelRunOutput], str] = {}
+            executed[model_name] = run(model_name)
+        return executed
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="model") as pool:
+        running: dict[Future[int], str] = {}
 
-            def start_next() -> None:
-                model_name = waiting.pop(0)
-                running[pool.submit(run, model_name)] = model_name
+        def start_next() -> None:
+            model_name = waiting.pop(0)
+            running[pool.submit(run, model_name)] = model_name
 
-            while waiting and len(running) < workers:
-                start_next()
-            while running:
-                done, _ = wait(running, return_when=FIRST_COMPLETED)
-                for future in done:
-                    outputs[running.pop(future)] = future.result()
-                    if waiting:
-                        start_next()
-    return [outputs[model_name] for model_name in config.models]
+        while waiting and len(running) < workers:
+            start_next()
+        while running:
+            done, _ = wait(running, return_when=FIRST_COMPLETED)
+            for future in done:
+                executed[running.pop(future)] = future.result()
+                if waiting:
+                    start_next()
+    return executed
 
 
 def _run_model(
     *,
     config: RunConfig,
-    config_id: str,
-    run_record_path: Path,
+    experiment: Experiment,
     state: _ModelState,
-    evaluator: Evaluator,
+    call_model: CallModel,
     on_artifact_write: ArtifactWriteHook | None,
-) -> _ModelRunOutput:
-    """Run one model's pending calls in item order, checkpointing each chunk."""
+) -> tuple[int, bool]:
+    """Run one model's pending calls in item order, checkpointing each chunk.
+
+    Returns how many calls were made and whether the results file was written.
+    """
 
     def checkpoint() -> None:
         save_results(state.ordered_rows(), state.results_path)
         if on_artifact_write is not None:
             on_artifact_write(state.results_path)
 
-    executed_count = 0
-    results_written = False
+    executed = 0
+    written = False
     for chunk in _chunked(state.pending, config.chunk_size):
         for call in chunk:
             state.rows_by_id[call.result_id] = _evaluate_call(
-                config=config,
-                config_id=config_id,
-                run_record_path=run_record_path,
+                experiment=experiment,
                 model_name=state.model,
                 call=call,
-                evaluator=evaluator,
+                call_model=call_model,
             )
-            executed_count += 1
+            executed += 1
         checkpoint()
-        results_written = True
+        written = True
     if state.stale_count and not state.pending:
         checkpoint()
-        results_written = True
-
-    return {
-        "model_name": state.model,
-        "executed_count": executed_count,
-        "skipped_count": len(state.calls) - len(state.pending),
-        "error_count": error_count(state.ordered_rows()),
-        "results_written": results_written,
-    }
+        written = True
+    return executed, written
 
 
 def _evaluate_call(
     *,
-    config: RunConfig,
-    config_id: str,
-    run_record_path: Path,
+    experiment: Experiment,
     model_name: str,
     call: _PlannedCall,
-    evaluator: Evaluator,
+    call_model: CallModel,
 ) -> dict[str, Any]:
-    base_row: dict[str, Any] = {
-        "result_id": call.result_id,
-        "run_id": config.run_id,
-        "config_id": config_id,
-        "config_path": str(config.config_path) if config.config_path else None,
-        "config_snapshot_path": str(run_record_path),
-        **config.identity_fields(),
-        "model": model_name,
-        "model_call_id": call.model_call_id,
-        ITEM_ID_KEY: call.item[ITEM_ID_KEY],
-        "prompt": call.prompt,
-        "max_tokens": config.effective_max_tokens,
-    }
+    input_fields = _row_input_fields(experiment, model_name, call)
     try:
-        payload = evaluator(config, model_name, call.item, call.prompt)
+        payload = call_model(model_name, call.model_input, experiment.max_tokens)
     except PROVIDER_ERRORS as e:
         return _error_row(
-            base_row,
+            input_fields,
             error_type=type(e).__name__,
             message=str(e),
             stop_reason=getattr(e, "stop_reason", None),
         )
-
-    if not payload["output"]:
+    if not payload.get("output"):
         return _error_row(
-            base_row,
+            input_fields,
             error_type="EmptyLLMResponse",
-            message=f"LLM response empty for item {call.item[ITEM_ID_KEY]}",
+            message=f"LLM response empty for item {call.model_input.benchmark_item_id}",
         )
     return {
-        **base_row,
         **payload,
-        "success": True,
+        **input_fields,
         "call_status": CALL_STATUS_SUCCESS,
-        "error_type": "",
         "error_message": "",
+        "error_type": "",
+        "stop_reason": None,
     }
 
 
 def _error_row(
-    base_row: dict[str, Any],
+    input_fields: Mapping[str, Any],
     *,
     error_type: str,
     message: str,
@@ -625,12 +542,11 @@ def _error_row(
     """
 
     return {
-        **base_row,
-        "output": "",
-        "success": False,
+        **input_fields,
         "call_status": CALL_STATUS_ERROR,
-        "error_type": error_type,
         "error_message": message,
+        "error_type": error_type,
+        "output": "",
         "stop_reason": stop_reason,
     }
 

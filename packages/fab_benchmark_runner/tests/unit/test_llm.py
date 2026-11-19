@@ -1,15 +1,14 @@
-"""The FDLLM call wrapper and default evaluator."""
+"""The FDLLM call wrapper and the default way runs call models."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from fab_benchmark_runner import Benchmark, load_run_config
-from fab_benchmark_runner.llm import call_llm, evaluate_item_with_fdllm
+import pytest
+
+from fab_benchmark_runner import ConfigError, ImageRef, ModelInput
+from fab_benchmark_runner.llm import call_llm, call_model_with_fdllm
 
 
 def test_call_llm_sends_system_and_user_messages() -> None:
@@ -55,13 +54,9 @@ def test_call_llm_treats_a_missing_response_as_empty() -> None:
     assert record["tokens_used"] is None
 
 
-def test_default_evaluator_uses_run_settings(
-    benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(max_tokens=321), benchmark)
-    config = replace(config, benchmark=replace(benchmark, system_prompt="System."))
+def test_runs_call_fdllm_with_the_stored_input_and_the_experiments_limit() -> None:
     record = {
-        "response_text": '["cat"]',
+        "response_text": "B",
         "max_tokens": 321,
         "tokens_used": 12,
         "tokens_used_completion": 7,
@@ -70,20 +65,19 @@ def test_default_evaluator_uses_run_settings(
         "timestamp_utc": "20261116T120000_000000Z",
         "latency_seconds": 1.25,
     }
+    model_input = ModelInput("mcq-1", "Which?", "Answer with one letter.")
 
-    with patch(
-        "fab_benchmark_runner.llm.call_llm", return_value=record
-    ) as call_llm_mock:
-        payload = evaluate_item_with_fdllm(
-            config, "model-a", {"benchmark_item_id": "item-1"}, "rendered"
-        )
+    with patch("fab_benchmark_runner.llm.call_llm", return_value=record) as call:
+        payload = call_model_with_fdllm("model-a", model_input, 321)
 
-    call_llm_mock.assert_called_once_with(
-        "rendered", model="model-a", max_tokens=321, system_prompt="System."
+    call.assert_called_once_with(
+        "Which?",
+        model="model-a",
+        max_tokens=321,
+        system_prompt="Answer with one letter.",
     )
     assert payload == {
-        "output": '["cat"]',
-        "max_tokens": 321,
+        "output": "B",
         "tokens_used": 12,
         "tokens_used_completion": 7,
         "tokens_used_reasoning": None,
@@ -91,3 +85,14 @@ def test_default_evaluator_uses_run_settings(
         "timestamp_utc": "20261116T120000_000000Z",
         "latency_seconds": 1.25,
     }
+
+
+def test_images_and_unlimited_calls_are_refused_until_they_are_supported() -> None:
+    with_image = ModelInput(
+        "v-1", "Which?", images=(ImageRef("gs://b/1.jpg", "high", "a" * 64),)
+    )
+
+    with pytest.raises(ConfigError, match="Images are not sent yet"):
+        call_model_with_fdllm("model-a", with_image, 100)
+    with pytest.raises(ConfigError, match="without a token limit"):
+        call_model_with_fdllm("model-a", ModelInput("t-1", "Which?"), None)

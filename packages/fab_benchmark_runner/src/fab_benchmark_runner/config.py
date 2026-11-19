@@ -1,93 +1,119 @@
-"""Run configs: shared core keys plus the benchmark's own params."""
+"""Run configs: which experiment, which models, and how to run them.
+
+A run config never describes inputs: those belong to the experiment, which every
+run reads as stored. Adding a model means writing another run config; nothing
+shared is rewritten. ``max_tokens`` belongs to the experiment too, because it
+shapes every response.
+"""
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import re
+import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from fab_benchmark_runner.benchmark import CORE_CONFIG_KEYS, Benchmark
-from fab_benchmark_runner.errors import ConfigError
-from fab_benchmark_runner.gcs import parse_gs_uri
-from fab_benchmark_runner.ids import sha256_json
+from google.api_core.exceptions import NotFound
 
-DEFAULT_RUN_ID = "default"
-DEFAULT_OUTPUT_DIR = "results"
-DEFAULT_MAX_TOKENS = 10_000
+from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.gcs import (
+    create_storage_client,
+    download_to_path,
+    parse_gs_uri,
+)
+
 DEFAULT_CHUNK_SIZE = 20
 DEFAULT_MODEL_WORKERS = 4
-RUN_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
+RUN_CONFIG_KEYS = frozenset(
+    {
+        "chunk_size",
+        "custom_models_path",
+        "custom_models_sha256",
+        "custom_models_uri",
+        "env_path",
+        "experiment",
+        "force",
+        "model_workers",
+        "models",
+        "retry_errors",
+    }
+)
+# Keys of the run configs used before experiments, with what replaced them.
+_REPLACED_KEYS = {
+    "items_path": "inputs now belong to an experiment; create one with "
+    "fab-bench create-experiment and name it in 'experiment'",
+    "max_tokens": "max_tokens belongs to the experiment; set it when creating the "
+    "experiment, and raise it with fab-bench raise-max-tokens",
+    "output_dir": "results are written into the experiment's folder",
+    "results_dest": "results are written into the experiment's folder",
+    "run_id": "a run is named by its experiment and models",
+}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
 class RunConfig:
-    """A validated run config, bound to the benchmark that parsed it."""
+    """A validated run config.
 
-    benchmark: Benchmark
-    run_id: str
-    output_dir: Path
-    models: list[str]
-    items_path: Path
-    params: Any = None
-    inputs_dir: Path | None = None
-    env_path: Path | None = None
+    ``experiment`` is a ``gs://`` URI or an absolute local path. ``source`` is
+    where the config was read from, and ``raw`` its content, which each model's
+    record keeps.
+    """
+
+    experiment: str
+    models: tuple[str, ...]
     custom_models_path: Path | None = None
     custom_models_uri: str | None = None
     custom_models_sha256: str | None = None
-    max_tokens: int | None = None
-    chunk_size: int | None = DEFAULT_CHUNK_SIZE
+    env_path: Path | None = None
     model_workers: int = DEFAULT_MODEL_WORKERS
+    chunk_size: int | None = DEFAULT_CHUNK_SIZE
     force: bool = False
     retry_errors: bool = False
-    results_dest: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    extra: dict[str, Any] = field(default_factory=dict)
-    raw_config: dict[str, Any] = field(default_factory=dict)
-    config_path: Path | None = None
+    source: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
 
     @property
-    def run_dir(self) -> Path:
-        return self.output_dir / self.run_id
-
-    @property
-    def effective_max_tokens(self) -> int:
-        """Return the token limit actually sent to providers."""
-
-        return self.max_tokens if self.max_tokens is not None else DEFAULT_MAX_TOKENS
-
-    def identity_fields(self) -> dict[str, Any]:
-        """Return the benchmark params that define this run's semantics."""
-
-        return self.benchmark.identity_fields(self.params)
+    def experiment_is_gcs(self) -> bool:
+        return self.experiment.startswith("gs://")
 
 
-def config_identity(config: RunConfig) -> dict[str, Any]:
-    """Return the payload behind the config ID: what every call shares."""
+def load_run_config(
+    source: str | Path, *, storage_client: Any | None = None
+) -> RunConfig:
+    """Read and validate a run config from a local file or a ``gs://`` URI.
 
-    fields = config.identity_fields()
-    if "max_tokens" in fields:
-        raise ConfigError("Benchmark identity fields must not include 'max_tokens'")
-    return {**fields, "max_tokens": config.effective_max_tokens}
+    Relative paths in a local config resolve against its folder. A config on GCS
+    is meant for Cloud Run: it must name an experiment on GCS and pin its registry
+    with ``custom_models_uri``, and its ``env_path`` is ignored, because jobs get
+    provider keys from their environment.
+    """
 
+    text = str(source)
+    if text.startswith("gs://"):
+        try:
+            parse_gs_uri(text)
+        except ValueError as e:
+            raise ConfigError(f"Invalid run config URI: {e}") from e
+        with tempfile.TemporaryDirectory(prefix="fab-bench-config-") as temporary:
+            local_copy = Path(temporary) / "run.json"
+            try:
+                download_to_path(
+                    text,
+                    local_copy,
+                    storage_client=storage_client or create_storage_client(),
+                )
+            except NotFound as e:
+                raise ConfigError(f"Run config {text} does not exist") from e
+            raw = read_config_object(local_copy, description=f"run config {text}")
+        return parse_run_config(raw, base_dir=None, source=text)
 
-def config_identity_sha256(config: RunConfig) -> str:
-    """Return a stable hash of the semantic inputs of a run."""
-
-    return sha256_json(config_identity(config))
-
-
-def load_run_config(config_path: str | Path, benchmark: Benchmark) -> RunConfig:
-    """Load and validate a local JSON run config."""
-
-    path = Path(config_path).expanduser().resolve()
-    raw_config = read_config_object(path, description="config file")
-    return parse_run_config(
-        raw_config, benchmark, base_dir=path.parent, config_path=path
-    )
+    path = Path(source).expanduser().resolve()
+    raw = read_config_object(path, description=f"run config {path}")
+    return parse_run_config(raw, base_dir=path.parent, source=str(path))
 
 
 def read_config_object(path: Path, *, description: str) -> dict[str, Any]:
@@ -95,115 +121,96 @@ def read_config_object(path: Path, *, description: str) -> dict[str, Any]:
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid JSON in {description}: {e}") from e
+    except FileNotFoundError as e:
+        raise ConfigError(f"{description.capitalize()} does not exist") from e
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise ConfigError(f"Could not read {description}: {e}") from e
     if not isinstance(payload, dict):
         raise ConfigError(f"{description.capitalize()} must be a JSON object")
     return payload
 
 
 def parse_run_config(
-    raw_config: dict[str, Any],
-    benchmark: Benchmark,
-    *,
-    base_dir: Path,
-    config_path: Path | None = None,
+    raw: Mapping[str, Any], *, base_dir: Path | None, source: str | None = None
 ) -> RunConfig:
-    """Validate core keys, then hand the benchmark's keys to its params type."""
+    """Validate a run config. ``base_dir`` is None for a config read from GCS.
 
-    missing_fields = [
-        name
-        for name in ("models", "items_path")
-        if raw_config.get(name) is None or raw_config.get(name) == []
-    ]
-    missing_fields += _missing_param_fields(benchmark, raw_config)
-    if missing_fields:
-        raise ConfigError("Missing required run fields: " + ", ".join(missing_fields))
+    Unknown keys are refused, so a misspelled setting can't be silently ignored.
+    """
 
-    run_id = parse_run_id(raw_config.get("run_id"))
-    models = _validate_models(raw_config.get("models"))
+    raw = dict(raw)
+    replaced = sorted(set(raw) & set(_REPLACED_KEYS))
+    if replaced:
+        key = replaced[0]
+        raise ConfigError(f"Run configs no longer take '{key}': {_REPLACED_KEYS[key]}")
+    unknown = sorted(set(raw) - RUN_CONFIG_KEYS)
+    if unknown:
+        raise ConfigError(f"Unknown run config keys: {', '.join(unknown)}")
 
-    items_path = raw_config.get("items_path")
-    if not isinstance(items_path, str) or not items_path.strip():
-        raise ConfigError("'items_path' must be a non-empty string")
-    if items_path.startswith("gs://"):
+    on_gcs = base_dir is None
+    experiment = raw.get("experiment")
+    if not isinstance(experiment, str) or not experiment.strip():
+        raise ConfigError("'experiment' must name an experiment folder or gs:// URI")
+    if experiment.startswith("gs://"):
+        try:
+            parse_gs_uri(experiment.rstrip("/") + "/")
+        except ValueError as e:
+            raise ConfigError(f"Invalid 'experiment': {e}") from e
+        experiment = experiment.rstrip("/")
+    elif on_gcs:
         raise ConfigError(
-            "A gs:// items_path must be downloaded first; load the config with "
-            "load_local_run_config or load_cloud_run_config"
+            "A run config on GCS runs on Cloud Run, which can't read the local "
+            f"experiment {experiment!r}; upload it with fab-bench upload-experiment"
         )
+    else:
+        experiment = str(_resolve_path(experiment, base_dir))
 
-    output_dir = raw_config.get("output_dir", DEFAULT_OUTPUT_DIR)
-    if not isinstance(output_dir, str) or not output_dir.strip():
-        raise ConfigError("'output_dir' must be a non-empty string")
+    custom_models_path = _optional_path(raw, "custom_models_path")
+    custom_models_uri, custom_models_sha256 = _validate_pinned_registry(raw)
+    if custom_models_path is not None and custom_models_uri is not None:
+        raise ConfigError(
+            "Set either custom_models_path or custom_models_uri, not both"
+        )
+    if on_gcs and custom_models_path is not None:
+        raise ConfigError(
+            "A run config on GCS can't use a local custom_models_path; pin the "
+            "registry with custom_models_uri and custom_models_sha256"
+        )
+    env_path = _optional_path(raw, "env_path")
 
-    inputs_dir = _optional_path_string(raw_config, "inputs_dir")
-    env_path = _optional_path_string(raw_config, "env_path")
-    custom_models_path = _optional_path_string(raw_config, "custom_models_path")
-    custom_models_uri, custom_models_sha256 = _validate_pinned_registry(
-        raw_config, custom_models_path=custom_models_path
-    )
-
-    max_tokens = raw_config.get("max_tokens")
-    if isinstance(max_tokens, bool) or (
-        max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens < 1)
-    ):
-        raise ConfigError("'max_tokens' must be a positive integer when provided")
-
-    chunk_size = raw_config.get("chunk_size", DEFAULT_CHUNK_SIZE)
-    if isinstance(chunk_size, bool) or (
-        chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size < 1)
-    ):
+    chunk_size = raw.get("chunk_size", DEFAULT_CHUNK_SIZE)
+    if chunk_size is not None and not _positive_int(chunk_size):
         raise ConfigError("'chunk_size' must be a positive integer or null")
-
-    model_workers = validate_model_workers(
-        raw_config.get("model_workers", DEFAULT_MODEL_WORKERS)
-    )
-
-    force = raw_config.get("force", False)
-    if not isinstance(force, bool):
-        raise ConfigError("'force' must be a boolean when provided")
-    retry_errors = raw_config.get("retry_errors", False)
-    if not isinstance(retry_errors, bool):
-        raise ConfigError("'retry_errors' must be a boolean when provided")
+    force = raw.get("force", False)
+    retry_errors = raw.get("retry_errors", False)
+    if not isinstance(force, bool) or not isinstance(retry_errors, bool):
+        raise ConfigError("'force' and 'retry_errors' must be booleans")
     if force and retry_errors:
         raise ConfigError("'force' and 'retry_errors' cannot be combined")
 
-    metadata = raw_config.get("metadata", {})
-    if not isinstance(metadata, dict):
-        raise ConfigError("'metadata' must be an object when provided")
-
-    results_dest = raw_config.get("results_dest")
-    if results_dest is not None:
-        results_dest = validate_results_dest(results_dest)
-
-    params = _parse_params(benchmark, raw_config)
-    known_keys = set(benchmark.param_keys) | CORE_CONFIG_KEYS
-    extra = {key: value for key, value in raw_config.items() if key not in known_keys}
-
     return RunConfig(
-        benchmark=benchmark,
-        run_id=run_id,
-        output_dir=_resolve_path(output_dir, base_dir),
-        models=models,
-        items_path=_resolve_path(items_path, base_dir),
-        params=params,
-        inputs_dir=_resolve_path(inputs_dir, base_dir) if inputs_dir else None,
-        env_path=_resolve_path(env_path, base_dir) if env_path else None,
+        experiment=experiment,
+        models=_validate_models(raw.get("models")),
         custom_models_path=(
-            _resolve_path(custom_models_path, base_dir) if custom_models_path else None
+            None
+            if custom_models_path is None or base_dir is None
+            else _resolve_path(custom_models_path, base_dir)
         ),
         custom_models_uri=custom_models_uri,
         custom_models_sha256=custom_models_sha256,
-        max_tokens=max_tokens,
+        env_path=(
+            None
+            if env_path is None or base_dir is None
+            else _resolve_path(env_path, base_dir)
+        ),
+        model_workers=validate_model_workers(
+            raw.get("model_workers", DEFAULT_MODEL_WORKERS)
+        ),
         chunk_size=chunk_size,
-        model_workers=model_workers,
         force=force,
         retry_errors=retry_errors,
-        results_dest=results_dest,
-        metadata=metadata,
-        extra=extra,
-        raw_config=raw_config,
-        config_path=config_path,
+        source=source,
+        raw=raw,
     )
 
 
@@ -213,9 +220,8 @@ def apply_execution_overrides(
     force: bool = False,
     retry_errors: bool = False,
     model_workers: int | None = None,
-    results_dest: str | None = None,
 ) -> RunConfig:
-    """Apply explicitly supplied command-line options to a validated config."""
+    """Apply command-line options on top of a validated config."""
 
     effective_force = force or config.force
     effective_retry_errors = retry_errors or config.retry_errors
@@ -230,74 +236,16 @@ def apply_execution_overrides(
             if model_workers is not None
             else config.model_workers
         ),
-        results_dest=(
-            validate_results_dest(results_dest)
-            if results_dest is not None
-            else config.results_dest
-        ),
     )
 
 
-def parse_run_id(value: Any) -> str:
-    """Validate a run ID, which names the run's output folder."""
-
-    if value is None:
-        return DEFAULT_RUN_ID
-    if not isinstance(value, str) or not value.strip():
-        raise ConfigError("'run_id' must be a non-empty string when provided")
-    if not RUN_ID_RE.match(value):
-        raise ConfigError("'run_id' must use only alphanumeric characters and hyphens")
-    return value
-
-
 def validate_model_workers(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+    if not _positive_int(value):
         raise ConfigError("'model_workers' must be a positive integer")
     return value
 
 
-def validate_results_dest(value: Any) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ConfigError("'results_dest' must be a non-empty gs:// URI")
-    try:
-        parse_gs_uri(value)
-    except ValueError as e:
-        raise ConfigError(f"Invalid 'results_dest': {e}") from e
-    return value
-
-
-def _missing_param_fields(
-    benchmark: Benchmark, raw_config: dict[str, Any]
-) -> list[str]:
-    if benchmark.params_type is None:
-        return []
-    return [
-        param.name
-        for param in dataclasses.fields(benchmark.params_type)
-        if param.init
-        and param.default is dataclasses.MISSING
-        and param.default_factory is dataclasses.MISSING
-        and raw_config.get(param.name) is None
-    ]
-
-
-def _parse_params(benchmark: Benchmark, raw_config: dict[str, Any]) -> Any:
-    if benchmark.params_type is None:
-        return None
-    values = {
-        param.name: raw_config[param.name]
-        for param in dataclasses.fields(benchmark.params_type)
-        if param.init and param.name in raw_config
-    }
-    try:
-        return benchmark.params_type(**values)
-    except ConfigError:
-        raise
-    except (TypeError, ValueError) as e:
-        raise ConfigError(f"Invalid {benchmark.name} run params: {e}") from e
-
-
-def _validate_models(value: Any) -> list[str]:
+def _validate_models(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list) or not value:
         raise ConfigError("'models' must be a non-empty list")
     models: list[str] = []
@@ -313,16 +261,14 @@ def _validate_models(value: Any) -> list[str]:
         if model_name in models:
             raise ConfigError(f"Model names must be unique; duplicate: {model_name}")
         models.append(model_name)
-    return models
+    return tuple(models)
 
 
 def _validate_pinned_registry(
-    raw_config: dict[str, Any],
-    *,
-    custom_models_path: str | None,
+    raw: Mapping[str, Any],
 ) -> tuple[str | None, str | None]:
-    source_uri = raw_config.get("custom_models_uri")
-    expected_hash = raw_config.get("custom_models_sha256")
+    source_uri = raw.get("custom_models_uri")
+    expected_hash = raw.get("custom_models_sha256")
     if source_uri is None:
         if expected_hash is not None:
             raise ConfigError("custom_models_sha256 requires custom_models_uri")
@@ -337,18 +283,18 @@ def _validate_pinned_registry(
         raise ConfigError(
             "custom_models_uri requires a lowercase SHA-256 custom_models_sha256"
         )
-    if custom_models_path is not None:
-        raise ConfigError(
-            "Set either custom_models_path or custom_models_uri, not both"
-        )
     return source_uri, expected_hash
 
 
-def _optional_path_string(raw_config: dict[str, Any], key: str) -> str | None:
-    value = raw_config.get(key)
+def _optional_path(raw: Mapping[str, Any], key: str) -> str | None:
+    value = raw.get(key)
     if value is not None and (not isinstance(value, str) or not value.strip()):
         raise ConfigError(f"'{key}' must be a non-empty string when provided")
     return value
+
+
+def _positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
 
 
 def _resolve_path(value: str, base_dir: Path) -> Path:

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-DEPLOY_DIR = Path(__file__).resolve().parents[1] / "deploy"
+DEPLOY_DIR = Path(__file__).resolve().parents[2] / "deploy"
 SCRIPTS = ("build-image.sh", "deploy-job.sh", "launch-run.sh")
 
 posix_only = pytest.mark.skipif(

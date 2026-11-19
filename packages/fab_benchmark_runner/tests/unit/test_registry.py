@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
-from dataclasses import replace
+import os
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from fab_benchmark_runner import Benchmark, ConfigError, load_run_config
+from fab_benchmark_runner import ConfigError, parse_run_config
 from fab_benchmark_runner.registry import (
+    ModelRegistry,
     check_provider_groups,
     download_pinned_registry,
     download_public_registry,
     load_environment,
-    prepare_fdllm_for_run,
+    prepare_fdllm,
     prepare_model_registry,
     snapshot_model_configs,
 )
@@ -33,6 +34,13 @@ def _fake_download(content: bytes, calls: list[dict] | None = None):
         Path(kwargs["write_path"]).write_bytes(content)
 
     return download
+
+
+def _config(tmp_path: Path, **raw: Any):
+    return parse_run_config(
+        {"experiment": "exp", "models": ["model-a", "model-b"], **raw},
+        base_dir=tmp_path,
+    )
 
 
 def test_public_download_is_anonymous_and_atomic(tmp_path: Path) -> None:
@@ -141,17 +149,13 @@ def test_pinned_download_verifies_the_checksum(
 
 @pytest.mark.parametrize("download_public", [True, False])
 def test_prepare_uses_pinned_registry_even_when_skipping_downloads(
-    tmp_path: Path,
-    benchmark: Benchmark,
-    write_run: Callable[..., Path],
-    download_public: bool,
+    tmp_path: Path, download_public: bool
 ) -> None:
-    config_path = write_run(
-        custom_models_path=None,
+    config = _config(
+        tmp_path,
         custom_models_uri=PINNED_URI,
         custom_models_sha256=sha256(REGISTRY).hexdigest(),
     )
-    config = load_run_config(config_path, benchmark)
 
     with (
         patch(
@@ -160,120 +164,109 @@ def test_prepare_uses_pinned_registry_even_when_skipping_downloads(
         ),
         patch("fab_benchmark_runner.registry.download_public_registry") as public,
     ):
-        prepared = prepare_model_registry(config, download_public=download_public)
+        registry = prepare_model_registry(
+            config, workdir=tmp_path / "work", download_public=download_public
+        )
 
     public.assert_not_called()
-    expected_path = tmp_path / "inputs" / "experiment-a" / "custom_models.yaml"
-    assert prepared.custom_models_path == expected_path.resolve()
-    assert expected_path.read_bytes() == REGISTRY
+    assert registry.path.parent == (tmp_path / "work" / "registry").resolve()
+    assert registry.path.read_bytes() == REGISTRY
+    assert registry.record() == {
+        "sha256": sha256(REGISTRY).hexdigest(),
+        "uri": PINNED_URI,
+    }
 
 
-def test_prepare_keeps_an_explicit_registry_untouched(
-    benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(), benchmark)
+def test_prepare_keeps_an_explicit_registry_untouched(tmp_path: Path) -> None:
+    (tmp_path / "models.yaml").write_bytes(REGISTRY)
+    config = _config(tmp_path, custom_models_path="models.yaml")
 
     with patch("fab_benchmark_runner.registry.download_public_registry") as public:
-        prepared = prepare_model_registry(config, download_public=True)
+        registry = prepare_model_registry(
+            config, workdir=tmp_path, download_public=True
+        )
 
     public.assert_not_called()
-    assert prepared == config
+    assert registry == ModelRegistry(
+        (tmp_path / "models.yaml").resolve(), sha256(REGISTRY).hexdigest()
+    )
 
 
 @pytest.mark.parametrize("download_public", [True, False])
 def test_prepare_refreshes_the_public_registry_unless_skipped(
-    tmp_path: Path,
-    benchmark: Benchmark,
-    write_run: Callable[..., Path],
-    download_public: bool,
+    tmp_path: Path, download_public: bool
 ) -> None:
-    config = load_run_config(write_run(custom_models_path=None), benchmark)
     public_path = tmp_path / "workspace" / "custom_models.yaml"
+    public_path.parent.mkdir()
+    public_path.write_bytes(REGISTRY)
 
     with patch("fab_benchmark_runner.registry.download_public_registry") as public:
-        prepared = prepare_model_registry(
-            config, download_public=download_public, public_path=public_path
+        registry = prepare_model_registry(
+            _config(tmp_path),
+            workdir=tmp_path,
+            download_public=download_public,
+            public_path=public_path,
         )
 
     assert public.called is download_public
-    assert prepared.custom_models_path == public_path
+    assert registry.path == public_path
 
 
-def test_public_registry_defaults_to_the_benchmark_then_working_directory(
-    tmp_path: Path,
-    benchmark: Benchmark,
-    write_run: Callable[..., Path],
-    monkeypatch: pytest.MonkeyPatch,
+def test_the_public_registry_defaults_to_the_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = load_run_config(write_run(custom_models_path=None), benchmark)
     monkeypatch.chdir(tmp_path)
+    (tmp_path / "custom_models.yaml").write_bytes(REGISTRY)
 
-    with patch("fab_benchmark_runner.registry.download_public_registry"):
-        in_cwd = prepare_model_registry(config, download_public=True)
-        configured = prepare_model_registry(
-            replace(
-                config,
-                benchmark=replace(
-                    benchmark, default_custom_models_path=tmp_path / "shared.yaml"
-                ),
-            ),
-            download_public=True,
-        )
+    registry = prepare_model_registry(
+        _config(tmp_path), workdir=tmp_path, download_public=False
+    )
 
-    assert in_cwd.custom_models_path == tmp_path / "custom_models.yaml"
-    assert configured.custom_models_path == tmp_path / "shared.yaml"
+    assert registry.path == tmp_path / "custom_models.yaml"
 
 
-def test_prepare_fdllm_registers_the_run_registry(
-    benchmark: Benchmark, write_run: Callable[..., Path]
+def test_a_missing_registry_file_is_reported(tmp_path: Path) -> None:
+    config = _config(tmp_path, custom_models_path="missing.yaml")
+
+    with pytest.raises(FileNotFoundError, match="Custom models file not found"):
+        prepare_model_registry(config, workdir=tmp_path, download_public=False)
+
+
+def test_prepare_fdllm_registers_the_registry_and_returns_model_configs(
+    tmp_path: Path,
 ) -> None:
-    config = load_run_config(write_run(), benchmark)
+    registry = ModelRegistry(tmp_path / "models.yaml", "a" * 64)
 
     with (
         patch("fab_benchmark_runner.registry.load_environment") as load_env,
         patch("fab_benchmark_runner.registry.register_custom_models") as register,
         patch("fab_benchmark_runner.registry.validate_registered_models") as validate,
+        patch(
+            "fab_benchmark_runner.registry.snapshot_model_configs",
+            return_value={"model-a": {}},
+        ),
     ):
-        prepare_fdllm_for_run(config)
+        configs = prepare_fdllm(registry, ("model-a",), env_path=tmp_path / ".env")
 
-    load_env.assert_called_once_with(config)
-    register.assert_called_once_with(config.custom_models_path)
-    validate.assert_called_once_with(["model-a", "model-b"])
-
-
-def test_missing_registry_file_is_reported(
-    tmp_path: Path, benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(), benchmark)
-    (tmp_path / "custom_models.yaml").unlink()
-
-    with pytest.raises(FileNotFoundError, match="Custom models file not found"):
-        prepare_fdllm_for_run(config)
+    load_env.assert_called_once_with(tmp_path / ".env")
+    register.assert_called_once_with(registry.path)
+    validate.assert_called_once_with(["model-a"])
+    assert configs == {"model-a": {}}
 
 
-def test_explicit_env_file_must_exist(
-    tmp_path: Path, benchmark: Benchmark, write_run: Callable[..., Path]
-) -> None:
-    config = load_run_config(write_run(env_path="missing.env"), benchmark)
-
+def test_an_explicit_env_file_must_exist(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="Environment file not found"):
-        load_environment(config)
+        load_environment(tmp_path / "missing.env")
 
 
 def test_env_file_does_not_override_the_environment(
-    tmp_path: Path,
-    benchmark: Benchmark,
-    write_run: Callable[..., Path],
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "keys.env").write_text("A_KEY=from-file\nB_KEY=from-file\n")
     monkeypatch.setenv("A_KEY", "from-env")
     monkeypatch.delenv("B_KEY", raising=False)
-    config = load_run_config(write_run(env_path="keys.env"), benchmark)
 
-    assert load_environment(config) == (tmp_path / "keys.env").resolve()
-
-    import os
+    assert load_environment(tmp_path / "keys.env") == tmp_path / "keys.env"
 
     assert os.environ["A_KEY"] == "from-env"
     assert os.environ["B_KEY"] == "from-file"

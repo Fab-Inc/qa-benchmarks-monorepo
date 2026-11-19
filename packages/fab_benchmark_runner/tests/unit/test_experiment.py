@@ -19,7 +19,12 @@ from fab_benchmark_runner import (
     model_call_id,
     read_experiment,
 )
-from fab_benchmark_runner.experiment import EXPERIMENT_RECORD_NAME, INPUTS_FILE_NAME
+from fab_benchmark_runner import experiment as experiment_module
+from fab_benchmark_runner.experiment import (
+    EXPERIMENT_RECORD_NAME,
+    INPUTS_FILE_NAME,
+    raise_max_tokens,
+)
 
 TEXT_ROWS = [
     {"benchmark_item_id": "sw-1", "prompt": "Soma: Mama.", "system_prompt": "Teach."},
@@ -62,10 +67,11 @@ def test_creates_a_local_text_experiment(tmp_path: Path) -> None:
     assert creation.status == "created"
     assert record["inputs_sha256"] == sha256(inputs_bytes).hexdigest()
     assert record["experiment_id"] == default_experiment_id(
-        benchmark="phonics",
-        inputs_sha256=record["inputs_sha256"],
-        max_tokens=30000,
+        benchmark="phonics", inputs_sha256=record["inputs_sha256"]
     )
+    assert record["max_tokens_history"] == [
+        {"max_tokens": 30000, "utc": record["created"]["utc"]}
+    ]
     assert len(record["experiment_id"]) == 16
     assert {key: record[key] for key in ("benchmark", "max_tokens", "labels")} == {
         "benchmark": "phonics",
@@ -157,7 +163,7 @@ def test_creating_the_same_experiment_again_changes_nothing(tmp_path: Path) -> N
 
 @pytest.mark.parametrize(
     "change",
-    [{"max_tokens": 200}, {"experiment_id": "other"}, {"benchmark": "dtg"}],
+    [{"experiment_id": "other"}, {"benchmark": "dtg"}],
 )
 def test_a_folder_holding_a_different_experiment_is_refused(
     tmp_path: Path, change: dict[str, Any]
@@ -521,3 +527,63 @@ def test_many_gcs_images_are_hashed_and_the_first_missing_one_reported(
             max_tokens=100,
             storage_client=storage,
         )
+
+
+def test_raising_max_tokens_on_gcs_checks_the_generation_it_read(
+    tmp_path: Path, storage: Any
+) -> None:
+    create_experiment(
+        _write_inputs(tmp_path / "inputs.jsonl"),
+        dest="gs://bucket/exp",
+        benchmark="phonics",
+        max_tokens=100,
+        storage_client=storage,
+    )
+
+    change = raise_max_tokens("gs://bucket/exp", 400, storage_client=storage)
+
+    generation, content = storage.objects["bucket"]["exp/experiment.json"]
+    assert change.status == "raised"
+    assert json.loads(content)["max_tokens"] == 400
+    assert storage.upload_preconditions[-1][0] == "exp/experiment.json"
+    assert storage.upload_preconditions[-1][1] != 0
+    with pytest.raises(ConfigError, match="holds no experiment"):
+        raise_max_tokens("gs://bucket/none", 400, storage_client=storage)
+
+
+def test_raising_max_tokens_refuses_a_record_changed_meanwhile(
+    tmp_path: Path, storage: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_experiment(
+        _write_inputs(tmp_path / "inputs.jsonl"),
+        dest="gs://bucket/exp",
+        benchmark="phonics",
+        max_tokens=100,
+        storage_client=storage,
+    )
+    real_download = experiment_module.download_file_with_generation
+
+    def download_then_change(**kwargs: Any) -> int:
+        generation = real_download(**kwargs)
+        current = storage.objects["bucket"]["exp/experiment.json"]
+        storage.objects["bucket"]["exp/experiment.json"] = (
+            current[0] + 1,
+            current[1],
+        )
+        return generation
+
+    monkeypatch.setattr(
+        experiment_module, "download_file_with_generation", download_then_change
+    )
+
+    with pytest.raises(ConfigError, match="changed while its limit was being raised"):
+        raise_max_tokens("gs://bucket/exp", 400, storage_client=storage)
+
+
+def test_raising_max_tokens_needs_an_experiment_and_a_valid_limit(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ConfigError, match="holds no experiment"):
+        raise_max_tokens(tmp_path, 400)
+    with pytest.raises(ConfigError, match="positive integer"):
+        raise_max_tokens(tmp_path, 0)

@@ -1,63 +1,16 @@
-"""Shared fixtures: a small benchmark adapter, run files and a fake GCS client."""
+"""Shared fixtures: a model registry, result readers and a fake GCS client."""
 
 from __future__ import annotations
 
 import base64
 import json
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import google_crc32c
 import pytest
 from google.api_core.exceptions import NotFound, PreconditionFailed
-
-from fab_benchmark_runner import Benchmark
-
-
-@dataclass(frozen=True)
-class LanguageParams:
-    language: str
-    prompt_name: str = "default"
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.language, str) or not self.language.strip():
-            raise ValueError("'language' must be a non-empty string")
-
-
-def build_language_prompt(item: Mapping[str, Any], params: LanguageParams) -> str:
-    return f"[{params.language}/{params.prompt_name}] {item['content']}"
-
-
-TEST_BENCHMARK = Benchmark(
-    name="test-bench",
-    params_type=LanguageParams,
-    build_prompt=build_language_prompt,
-)
-
-DEFAULT_ITEMS = (
-    {"benchmark_item_id": "item-1", "content": "A cat sat."},
-    {"benchmark_item_id": "item-2", "content": "The dog ran."},
-)
-
-
-@pytest.fixture
-def benchmark() -> Benchmark:
-    return TEST_BENCHMARK
-
-
-@pytest.fixture
-def write_items(tmp_path: Path) -> Callable[..., Path]:
-    def write(items: Iterable[Mapping[str, Any]] = DEFAULT_ITEMS) -> Path:
-        items_path = tmp_path / "items.jsonl"
-        items_path.write_text(
-            "".join(json.dumps(dict(item)) + "\n" for item in items),
-            encoding="utf-8",
-        )
-        return items_path
-
-    return write
 
 
 @pytest.fixture
@@ -78,40 +31,6 @@ def write_registry(tmp_path: Path) -> Callable[..., Path]:
         registry_path = tmp_path / "custom_models.yaml"
         registry_path.write_text(json.dumps(registry), encoding="utf-8")
         return registry_path
-
-    return write
-
-
-@pytest.fixture
-def write_run(
-    tmp_path: Path,
-    write_items: Callable[..., Path],
-    write_registry: Callable[..., Path],
-) -> Callable[..., Path]:
-    """Write items, a registry and a run config; return the config path."""
-
-    def write(
-        *,
-        models: Iterable[str] = ("model-a", "model-b"),
-        items: Iterable[Mapping[str, Any]] = DEFAULT_ITEMS,
-        groups: Mapping[str, Iterable[str]] | None = None,
-        **overrides: Any,
-    ) -> Path:
-        write_items(items)
-        write_registry(models, groups=groups)
-        config = {
-            "run_id": "experiment-a",
-            "language": "sw",
-            "items_path": "items.jsonl",
-            "output_dir": "outputs",
-            "models": list(models),
-            "model_workers": 1,
-            "custom_models_path": "custom_models.yaml",
-            **overrides,
-        }
-        config_path = tmp_path / "run.json"
-        config_path.write_text(json.dumps(config), encoding="utf-8")
-        return config_path
 
     return write
 

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from fab_benchmark_runner.config import RunConfig
+from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.inputs import ModelInput
 
 
 def call_llm(
@@ -42,26 +42,26 @@ def call_llm(
     }
 
 
-def evaluate_item_with_fdllm(
-    config: RunConfig,
-    model_name: str,
-    item: Mapping[str, Any],
-    prompt: str,
+def call_model_with_fdllm(
+    model_name: str, model_input: ModelInput, max_tokens: int | None
 ) -> dict[str, Any]:
-    """The default evaluator: call the model and return the fields for its row.
+    """The default way a run calls a model: one FDLLM call per stored input.
 
-    ``item`` is unused because the rendered prompt carries everything the model sees.
+    Returns the row fields of the response; the runner adds the input and IDs.
     """
 
+    if model_input.images:
+        raise ConfigError("Images are not sent yet")
+    if max_tokens is None:
+        raise ConfigError("Runs without a token limit are not supported yet")
     record = call_llm(
-        prompt,
+        model_input.prompt,
         model=model_name,
-        max_tokens=config.effective_max_tokens,
-        system_prompt=config.benchmark.system_prompt,
+        max_tokens=max_tokens,
+        system_prompt=model_input.system_prompt,
     )
     return {
         "output": record["response_text"],
-        "max_tokens": record["max_tokens"],
         "tokens_used": record["tokens_used"],
         "tokens_used_completion": record["tokens_used_completion"],
         "tokens_used_reasoning": record["tokens_used_reasoning"],

@@ -1,19 +1,25 @@
 # fab-benchmark-runner
 
-Shared run machinery for FAB benchmarks, extracted from the phonics benchmark:
+Shared run machinery for FAB benchmarks. A benchmark hands over its rendered inputs; the
+runner stores them once as an experiment and runs any number of models on it, now or
+later:
 
-- **Result IDs.** Every model call gets a `model_call_id` from its inputs and a
-  `result_id` derived from it. A rerun reuses every result whose ID already exists.
+- **Experiments.** An experiment holds a benchmark's inputs, one row per item, and never
+  changes after creation, except that its `max_tokens` can be raised. Every model gets
+  identical input, however the benchmark's code changes later.
+- **Result IDs.** Every model call gets a `model_call_id` from its input, model and
+  registered config. A rerun reuses every result whose ID already exists.
+- **One set of files per model.** Each model's results and record are written only by
+  the job running that model, so jobs for different models can share an experiment.
+- **GCS.** An experiment can live on GCS; jobs work on a local copy and upload with
+  generation checks, so a restarted job resumes where it stopped.
 - **Model registry.** `custom_models.yaml` comes from the public `fab-open-configs`
   bucket, or from a pinned GCS copy checked against its SHA-256.
-- **Run configs.** One flat JSON file holds the shared keys and each benchmark's own
-  params.
-- **GCS.** Items can be read from GCS, and results are mirrored to a GCS run prefix with
-  generation checks, so a restarted job resumes where it stopped.
-- **Cloud Run.** A CLI with `run-cloud`, plus a Dockerfile, Cloud Build config and job
-  scripts that a benchmark copies into its repository.
 - **Dry run.** `--dry-run` reports which calls a run would make and which it would
   reuse, without calling any model.
+
+`tests/behaviour/` describes the intended behaviour, and the design decisions behind it,
+as runnable scenarios; `tests/unit/` pins the details.
 
 ## Install
 
@@ -56,7 +62,7 @@ its folder: `uv run --frozen pytest`.
 ## Experiments
 
 An experiment stores a benchmark's rendered inputs once, so every model run on it, now
-or later, gets identical input. Runs don't use experiments yet; that is the next step.
+or later, gets identical input.
 
 A benchmark writes an inputs file with its own code, one JSON object per line:
 
@@ -87,100 +93,82 @@ fab-bench create-experiment --inputs inputs.jsonl \
 - Every image is read once, 32 at a time, to record its SHA-256. Images stay where they
   are unless `--copy-images` copies them into the experiment's `images/` folder, named
   by their hash. Images at local paths must be copied into an experiment on GCS.
-- `--max-tokens` is required: a number, or `none` for no limit.
-- `--experiment-id` names the experiment; it defaults to a short hash of the benchmark,
-  inputs and `max_tokens`. It doesn't have to match the folder name.
+- `--max-tokens` is required: a number, or `none` for no limit. It can be raised later,
+  never lowered; see [Token limits](#token-limits).
+- `--experiment-id` names the experiment; it defaults to a short hash of the benchmark
+  and inputs. It doesn't have to match the folder name.
 - The folder gets `inputs.jsonl`, then `experiment.json`, written last so an interrupted
   creation never looks finished. Creating the same experiment again changes nothing; a
   folder holding a different experiment, or other files, is refused.
 
-## Plug in a benchmark
+## Running models
 
-A benchmark describes itself with a `Benchmark` adapter and exposes the generated CLI as
-its console script:
-
-```python
-from dataclasses import dataclass
-
-from fab_benchmark_runner import Benchmark, build_app
-
-
-@dataclass(frozen=True)
-class MathParams:
-    prompt_name: str = "level1"
-
-    def __post_init__(self) -> None:
-        if self.prompt_name not in PROMPTS:
-            raise ValueError(f"Unknown prompt_name: {self.prompt_name}")
-
-
-def build_prompt(item, params: MathParams) -> str:
-    return PROMPTS[params.prompt_name].render(question=item["question"])
-
-
-BENCHMARK = Benchmark(
-    name="mathv",
-    params_type=MathParams,
-    build_prompt=build_prompt,
-)
-app = build_app(BENCHMARK)  # [project.scripts] fab-benchmarks-mathv = "mathv.cli:app"
-```
-
-- `params_type` is a dataclass whose fields are extra top-level keys of the run config.
-  Fields without a default are required. Validate values in `__post_init__` and raise
-  `ValueError`.
-- `identity` (optional) selects the params that define what a run means. They go into
-  the config ID and every result row. By default all params are included.
-- `load_items` (optional) loads a local items file and returns the items with the
-  SHA-256 of the bytes read. The default reads JSONL. Every item needs a unique
-  `benchmark_item_id`. `file_sha256` helps with other formats.
-- `system_prompt`, `default_env_path` and `default_custom_models_path` are optional.
-  Paths default to `.env` and `custom_models.yaml` in the working directory.
-
-The CLI has these commands:
-
-| Command                            | What it does                                                  |
-| ---------------------------------- | ------------------------------------------------------------- |
-| `run --config run.json`            | Run from a local config; `items_path` may be a `gs://` URI    |
-| `run-cloud --config gs://…`        | Download the config and items, run with results synced to GCS |
-| `upload-results` / `fetch-results` | Copy a run's files to or from a GCS run prefix                |
-
-`run` and `run-cloud` both accept `--dry-run` and `--skip-models-download`. `run` also
-accepts `--force`, `--retry-errors`, `--model-workers` and `--results-dest`.
-
-Library callers can use `load_local_run_config`, `execute_run` and `plan_run` directly.
-
-## Run configs
+A run config names the experiment, the models and how to run them:
 
 ```json
 {
-  "run_id": "level1-20261116",
+  "experiment": "gs://bucket/mathv/experiments/level1-v1",
   "models": ["gpt-4o", "claude-sonnet-4"],
-  "items_path": "gs://bucket/mathv/datasets/level1.jsonl",
-  "prompt_name": "level1",
-  "max_tokens": 4096
+  "custom_models_uri": "gs://bucket/model-configs/2026-11.yaml",
+  "custom_models_sha256": "…"
 }
 ```
 
-The shared keys are listed in `CORE_CONFIG_KEYS`:
-
 | Key                                         | Meaning                                                             |
 | ------------------------------------------- | ------------------------------------------------------------------- |
-| `run_id`                                    | Output folder name; letters, digits and hyphens (default `default`) |
+| `experiment`                                | Experiment folder or `gs://` URI (required)                         |
 | `models`                                    | Model names registered in `custom_models.yaml` (required)           |
-| `items_path`                                | Local path or `gs://` URI of the items (required)                   |
-| `output_dir`, `inputs_dir`, `env_path`      | Local paths, relative to the config file                            |
 | `custom_models_path`                        | Use this registry file as it is                                     |
 | `custom_models_uri`, `custom_models_sha256` | Download and verify a pinned registry                               |
-| `max_tokens`                                | Response token limit (default 10,000)                               |
+| `env_path`                                  | A `.env` file with provider keys, for local runs                    |
 | `chunk_size`                                | Calls per model between checkpoints (default 20; `null` saves once) |
 | `model_workers`                             | Models run in parallel (default 4)                                  |
-| `force`, `retry_errors`                     | Rerun everything, or only failed calls                              |
-| `results_dest`                              | GCS run prefix to mirror results to                                 |
-| `metadata`                                  | Free-form object kept in each model record's run entry              |
+| `force`, `retry_errors`                     | Rerun everything, or only failed calls; they can't be combined      |
 
-Other keys belong to the benchmark's params; any left over are kept in
-`RunConfig.extra`.
+Local paths resolve against the config file's folder. Other keys are refused, so a
+misspelled setting can't be silently ignored; `max_tokens` belongs to the experiment.
+Adding a model means writing another run config; nothing shared is rewritten.
+
+| Command                                       | What it does                                             |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `fab-bench run --config run.json`             | Run a local or `gs://` config                            |
+| `fab-bench run-cloud --config gs://…`         | The same, as a Cloud Run job does, in `/workspace`       |
+| `fab-bench raise-max-tokens --experiment …`   | Raise an experiment's token limit                        |
+| `fab-bench fetch-results --experiment gs://…` | Download inputs, records and results (`--model` for one) |
+| `fab-bench upload-experiment <folder> gs://…` | Copy a local experiment, with its results, to GCS        |
+
+`run` and `run-cloud` accept `--dry-run` and `--skip-models-download`; `run` also takes
+`--force`, `--retry-errors`, `--model-workers` and `--workdir` (default `.fab-bench`).
+Library callers can use `run_job` and `plan_job`, or `execute_run` and `plan_run` on a
+local experiment folder.
+
+## Experiment folders
+
+| File                                | Written by                 | Holds                                                  |
+| ----------------------------------- | -------------------------- | ------------------------------------------------------ |
+| `experiment.json`                   | `create-experiment`        | What defines the experiment; only `max_tokens` changes |
+| `inputs.jsonl`                      | `create-experiment`        | The stored inputs, each image with its SHA-256         |
+| `images/`                           | `create-experiment`        | Only images copied in with `--copy-images`             |
+| `responses/responses_<model>.jsonl` | The job running that model | One row per call                                       |
+| `models/<model>.json`               | The job running that model | The model's settings, registry, and one entry per run  |
+
+A row repeats the input (`system_prompt`, `prompt`, `images`) next to `result_id`,
+`model_call_id`, `experiment_id`, `benchmark`, `benchmark_item_id`, `model`,
+`max_tokens`, `output`, `call_status`, `error_type`, `error_message`, `stop_reason`,
+token counts, `model_version`, `latency_seconds` and `timestamp_utc`, so each row reads
+on its own.
+
+A model's record lists every run that wrote its results: when, how many calls, the token
+limit, the run config, and the versions of the runner, FDLLM, Pillow and Python, plus
+the container image. Versions come from package metadata, not from the working
+directory's git checkout. A run or dry run warns when the experiment already has results
+from other runner, FDLLM or Pillow versions.
+
+A job on an experiment on GCS works on a local copy in its workdir. It downloads the
+experiment's own files, every model's record and the results of the models it runs, and
+uploads only the files it writes, each checked against the GCS generation it last saw.
+Jobs running different models never conflict; a second job on the same model stops
+instead of overwriting the first one's results.
 
 ## Result IDs
 
@@ -194,55 +182,42 @@ Other keys belong to the benchmark's params; any left over are kept in
   level (`low` or `high`), not by where it is stored. A call without images hashes
   exactly as before images were supported.
 - `result_id` is the first 24 hex characters of a hash of the `model_call_id`.
-- The config ID hashes the benchmark's identity params plus `max_tokens`. A run folder
-  refuses a run with a different config ID, or with different items, before any call.
 
-Within a model, a result is reused when its ID exists, unless `force` is set. The runner
-looks only in this run's folder, which is first filled from the run's GCS copy when the
-run has a `results_dest`; results under another `run_id` are not consulted. With
-`retry_errors`, only rows whose call failed are rerun. Rows whose ID is no longer
-planned are dropped at the next write. Provider SDK errors, FDLLM's response errors
-(from its `dev` branch: empty, filtered or malformed responses) and empty responses
-become error rows; any other exception stops the run. An error row carries the
-provider's `stop_reason` when FDLLM reports one; `length`, `max_tokens` or `MAX_TOKENS`
-means the response ran out of tokens.
+Within a model, a result is reused when its ID exists, unless `force` is set. With
+`retry_errors`, only rows whose call failed are rerun; it refuses, before any call, to
+run calls that have no row yet. Rows whose ID is no longer planned, because the model's
+registered config changed, are dropped at the next write. Provider SDK errors, FDLLM's
+response errors (from its `dev` branch: empty, filtered or malformed responses) and
+empty responses become error rows; any other exception stops the run. An error row
+carries the provider's `stop_reason` when FDLLM reports one; `length`, `max_tokens` or
+`MAX_TOKENS` means the response ran out of tokens.
 
-## Run folders
+## Token limits
 
-A run folder, `<output_dir>/<run_id>/` and its GCS copy at `results_dest`, holds:
+Every call gets the experiment's current `max_tokens`, and every row records it. When
+some items hit the limit:
 
-| File                                | Written by                 | Holds                                                                                                                                      |
-| ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `config.json`                       | The first job, once        | The run record: benchmark, config ID and its payload, items hash                                                                           |
-| `responses/responses_<model>.jsonl` | The job running that model | One row per call                                                                                                                           |
-| `models/<model>.json`               | The job running that model | The model's settings, registry and hash, and one entry per run that wrote its results: when, how many calls, code revision, the run config |
+```bash
+fab-bench raise-max-tokens --experiment gs://bucket/mathv/experiments/level1-v1 --max-tokens 128000
+fab-bench run --config run.json --retry-errors
+```
 
-Later jobs check `config.json` against their own run and never rewrite it, so the folder
-keeps describing the same run while models are added over time. The model list of a run
-is the set of model records and response files.
-
-No file is shared between jobs that run different models, and a job only uploads files
-it wrote itself. So jobs running different models can write to the same folder at the
-same time. Two jobs running the same model stop with a conflict instead of paying for
-the same calls twice.
-
-A run folder's `config.json` is not a run config: rerun the config the run was launched
-with. Keep run configs outside their run folder; `launch-run.sh` stores them under
-`run-configs/`.
-
-Folders written by the phonics runner can be extended: their `config.json` is checked in
-its old format and replaced by the new record, and their results are reused. Their
-`log.json` is left as it was.
+Results that finished within the old limit keep their IDs and stay; the error rows,
+which include responses the limit left empty, rerun at the new limit. The limit can only
+be raised, and `experiment.json` keeps each limit it had in `max_tokens_history`.
+Creating the experiment again never changes it. A response cut off mid-answer counts as
+an answer: FDLLM reports no stop reason for a response that isn't empty.
 
 ## Model registry
 
 - With `custom_models_uri` and `custom_models_sha256`, the pinned file is downloaded
-  into the run's inputs folder and its SHA-256 checked before any model call. A mismatch
-  stops the run. This happens even with `--skip-models-download`, because a fresh
-  container has no local copy.
+  into the workdir and its SHA-256 checked before any model call. A mismatch stops the
+  run. This happens even with `--skip-models-download`, because a fresh container has no
+  local copy.
 - With `custom_models_path`, that file is used as it is.
-- Otherwise the public file is refreshed from `gs://fab-open-configs` into the default
-  path, unless `--skip-models-download` is given.
+- Otherwise the public file is refreshed from `gs://fab-open-configs` into
+  `custom_models.yaml` in the working directory (the workdir for `run-cloud`), unless
+  `--skip-models-download` is given.
 
 Every model in a run must appear in exactly one top-level provider group of the
 registry. FDLLM merges the groups, so a model listed twice would silently take one
@@ -253,6 +228,9 @@ IDs, so a change to the public file between restarts would make the run redo tha
 model's calls.
 
 ## Cloud Run
+
+The deploy files still build one image per benchmark and launch the old run configs;
+they move to one shared runner image running `fab-bench run-cloud` in the next step.
 
 The `deploy/` folder next to this README holds the files a benchmark copies into its own
 repository, once:
@@ -298,10 +276,9 @@ environment.
   model list. A change to provider defaults, or an FDLLM upgrade that changes its
   built-in list, changes the IDs of the affected models. Projects that override the
   FDLLM version can get different IDs for the same model.
-- **Images are not sent yet.** Call IDs already cover images, but runs still send only
-  text, and `max_tokens` can't yet be set to no limit in a run config.
-- **A raised `max_tokens` can't reuse results yet.** The config ID still includes
-  `max_tokens`, so a run folder refuses a config with a new limit. Runs on experiments
-  will allow it.
+- **Images and unlimited calls are not sent yet.** Experiments and call IDs cover images
+  and `max_tokens: none`, but runs through FDLLM refuse them before any call.
+- **Responses cut off mid-answer are scored as they are.** FDLLM reports no stop reason
+  for a response that isn't empty, so they can't be told apart yet.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in
   parallel, so a run with one or two models gets no faster.

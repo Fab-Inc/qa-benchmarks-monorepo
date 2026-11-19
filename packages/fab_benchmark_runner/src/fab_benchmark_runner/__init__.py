@@ -1,22 +1,13 @@
 """Shared run machinery for FAB benchmarks.
 
-A benchmark describes itself with a ``Benchmark`` adapter and gets config loading,
-resumable runs keyed by result IDs, model registry handling, GCS sync and a CLI.
+A benchmark hands over its rendered inputs; the runner stores them once as an
+experiment and runs any number of models on it, now or later, with resumable
+results keyed by call IDs. ``fab-bench`` is its command line.
 """
 
-from fab_benchmark_runner.benchmark import CORE_CONFIG_KEYS, Benchmark
-from fab_benchmark_runner.cli import build_app
-from fab_benchmark_runner.cloud import (
-    execute_with_optional_sync,
-    load_cloud_run_config,
-    load_local_run_config,
-    plan_with_optional_sync,
-)
 from fab_benchmark_runner.config import (
     RunConfig,
     apply_execution_overrides,
-    config_identity,
-    config_identity_sha256,
     load_run_config,
     parse_run_config,
 )
@@ -24,57 +15,59 @@ from fab_benchmark_runner.errors import ConfigError
 from fab_benchmark_runner.experiment import (
     Experiment,
     ExperimentCreation,
+    MaxTokensChange,
     create_experiment,
     default_experiment_id,
+    raise_max_tokens,
     read_experiment,
 )
 from fab_benchmark_runner.ids import model_call_id, result_id
 from fab_benchmark_runner.inputs import ImageRef, ModelInput, read_inputs, write_inputs
-from fab_benchmark_runner.items import file_sha256, load_jsonl_items
-from fab_benchmark_runner.registry import prepare_model_registry
+from fab_benchmark_runner.jobs import (
+    fetch_results,
+    plan_job,
+    run_job,
+    upload_experiment,
+)
 from fab_benchmark_runner.results import load_results, model_results_filename
 from fab_benchmark_runner.runner import (
+    CallModel,
     ModelPlan,
-    RunOutput,
     RunPlan,
+    RunResult,
     execute_run,
     plan_run,
 )
 
 __all__ = [
-    "CORE_CONFIG_KEYS",
-    "Benchmark",
+    "CallModel",
     "ConfigError",
     "Experiment",
     "ExperimentCreation",
     "ImageRef",
+    "MaxTokensChange",
     "ModelInput",
     "ModelPlan",
     "RunConfig",
-    "RunOutput",
     "RunPlan",
+    "RunResult",
     "apply_execution_overrides",
-    "build_app",
-    "config_identity",
-    "config_identity_sha256",
     "create_experiment",
     "default_experiment_id",
     "execute_run",
-    "execute_with_optional_sync",
-    "file_sha256",
-    "load_cloud_run_config",
-    "load_jsonl_items",
-    "load_local_run_config",
+    "fetch_results",
     "load_results",
     "load_run_config",
     "model_call_id",
     "model_results_filename",
     "parse_run_config",
+    "plan_job",
     "plan_run",
-    "plan_with_optional_sync",
-    "prepare_model_registry",
+    "raise_max_tokens",
     "read_experiment",
     "read_inputs",
     "result_id",
+    "run_job",
+    "upload_experiment",
     "write_inputs",
 ]

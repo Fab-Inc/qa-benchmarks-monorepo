@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import threading
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -48,8 +48,17 @@ class RunSync:
         self._dirty: set[str] = set()
         self._lock = threading.Lock()
 
-    def pull(self, *, relative_paths: Collection[str] | None = None) -> int:
-        """Atomically download matching remote run artifacts and record generations."""
+    def pull(
+        self,
+        *,
+        relative_paths: Collection[str] | None = None,
+        select: Callable[[str], bool] | None = None,
+    ) -> int:
+        """Atomically download remote files and record their generations.
+
+        ``relative_paths`` or ``select`` limit the download to some files, named
+        relative to the prefix.
+        """
 
         selected_paths = set(relative_paths) if relative_paths is not None else None
         downloaded_count = 0
@@ -63,6 +72,7 @@ class RunSync:
                 not relative_name
                 or relative_name.endswith("/")
                 or (selected_paths is not None and relative_name not in selected_paths)
+                or (select is not None and not select(relative_name))
             ):
                 continue
             local_path = self._local_path(relative_name)

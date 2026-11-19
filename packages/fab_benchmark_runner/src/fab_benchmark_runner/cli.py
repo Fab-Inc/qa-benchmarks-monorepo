@@ -1,5 +1,4 @@
-"""The command-line interfaces: ``fab-bench``, and the one a benchmark gets from its
-adapter until runs move to experiments."""
+"""The ``fab-bench`` command line: create experiments and run models on them."""
 
 from __future__ import annotations
 
@@ -10,26 +9,29 @@ import typer
 from google.api_core.exceptions import GoogleAPIError as GoogleCloudAPIError
 from google.auth.exceptions import GoogleAuthError
 
-from fab_benchmark_runner.benchmark import Benchmark
-from fab_benchmark_runner.cloud import (
-    execute_with_optional_sync,
-    load_cloud_run_config,
-    load_local_run_config,
-    plan_with_optional_sync,
+from fab_benchmark_runner.config import (
+    RunConfig,
+    apply_execution_overrides,
+    load_run_config,
 )
-from fab_benchmark_runner.config import RunConfig, apply_execution_overrides
 from fab_benchmark_runner.errors import ConfigError
-from fab_benchmark_runner.experiment import ExperimentCreation, create_experiment
-from fab_benchmark_runner.ids import canonical_json
-from fab_benchmark_runner.records import MODEL_RECORDS_DIR
-from fab_benchmark_runner.registry import (
-    CUSTOM_MODELS_FILE_NAME,
-    prepare_model_registry,
+from fab_benchmark_runner.experiment import (
+    ExperimentCreation,
+    create_experiment,
+    raise_max_tokens,
 )
-from fab_benchmark_runner.results import model_record_filename, model_results_filename
-from fab_benchmark_runner.run_sync import RunSync, RunSyncConflictError
-from fab_benchmark_runner.runner import RunOutput, RunPlan
+from fab_benchmark_runner.ids import canonical_json
+from fab_benchmark_runner.jobs import (
+    fetch_results,
+    plan_job,
+    run_job,
+    upload_experiment,
+)
+from fab_benchmark_runner.registry import CUSTOM_MODELS_FILE_NAME
+from fab_benchmark_runner.run_sync import RunSyncConflictError
+from fab_benchmark_runner.runner import RunPlan, RunResult
 
+DEFAULT_LOCAL_WORKDIR = Path(".fab-bench")
 DEFAULT_CLOUD_WORKDIR = Path("/workspace")
 EXPECTED_CLI_ERRORS = (
     ConfigError,
@@ -169,182 +171,192 @@ def _parse_labels(values: list[str]) -> dict[str, str]:
     return labels
 
 
-def build_app(benchmark: Benchmark) -> typer.Typer:
-    """Return a Typer app with run, run-cloud and results sync commands.
+@app.command("raise-max-tokens")
+def raise_max_tokens_cmd(
+    experiment: str = typer.Option(
+        ..., "--experiment", help="Experiment folder: a local path or a gs:// URI."
+    ),
+    max_tokens: str = typer.Option(
+        ...,
+        "--max-tokens",
+        help="The new, higher token limit, or 'none' for no limit.",
+    ),
+) -> None:
+    """Raise an experiment's token limit; results that finished stay valid.
 
-    A benchmark can expose it as its console script directly, or add its own
-    commands to it.
+    Then run with --retry-errors to rerun the calls that failed, including those
+    the old limit left empty.
     """
 
-    app = typer.Typer(
-        name=benchmark.name,
-        help=f"Run the {benchmark.name} benchmark.",
+    try:
+        change = raise_max_tokens(experiment, _parse_max_tokens(max_tokens))
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    if change.status == "unchanged":
+        typer.echo(f"max_tokens is already {_limit_text(change.max_tokens)}.")
+        return
+    typer.echo(
+        f"Raised max_tokens from {_limit_text(change.previous)} to "
+        f"{_limit_text(change.max_tokens)}. Run with --retry-errors to rerun the "
+        "calls that failed."
     )
 
-    @app.callback(invoke_without_command=True)
-    def setup(ctx: typer.Context) -> None:
-        if ctx.invoked_subcommand is None:
-            typer.echo(ctx.get_help())
-            raise typer.Exit()
 
-    @app.command("run")
-    def run_cmd(
-        config: Path = typer.Option(
-            ...,
-            "--config",
-            "-c",
-            exists=True,
-            dir_okay=False,
-            readable=True,
-            help="JSON run config. Its items_path may be local or a gs:// URI.",
-        ),
-        force: bool = typer.Option(
-            False, "--force", "-f", help="Ignore existing results and rerun all calls."
-        ),
-        retry_errors: bool = typer.Option(
-            False,
-            "--retry-errors",
-            help="Rerun only existing results whose call failed.",
-        ),
-        model_workers: int | None = typer.Option(
-            None,
-            "--model-workers",
-            min=1,
-            help="Maximum number of models to run concurrently.",
-        ),
-        results_dest: str | None = typer.Option(
-            None,
-            "--results-dest",
-            help="GCS run prefix to mirror results to, e.g. gs://bucket/runs/id/.",
-        ),
-        skip_models_download: bool = typer.Option(
-            False,
-            "--skip-models-download",
-            help="Do not refresh the shared public custom_models.yaml first.",
-        ),
-        dry_run: bool = typer.Option(
-            False,
-            "--dry-run",
-            help="Report the calls a run would make or reuse, without running them.",
-        ),
-    ) -> None:
-        """Run the benchmark from a local config file."""
+@app.command("run")
+def run_cmd(
+    config: str = typer.Option(
+        ..., "--config", "-c", help="Run config: a local JSON file or a gs:// URI."
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Ignore existing results and rerun all calls."
+    ),
+    retry_errors: bool = typer.Option(
+        False, "--retry-errors", help="Rerun only the calls that failed."
+    ),
+    model_workers: int | None = typer.Option(
+        None, "--model-workers", min=1, help="How many models to run at once."
+    ),
+    workdir: Path = typer.Option(
+        DEFAULT_LOCAL_WORKDIR,
+        "--workdir",
+        file_okay=False,
+        help="Where to keep copies of experiments on GCS and pinned registries.",
+    ),
+    skip_models_download: bool = typer.Option(
+        False,
+        "--skip-models-download",
+        help="Don't refresh the shared public custom_models.yaml first.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report the calls a run would make or reuse, without running them.",
+    ),
+) -> None:
+    """Run a config's models on its experiment, local or on GCS."""
 
-        def load() -> RunConfig:
-            run_config = load_local_run_config(config, benchmark)
-            run_config = apply_execution_overrides(
-                run_config,
-                force=force,
-                retry_errors=retry_errors,
-                model_workers=model_workers,
-                results_dest=results_dest,
-            )
-            return prepare_model_registry(
-                run_config, download_public=not skip_models_download
-            )
+    def load() -> RunConfig:
+        return apply_execution_overrides(
+            load_run_config(config),
+            force=force,
+            retry_errors=retry_errors,
+            model_workers=model_workers,
+        )
 
-        _run_or_plan(load, dry_run=dry_run)
-
-    @app.command("run-cloud")
-    def run_cloud_cmd(
-        config: str = typer.Option(
-            ...,
-            "--config",
-            "-c",
-            help="GCS URI of the run config, e.g. gs://bucket/run-configs/id.json.",
-        ),
-        workdir: Path = typer.Option(
-            DEFAULT_CLOUD_WORKDIR,
-            "--workdir",
-            file_okay=False,
-            help="Writable workspace for downloaded inputs and run outputs.",
-        ),
-        skip_models_download: bool = typer.Option(
-            False,
-            "--skip-models-download",
-            help="Do not refresh the shared public custom_models.yaml first.",
-        ),
-        dry_run: bool = typer.Option(
-            False,
-            "--dry-run",
-            help="Report the calls a run would make or reuse, without running them.",
-        ),
-    ) -> None:
-        """Fetch a GCS config and its items, then run with results synced to GCS."""
-
-        def load() -> RunConfig:
-            run_config = load_cloud_run_config(config, benchmark, workdir=workdir)
-            return prepare_model_registry(
-                run_config,
-                download_public=not skip_models_download,
-                public_path=workdir.expanduser().resolve()
-                / "inputs"
-                / CUSTOM_MODELS_FILE_NAME,
-            )
-
-        _run_or_plan(load, dry_run=dry_run)
-
-    @app.command("upload-results")
-    def upload_results_cmd(
-        run_dir: Path = typer.Option(
-            ...,
-            "--run-dir",
-            exists=True,
-            file_okay=False,
-            readable=True,
-            help="Local run directory to upload.",
-        ),
-        dest: str = typer.Option(..., "--dest", help="Destination GCS run prefix."),
-    ) -> None:
-        """Upload local run files that are new or changed to a GCS run prefix."""
-
-        try:
-            pushed_count = RunSync(run_dir, dest).push_missing_or_stale()
-        except EXPECTED_CLI_ERRORS as e:
-            typer.echo(f"ERROR: {e}", err=True)
-            raise typer.Exit(1) from e
-        typer.echo(f"Uploaded: {pushed_count} to {dest}")
-
-    @app.command("fetch-results")
-    def fetch_results_cmd(
-        src: str = typer.Option(..., "--src", help="Source GCS run prefix."),
-        run_dir: Path = typer.Option(
-            ...,
-            "--run-dir",
-            file_okay=False,
-            help="Local directory to download the run files into.",
-        ),
-        model: str | None = typer.Option(
-            None,
-            "--model",
-            help="Download only this model's response file and record.",
-        ),
-    ) -> None:
-        """Download all run files, or one model's files, from GCS."""
-
-        relative_paths = None
-        if model is not None:
-            relative_paths = {
-                f"responses/{model_results_filename(model)}",
-                f"{MODEL_RECORDS_DIR}/{model_record_filename(model)}",
-            }
-        try:
-            downloaded_count = RunSync(run_dir, src).pull(relative_paths=relative_paths)
-        except EXPECTED_CLI_ERRORS as e:
-            typer.echo(f"ERROR: {e}", err=True)
-            raise typer.Exit(1) from e
-        typer.echo(f"Downloaded: {downloaded_count} from {src}")
-
-    return app
+    _run_or_plan(
+        load,
+        workdir=workdir,
+        download_public=not skip_models_download,
+        public_registry_path=None,
+        dry_run=dry_run,
+    )
 
 
-def _run_or_plan(load_config: Callable[[], RunConfig], *, dry_run: bool) -> None:
+@app.command("run-cloud")
+def run_cloud_cmd(
+    config: str = typer.Option(
+        ...,
+        "--config",
+        "-c",
+        help="GCS URI of the run config, e.g. gs://bucket/run-configs/<hash>.json.",
+    ),
+    workdir: Path = typer.Option(
+        DEFAULT_CLOUD_WORKDIR,
+        "--workdir",
+        file_okay=False,
+        help="Writable workspace for the experiment's copy and the registry.",
+    ),
+    skip_models_download: bool = typer.Option(
+        False,
+        "--skip-models-download",
+        help="Don't refresh the shared public custom_models.yaml first.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report the calls a run would make or reuse, without running them.",
+    ),
+) -> None:
+    """Run a config from GCS, as a Cloud Run job does."""
+
+    def load() -> RunConfig:
+        if not config.startswith("gs://"):
+            raise ConfigError("run-cloud reads its run config from a gs:// URI")
+        return load_run_config(config)
+
+    _run_or_plan(
+        load,
+        workdir=workdir,
+        download_public=not skip_models_download,
+        public_registry_path=workdir.expanduser().resolve() / CUSTOM_MODELS_FILE_NAME,
+        dry_run=dry_run,
+    )
+
+
+@app.command("fetch-results")
+def fetch_results_cmd(
+    experiment: str = typer.Option(
+        ..., "--experiment", help="The experiment's gs:// URI."
+    ),
+    dest: Path = typer.Option(
+        ..., "--dest", file_okay=False, help="Local folder to download into."
+    ),
+    model: str | None = typer.Option(
+        None, "--model", help="Download only this model's results and record."
+    ),
+) -> None:
+    """Download an experiment's inputs, records and results, without images."""
+
+    try:
+        count = fetch_results(experiment, dest, model=model)
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    typer.echo(f"Downloaded {count} files from {experiment} to {dest}")
+
+
+@app.command("upload-experiment")
+def upload_experiment_cmd(
+    source: Path = typer.Argument(
+        ..., file_okay=False, help="Local experiment folder."
+    ),
+    dest: str = typer.Argument(..., help="Destination gs:// URI."),
+) -> None:
+    """Copy a local experiment, and any results, to GCS so Cloud Run can use it."""
+
+    try:
+        count = upload_experiment(source, dest)
+    except EXPECTED_CLI_ERRORS as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        raise typer.Exit(1) from e
+    typer.echo(f"Uploaded {count} files to {dest}")
+
+
+def _run_or_plan(
+    load_config: Callable[[], RunConfig],
+    *,
+    workdir: Path,
+    download_public: bool,
+    public_registry_path: Path | None,
+    dry_run: bool,
+) -> None:
     try:
         run_config = load_config()
         if dry_run:
-            plan = plan_with_optional_sync(run_config)
+            plan = plan_job(
+                run_config,
+                workdir=workdir,
+                download_public_registry=download_public,
+                public_registry_path=public_registry_path,
+            )
         else:
-            output = execute_with_optional_sync(run_config)
+            result = run_job(
+                run_config,
+                workdir=workdir,
+                download_public_registry=download_public,
+                public_registry_path=public_registry_path,
+            )
     except EXPECTED_CLI_ERRORS as e:
         typer.echo(f"ERROR: {e}", err=True)
         raise typer.Exit(1) from e
@@ -352,33 +364,48 @@ def _run_or_plan(load_config: Callable[[], RunConfig], *, dry_run: bool) -> None
     if dry_run:
         echo_plan(plan)
         return
-    echo_run_output(output)
-    if output["error_count"] > 0:
+    echo_run_result(result)
+    if result.errors > 0:
         raise typer.Exit(1)
 
 
-def echo_run_output(output: RunOutput) -> None:
-    typer.echo(f"Run ID: {output['run_id']}")
-    typer.echo(f"Config ID: {output['config_id']}")
-    typer.echo(f"Results: {output['results_dir']}")
-    typer.echo(f"Executed: {output['executed_count']}")
-    typer.echo(f"Skipped: {output['skipped_count']}")
-    typer.echo(f"Errors: {output['error_count']}")
+def echo_version_warnings(warnings: tuple[str, ...]) -> None:
+    if not warnings:
+        return
+    typer.echo(
+        "WARNING: this experiment already has results from other versions:", err=True
+    )
+    for warning in warnings:
+        typer.echo(f"  {warning}", err=True)
+
+
+def echo_run_result(result: RunResult) -> None:
+    echo_version_warnings(result.version_warnings)
+    typer.echo(f"Experiment: {result.experiment_id}")
+    typer.echo(f"Folder: {result.experiment_dir}")
+    typer.echo(f"Executed: {result.executed}")
+    typer.echo(f"Reused: {result.reused}")
+    typer.echo(f"Errors: {result.errors}")
 
 
 def echo_plan(plan: RunPlan) -> None:
-    typer.echo(f"Run ID: {plan.run_id}")
-    typer.echo(f"Config ID: {plan.config_id}")
-    typer.echo("Dry run: no model was called and no result was written.")
+    echo_version_warnings(plan.version_warnings)
+    typer.echo(f"Experiment: {plan.experiment_id}")
+    typer.echo(f"Max tokens: {_limit_text(plan.max_tokens)}")
+    typer.echo("Dry run: no model was called and nothing was written.")
     for model in plan.models:
         retries = f" ({model.retries} error retries)" if model.retries else ""
         stale = (
             f", {model.stale} stale rows dropped on next write" if model.stale else ""
         )
         typer.echo(
-            f"{model.model}: {model.planned} planned, {model.skipped} reused, "
+            f"{model.model}: {model.planned} planned, {model.reused} reused, "
             f"{model.to_run} to run{retries}{stale}"
         )
     typer.echo(
-        f"Total: {plan.planned} planned, {plan.skipped} reused, {plan.to_run} to run"
+        f"Total: {plan.planned} planned, {plan.reused} reused, {plan.to_run} to run"
     )
+
+
+def _limit_text(max_tokens: int | None) -> str:
+    return "none" if max_tokens is None else str(max_tokens)
