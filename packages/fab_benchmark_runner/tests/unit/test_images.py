@@ -31,18 +31,25 @@ def _ref(uri: str, content: bytes, detail: str = "high") -> ImageRef:
 @pytest.mark.parametrize(
     ("location", "uri", "source"),
     [
-        ("/data/exp", "images/a.png", "/data/exp/images/a.png"),
+        ("{tmp}/exp", "images/a.png", "{tmp}/exp/images/a.png"),
         ("gs://bucket/exp/", "images/a.png", "gs://bucket/exp/images/a.png"),
-        ("gs://bucket/exp", "/abs/a.png", "/abs/a.png"),
-        ("/data/exp", "gs://other/a.png", "gs://other/a.png"),
+        ("gs://bucket/exp", "{tmp}/a.png", "{tmp}/a.png"),
+        ("{tmp}/exp", "gs://other/a.png", "gs://other/a.png"),
     ],
 )
 def test_relative_uris_are_read_from_the_experiment(
     tmp_path: Path, location: str, uri: str, source: str
 ) -> None:
-    files = ImageFiles(tmp_path, experiment_location=location)
+    """{tmp} stands for a local absolute path, which looks different on Windows."""
 
-    assert files.source(ImageRef(uri, "low", "a" * 64)) == source
+    def local(text: str) -> str:
+        if not text.startswith("{tmp}"):
+            return text
+        return str(tmp_path.joinpath(*text.removeprefix("{tmp}/").split("/")))
+
+    files = ImageFiles(tmp_path, experiment_location=local(location))
+
+    assert files.source(ImageRef(local(uri), "low", "a" * 64)) == local(source)
 
 
 def test_identical_files_are_fetched_once_whatever_their_uri(tmp_path: Path) -> None:

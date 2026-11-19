@@ -16,7 +16,8 @@ import subprocess
 from collections.abc import Iterable, Mapping
 from importlib import metadata
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 IMAGE_ENV_VAR = "FAB_BENCH_IMAGE"
 # The runner image installs the runner from its build context, which carries no git
@@ -101,7 +102,8 @@ def _direct_url(distribution: metadata.Distribution) -> dict[str, Any]:
 def _checkout_commit(url: Any) -> dict[str, Any]:
     if not isinstance(url, str) or not url.startswith("file://"):
         return {}
-    folder = unquote(urlparse(url).path)
+    # url2pathname turns /C:/x into C:\x on Windows, and unquotes everywhere.
+    folder = url2pathname(urlparse(url).path)
     try:
         commit = subprocess.check_output(
             ["git", "-C", folder, "rev-parse", "HEAD"],

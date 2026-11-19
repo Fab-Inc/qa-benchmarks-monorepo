@@ -154,7 +154,10 @@ def _check_opens(path: Path, *, source: str) -> None:
         with Image.open(path) as picture:
             picture.verify()
     except Exception as e:  # Pillow raises many types for broken files
-        reason = str(e).replace(str(path), source)
+        # Pillow may quote the path, which doubles backslashes on Windows.
+        reason = str(e)
+        for form in (repr(str(path))[1:-1], str(path)):
+            reason = reason.replace(form, source)
         raise ConfigError(
             f"Image {source} can't be opened as an image: {reason}"
         ) from e

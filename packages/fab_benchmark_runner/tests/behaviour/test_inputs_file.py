@@ -273,6 +273,7 @@ def test_an_image_is_on_gcs_at_an_absolute_path_or_relative_to_the_file(
         path.write_bytes(png())
     bench.put("gs://bucket/4.png", png())
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))  # what ~ means on Windows
     uris = ["figures/1.png", "~/2.png", str(bench.root / "3.png"), "gs://bucket/4.png"]
     item = {**ITEM, "images": [{"uri": uri, "detail": "low"} for uri in uris]}
 

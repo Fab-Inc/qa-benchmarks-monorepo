@@ -269,7 +269,9 @@ def upload_run_config(
     client = storage_client or gcs.create_storage_client()
     with tempfile.TemporaryDirectory(prefix="fab-bench-run-config-") as temporary:
         local = Path(temporary) / "run.json"
-        local.write_text(content, encoding="utf-8")
+        # Bytes, not text: text mode would write CRLF on Windows, and the
+        # upload must hold exactly the bytes its name hashes.
+        local.write_bytes(content.encode("utf-8"))
         try:
             gcs.upload_file_with_generation(
                 source_path=local,
