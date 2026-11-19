@@ -20,6 +20,10 @@ later:
 - **Dry run.** `--dry-run` reports which calls a run would make and which it would
   reuse, without calling any model.
 
+To try it out, follow [WALKTHROUGH.md](WALKTHROUGH.md): four walkthroughs, from
+everything local to everything on Cloud Run, with an example benchmark in
+`examples/smoke/`.
+
 `tests/behaviour/` describes the intended behaviour, and the design decisions behind it,
 as runnable scenarios; `tests/unit/` pins the details.
 

@@ -1,0 +1,4 @@
+{"benchmark_item_id": "mcq-1", "prompt": "Which word is a noun? A) run B) cat C) quickly", "system_prompt": "Answer with one letter."}
+{"benchmark_item_id": "short-1", "prompt": "Name the noun in this sentence: The dog barked.", "system_prompt": "Answer with one word."}
+{"benchmark_item_id": "count-1", "prompt": "How many sides does the shape in the picture have? Answer with a number.", "images": [{"uri": "images/triangle.png", "detail": "low"}]}
+{"benchmark_item_id": "compare-1", "prompt": "Which shape has more sides, the first picture or the second? Answer with first or second.", "images": [{"uri": "images/triangle.png", "detail": "low"}, {"uri": "images/square.png", "detail": "high"}]}
