@@ -1,0 +1,86 @@
+"""Shared run machinery for FAB benchmarks.
+
+A benchmark hands over its rendered inputs; the runner stores them once as an
+experiment and runs any number of models on it, now or later, with resumable
+results keyed by call IDs. ``fab-bench`` is its command line.
+"""
+
+from fab_benchmark_runner.config import (
+    RunConfig,
+    apply_execution_overrides,
+    load_run_config,
+    parse_run_config,
+)
+from fab_benchmark_runner.errors import ConfigError
+from fab_benchmark_runner.experiment import (
+    Experiment,
+    ExperimentCreation,
+    create_experiment,
+    default_experiment_id,
+    read_experiment,
+)
+from fab_benchmark_runner.ids import model_call_id, result_id
+from fab_benchmark_runner.images import ImageFiles
+from fab_benchmark_runner.inputs import (
+    ImageRef,
+    InputsCheck,
+    InputsError,
+    ModelInput,
+    check_inputs_file,
+    read_inputs,
+    write_inputs,
+)
+from fab_benchmark_runner.jobs import (
+    fetch_results,
+    plan_job,
+    run_job,
+    upload_experiment,
+    upload_run_config,
+)
+from fab_benchmark_runner.registry import model_configs
+from fab_benchmark_runner.results import load_results, model_results_filename
+from fab_benchmark_runner.runner import (
+    CallModel,
+    ModelPlan,
+    RunPlan,
+    RunResult,
+    execute_run,
+    plan_run,
+)
+
+__all__ = [
+    "CallModel",
+    "ConfigError",
+    "Experiment",
+    "ExperimentCreation",
+    "ImageFiles",
+    "ImageRef",
+    "InputsCheck",
+    "InputsError",
+    "ModelInput",
+    "ModelPlan",
+    "RunConfig",
+    "RunPlan",
+    "RunResult",
+    "apply_execution_overrides",
+    "check_inputs_file",
+    "create_experiment",
+    "default_experiment_id",
+    "execute_run",
+    "fetch_results",
+    "load_results",
+    "load_run_config",
+    "model_call_id",
+    "model_configs",
+    "model_results_filename",
+    "parse_run_config",
+    "plan_job",
+    "plan_run",
+    "read_experiment",
+    "read_inputs",
+    "result_id",
+    "run_job",
+    "upload_experiment",
+    "upload_run_config",
+    "write_inputs",
+]
