@@ -3,7 +3,9 @@
 from typing import Any
 
 import pytest
+from decodability import DECODABILITY_REGISTRY
 from decodable_text_generation.prompts import (
+    KNOWLEDGE_FORMAT,
     build_generation_prompt,
     get_decoding_rules,
     get_scenario,
@@ -108,6 +110,22 @@ def test_unknown_scenario_fails() -> None:
 def test_unknown_language_fails() -> None:
     with pytest.raises(ConfigError, match="Unknown language registry key"):
         build_generation_prompt("decodable_text_generation", EN_ITEM, "xx")
+
+
+@pytest.mark.parametrize("language", sorted(KNOWLEDGE_FORMAT))
+def test_knowledge_format_is_supported_by_the_language_model(language: str) -> None:
+    model = DECODABILITY_REGISTRY[language]["student_knowledge_model"]
+    assert model().render(KNOWLEDGE_FORMAT[language]).startswith("- Known ")
+
+
+def test_language_without_knowledge_format_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(KNOWLEDGE_FORMAT, "en")
+    with pytest.raises(
+        ConfigError, match="No student-knowledge format for language 'en'"
+    ):
+        build_generation_prompt("decodable_text_generation", EN_ITEM, "en")
 
 
 def test_invalid_student_knowledge_fails() -> None:

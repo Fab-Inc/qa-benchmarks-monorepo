@@ -30,6 +30,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from decodability.kiswahili.segment import SYLLABIC_NASAL_REVIEWED_WORDS
 
 logging.basicConfig(level=logging.INFO)
 
@@ -59,79 +60,6 @@ BASE = REPO_ROOT / parser.parse_args().target
 REPORT_DIR = BASE / f"{LANGUAGE}"
 TARGET_DIR = REPORT_DIR / "difficult_items"
 TARGET_DIR.mkdir(parents=True, exist_ok=True)
-
-TO_UNGATE = [
-    "akamsalimia",
-    "akamtuma",
-    "alimnunulia",
-    "alimpeleka",
-    "alimpenda",
-    "hakumpenda",
-    "humpeleka",
-    "inamlinda",
-    "kumchapa",
-    "kumfukuza",
-    "kumkaribisha",
-    "mbunge",
-    "mbwa",
-    "mchana",
-    "mchanganyiko",
-    "mchele",
-    "mchezo",
-    "mchi",
-    "mchwa",
-    "mdogo",
-    "mdomo",
-    "mdudu",
-    "mfalme",
-    "mfano",
-    "mfupi",
-    "mgeni",
-    "mgonjwa",
-    "mheshimiwa",
-    "mjini",
-    "mjomba",
-    "mkali",
-    "mkate",
-    "mkono",
-    "mkononi",
-    "mkubwa",
-    "mkuu",
-    "mlango",
-    "mlingoti",
-    "mmoja",
-    "mpeketoni",
-    "mpunga",
-    "mraba",
-    "mrefu",
-    "msafiri",
-    "msalani",
-    "msichana",
-    "msingi",
-    "msituni",
-    "mstatili",
-    "mti",
-    "mtihani",
-    "mtini",
-    "mtoto",
-    "mtu",
-    "mvua",
-    "mzazi",
-    "mzee",
-    "nchi",
-    "nne",
-    "wamsalimie",
-    "wanamjua",
-    "zilizompatia",
-    "nzi",
-    "kuamka",
-    "kiamshakinywa",
-    "kuzungumza",
-    "namna",
-    "umri",
-    "huteremsha",
-    "nje",
-]
 
 
 # --------------------------------------------------------------------------
@@ -324,23 +252,23 @@ if __name__ == "__main__":
     )
 
     if LANGUAGE == "kiswahili":
-        # import from package once implemented
-        # from decodability.kiswahili.ungate_syllabic_nasal import TO_UNGATE
         fp_rate = (
             fp_words_for_top10_models.index.get_level_values("word")
-            .isin(TO_UNGATE)
+            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
             .mean()
         )
         fn_rate = (
             fn_words_for_top10_models.index.get_level_values("word")
-            .isin(TO_UNGATE)
+            .isin(SYLLABIC_NASAL_REVIEWED_WORDS)
             .mean()
         )
         logging.info(
-            f"Proportion of fp words for top 10 models that are in TO_UNGATE: {fp_rate}"
+            f"Proportion of fp words for top 10 models that are in "
+            f"SYLLABIC_NASAL_REVIEWED_WORDS: {fp_rate}"
         )
         logging.info(
-            f"Proportion of fn words for top 10 models that are in TO_UNGATE: {fn_rate}"
+            f"Proportion of fn words for top 10 models that are in "
+            f"SYLLABIC_NASAL_REVIEWED_WORDS: {fn_rate}"
         )
 
     all_wrong_words_mask = ~words.groupby(["benchmark_item_id", "word"])[

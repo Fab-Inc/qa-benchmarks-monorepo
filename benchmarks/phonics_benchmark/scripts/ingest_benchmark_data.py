@@ -23,6 +23,7 @@ import typer
 from decodability.kiswahili.definitions import ClusterPattern
 from phonics_benchmark.data_io import validate_student_knowledge, write_dataset
 from phonics_benchmark.models import DecodableText, StudentKnowledge
+from phonics_benchmark.utils import require_single_language_iso_code
 
 DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
@@ -154,7 +155,7 @@ STUDENT_KNOWLEDGE_FIELDS: dict[str, dict[str, Callable[[str], Any]]] = {
 }
 
 
-def get_language_iso_code(df: pd.DataFrame, description: str) -> str:
+def get_workbook_language_iso_code(df: pd.DataFrame, description: str) -> str:
     """Read and validate the language_iso_code from a sheet DataFrame.
 
     Raises ValueError if the column is missing, empty, or contains more than
@@ -163,17 +164,9 @@ def get_language_iso_code(df: pd.DataFrame, description: str) -> str:
     col = "language_iso_code"
     if col not in df.columns:
         raise ValueError(f"{description} is missing required column '{col}'")
-    values = df[col].dropna().astype(str).str.strip()
-    values = values[values != ""]
-    if values.empty:
-        raise ValueError(f"No '{col}' values found in {description}")
-    unique = values.unique()
-    if len(unique) > 1:
-        raise ValueError(
-            f"Multiple language_iso_code values in {description}: "
-            f"{', '.join(sorted(unique))}"
-        )
-    return unique[0]
+    return require_single_language_iso_code(
+        df[col].dropna().astype(str), source=description
+    )
 
 
 def preprocess_sheet_data(
@@ -277,7 +270,9 @@ def ingest_benchmark_data(
     student_df = pd.read_excel(workbook, sheet_name=STUDENT_PROFILES_SHEET)
     texts_df = pd.read_excel(workbook, sheet_name=TEXTS_SHEET)
 
-    student_iso = get_language_iso_code(student_df, f"'{STUDENT_PROFILES_SHEET}' sheet")
+    student_iso = get_workbook_language_iso_code(
+        student_df, f"'{STUDENT_PROFILES_SHEET}' sheet"
+    )
 
     student_fields = STUDENT_KNOWLEDGE_FIELDS.get(student_iso)
     if student_fields is None:

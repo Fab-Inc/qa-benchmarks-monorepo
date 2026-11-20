@@ -148,6 +148,54 @@ Pronunciations come from CMUdict, with per-word overrides available via
 `CMUDICT_OVERRIDES` in `phoneme_overrides.py` — used to force a specific CMU variant,
 supply an OOV pronunciation, or correct one that doesn't match the curriculum.
 
+## Rendering student knowledge
+
+Each student-knowledge model renders the STUDENT KNOWLEDGE block of a prompt with
+`render(fmt)`. Each language defines its own format names and raises `ValueError` for
+any other, so a new language can add the notation it needs without touching the others.
+
+| Language  | Format     | Example                     |
+| --------- | ---------- | --------------------------- |
+| English   | `"quoted"` | `"a" → "æ"`, `"and", "the"` |
+| English   | `"plain"`  | `a -> /æ/`, `and, the`      |
+| Kiswahili | `"quoted"` | `"a", "m"`                  |
+
+Each benchmark picks a format per language in a `KNOWLEDGE_FORMAT` table in its
+`prompts.py`, and a language missing from that table is a `ConfigError`. The phonics
+table is frozen: every phonics run used `"quoted"`, and the rendered prompt is part of
+each call's `model_call_id`, so changing an entry would split new results from existing
+runs. `str()` renders `"quoted"`, but code that builds prompts passes the format
+explicitly. English `affixes` are not rendered.
+
+## Using your own GPC inventory
+
+English profiles are checked against `UFLI_GPC_INVENTORY`, and the scorers parse words
+with it. A caller that needs a different inventory, such as a benchmark whose items were
+built before the inventory changed, passes its own when it validates the profile:
+
+```python
+knowledge = EnglishStudentKnowledge.model_validate(
+    profile, context={"gpc_inventory": inventory}
+)
+```
+
+`gpcs` are then checked against `inventory`, and everything that reads the inventory for
+this profile uses it too (`knowledge.gpc_inventory`): the GPC parser, the affix pairs
+that unlock affixed sight words, and the lesson schedule `analyse_word_english` reports.
+The inventory is not part of the profile and is left out of `model_dump()`; without a
+context, everything uses `UFLI_GPC_INVENTORY` as before.
+
+`gpc_inventory_to_json(inventory)` writes an inventory as JSON, one GPC per line, and
+`gpc_inventory_from_json(text)` reads it back, so a benchmark can keep a frozen copy as
+a file. A copy has to be in the current `GPC` format and match what the current code
+expects: the parser reads fields such as the affix markers, and the sight-word rules
+rely on affix entries such as `-s` and `-er`. So a copy is best taken from the current
+inventory, with only the entries its profiles spell differently changed back.
+
+The phonics benchmark keeps such a copy in `phonics_benchmark/ufli_gpc_inventory.json`:
+the inventory of 2026-11-13 with `uni-` read as /juni/, as every stored phonics profile
+spells it. It uses the copy wherever it validates or labels a stored profile.
+
 ## Examples
 
 Two runnable examples ship with the package. Run either from the repository root.
