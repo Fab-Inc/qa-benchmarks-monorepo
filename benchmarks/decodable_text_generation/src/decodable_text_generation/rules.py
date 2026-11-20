@@ -190,6 +190,14 @@ _SHORT_COMPOUND_HALVES = frozenset(
 )
 
 
+# Bound morphemes that only appear inside compounds — ``yester`` is no
+# standalone dictionary entry but is unambiguously a compound half in
+# ``yesterday``/``yesteryear``. They skip the dictionary check like the
+# short function words do; with no pronunciation of their own the sound
+# check keeps the orthographic verdict.
+_BOUND_COMPOUND_HALVES = frozenset({"yester"})
+
+
 # Dictionary junk that passes the sound check anyway (``almost`` splits
 # alm+ost, /ɑlm/ + /oʊst/ = /ɑlmoʊst/). These are acronym/proper-noun
 # entries, not words a child would read as a compound half.
@@ -227,10 +235,14 @@ def _is_compound_half(chunk: str) -> bool:
     (smaller entries are too noisy: ``ba``/``th``/``ed`` are all in CMUdict)
     or a known short function word."""
     return (
-        len(chunk) >= 3
-        and chunk not in _JUNK_COMPOUND_HALVES
-        and _is_english_word(chunk)
-    ) or chunk in _SHORT_COMPOUND_HALVES
+        (
+            len(chunk) >= 3
+            and chunk not in _JUNK_COMPOUND_HALVES
+            and _is_english_word(chunk)
+        )
+        or chunk in _SHORT_COMPOUND_HALVES
+        or chunk in _BOUND_COMPOUND_HALVES
+    )
 
 
 def _inflection_stems(word: str) -> list[str]:

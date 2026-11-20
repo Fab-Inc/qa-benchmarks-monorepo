@@ -49,6 +49,16 @@ Language:
       quote: str
     scoring_rules:
       - max_items: 0                   # 1 pt: no errors
+  - id: lang_4
+    question: >
+      Is the verb tense consistent and correct throughout the story? Quote each place where
+      tense shifts without a good reason (e.g. past to present mid-story) or where a verb form
+      is wrong for the sentence a fluent adult would expect. Answer No if there are
+      unjustified shifts. Do not count correct aspect changes like 'is going to' or quoted
+      dialogue that shifts tense naturally.
+    criterion_type: positive
+    allows_na: false
+    evidence: true
   - id: lang_fail_1
     question: The story contains multiple ungrammatical sentences (for example, articles dropped throughout).
     criterion_type: fail_condition

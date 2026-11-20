@@ -316,3 +316,181 @@ class TestRescoreFile:
         p = tmp_path / "w.yaml"
         p.write_text("Safety: 0\nCoherence: 2\n")
         assert load_weights(p) == {"Safety": 0.0, "Coherence": 2.0}
+
+
+class TestCriterionWeights:
+    def test_weighted_ratio(self):
+        out = score_section(
+            [_positive("a", "Yes"), _positive("b", "No")],
+            criterion_weights={"a": 3.0, "b": 1.0},
+        )
+        assert out["score"] == pytest.approx(75.0)
+
+    def test_zero_weight_drops_criterion(self):
+        out = score_section(
+            [_positive("a", "Yes"), _positive("b", "No")],
+            criterion_weights={"b": 0.0},
+        )
+        assert out["score"] == 100.0
+
+    def test_weight_applies_to_evidence_rules(self):
+        row = _evidence(
+            [{"severity": "high"}],
+            [{"severity_in": ["low"]}, {"severity_in": ["low", "medium"]}],
+        )
+        assert score_section([row])["score"] == 0.0
+        out = score_section(
+            [_positive("p", "Yes"), row], criterion_weights={"ev": 0.0}
+        )
+        assert out["score"] == 100.0
+
+
+class TestEvidenceRuleOverrides:
+    def test_override_replaces_stored_rules(self):
+        row = _evidence([{"severity": "high"}], [{"severity_in": ["low"]}])
+        assert score_section([row])["score"] == 0.0
+        out = score_section(
+            [row],
+            evidence_rules={"ev": [{"severity_in": ["low", "medium", "high"]}]},
+        )
+        assert out["score"] == 100.0
+
+    def test_override_empty_list_removes_points(self):
+        row = _evidence([{"severity": "high"}], [{"severity_in": ["low"]}])
+        out = score_section(
+            [_positive("p", "Yes"), row], evidence_rules={"ev": []}
+        )
+        assert out["score"] == 100.0
+
+    def test_override_beats_legacy_fallback(self):
+        # row has no scoring_rules -> would fall back to DEFAULT_EVIDENCE_RULES
+        row = _evidence([{"severity": "medium"}])
+        assert score_section([row])["score"] == 50.0
+        out = score_section(
+            [row], evidence_rules={"ev": [{"severity_in": ["medium"]}]}
+        )
+        assert out["score"] == 100.0
+
+
+class TestStageOverrides:
+    def test_decodable_floor_override(self):
+        m = text_measure_scores(
+            {"pct_decodable_words": 80.0}, "S1", stage_overrides={"decodable_floor": 80.0}
+        )
+        assert m["text_decodable"] == 0.0
+
+    def test_target_cap_override(self):
+        m = text_measure_scores(
+            {"n_target_words": 2}, "S1", stage_overrides={"target_words_min": 4}
+        )
+        assert m["text_target"] == 50.0
+
+    def test_length_override_recomputes_from_n_words(self):
+        metrics = {"n_words": 200, "length_score": 0.0}
+        m = text_measure_scores(
+            metrics, "S1", stage_overrides={"length": [100, 250]}
+        )
+        assert m["text_length"] == 100.0  # inside the overridden range
+
+    def test_hard_floor_override_gates(self):
+        metrics = {
+            "n_target_words": 2,
+            "pct_decodable_words": 89.9,
+            "n_words": 40,
+        }
+        assert text_measures_section_score(metrics, "S1") == 0.0
+        out = text_measures_section_score(
+            metrics, "S1", stage_overrides={"hard_floor": 85.0}
+        )
+        assert out != 0.0
+
+    def test_plumbed_through_score_judgment(self):
+        j = _judgment(
+            {"A": [_positive("a", "Yes")]},
+            metrics={"n_target_words": 2, "pct_decodable_words": 89.9, "n_words": 40},
+            tags=["S1"],
+        )
+        assert score_judgment(j)["section_scores"]["Text measures"]["score"] == 0.0
+        out = score_judgment(j, scoring_config={"hard_floor": 85.0})
+        assert out["section_scores"]["Text measures"]["score"] != 0.0
+
+
+class TestDeductionScore:
+    def test_perfect_row_scores_100(self):
+        j = _judgment({"A": [_positive("a", "Yes")]})
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        assert deduction_score(j)["score"] == 100.0
+
+    def test_severity_costs(self):
+        j = _judgment(
+            {
+                "A": [
+                    _evidence(
+                        [{"severity": "low"}, {"severity": "high"}, {"quote": "x"}],
+                        [{"max_items": 9}],
+                    )
+                ]
+            }
+        )
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        out = deduction_score(
+            j, severity_costs={"low": 1.0, "medium": 3.0, "high": 8.0, "none": 0.5}
+        )
+        assert out["score"] == pytest.approx(100 - (1 + 8 + 0.5))
+        assert out["breakdown"]["A"]["items"] == {"low": 1, "high": 1, "none": 1}
+
+    def test_criterion_no_and_fail_costs(self):
+        j = _judgment(
+            {
+                "A": [
+                    _positive("a", "No"),
+                    {
+                        "criterion_id": "f",
+                        "criterion_type": "fail_condition",
+                        "response": "Yes",
+                    },
+                ]
+            }
+        )
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        out = deduction_score(j, criterion_no_cost=5.0, fail_condition_cost=20.0)
+        assert out["score"] == pytest.approx(75.0)
+
+    def test_clamped_at_min(self):
+        j = _judgment({"A": [_evidence([{"severity": "high"}] * 20)]})
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        out = deduction_score(j, severity_costs={"low": 1, "medium": 2, "high": 10})
+        assert out["score"] == 0.0
+
+    def test_na_and_gated_excluded(self):
+        j = _judgment(
+            {
+                "A": [
+                    _positive("a", "N/A"),
+                    _positive("b", "No", gated_out=True),
+                ]
+            }
+        )
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        assert deduction_score(j, criterion_no_cost=50.0)["score"] == 100.0
+
+    def test_per_section_cost_override(self):
+        j = _judgment(
+            {
+                "A": [_evidence([{"severity": "high"}])],
+                "B": [_evidence([{"severity": "high"}])],
+            }
+        )
+        from decodable_text_generation.judge.scoring import deduction_score
+
+        out = deduction_score(
+            j,
+            severity_costs={"low": 1, "medium": 2, "high": 10},
+            per_section_costs={"B": {"high": 0.0}},
+        )
+        assert out["score"] == pytest.approx(90.0)
