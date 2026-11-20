@@ -80,6 +80,7 @@ def judge_stories(
     language: str = "en",
     fresh: bool = False,
     reuse_from: Path | None = None,
+    human_from: Path | None = None,
 ) -> None:
     profiles_path = (
         data_root
@@ -157,6 +158,33 @@ def judge_stories(
                 if line.strip():
                     row = json.loads(line)
                     cached_rows[row["benchmark_item_id"]] = row
+        # Human reference stories are fixed texts: ``--human-from`` points
+        # at a previously computed judgments file and reuses its ``#human``
+        # rows (seeded into the output, never re-judged). Unlike
+        # ``--reuse-from`` this cannot leak another run's model judgments
+        # onto different stories sharing the same benchmark_item_id.
+        if human_from is not None and not fresh:
+            human_cache = {}
+            if human_from.exists():
+                for line in human_from.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        row = json.loads(line)
+                        if row["benchmark_item_id"].endswith("#human"):
+                            human_cache[row["benchmark_item_id"]] = row
+            seeded = 0
+            with out_path.open("a", encoding="utf-8") as seed_out:
+                for pid in selected:
+                    bid = f"{pid}#human"
+                    if bid in cached_rows or bid not in human_cache:
+                        continue
+                    seed_out.write(json.dumps(human_cache[bid]) + "\n")
+                    cached_rows[bid] = human_cache[bid]
+                    seeded += 1
+            if seeded:
+                print(
+                    f"  seeded {seeded} human judgments from {human_from}",
+                    file=sys.stderr,
+                )
         pending = [
             (pid, m)
             for pid, m in work
@@ -187,13 +215,36 @@ def judge_stories(
                 profile = all_profiles[pid]
                 story = stories[pid][gen_model]
 
-                metrics = story_metrics(
-                    story,
-                    student_knowledge_id=pid,
-                    student_knowledge=profile["student_knowledge"],
-                    target_knowledge=profile["target_knowledge"],
-                    language=language,
-                )
+                try:
+                    metrics = story_metrics(
+                        story,
+                        student_knowledge_id=pid,
+                        student_knowledge=profile["student_knowledge"],
+                        target_knowledge=profile["target_knowledge"],
+                        language=language,
+                    )
+                except ValueError as exc:
+                    out.write(
+                        json.dumps(
+                            {
+                                "benchmark_item_id": f"{pid}#{gen_model}",
+                                "profile_id": pid,
+                                "model": gen_model,
+                                "judge_model": judge_model,
+                                "rubric_sha": rubric_sha,
+                                "section_shas": section_shas,
+                                "metrics": {},
+                                "judge_error": f"metrics error: {exc}",
+                            }
+                        )
+                        + "\n"
+                    )
+                    out.flush()
+                    print(
+                        f"[{judge_model}] {pid}#{gen_model} metrics error: {exc}",
+                        file=sys.stderr,
+                    )
+                    continue
                 tags = derive_tags(
                     pid,
                     profile["student_knowledge"],
