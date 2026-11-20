@@ -207,7 +207,7 @@ uv run fab-leaderboard publish --records-dir benchmarks/linguistic_knowledge_ben
 ```
 
 This command is the only place the bundle is built. It knows nothing about any
-individual benchmark: it reads the records files and `leaderboard_pairs.json`, and
+individual benchmark: it reads the records files and `leaderboard_config.json`, and
 nothing else. It writes to `results/web/<timestamp>/`:
 
 | File                                           | Pushed to Azure?                                              |
@@ -219,7 +219,7 @@ nothing else. It writes to `results/web/<timestamp>/`:
 | `benchmark_default_models.json`                | no — a record of which models got pre-selected                |
 | `manifest.json`                                | no — which records file fed each column, and what was dropped |
 
-`leaderboard_pairs.json` in the repo root lists the expected columns and the order they
+`leaderboard_config.json` in the repo root lists the expected columns and the order they
 appear in on the website. Listing them explicitly, rather than reading whatever files
 happen to be in a folder, gives two benefits. The column order never changes by
 accident. And if a pair's records file is missing, the command reports it as `MISSING`
@@ -238,7 +238,7 @@ the website.
 
 #### Adding a new benchmark × language pair
 
-1. Add a row to `leaderboard_pairs.json` with `benchmark_domain` (for example `DA-sw`)
+1. Add a row to `leaderboard_config.json` with `benchmark_domain` (for example `DA-sw`)
    and the `display_name` the site shows. The pair reports as `MISSING` until a records
    file exists, which is expected.
 1. Make that benchmark write `leaderboard_records_DA-sw.json`. Copy the closest

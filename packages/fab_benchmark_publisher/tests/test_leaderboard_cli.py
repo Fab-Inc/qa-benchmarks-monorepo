@@ -18,7 +18,7 @@ DA_EN = BenchmarkPair(benchmark_domain="DA-en", display_name="DA English")
 
 PAIRS = {
     "cluster_name": "foundational-literacy",
-    "pairs": [
+    "benchmarks": [
         {"benchmark_domain": "LK-sw", "display_name": "LK Kiswahili"},
         {"benchmark_domain": "LK-en", "display_name": "LK English"},
         {"benchmark_domain": "DA-en", "display_name": "DA English"},
@@ -27,7 +27,7 @@ PAIRS = {
 
 
 def write_pairs(tmp_path, payload=None):
-    path = tmp_path / "leaderboard_pairs.json"
+    path = tmp_path / "leaderboard_config.json"
     path.write_text(json.dumps(payload or PAIRS), encoding="utf-8")
     return path
 
@@ -119,7 +119,7 @@ def test_load_cluster_config_reports_a_missing_file(tmp_path) -> None:
 
 
 def test_load_cluster_config_rejects_a_malformed_pair(tmp_path) -> None:
-    path = write_pairs(tmp_path, {"pairs": [{"benchmark_domain": "LK-en"}]})
+    path = write_pairs(tmp_path, {"benchmarks": [{"benchmark_domain": "LK-en"}]})
 
     with pytest.raises(SystemExit, match="malformed"):
         load_cluster_config(path)
@@ -127,11 +127,11 @@ def test_load_cluster_config_rejects_a_malformed_pair(tmp_path) -> None:
 
 def test_load_cluster_config_rejects_an_empty_pair_list(tmp_path) -> None:
     with pytest.raises(SystemExit, match="lists no pairs"):
-        load_cluster_config(write_pairs(tmp_path, {"pairs": []}))
+        load_cluster_config(write_pairs(tmp_path, {"benchmarks": []}))
 
 
 def test_load_cluster_config_rejects_a_repeated_pair(tmp_path) -> None:
-    payload = {"pairs": [PAIRS["pairs"][0], PAIRS["pairs"][0]]}
+    payload = {"benchmarks": [PAIRS["benchmarks"][0], PAIRS["benchmarks"][0]]}
 
     with pytest.raises(SystemExit, match="repeats pair"):
         load_cluster_config(write_pairs(tmp_path, payload))

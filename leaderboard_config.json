@@ -1,0 +1,69 @@
+{
+  "_comment": [
+    "Single source of truth for what the leaderboard website publishes. Shared by every",
+    "benchmark publishing to this cluster, which is why it lives at the repo root.",
+    "",
+    "Read by 'fab-leaderboard publish' (packages/fab_benchmark_publisher), and by each",
+    "benchmark's write_result_files.py for its metrics' definitions.",
+    "",
+    "- cluster_name: the cluster slug the website and the output filenames key on.",
+    "- benchmarks: one entry per website column, i.e. one benchmark in one language.",
+    "  THE ORDER OF THIS LIST IS THE ORDER OF THE COLUMNS ON THE WEBSITE.",
+    "  - benchmark_domain: the id the website keys on and the records filename uses",
+    "    (leaderboard_records_<benchmark_domain>.json).",
+    "  - display_name: the label shown in the website's selector.",
+    "  - metrics: the metrics shown for that benchmark. Copied into each",
+    "    <benchmark>_<metric>_metadata.json. Empty until the benchmark defines them.",
+    "",
+    "A benchmark listed here with no records file is REPORTED AS MISSING by",
+    "'fab-leaderboard publish' rather than silently dropped. Adding a language or a",
+    "benchmark means adding an entry here and making that benchmark write the matching",
+    "records file."
+  ],
+  "cluster_name": "foundational-literacy",
+  "benchmarks": [
+    {
+      "benchmark_domain": "LK-sw",
+      "display_name": "LK Kiswahili",
+      "metrics": [
+        {
+          "metric_slug": "accuracy",
+          "display_name": "Accuracy",
+          "display_description": "Percentage of questions answered correctly.",
+          "unit": "%",
+          "is_higher_better": true,
+          "is_bad_format_scored": false
+        }
+      ]
+    },
+    {
+      "benchmark_domain": "DA-sw",
+      "display_name": "DA Kiswahili",
+      "metrics": []
+    },
+    {
+      "benchmark_domain": "DTG-sw",
+      "display_name": "DTG Kiswahili",
+      "metrics": []
+    },
+    {
+      "benchmark_domain": "LK-en",
+      "display_name": "LK English",
+      "metrics": [
+        {
+          "metric_slug": "accuracy",
+          "display_name": "Accuracy",
+          "display_description": "Percentage of questions answered correctly.",
+          "unit": "%",
+          "is_higher_better": true,
+          "is_bad_format_scored": false
+        }
+      ]
+    },
+    {
+      "benchmark_domain": "DA-en",
+      "display_name": "DA English",
+      "metrics": []
+    }
+  ]
+}
