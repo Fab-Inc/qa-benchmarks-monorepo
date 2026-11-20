@@ -92,11 +92,15 @@ Run (--language and --experiment-id are mandatory on every subcommand):
 
 Producing an experiment for the "consistency" check (external to this script):
     uv run python scripts/build_consistency_dataset.py --language english
-    # run-bench/judge-bench both take --dataset directly -- pass the SAME one to both,
+    # build-inputs/judge-bench both take --dataset directly -- pass the SAME one to both,
     # no dataset-file swapping and no separate detailed-CSV rebuild step needed.
     # --dataset is FILENAME ONLY (always resolved as DATA_DIR/<dataset>):
-    uv run linguistic-knowledge-benchmark run-bench --language english --experiment-id validation-20x \\
+    uv run linguistic-knowledge-benchmark build-inputs --language english \\
         --dataset linguistic_knowledge_eval_english_20x.json
+    fab-bench create-experiment --inputs cache/english/inputs_linguistic_knowledge_eval_english_20x.jsonl \\
+        --dest cache/english/experiments/validation-20x \\
+        --benchmark linguistic-knowledge --experiment-id validation-20x --max-tokens none
+    fab-bench run --config run.json   # experiment: cache/english/experiments/validation-20x
     uv run linguistic-knowledge-benchmark judge-bench --language english --experiment-id validation-20x \\
         --dataset linguistic_knowledge_eval_english_20x.json --num-judges 3
 """
@@ -109,6 +113,7 @@ import json
 import os
 import sys
 from itertools import combinations
+from pathlib import Path
 
 import matplotlib
 
@@ -1287,9 +1292,14 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
             "produce them:\n"
             f"  1. uv run python scripts/build_consistency_dataset.py --language "
             f"{args.language} --n-replicates {args.n_replicates}   (if not already built)\n"
-            "  2. Pass that file as --dataset to BOTH commands (same --experiment-id for both):\n"
-            f"       uv run linguistic-knowledge-benchmark run-bench --language "
-            f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg}\n"
+            "  2. Pass that file as --dataset to build-inputs AND judge-bench (same --experiment-id for both):\n"
+            f"       uv run linguistic-knowledge-benchmark build-inputs --language "
+            f"{args.language} --dataset {dataset_arg}\n"
+            f"       fab-bench create-experiment --inputs cache/{args.language}/"
+            f"inputs_{Path(dataset_arg).stem}.jsonl --dest cache/{args.language}/"
+            f"experiments/{args.experiment_id} --benchmark linguistic-knowledge "
+            f"--experiment-id {args.experiment_id} --max-tokens none\n"
+            "       fab-bench run --config run.json\n"
             f"       uv run linguistic-knowledge-benchmark judge-bench --language "
             f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg} "
             "--num-judges 3"
@@ -1302,7 +1312,7 @@ def run_consistency(args: argparse.Namespace, root: str) -> None:
             f"{paths['detailed']} has no scored rows for any model.\n"
             "This is the failure mode where judge-bench's detailed CSV was merged "
             "against the wrong dataset -- --dataset must be passed consistently to "
-            "BOTH run-bench and judge-bench (the same file, same --experiment-id). Re-run "
+            "BOTH build-inputs and judge-bench (the same file, same --experiment-id). Re-run "
             "judge-bench with it:\n"
             f"  uv run linguistic-knowledge-benchmark judge-bench --language "
             f"{args.language} --experiment-id {args.experiment_id} --dataset {dataset_arg} "

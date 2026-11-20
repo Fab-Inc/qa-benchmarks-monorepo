@@ -9,9 +9,11 @@ have the extra entries silently ignored.
 from pathlib import Path
 
 import pytest
-from linguistic_knowledge_benchmark.cmd import DATASETS
-from linguistic_knowledge_benchmark.run_bench import load_dataset
-from linguistic_knowledge_benchmark.shared_utils import DATA_DIR
+from linguistic_knowledge_benchmark.shared_utils import (
+    DATA_DIR,
+    DATASETS,
+    load_dataset,
+)
 
 VALID_ANSWER_TYPES = {"multiple_choice", "short_form"}
 

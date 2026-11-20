@@ -863,7 +863,7 @@ def main() -> None:
         raise SystemExit(
             f"Missing result file(s) for --language {args.language} --experiment-id "
             f"{args.experiment_id}:\n{listing}\n\n"
-            "These are produced by run-bench/judge-bench scored against the repeated "
+            "These are produced by a fab-bench run + judge-bench scored against the repeated "
             "(consistency) dataset -- see build_consistency_dataset.py's docstring."
         )
 

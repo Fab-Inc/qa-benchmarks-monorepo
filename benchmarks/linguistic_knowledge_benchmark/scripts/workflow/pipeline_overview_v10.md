@@ -39,7 +39,7 @@ Tier is the tie-breaker throughout: when sources disagree on a fact or its grade
 **highest tier wins**.
 
 > Numbering note: "Stage 1 / Stage 2 …" here name steps of this **chat authoring
-> pipeline**. They are unrelated to the eval-harness "Stage 1 (run-bench) / Stage 2
+> pipeline**. They are unrelated to the eval-harness "Stage 1 (fab-bench run) / Stage 2
 > (judge-bench)" in the README — different numbering, different job.
 
 ## Key design ideas

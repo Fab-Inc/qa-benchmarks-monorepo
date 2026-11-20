@@ -28,8 +28,10 @@ models*. Formal linguistic competence (getting the form of language right) and
 functional linguistic competence (using language to accomplish goals in the world) are
 distinct cognitive skills.
 
-The benchmark runs in **two stages**: first it collects model responses (`run-bench`),
-then it scores them (`judge-bench`).
+The benchmark runs in **two stages**: first it collects model responses (the inputs file
+is built with `build-inputs`, then models are run with
+[`fab-bench`](../../packages/fab_benchmark_runner)), then it scores them
+(`judge-bench`).
 
 ## Languages and their components
 
@@ -53,9 +55,10 @@ Questions are written in English for every language (see above), so there is no
 per-language "question language" column.
 
 **Registering a language:** put its JSON dataset in [`data/`](data/) and add an entry to
-the `DATASETS` dict in [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py) (language
-key → dataset path and language name). The system prompts are English for every
-language, so there is nothing else to configure.
+the `DATASETS` dict in
+[`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) (language key →
+dataset path and language name). The system prompts are English for every language, so
+there is nothing else to configure.
 
 ## Dataset format
 
@@ -108,10 +111,11 @@ There are two `answer_type`s in current datasets, each scored differently (see
 
 | Component                                                               | Purpose                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`run_bench.py`](src/linguistic_knowledge_benchmark/run_bench.py)       | **Stage 1.** Sends each question to a model (via `fdllm`) and saves raw responses. Holds the answer-type system prompts.                                                                                                     |
+| [`inputs.py`](src/linguistic_knowledge_benchmark/inputs.py)             | **Stage 1, building.** Renders a dataset as the fab-bench inputs file: per-answer-type system prompts and the user message (MCQ options folded in).                                                                          |
+| [`responses.py`](src/linguistic_knowledge_benchmark/responses.py)       | **Stage 1, reading.** Loads a model's fab-bench `responses_<model>.jsonl` and joins the dataset's metadata back on `question_id`, producing the legacy responses table the judge scores.                                     |
 | [`judge_bench.py`](src/linguistic_knowledge_benchmark/judge_bench.py)   | **Stage 2.** Scores raw responses — regex for MCQ (`parse_answer_mcq`), an LLM judge (or ensemble of judges, majority vote) for short-form — plus an optional LLM fallback for unparseable MCQ rows, and accuracy summaries. |
-| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `run-bench` and `judge-bench` commands. Loads `.env`, syncs and registers models, and holds the per-language `DATASETS` registry.                                                                     |
-| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the shared `experiment_dir()` helper, and lists rate-limited models.                                     |
+| [`cmd.py`](src/linguistic_knowledge_benchmark/cmd.py)                   | Typer CLI exposing the `build-inputs` and `judge-bench` commands. Loads `.env`, syncs and registers models.                                                                                                                  |
+| [`shared_utils.py`](src/linguistic_knowledge_benchmark/shared_utils.py) | Paths and config: loads `EVAL_MODELS` from `list_models.yaml`, defines `BENCH_DIR` / `DATA_DIR` / `CACHE_BASE_DIR`, the `DATASETS` registry, the `experiment_dir()` helper, and dataset/log helpers.                         |
 | [`list_models.yaml`](list_models.yaml)                                  | The set of models to evaluate (key = model ID, value = display name).                                                                                                                                                        |
 | `custom_models.yaml` (repo root)                                        | `fdllm` provider/model registry: which API interface and `Api_Key_Env_Var` each model uses. Gitignored — the CLI downloads it from the `fab-open-configs` bucket on every invocation.                                        |
 | `models.csv` (repo root)                                                | Model metadata used by the analysis scripts: provider, parameter size, input/output price, release date, display name. Gitignored — synced from `fab-open-configs` alongside `custom_models.yaml`.                           |
@@ -135,11 +139,16 @@ benchmarks/linguistic_knowledge_benchmark/
     hf_subset_<language>_20.json               # public 20-item subset (tracked)
   cache/                                # raw experiment artifacts (gitignored)
     <language>/                         # e.g. kiswahili/, english/
-      experiments/
+      inputs.jsonl                      # the experiment's inputs file (build-inputs)
+      experiments/                      # fab-bench experiment folders
         default/                        # outputs when no --experiment-id is given
-          log.json                      # provenance: timestamp + git hash per model per stage
-          responses/                    # stage 1: model responses, one CSV per model
-            responses_<model>.csv
+          experiment.json               # inputs hash, max_tokens, creation provenance
+          inputs.jsonl                  # the inputs every model was called with
+          log.json                      # judging provenance: timestamp + git hash per model
+          responses/                    # stage 1: model responses, one JSONL per model
+            responses_<model>.jsonl
+          models/                       # per-model registered config + run ledger
+            <model>.json
           responses_judged/             # stage 2: scored responses, one CSV per model
             responses_judged_<model>.csv
           responses_judged_fallback/    # stage 2 fallback (--judge-fallback only)
@@ -161,10 +170,11 @@ field are replaced by `-`. The experiment ID is always present (defaulting to
 
 How outputs flow through the two stages:
 
-1. **`run-bench` → `cache/<language>/experiments/<experiment-id>/responses/`** — each
-   model's raw responses are written to `responses_<model>.csv` (one row per question).
-   `log.json` is updated with `responses_timestamp_utc` and `responses_git_hash` for
-   that model (or the `responses_retry_*` variants when `--retry-errors` is used).
+1. **`build-inputs` + `fab-bench` → `cache/<language>/experiments/<experiment-id>/`** —
+   a fab-bench experiment folder: its `inputs.jsonl` (rendered with `build-inputs`),
+   `experiment.json` (inputs hash, max_tokens, git provenance) and, per model run on it,
+   `responses/responses_<model>.jsonl` plus `models/<model>.json` (the model's
+   registered config and every run that wrote its results).
 1. **`judge-bench` → `cache/<language>/experiments/<experiment-id>/responses_judged/`**
    — those responses are scored and written to `responses_judged_<model>.csv` (the same
    rows plus `is_correct` / `justification`). With `--judge-fallback`, an extra
@@ -222,52 +232,51 @@ uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark <
 `--language` is **required** and accepts any registered language key (`kiswahili`,
 `english` — see the [table above](#languages-and-their-components)).
 
-### Stage 1 — collect responses (`run-bench`)
+### Stage 1 — collect responses (`build-inputs` + `fab-bench`)
 
-Query a model and cache its raw responses.
+Render the dataset as an inputs file, create a fab-bench experiment from it, and run
+models on the experiment.
 
 ```bash
-# One model on the Kiswahili dataset
+# 1. Render the Kiswahili dataset as an inputs file
+#    (cache/kiswahili/inputs.jsonl by default)
 uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark \
-  run-bench --language kiswahili --model claude-haiku-4-5-20251001
+  build-inputs --language kiswahili
 
-# All models in list_models.yaml (omit --model)
-uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark \
-  run-bench --language english
+# 2. Create the experiment in the cache's experiments folder
+fab-bench create-experiment --inputs cache/kiswahili/inputs.jsonl \
+  --dest cache/kiswahili/experiments/default \
+  --benchmark linguistic-knowledge --experiment-id default \
+  --max-tokens none
+
+# 3. Run one or more models on it (run.json is a fab-bench run config):
+#    {"experiment": "cache/kiswahili/experiments/default",
+#     "models": ["claude-haiku-4-5-20251001"]}
+fab-bench run --config run.json
 ```
 
-Options:
+`build-inputs` options:
 
-- `-m, --model` — model ID (must be a key in `list_models.yaml`). Omit to run every
-  model.
 - `-l, --language` — registered language key (required).
-- `-f, --force` — re-run even if cached responses exist.
-- `--retry-errors` — retry only rows with `call_status=error` from an existing responses
-  CSV.
-- `--experiment-id` — write under `cache/<language>/experiments/<experiment-id>/`
-  instead of `experiments/default/`. Must be alphanumeric and hyphens only (no
-  underscores).
-- `--timestamped-output` — generate a UTC timestamp experiment ID for a non-overwriting
-  experiment.
 - `--dataset` — exceptional override: use a different dataset JSON than this language's
   registered one. Filename only (resolved as `data/<dataset>`). Normal usage never needs
   it; it exists for one-off experiments such as the repeated dataset built by
   `scripts/build_consistency_dataset.py`.
+- `--dest` — where to write the inputs file. Defaults to `cache/<language>/inputs.jsonl`
+  (`inputs_<dataset>.jsonl` with `--dataset`).
 
-Output: `cache/<language>/experiments/default/responses/responses_<model>.csv` (or
-`experiments/<experiment-id>/responses/` when `--experiment-id` is set)
+`fab-bench` run-config fields used here: `experiment` (the experiment folder, local or
+`gs://`), `models` (registry model IDs — `list_models.yaml` is only the judge's default
+set now), `max_tokens` (experiment-level, set at creation; `none` lets fdllm use what
+the model's context leaves), `retry_errors`, `force`, `chunk_size`. See the
+[fab-bench README](../../packages/fab_benchmark_runner/README.md) for the full config
+reference, resumable runs, GCS experiments and Cloud Run jobs.
 
-The stage-1 CSV keeps model output separate from infrastructure failures:
-
-- `output` contains only the model's raw response text.
-- `call_status` is `success` or `error`.
-- `error_type` and `error_message` are populated when the model call fails.
-- `retry_count` counts how many times a row was rerun with `--retry-errors` (0 on the
-  first successful experiment).
-
-If a cached CSV contains any `call_status=error` rows, a later `run-bench` returns the
-cached rows and prints a warning. Use `--retry-errors` to rerun only those failed rows.
-Transient provider retries are handled by `fdllm`.
+Output: `cache/<language>/experiments/<experiment-id>/responses/responses_<model>.jsonl`
+— one row per item, with `output`, `call_status`, `error_type`, `error_message`,
+`latency_seconds`, `tokens_used*`, `model_version`, and the `model_call_id`/`result_id`
+each call is keyed by. Re-running a config reuses every result it already has;
+`--retry-errors` re-calls only `call_status=error` rows.
 
 ### Stage 2 — score responses (`judge-bench`)
 
@@ -296,13 +305,13 @@ Options:
 - `--judge-fallback` — re-evaluate MCQ rows the regex *couldn't* parse (`is_correct` is
   null) with the LLM judge. Reads from `responses_judged/`, writes to
   `responses_judged_fallback/`.
-- `--dataset` — same exceptional override as `run-bench`; must match whatever
-  `--dataset` (if any) produced this experiment's responses, since it also drives the
-  detailed CSV's question metadata.
+- `--dataset` — same exceptional override as `build-inputs`; must match whatever
+  `--dataset` (if any) produced this experiment's inputs, since it drives both the
+  question_id metadata join and the detailed CSV's question metadata.
 
 A model whose responses contain more than 5% `call_status=error` rows is **not judged at
 all** and appears in neither the summary nor the detailed CSV — its accuracy would come
-from a biased subset of items. Re-run it with `run-bench --retry-errors`, then judge
+from a biased subset of items. Re-run it with `fab-bench run --retry-errors`, then judge
 again.
 
 With more than one judge (`--num-judges` > 1 or multiple `--judge-model`), short-form
@@ -331,8 +340,12 @@ Outputs:
 ### Typical end-to-end flow
 
 ```bash
-# 1. Collect responses for all models
-uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark run-bench -l kiswahili
+# 1. Build the inputs file and run all models on it (see Stage 1)
+uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark build-inputs -l kiswahili
+fab-bench create-experiment --inputs cache/kiswahili/inputs.jsonl \
+  --dest cache/kiswahili/experiments/default \
+  --benchmark linguistic-knowledge --experiment-id default --max-tokens none
+fab-bench run --config run.json
 
 # 2. Score them (regex + LLM judge)
 uv run --package linguistic-knowledge-benchmark linguistic-knowledge-benchmark judge-bench -l kiswahili

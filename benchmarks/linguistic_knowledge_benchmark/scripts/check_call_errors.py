@@ -4,12 +4,12 @@ Table of per-model error counts (total/mcq/short-form), for responses vs
 responses_judged.
 
 Scans cache/<language>/experiments/<experiment-id>/responses/ and .../responses_judged/ -- every
-per-model CSV written by run-bench / judge-bench -- and prints one row per model that
+per-model file written by fab-bench / judge-bench -- and prints one row per model that
 has at least one error in either file, split by answer_type so you can tell whether
 --judge-fallback (which only re-judges null MCQ rows) is likely to help:
 
   * responses        a row is an error when call_status == "error" (the model call
-                      itself failed in run-bench).
+                      itself failed during the fab-bench run).
   * responses_judged  a row is an error when is_correct is null. judge_bench.py
                       carries call_status=="error" rows straight through as
                       is_correct=None, so this is normally >= the responses count --
@@ -37,7 +37,7 @@ it says which of these models judge-bench will now refuse outright: above that s
 failed calls a model is not judged and is left out of the summary/detailed CSVs
 entirely, because an accuracy computed from only the items that happened to succeed
 would sit in the summary next to models that answered everything. SKIP rows need
-'run-bench --retry-errors' before judging; "ok" rows have errors but few enough to be
+'fab-bench run --retry-errors' before judging; "ok" rows have errors but few enough to be
 judged (their failed rows stay unscored). The limit is imported, not restated here, so
 this table can't drift from the gate that enforces it.
 
@@ -53,9 +53,15 @@ import os
 
 import pandas as pd
 from linguistic_knowledge_benchmark.judge_bench import MAX_CALL_ERROR_RATE
+from linguistic_knowledge_benchmark.responses import load_responses
+from linguistic_knowledge_benchmark.shared_utils import (
+    CALL_STATUS_ERROR,
+    DATA_DIR,
+    DATASETS,
+    load_dataset,
+)
 
-LANGUAGES = ["english", "kiswahili"]
-CALL_STATUS_ERROR = "error"
+LANGUAGES = list(DATASETS)
 RESPONSES_PREFIX = "responses_"
 JUDGED_PREFIX = "responses_judged_"
 
@@ -71,9 +77,9 @@ def _breakdown(df: pd.DataFrame, mask: pd.Series) -> tuple[int, int, int]:
 
 
 def scan_responses_dir(
-    dir_path: str,
+    experiment_dir: str, questions: list[dict]
 ) -> tuple[dict[str, tuple[int, int, int]], dict[str, int]]:
-    """(error counts, row counts) per model, for every responses_<model>.csv present.
+    """(error counts, row counts) per model, for every responses_<model>.jsonl present.
 
     Error counts are (total, mcq, short_form) call_status=="error" rows; row counts are
     the file's total length, needed to turn those into the error RATE that judge-bench's
@@ -81,13 +87,14 @@ def scan_responses_dir(
     """
     counts: dict[str, tuple[int, int, int]] = {}
     row_counts: dict[str, int] = {}
+    dir_path = os.path.join(experiment_dir, "responses")
     if not os.path.isdir(dir_path):
         return counts, row_counts
     for name in sorted(os.listdir(dir_path)):
-        if not (name.startswith(RESPONSES_PREFIX) and name.endswith(".csv")):
+        if not (name.startswith(RESPONSES_PREFIX) and name.endswith(".jsonl")):
             continue
-        model = name[len(RESPONSES_PREFIX) : -len(".csv")]
-        df = pd.read_csv(os.path.join(dir_path, name))
+        model = name[len(RESPONSES_PREFIX) : -len(".jsonl")]
+        df = load_responses(experiment_dir, model, questions)
         if "call_status" not in df.columns:
             continue
         counts[model] = _breakdown(df, df["call_status"] == CALL_STATUS_ERROR)
@@ -141,6 +148,14 @@ def main() -> None:
     )
     ap.add_argument("--language", required=True, choices=LANGUAGES)
     ap.add_argument("--experiment-id", required=True)
+    ap.add_argument(
+        "--dataset",
+        help=(
+            "EXCEPTIONAL override: the dataset the experiment's inputs were built "
+            "from (filename only, resolved as data/<dataset>). Needed only for "
+            "one-off experiments scored against a non-standard dataset."
+        ),
+    )
     args = ap.parse_args()
 
     here = os.path.dirname(os.path.abspath(__file__))
@@ -148,9 +163,12 @@ def main() -> None:
     experiment_path = os.path.join(
         root, "cache", args.language, "experiments", args.experiment_id
     )
+    dataset_path = (
+        DATA_DIR / args.dataset if args.dataset else DATASETS[args.language]["path"]
+    )
 
     responses_counts, row_counts = scan_responses_dir(
-        os.path.join(experiment_path, "responses")
+        experiment_path, load_dataset(dataset_path)
     )
     judged_counts = scan_judged_dir(os.path.join(experiment_path, "responses_judged"))
     # Only present once --judge-fallback has been run for this experiment-id; the
@@ -220,7 +238,7 @@ def main() -> None:
         print(
             f"\n{n_skip} model(s) marked SKIP: judge-bench will not judge them and "
             "they will be absent from\nthe summary and detailed CSVs. Re-run them with "
-            "'run-bench --retry-errors' first."
+            "'fab-bench run --retry-errors' first."
         )
 
 

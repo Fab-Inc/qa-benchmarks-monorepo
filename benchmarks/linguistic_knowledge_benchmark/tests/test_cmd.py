@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -55,7 +54,7 @@ def stub_registered_datasets(monkeypatch, tmp_path_factory):
 def test_help_lists_commands(runner: CliRunner) -> None:
     result = runner.invoke(cmd.app, ["--help"])
     assert result.exit_code == 0
-    assert "run-bench" in result.output
+    assert "build-inputs" in result.output
     assert "judge-bench" in result.output
     assert "run-llpk-eval" not in result.output
 
@@ -67,150 +66,51 @@ def test_datasets_map_is_parameterized() -> None:
         assert {"path", "language_name"} <= entry.keys()
 
 
-def test_timestamp_experiment_id_format() -> None:
-    assert re.match(r"^\d{8}T\d{6}Z$", cmd._timestamp_experiment_id())
-
-
 # --------------------------------------------------------------------------- #
-# run-bench
+# build-inputs
 # --------------------------------------------------------------------------- #
-def test_run_bench_rejects_unknown_language(runner: CliRunner) -> None:
-    result = runner.invoke(cmd.app, ["run-bench", "--language", "klingon"])
+def test_build_inputs_rejects_unknown_language(runner: CliRunner) -> None:
+    result = runner.invoke(cmd.app, ["build-inputs", "--language", "klingon"])
     assert result.exit_code == 1
     assert "Invalid language" in result.output
 
 
-def test_run_bench_rejects_unknown_model(runner: CliRunner) -> None:
+def test_build_inputs_writes_inputs_file(runner, tmp_path) -> None:
+    dest = tmp_path / "out" / "inputs.jsonl"
     result = runner.invoke(
-        cmd.app, ["run-bench", "--model", "bogus", "--language", "kiswahili"]
-    )
-    assert result.exit_code == 1
-    assert "not found" in result.output
-
-
-def test_run_bench_rejects_invalid_experiment_id(runner: CliRunner) -> None:
-    result = runner.invoke(
-        cmd.app,
-        [
-            "run-bench",
-            "--model",
-            VALID_MODEL,
-            "--language",
-            "kiswahili",
-            "--experiment-id",
-            "my_run",
-        ],
-    )
-    assert result.exit_code == 1
-    assert "invalid" in result.output.lower()
-
-
-def test_run_bench_single_model_forwards_params(runner, monkeypatch) -> None:
-    mock = MagicMock()
-    monkeypatch.setattr(cmd, "run_benchmark", mock)
-    result = runner.invoke(
-        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
+        cmd.app, ["build-inputs", "--language", "kiswahili", "--dest", str(dest)]
     )
     assert result.exit_code == 0
-    mock.assert_called_once()
-    assert "Experiment ID: default (no --experiment-id supplied)" in result.output
-    kwargs = mock.call_args.kwargs
-    assert kwargs["model_name"] == VALID_MODEL
-    assert kwargs["language_name"] == "Kiswahili"
-    assert kwargs["retry_errors"] is False
+    rows = [json.loads(line) for line in dest.read_text().splitlines()]
+    # The stubbed registered dataset (sample_questions): one MCQ, one short_form.
+    assert [row["benchmark_item_id"] for row in rows] == ["1", "2"]
+    assert set(rows[0]) == {"benchmark_item_id", "prompt", "system_prompt"}
+    assert "A. opt A" in rows[0]["prompt"]
+    assert "Swahili" in rows[0]["system_prompt"]
+    assert "1-3 words" in rows[1]["system_prompt"]
 
 
-def test_run_bench_all_models(runner, monkeypatch) -> None:
-    mock = MagicMock()
-    monkeypatch.setattr(cmd, "run_benchmark", mock)
-    result = runner.invoke(cmd.app, ["run-bench", "--language", "kiswahili"])
-    assert result.exit_code == 0
-    assert mock.call_count == len(cmd.EVAL_MODELS)
-
-
-def test_run_bench_forwards_retry_and_run_options(runner, monkeypatch) -> None:
-    mock = MagicMock()
-    monkeypatch.setattr(cmd, "run_benchmark", mock)
-    result = runner.invoke(
-        cmd.app,
-        [
-            "run-bench",
-            "--model",
-            VALID_MODEL,
-            "--language",
-            "kiswahili",
-            "--retry-errors",
-            "--experiment-id",
-            "experiment-123",
-        ],
-    )
-    assert result.exit_code == 0
-    kwargs = mock.call_args.kwargs
-    assert kwargs["retry_errors"] is True
-    assert kwargs["experiment_id"] == "experiment-123"
-
-
-def test_run_bench_timestamped_output_generates_experiment_id(
-    runner, monkeypatch
+def test_build_inputs_default_dest_and_dataset_override(
+    runner, monkeypatch, tmp_path
 ) -> None:
-    mock = MagicMock()
-    monkeypatch.setattr(cmd, "run_benchmark", mock)
-    monkeypatch.setattr(cmd, "_timestamp_experiment_id", lambda: "20260608T120000Z")
-    result = runner.invoke(
-        cmd.app,
+    monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
+    (tmp_path / "data").mkdir()
+    override_path = write_dataset(
+        tmp_path / "data" / "linguistic_knowledge_eval_kiswahili_20x.json",
         [
-            "run-bench",
-            "--model",
-            VALID_MODEL,
-            "--language",
-            "kiswahili",
-            "--timestamped-output",
+            {
+                "question_id": 9,
+                "question": "q9",
+                "answer_type": "short_form",
+                "expected_answers": ["x"],
+            }
         ],
     )
-    assert result.exit_code == 0
-    assert "Experiment ID: 20260608T120000Z" in result.output
-    assert mock.call_args.kwargs["experiment_id"] == "20260608T120000Z"
-
-
-def test_run_bench_rejects_force_with_retry_errors(runner) -> None:
+    monkeypatch.setattr(cmd, "DATA_DIR", override_path.parent)
     result = runner.invoke(
         cmd.app,
         [
-            "run-bench",
-            "--model",
-            VALID_MODEL,
-            "--language",
-            "kiswahili",
-            "--force",
-            "--retry-errors",
-        ],
-    )
-    assert result.exit_code == 1
-    assert "cannot be combined" in result.output
-
-
-def test_run_bench_propagates_error(runner, monkeypatch) -> None:
-    monkeypatch.setattr(
-        cmd, "run_benchmark", MagicMock(side_effect=RuntimeError("kaboom"))
-    )
-    result = runner.invoke(
-        cmd.app, ["run-bench", "--model", VALID_MODEL, "--language", "kiswahili"]
-    )
-    assert result.exit_code == 1
-    assert "ERROR" in result.output
-
-
-def test_run_bench_dataset_override_prints_note_and_forwards_path(
-    runner, monkeypatch
-) -> None:
-    mock = MagicMock()
-    monkeypatch.setattr(cmd, "run_benchmark", mock)
-    result = runner.invoke(
-        cmd.app,
-        [
-            "run-bench",
-            "--model",
-            VALID_MODEL,
+            "build-inputs",
             "--language",
             "kiswahili",
             "--dataset",
@@ -218,11 +118,12 @@ def test_run_bench_dataset_override_prints_note_and_forwards_path(
         ],
     )
     assert result.exit_code == 0
-    assert "NOTE: --dataset override in effect" in result.output
-    assert (
-        mock.call_args.kwargs["dataset_path"]
-        == cmd.DATA_DIR / "linguistic_knowledge_eval_kiswahili_20x.json"
+    dest = (
+        tmp_path / "kiswahili" / "inputs_linguistic_knowledge_eval_kiswahili_20x.jsonl"
     )
+    assert dest.exists()
+    rows = [json.loads(line) for line in dest.read_text().splitlines()]
+    assert rows[0]["benchmark_item_id"] == "9"
 
 
 # --------------------------------------------------------------------------- #
@@ -440,10 +341,6 @@ def test_judge_bench_fallback_path(runner, monkeypatch, tmp_path) -> None:
     fallback.assert_called_once()
     name = "summary_linguistic-knowledge_kiswahili_default_fallback.csv"
     assert (tmp_path / "results" / name).exists()
-
-
-def test_timestamp_experiment_id_is_filesystem_safe() -> None:
-    assert re.fullmatch(r"\d{8}T\d{6}Z", cmd._timestamp_experiment_id())
 
 
 def test_judge_bench_merges_existing_log_fields(runner, monkeypatch, tmp_path) -> None:
@@ -763,13 +660,21 @@ def test_download_shared_configs_propagates_failure(monkeypatch, tmp_path) -> No
             _download_shared_configs()
 
 
-def test_setup_syncs_shared_configs(monkeypatch, runner: CliRunner) -> None:
+def test_setup_syncs_shared_configs(monkeypatch, runner, tmp_path) -> None:
     """The app callback is what keeps the three files fresh on every invocation."""
     sync = MagicMock()
     monkeypatch.setattr(cmd, "_download_shared_configs", sync)
     monkeypatch.setattr(cmd, "register_models", MagicMock())
-    monkeypatch.setattr(cmd, "run_benchmark", MagicMock())
-    result = runner.invoke(cmd.app, ["run-bench", "--language", "kiswahili"])
+    result = runner.invoke(
+        cmd.app,
+        [
+            "build-inputs",
+            "--language",
+            "kiswahili",
+            "--dest",
+            str(tmp_path / "inputs.jsonl"),
+        ],
+    )
     assert result.exit_code == 0
     sync.assert_called_once()
 

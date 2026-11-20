@@ -1,7 +1,7 @@
 """
 Linguistic Knowledge Eval Judge Module.
 
-Scores model responses from run_bench using regex (MCQ)
+Scores model responses from a fab-bench experiment using regex (MCQ)
 or LLM judge (short_form).
 """
 
@@ -16,22 +16,22 @@ from fdllm.llmtypes import LLMMessage
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from linguistic_knowledge_benchmark.run_bench import (
+from linguistic_knowledge_benchmark.responses import load_responses
+from linguistic_knowledge_benchmark.shared_utils import (
     CALL_STATUS_ERROR,
+    english_language_name,
+    experiment_dir,
     git_hash,
     load_dataset,
     update_log,
-)
-from linguistic_knowledge_benchmark.shared_utils import (
-    english_language_name,
-    experiment_dir,
 )
 
 # Share of a model's rows that may have call_status="error" and still be judged.
 # Above this the model is skipped entirely: its accuracy would be computed from
 # whichever items happened to succeed, which is a biased subset of the dataset, and
 # that number would then sit in the summary CSV next to models that answered
-# everything. Such a model needs re-running ('run-bench --retry-errors'), not judging,
+# everything. Such a model needs re-running ('fab-bench run --retry-errors'),
+# not judging,
 # so it's kept out of judging AND out of the summary rather than footnoted in it.
 MAX_CALL_ERROR_RATE = 0.05
 
@@ -127,9 +127,10 @@ def check_call_error_rate(
     rate = n_errors / n_rows
     if rate <= MAX_CALL_ERROR_RATE:
         return
-    retry_cmd = f"run-bench --model {model_name} --retry-errors"
-    if language_name:
-        retry_cmd += f" --language {language_name.lower()}"
+    retry_cmd = (
+        f"fab-bench run --config <this experiment's run config for {model_name}>"
+        " --retry-errors"
+    )
     raise TooManyCallErrorsError(
         f"{n_errors}/{n_rows} rows failed to call ({rate:.1%}), above the "
         f"{MAX_CALL_ERROR_RATE:.0%} MAX_CALL_ERROR_RATE. Not judged and left out of "
@@ -323,21 +324,21 @@ def judge_results(
     """
     judge_models = judge_models if judge_models else DEFAULT_JUDGE_MODELS[:1]
     language_dir = experiment_dir(language_name, experiment_id)
-    input_dir = language_dir / "responses"
     judged_dir = language_dir / "responses_judged"
     judge_system_prompt = _build_judge_system_prompt(language_name)
 
-    # Check input file exists
-    input_path = input_dir / f"responses_{model_name}.csv"
-    if not input_path.exists():
-        raise FileNotFoundError(
-            f"No results found for {model_name}. "
-            f"Run 'run-bench --model {model_name} "
-            f"--language {language_name.lower()}' first."
-        )
+    # Load the original dataset: the run's rows no longer carry question metadata
+    # (the model never sees it), so it is joined back on question_id.
+    questions = load_dataset(dataset_path)
 
     # Load step 1 results
-    results_df = pd.read_csv(input_path)
+    try:
+        results_df = load_responses(language_dir, model_name, questions)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"No results found for {model_name}. Run this experiment's models "
+            "with 'fab-bench run' first."
+        ) from None
 
     # Gate on the run's call-error rate BEFORE the judged-cache shortcut below, so a
     # model that was judged in an earlier pass (when the gate didn't exist, or with
@@ -365,8 +366,7 @@ def judge_results(
                     f"Judge model '{jm}' not registered in custom_models.yaml."
                 ) from None
 
-    # Load original dataset to get question text for judge prompts
-    questions = load_dataset(dataset_path)
+    # Question text for judge prompts
     question_map = {q["question_id"]: q["question"] for q in questions}
 
     # Whether a model wraps its answer in a <think>...</think> block is a

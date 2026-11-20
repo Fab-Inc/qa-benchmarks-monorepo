@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Estimate the $ cost of one "model run" -- run-bench + judge-bench for a single model on
+Estimate the $ cost of one "model run" -- fab-bench run + judge-bench for a single model on
 all items of one language -- from data already sitting in
 cache/<language>/experiments/<experiment-id>/. No new API calls are made.
 
 Two cost components, tracked with different precision:
 
-  * run-bench (the model under test): EXACT. Every row of responses_<model>.csv already
-    carries total_tokens/completion_tokens from the real API call (fdllm's
+  * the model under test (fab-bench run): EXACT. Every row of responses_<model>.jsonl already
+    carries tokens_used/tokens_used_completion from the real API call (fdllm's
     TokensUsed/TokensUsedCompletion); input_tokens = total_tokens - completion_tokens.
     Cost = input_tokens/1e6 * input_cost + completion_tokens/1e6 * output_cost, priced
     from models.csv (USD per 1M tokens) for the model under test.
@@ -32,7 +32,7 @@ Two cost components, tracked with different precision:
   since the judge ensemble is a per-experiment choice (see judge_bench.judge_results()'s judge_models arg), not
   a fixed constant.
 
-  Only run-bench + the main judge-bench pass are covered here -- a --judge-fallback pass,
+  Only the model run + the main judge-bench pass are covered here -- a --judge-fallback pass,
   if this run has one, is not read or priced. Its cost is ignored for simplicity: it's a
   small LLM-judge re-pass over just the previously-unscored MCQ rows, so it's cheap
   relative to the two components above, and skipping it keeps this script's logic (and
@@ -44,9 +44,9 @@ than results/ CSVs, so it takes the bare cache experiment-id with no "_fallback"
 "final-137-items", not "final-137-items_fallback").
 
 Output: printed to the terminal only, nothing written to disk. A compact per-model table
-    (run-bench cost exact, judge cost estimated, total), sorted priciest first, plus
+    (model-run cost exact, judge cost estimated, total), sorted priciest first, plus
     min/mean/max total cost across this run's priced models -- directly answers "how
-    much does a single model run cost", since every model here already IS one run-bench
+    much does a single model run cost", since every model here already IS one fab-bench
     + judge-bench pass over one language's full item set. A model missing pricing in
     models.csv (open-weight/self-hosted models often are) shows "-" and is excluded
     from the min/mean/max, not silently treated as free.
@@ -68,14 +68,13 @@ from linguistic_knowledge_benchmark.judge_bench import (
     _build_judge_system_prompt,
     strip_think_block,
 )
-from linguistic_knowledge_benchmark.run_bench import load_dataset
-from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV
+from linguistic_knowledge_benchmark.shared_utils import MODELS_CSV, load_dataset
 
 LANGUAGES = ["english", "kiswahili"]
 LANGUAGE_DISPLAY_NAMES = {"english": "English", "kiswahili": "Kiswahili"}
 
 # len(text) / CHARS_PER_TOKEN is the estimator for every judge-call token count below
-# (run-bench's own tokens are exact -- see the module docstring). ~4 characters/token is
+# (the model run's own tokens are exact -- see the module docstring). ~4 characters/token is
 # the standard rule-of-thumb for English text.
 CHARS_PER_TOKEN = 4.0
 # Small fixed allowance for the structured-output JSON wrapper around the judge's
@@ -97,7 +96,7 @@ def load_model_prices(models_csv: str) -> dict[str, tuple[float | None, float | 
     df = pd.read_csv(models_csv)
     prices: dict[str, tuple[float | None, float | None]] = {}
     for _, row in df.iterrows():
-        ic, oc = row["input_cost"], row["output_cost"]
+        ic, oc = row["input_price_usd_per_mtok"], row["output_price_usd_per_mtok"]
         prices[row["model_id"]] = (
             float(ic) if pd.notna(ic) else None,
             float(oc) if pd.notna(oc) else None,
@@ -105,14 +104,14 @@ def load_model_prices(models_csv: str) -> dict[str, tuple[float | None, float | 
     return prices
 
 
-def run_bench_cost(
+def model_run_cost(
     responses_df: pd.DataFrame, input_cost: float | None, output_cost: float | None
 ) -> tuple[float | None, int, int]:
-    """(cost, prompt_tokens, completion_tokens) for one model's run-bench pass -- exact,
-    from the real total_tokens/completion_tokens columns fdllm recorded per call. cost is
-    None if this model has no pricing in models.csv."""
-    completion = responses_df["completion_tokens"].fillna(0)
-    total = responses_df["total_tokens"].fillna(0)
+    """(cost, prompt_tokens, completion_tokens) for one model's run -- exact,
+    from the real tokens_used/tokens_used_completion columns fdllm recorded per
+    call. cost is None if this model has no pricing in models.csv."""
+    completion = responses_df["tokens_used_completion"].fillna(0)
+    total = responses_df["tokens_used"].fillna(0)
     input_tokens = (total - completion).clip(lower=0)
     prompt_tokens, completion_tokens = int(input_tokens.sum()), int(completion.sum())
     if input_cost is None or output_cost is None:
@@ -184,7 +183,7 @@ def judge_call_cost(
 
 
 def discover_models(responses_dir: str) -> list[str]:
-    prefix, suffix = "responses_", ".csv"
+    prefix, suffix = "responses_", ".jsonl"
     return sorted(
         f[len(prefix) : -len(suffix)]
         for f in os.listdir(responses_dir)
@@ -203,8 +202,13 @@ def print_cost_table(result_df: pd.DataFrame) -> None:
     """Compact console table: $-formatted costs only (no token/call counts), sorted by
     total cost descending so the priciest model(s) are immediately visible; unpriced
     models sort last."""
-    cols = ["model", "run_bench_cost_usd", "judge_cost_est_usd", "total_cost_est_usd"]
-    headers = ["model", "run-bench", "judge", "total"]
+    cols = [
+        "model",
+        "fab_bench_run_cost_usd",
+        "judge_cost_est_usd",
+        "total_cost_est_usd",
+    ]
+    headers = ["model", "fab-bench run", "judge", "total"]
     ordered = result_df.sort_values(
         "total_cost_est_usd", ascending=False, na_position="last"
     )
@@ -237,7 +241,7 @@ def main() -> None:
     ap.add_argument(
         "--dataset",
         default=None,
-        help="Filename only (resolved as data/<dataset>), matching run-bench/judge-bench's "
+        help="Filename only (resolved as data/<dataset>), matching build-inputs/judge-bench's "
         "own --dataset override. Defaults to this language's normal dataset; only needed "
         "if this experiment-id was produced against a different one (e.g. a consistency-check "
         "repeated dataset).",
@@ -280,11 +284,11 @@ def main() -> None:
 
     rows = []
     for model in models:
-        responses_df = pd.read_csv(
-            os.path.join(responses_dir, f"responses_{model}.csv")
+        responses_df = pd.read_json(
+            os.path.join(responses_dir, f"responses_{model}.jsonl"), lines=True
         )
         input_cost, output_cost = prices.get(model, (None, None))
-        rb_cost, rb_prompt_tok, rb_completion_tok = run_bench_cost(
+        rb_cost, rb_prompt_tok, rb_completion_tok = model_run_cost(
             responses_df, input_cost, output_cost
         )
 
@@ -319,11 +323,11 @@ def main() -> None:
         rows.append(
             {
                 "model": model,
-                "run_bench_cost_usd": (
+                "fab_bench_run_cost_usd": (
                     round(rb_cost, 4) if rb_cost is not None else None
                 ),
-                "run_bench_prompt_tokens": rb_prompt_tok,
-                "run_bench_completion_tokens": rb_completion_tok,
+                "fab_bench_run_prompt_tokens": rb_prompt_tok,
+                "fab_bench_run_completion_tokens": rb_completion_tok,
                 "judge_cost_est_usd": (
                     round(judge_cost, 4) if judge_cost is not None else None
                 ),
@@ -341,7 +345,7 @@ def main() -> None:
     priced = result_df[result_df["total_cost_est_usd"].notna()]
     if len(priced):
         print(
-            f"\nPer-model total cost (run-bench + judge-bench), "
+            f"\nPer-model total cost (fab-bench run + judge-bench), "
             f"n={len(priced)}/{len(result_df)} priced model(s):"
         )
         print(f"  min:  ${priced['total_cost_est_usd'].min():.2f}")

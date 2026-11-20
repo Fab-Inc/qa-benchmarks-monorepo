@@ -1,8 +1,12 @@
-"""Command-line interface for linguistic_knowledge_benchmark."""
+"""Command-line interface for linguistic_knowledge_benchmark.
+
+Running models on the benchmark is fab-bench's job (it plans calls, checkpoints
+results and can resume a run); this CLI builds the experiment's inputs file and
+judges the results.
+"""
 
 import json
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +15,7 @@ from dotenv import load_dotenv
 from fab_benchmark_publisher import download_file
 from fdllm import register_models
 
+from linguistic_knowledge_benchmark.inputs import write_inputs_file
 from linguistic_knowledge_benchmark.judge_bench import (
     DEFAULT_JUDGE_MODELS,
     MAX_CALL_ERROR_RATE,
@@ -21,11 +26,11 @@ from linguistic_knowledge_benchmark.judge_bench import (
     judge_results,
     judge_results_fallback,
 )
-from linguistic_knowledge_benchmark.run_bench import run_benchmark
 from linguistic_knowledge_benchmark.shared_utils import (
     BENCH_DIR,
     CUSTOM_MODELS_YAML,
     DATA_DIR,
+    DATASETS,
     EVAL_MODELS,
     MODELS_CSV,
     PROVIDERS_CSV,
@@ -33,34 +38,9 @@ from linguistic_knowledge_benchmark.shared_utils import (
     experiment_dir,
 )
 
-# Add a new language by adding an entry here and dropping its JSON in data/.
-# The medium of evaluation is English for every language: questions are written
-# in English (only their subject changes from language to language).
-#
-# This is the NORMAL way run-bench/judge-bench pick a dataset: each language points
-# directly at one fixed file here, no other configuration needed for everyday use.
-# `--dataset` on both commands (below) is an EXCEPTIONAL escape hatch that overrides
-# this for a single experiment -- e.g. scoring against the repeated dataset built by
-# scripts/build_consistency_dataset.py for the "consistency" validation check.
-DATASETS: dict[str, dict] = {
-    "kiswahili": {
-        "path": DATA_DIR / "linguistic_knowledge_eval_kiswahili.json",
-        "language_name": "Kiswahili",
-    },
-    "english": {
-        "path": DATA_DIR / "linguistic_knowledge_eval_english.json",
-        "language_name": "English",
-    },
-}
-
 # experiment-id must be alphanumeric + hyphens only (no underscores) so that underscores
 # can be used as field separators in output filenames.
 _EXPERIMENT_ID_RE = re.compile(r"^[a-zA-Z0-9-]+$")
-
-
-def _timestamp_experiment_id() -> str:
-    """Return a filesystem-safe UTC timestamp for non-overwriting experiments."""
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _format_accuracy(value: float | None) -> str:
@@ -117,116 +97,77 @@ def setup() -> None:
     register_models(str(CUSTOM_MODELS_YAML))
 
 
-@app.command("run-bench")
-def run_bench_cmd(
-    model: str | None = typer.Option(
-        None,
-        "--model",
-        "-m",
-        help="Model name to run evaluation on",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        "-f",
-        help="Force re-run even if results already exist",
-    ),
-    retry_errors: bool = typer.Option(
-        False,
-        "--retry-errors",
-        help="Retry only rows with call_status=error in an existing responses CSV",
-    ),
-    experiment_id: str | None = typer.Option(
-        None,
-        "--experiment-id",
-        help=(
-            "Write/read responses under cache/<language>/experiments/<experiment-id>/. "
-            "Alphanumeric and hyphens only. Defaults to 'default'."
-        ),
-    ),
-    timestamped_output: bool = typer.Option(
-        False,
-        "--timestamped-output",
-        help="Generate a UTC timestamp experiment ID for a non-overwriting experiment",
-    ),
+@app.command("build-inputs")
+def build_inputs_cmd(
     language: str = typer.Option(
         ...,
         "--language",
         "-l",
-        help=f"Language to evaluate: one of {', '.join(DATASETS)}",
+        help=f"Language whose dataset to render: one of {', '.join(DATASETS)}",
     ),
     dataset: str | None = typer.Option(
         None,
         "--dataset",
         help=(
-            "EXCEPTIONAL override: score against a different dataset JSON than this "
-            "language's normal one (the fixed path in the DATASETS registry above). "
+            "EXCEPTIONAL override: render a different dataset JSON than this "
+            "language's normal one (the fixed path in the DATASETS registry). "
             "FILENAME ONLY, no path -- it's always resolved as DATA_DIR/<dataset>, "
-            "i.e. the file must live directly in data/ alongside the normal "
-            "per-language datasets (e.g. --dataset "
-            "linguistic_knowledge_eval_english_20x.json, not "
-            "data/linguistic_knowledge_eval_english_20x.json or an absolute path). "
-            "Normal usage never needs this. Exists for special one-off experiments, "
-            "e.g. the repeated dataset scripts/build_consistency_dataset.py builds for "
-            "the "
-            "'consistency' validation check."
+            "i.e. the file must live directly in data/ (e.g. --dataset "
+            "linguistic_knowledge_eval_english_20x.json). Normal usage never needs "
+            "this; it exists for special one-off experiments such as the repeated "
+            "dataset scripts/build_consistency_dataset.py builds."
+        ),
+    ),
+    dest: Path | None = typer.Option(
+        None,
+        "--dest",
+        help=(
+            "Where to write the inputs file. Defaults to "
+            "cache/<language>/inputs.jsonl (or .../inputs_<dataset> for a "
+            "--dataset override)."
         ),
     ),
 ) -> None:
-    """Run Linguistic Knowledge evaluation on LLM models.
+    """Render a language's dataset as a fab-bench inputs file.
 
-    If --model is not provided, runs all models from list_models.yaml.
+    The file is everything models see: one row per question, the rendered user
+    prompt and the answer-type's system prompt. Answers stay in the dataset and
+    are joined back on question_id at judging time. After this, run the models
+    with fab-bench:
+
+        fab-bench create-experiment --inputs <dest> \\
+            --dest cache/<language>/experiments/<experiment-id> \\
+            --benchmark linguistic-knowledge --experiment-id <experiment-id> \\
+            --max-tokens none
+        fab-bench run --config run.json --retry-errors   # etc.
     """
-    if force and retry_errors:
-        typer.echo("ERROR: --force and --retry-errors cannot be combined.", err=True)
-        raise typer.Exit(1)
-
     if language not in DATASETS:
         typer.echo(f"ERROR: Invalid language '{language}'.", err=True)
         typer.echo(f"Available: {', '.join(DATASETS)}", err=True)
         raise typer.Exit(1)
 
-    _validate_experiment_id(experiment_id)
-
-    if model:
-        if model not in EVAL_MODELS:
-            typer.echo(
-                f"ERROR: Model '{model}' not found in list_models.yaml.", err=True
-            )
-            typer.echo(f"Available: {', '.join(EVAL_MODELS.keys())}", err=True)
-            raise typer.Exit(1)
-        models_to_run = [model]
-    else:
-        models_to_run = list(EVAL_MODELS.keys())
-
     entry = DATASETS[language]
     dataset_path = DATA_DIR / dataset if dataset is not None else entry["path"]
-    if timestamped_output and experiment_id is None:
-        experiment_id = _timestamp_experiment_id()
-    typer.echo(f"\n=== Running Linguistic Knowledge Benchmark ({language}) ===")
-    if experiment_id:
-        typer.echo(f"Experiment ID: {experiment_id}")
-    else:
-        typer.echo("Experiment ID: default (no --experiment-id supplied)")
-    if dataset is not None:
-        typer.echo(
-            f"NOTE: --dataset override in effect -- scoring against {dataset_path} "
-            f"instead of this language's normal dataset ({entry['path']})."
+    if dest is None:
+        name = (
+            "inputs.jsonl" if dataset is None else f"inputs_{Path(dataset).stem}.jsonl"
         )
+        # cache/<language>/inputs*.jsonl, next to the experiments/ folders.
+        language_dir = experiment_dir(entry["language_name"], None).parent.parent
+        dest = language_dir / name
 
-    for current_model in models_to_run:
-        try:
-            run_benchmark(
-                model_name=current_model,
-                language_name=entry["language_name"],
-                dataset_path=dataset_path,
-                force=force,
-                retry_errors=retry_errors,
-                experiment_id=experiment_id,
-            )
-        except Exception as e:
-            typer.echo(f"ERROR [{current_model}]: {e}", err=True)
-            raise typer.Exit(1)
+    dest = write_inputs_file(dataset_path, entry["language_name"], dest)
+    typer.echo(f"Inputs file written to {dest}")
+    typer.echo("Next: create an experiment and run it with fab-bench, e.g.")
+    typer.echo(f"  fab-bench check-inputs {dest}")
+    typer.echo(f"  fab-bench create-experiment --inputs {dest} \\")
+    typer.echo(
+        f"      --dest {experiment_dir(entry['language_name'], '<experiment-id>')} \\"
+    )
+    typer.echo(
+        "      --benchmark linguistic-knowledge --experiment-id <experiment-id> \\"
+    )
+    typer.echo("      --max-tokens none")
 
 
 @app.command("judge-bench")
@@ -269,8 +210,9 @@ def judge_bench_cmd(
         "--experiment-id",
         help=(
             "Read/write judged artifacts under "
-            "cache/<language>/experiments/<experiment-id>/. "
-            "Alphanumeric and hyphens only. Defaults to 'default'."
+            "cache/<language>/experiments/<experiment-id>/, i.e. the fab-bench "
+            "experiment folder. Alphanumeric and hyphens only. Defaults to "
+            "'default'."
         ),
     ),
     language: str = typer.Option(
@@ -293,15 +235,14 @@ def judge_bench_cmd(
         "--dataset",
         help=(
             "EXCEPTIONAL override: score against a different dataset JSON than this "
-            "language's normal one (the fixed path in the DATASETS registry above). "
+            "language's normal one (the fixed path in the DATASETS registry). "
             "FILENAME ONLY, no path -- always resolved as DATA_DIR/<dataset>, so the "
             "file must live directly in data/ (e.g. --dataset "
             "linguistic_knowledge_eval_english_20x.json). Must match whatever "
-            "--dataset (if any) run-bench used to produce this experiment-id's "
-            "responses, "
-            "since this also drives the detailed CSV's question metadata merge. "
-            "Normal usage never needs this; see run-bench --dataset's help for when "
-            "it does."
+            "--dataset (if any) the experiment's inputs were built from, "
+            "since this drives both the question_id metadata join and the detailed "
+            "CSV's question metadata merge. Normal usage never needs this; see "
+            "build-inputs --dataset's help for when it does."
         ),
     ),
 ) -> None:
@@ -344,7 +285,7 @@ def judge_bench_cmd(
     mode = "fallback" if judge_fallback else "standard"
     effective_experiment_id = experiment_id or "default"
     # Report the directory this mode actually reads from: standard judging reads
-    # the raw run-bench responses, while --judge-fallback re-scores the already-judged
+    # the raw responses, while --judge-fallback re-scores the already-judged
     # CSVs, so its source is responses_judged/ (produced by a prior standard pass).
     input_subdir = "responses_judged" if judge_fallback else "responses"
     input_dir = experiment_dir(language, effective_experiment_id) / input_subdir
@@ -470,7 +411,7 @@ def judge_bench_cmd(
             f"\nNothing judged: expected directory not found — {input_dir}\n"
             f"No experiment '{effective_experiment_id}' exists for {language}. If you "
             "meant a timestamped experiment, re-run with its --experiment-id; "
-            "otherwise run 'run-bench' first."
+            "otherwise run the experiment's models with 'fab-bench run' first."
         )
         return
 
@@ -488,7 +429,7 @@ def judge_bench_cmd(
             f"to call ({len(error_rate_skipped)} model(s)): "
             f"{', '.join(error_rate_skipped)}\n"
             "   These are absent from the summary and detailed CSVs. Re-run them "
-            "with 'run-bench --retry-errors', then judge again."
+            "with 'fab-bench run --retry-errors', then judge again."
         )
 
     if not summaries:
@@ -502,8 +443,8 @@ def judge_bench_cmd(
             return
         typer.echo(
             f"\nNothing judged: no result files in {input_dir}\n"
-            "The directory exists but is empty. Run 'run-bench' for this "
-            "experiment-id first."
+            "The directory exists but is empty. Run the experiment's models with "
+            "'fab-bench run' first."
         )
         return
 

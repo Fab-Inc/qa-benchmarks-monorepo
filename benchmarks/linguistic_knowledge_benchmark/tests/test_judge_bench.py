@@ -17,10 +17,45 @@ def _responses_dir(base, language="kiswahili"):
     return d
 
 
-def _write_responses(responses_dir, rows):
-    df = pd.DataFrame(rows)
-    df.to_csv(responses_dir / f"responses_{VALID_MODEL}.csv", index=False)
-    return df
+def _write_run(responses_dir, dataset_path, rows):
+    """Write the dataset + a fab-bench-format responses_<model>.jsonl.
+
+    `rows` are combined dicts: question fields (question_id, answer_type,
+    expected_answers -- a list, or a "|"-joined string like the old CSVs) go into
+    the dataset; the model-visible/call fields (output, call_status, error_*)
+    become the responses file's rows. Returns the dataset path.
+    """
+    questions = []
+    for r in rows:
+        answers = r.get("expected_answers", [])
+        questions.append(
+            {
+                "question_id": r["question_id"],
+                "question": r.get("question", f"q{r['question_id']}"),
+                "answer_type": r["answer_type"],
+                "expected_answers": (
+                    answers if isinstance(answers, list) else str(answers).split("|")
+                ),
+            }
+        )
+    write_dataset(dataset_path, questions)
+    with open(
+        responses_dir / f"responses_{VALID_MODEL}.jsonl", "w", encoding="utf-8"
+    ) as f:
+        for r in rows:
+            f.write(
+                json.dumps(
+                    {
+                        "benchmark_item_id": str(r["question_id"]),
+                        "output": r.get("output", ""),
+                        "call_status": r.get("call_status", "success"),
+                        "error_type": r.get("error_type", ""),
+                        "error_message": r.get("error_message", ""),
+                    }
+                )
+                + "\n"
+            )
+    return dataset_path
 
 
 # --------------------------------------------------------------------------- #
@@ -162,8 +197,9 @@ def test_judge_results_missing_input_raises(tmp_path, monkeypatch):
 def test_judge_results_cache_hit(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -180,7 +216,7 @@ def test_judge_results_cache_hit(tmp_path, monkeypatch):
     )
 
     df = judge_bench.judge_results(
-        VALID_MODEL, language_name="Kiswahili", dataset_path=tmp_path / "ds.json"
+        VALID_MODEL, language_name="Kiswahili", dataset_path=ds
     )
     assert bool(df.loc[0, "is_correct"]) is True
 
@@ -207,8 +243,9 @@ def test_check_call_error_rate_limit(n_errors, n_rows, raises):
     assert f"{n_errors}/{n_rows}" in message
     # The message has to carry the fix, since a skipped model is silently absent
     # from the summary otherwise.
-    assert f"run-bench --model {VALID_MODEL} --retry-errors --language kiswahili" in (
-        message
+    assert (
+        f"fab-bench run --config <this experiment's run config for {VALID_MODEL}>"
+        in message
     )
 
 
@@ -222,8 +259,9 @@ def test_judge_results_skips_model_over_error_rate(tmp_path, monkeypatch):
     judged-cache shortcut, so it can't reach compute_summary()."""
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             dict(
                 question_id=i,
@@ -234,10 +272,6 @@ def test_judge_results_skips_model_over_error_rate(tmp_path, monkeypatch):
             )
             for i in range(10)
         ],
-    )
-    write_dataset(
-        tmp_path / "ds.json",
-        [{"question_id": i, "question": f"q{i}"} for i in range(10)],
     )
     # No FakeCaller is installed: reaching the judge at all would raise something else.
     with pytest.raises(judge_bench.TooManyCallErrorsError):
@@ -285,14 +319,7 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
             error_message="boom",
         ),
     ]
-    _write_responses(responses, rows)
-    ds = write_dataset(
-        tmp_path / "ds.json",
-        [
-            {"question_id": r["question_id"], "question": f"q{r['question_id']}"}
-            for r in rows
-        ],
-    )
+    ds = _write_run(responses, tmp_path / "ds.json", rows)
     caller = FakeCaller(
         make_response(json.dumps({"is_correct": True, "justification": "ok"}))
     )
@@ -337,8 +364,9 @@ def test_judge_results_full_run_scores_all_types(tmp_path, monkeypatch):
 def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -348,7 +376,6 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     judges = ["judge-a", "judge-b", "judge-c"]
     callers = {
@@ -386,8 +413,9 @@ def test_judge_results_ensemble_majority_and_agreement_columns(tmp_path, monkeyp
 def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -397,7 +425,6 @@ def test_judge_results_ensemble_tie_is_unscored(tmp_path, monkeypatch):
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     judges = ["judge-a", "judge-b"]
     callers = {
@@ -424,8 +451,9 @@ def test_judge_results_strips_think_block_before_llm_judge(
 ):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -435,7 +463,6 @@ def test_judge_results_strips_think_block_before_llm_judge(
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
     caller = FakeCaller(
         make_response(json.dumps({"is_correct": True, "justification": "match"}))
     )
@@ -455,8 +482,9 @@ def test_judge_results_experiment_id_uses_experiment_specific_dirs(
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = tmp_path / "kiswahili" / "experiments" / "experiment-123" / "responses"
     responses.mkdir(parents=True)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -466,7 +494,6 @@ def test_judge_results_experiment_id_uses_experiment_specific_dirs(
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     judge_bench.judge_results(
         VALID_MODEL,
@@ -488,8 +515,9 @@ def test_judge_results_experiment_id_uses_experiment_specific_dirs(
 def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
     monkeypatch.setattr(shared_utils, "CACHE_BASE_DIR", tmp_path)
     responses = _responses_dir(tmp_path)
-    _write_responses(
+    ds = _write_run(
         responses,
+        tmp_path / "ds.json",
         [
             {
                 "question_id": 1,
@@ -499,7 +527,6 @@ def test_judge_results_judge_model_not_registered(tmp_path, monkeypatch):
             }
         ],
     )
-    ds = write_dataset(tmp_path / "ds.json", [{"question_id": 1, "question": "q"}])
 
     def raise_ni(_n):
         raise NotImplementedError

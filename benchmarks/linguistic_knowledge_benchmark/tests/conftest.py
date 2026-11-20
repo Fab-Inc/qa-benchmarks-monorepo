@@ -54,7 +54,7 @@ def offline_app_callback(monkeypatch, request):
     are gitignored, so on a fresh checkout (and in CI) they do not exist until something
     fetches them -- and with the download stubbed, register_models would raise on the
     missing YAML. Nothing here needs a real fdllm registry, since the tests mock
-    run_benchmark/judge_results; model-name validation reads EVAL_MODELS from the
+    write_inputs_file/judge_results; model-name validation reads EVAL_MODELS from the
     tracked list_models.yaml, not from custom_models.yaml.
 
     Tests that exercise the sync itself opt out by patching `cmd.download_file`

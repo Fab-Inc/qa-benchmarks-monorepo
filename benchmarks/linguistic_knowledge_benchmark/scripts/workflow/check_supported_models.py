@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Smoke-test every model in benchmark_default_models_display_names.yaml with a single
-throwaway question, via fdllm. Meant to be run before a full run-bench sweep over that
+throwaway question, via fdllm. Meant to be run before a full benchmark sweep over that
 (much larger) model list, to flag models that are no longer supported/registered or
 whose credentials/endpoint are currently broken -- without burning a full benchmark experiment
 on them.
