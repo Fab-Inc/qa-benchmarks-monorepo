@@ -11,9 +11,7 @@ which choose the models each tier is averaged over (the same selection the
 other hardware-tier error plots use).
 
 Every item-word (one word in one benchmark item) is put in exactly one failure
-mode: what, given the item's student profile, could make a model wrong about
-it. Each mode holds words of a single label, so its error rate is a false
-alarm rate (decodable modes) or a miss rate (nondecodable modes).
+mode.
 
 Outputs, in --report-dir (default: <run>/reports/kiswahili):
     failure_modes.csv          one row per (model, failure mode)
@@ -27,6 +25,7 @@ Outputs, in --report-dir (default: <run>/reports/kiswahili):
 from __future__ import annotations
 
 import ast
+from enum import StrEnum
 from pathlib import Path
 
 import hardware_tier_errors as common
@@ -41,6 +40,7 @@ from decodability.kiswahili import (
 )
 from decodability.kiswahili.segment import (
     SYLLABIC_NASAL_EXPECTED_CLUSTERS,
+    NasalReading,
     _consonant_runs,
     _nasal_verdict,
     decompose_word,
@@ -68,9 +68,7 @@ TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
 MIN_WORDS = 20
 
 # Word length bins, in graphemes, for decodable words with no consonant run.
-# 2-5 / 6-14 splits those item-words most evenly (12,094 / 11,084 on the
-# 20261110 run); the next cut, 2-6 / 7-14, would split them 73 / 27.
-GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)])
+GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)], closed="right")
 
 
 def length_label(span: pd.Interval) -> str:
@@ -87,9 +85,27 @@ def is_nasal(cluster: str) -> bool:
 # Failure modes
 # --------------------------------------------------------------------------
 # Rows in the order the chart draws them, grouped by the error that matters.
+class MissesFailureMode(StrEnum):
+    KNOWN_WHOLE_WORD = "known whole word"
+    UNTAUGHT_UNIGRAPH = "untaught unigraph"
+    UNTAUGHT_MULTIGRAPH = "untaught multigraph"
+    UNTAUGHT_NASAL_CLUSTER = "untaught nasal cluster"
+    UNTAUGHT_NON_NASAL_CLUSTER = "untaught non-nasal cluster"
+    INVALID_GRAPHEME = "invalid grapheme"
+    SEVERAL_REASONS = "several reasons"  # TODO: split?
+
+
+class FalseAlarmFailureMode(StrEnum):
+    SYLLABIC_NASAL_TAUGHT = "syllabic nasal, m/n+C taught"
+    SYLLABIC_NASAL_UNTAUGHT = "syllabic nasal, m/n+C untaught"
+    TAUGHT_CLUSTER = "taught cluster"
+    NO_CONSONANT_RUN_SHORT = f"no consonant run, {GRAPHEME_BINS[0]}"
+    NO_CONSONANT_RUN_LONG = f"no consonant run, {GRAPHEME_BINS[1]}"
+
+
 FAILURE_ROWS = {
     "Decodable words: share falsely flagged": [
-        ("known whole word", "Known whole word"),
+        (MissesFailureMode.KNOWN_WHOLE_WORD, "Known whole word"),
         *[
             (
                 f"no consonant run, {length_label(b)} graphemes",
@@ -97,16 +113,28 @@ FAILURE_ROWS = {
             )
             for b in GRAPHEME_BINS
         ],
-        ("taught cluster", "Every cluster taught"),
-        ("syllabic nasal, m/n+C taught", "Syllabic nasal, m/n + C taught as a cluster"),
-        ("syllabic nasal, m/n+C untaught", "Syllabic nasal, m/n + C not taught"),
+        (FalseAlarmFailureMode.TAUGHT_CLUSTER, "Every cluster taught"),
+        (
+            FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT,
+            "Syllabic nasal, m/n + C taught as a cluster",
+        ),
+        (
+            FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT,
+            "Syllabic nasal, m/n + C not taught",
+        ),
     ],
     "Nondecodable words: share missed": [
-        ("untaught unigraph", "Untaught single-letter grapheme"),
-        ("untaught multigraph", "Untaught multigraph"),
-        ("untaught non-nasal cluster", "Untaught non-nasal cluster, graphemes taught"),
-        ("untaught nasal cluster", "Untaught nasal cluster, graphemes taught"),
-        ("invalid grapheme", "Invalid grapheme"),
+        (MissesFailureMode.UNTAUGHT_UNIGRAPH, "Untaught single-letter grapheme"),
+        (MissesFailureMode.UNTAUGHT_MULTIGRAPH, "Untaught multigraph"),
+        (
+            MissesFailureMode.UNTAUGHT_NON_NASAL_CLUSTER,
+            "Untaught non-nasal cluster, graphemes taught",
+        ),
+        (
+            MissesFailureMode.UNTAUGHT_NASAL_CLUSTER,
+            "Untaught nasal cluster, graphemes taught",
+        ),
+        (MissesFailureMode.INVALID_GRAPHEME, "Invalid grapheme"),
         ("several reasons", "More than one of the above"),
     ],
 }
@@ -115,61 +143,89 @@ FAILURE_ROWS = {
 def failure_mode(
     analysis: KiswahiliWordAnalysis,
     taught_clusters: set[str],
-    syllabic_onsets: list[tuple[str, str]],
+    syllabic_runs: list[str],
     n_graphemes: int,
     has_run: bool,
     on_syllabic_list: bool,
-) -> str:
+) -> MissesFailureMode | FalseAlarmFailureMode:
     """The FAILURE_ROWS mode a (word, student) pair falls in.
 
-    Nondecodable words are split by what the student has not been taught,
-    with words untaught on more than one count kept apart so each other mode
-    has a single cause. Decodable words are split by what could still trip a
-    model: being a known whole word, a syllabic nasal, a taught cluster, or
-    else only their length.
+    The failure modes are grouped into two:
+    1. Misses: missed non-decodable words
+    2. False alarms: falsely flagged decodable words
 
-    A syllabic nasal is only a trap when the student has not been taught the
-    nasal and the next consonant as a cluster (mt in mtoto): a model that
-    misreads it as a cluster then wrongly finds it untaught. syllabic_onsets
-    lists (nasal + next grapheme, whole run) for each syllabic run, and either
-    being taught counts as the misreading being harmless.
+    Failure modes for missed non-decodable words are split by what the
+    student has not been taught. (Currently, words with multiple untaught
+    reasons are grouped under "several reasons")
+
+    Failure modes for falsely flagged decodable words are split by what
+    could still trip a model:
+    - being a known whole word
+    - a syllabic nasal, split into cases where the nasal + the following
+      grapheme/cluster as a unit is taught or untaught
+    - a taught cluster
+    - or else only their length.
+
+    A syllabic nasal is a trap when the student has been taught the nasal and
+    the consonant run after it (t in mtoto, bw in mbwa) but not the nasal
+    plus that run as one cluster (mt, mbw). A model that misreads the nasal
+    as fused needs that cluster, finds it untaught, and wrongly flags the
+    word. The package treats a consonant run as one cluster that cannot be
+    split, so knowing mb does not make mbw readable.
+
+    `syllabic_runs` lists the whole run, nasal included, for each syllabic
+    run in the word. A word is a trap if any of them is untaught. Other
+    nasal runs in the word (the fused mb in mjomba) are ordinary clusters,
+    already checked by the untaught modes above.
 
     Nasal clusters include ambiguous boundaries, which the dataset labels as
     fused (gated).
     """
     if analysis.known_whole_word:
-        return "known whole word"
+        return MissesFailureMode.KNOWN_WHOLE_WORD
+
     untaught = {
-        "untaught unigraph": [
+        MissesFailureMode.UNTAUGHT_UNIGRAPH: [
             g for g in analysis.unknown_graphemes if len(g.normalised) == 1
         ],
-        "untaught multigraph": [
+        MissesFailureMode.UNTAUGHT_MULTIGRAPH: [
             g for g in analysis.unknown_graphemes if len(g.normalised) > 1
         ],
-        "untaught nasal cluster": [
+        MissesFailureMode.UNTAUGHT_NASAL_CLUSTER: [
             c for c in analysis.unknown_clusters if is_nasal(c.normalised)
         ],
-        "untaught non-nasal cluster": [
+        MissesFailureMode.UNTAUGHT_NON_NASAL_CLUSTER: [
             c for c in analysis.unknown_clusters if not is_nasal(c.normalised)
         ],
-        "invalid grapheme": analysis.invalid_graphemes,
+        MissesFailureMode.INVALID_GRAPHEME: analysis.invalid_graphemes,
     }
+
     reasons = [mode for mode, spans in untaught.items() if spans]
+
     if len(reasons) > 1:
-        return "several reasons"
+        return (
+            MissesFailureMode.SEVERAL_REASONS
+        )  # TODO: do we want to list all reasons instead?
+
     if reasons:
         return reasons[0]
+
     # Every grapheme and cluster is taught from here on, so the word is decodable.
-    if on_syllabic_list and syllabic_onsets:
-        harmless = any(
-            pair in taught_clusters or run in taught_clusters
-            for pair, run in syllabic_onsets
-        )
-        return f"syllabic nasal, m/n+C {'taught' if harmless else 'untaught'}"
+    if on_syllabic_list and syllabic_runs:
+        # i.e. word contains a syllabic nasal
+        fused_reading_taught = all(run in taught_clusters for run in syllabic_runs)
+        if fused_reading_taught:
+            return FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT
+        else:
+            return FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT
+
     if has_run:
-        return "taught cluster"
+        return FalseAlarmFailureMode.TAUGHT_CLUSTER
+
     (span,) = [b for b in GRAPHEME_BINS if n_graphemes in b]
-    return f"no consonant run, {length_label(span)} graphemes"
+    if span == GRAPHEME_BINS[0]:
+        return FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT
+    return FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG
 
 
 # --------------------------------------------------------------------------
@@ -225,11 +281,13 @@ def hallucination_table(results: pd.DataFrame) -> pd.DataFrame:
 def build(results: pd.DataFrame) -> pd.DataFrame:
     """Explode items to words and attach each (item, word)'s failure mode.
 
-    results comes from load_results. Spelling-only inputs (graphemes,
-    consonant runs, syllabic readings) are computed once per unique word.
-    analyse_word_kiswahili also needs the student profile, which is fixed
-    within a benchmark item, so it runs once per (word, profile) pair rather
-    than once per row across all models.
+    `results` comes from `load_results` which has one row per model per
+    benchmark item. This is exploded to have one row per (item, word) pair.
+
+    Word-only inputs (graphemes, consonant runs, syllabic readings) are computed
+    once per unique word.
+
+    Decodability analysis runs once per (word, profile) pair.
     """
     item_words = (
         results[
@@ -248,43 +306,44 @@ def build(results: pd.DataFrame) -> pd.DataFrame:
     )
 
     graphemes = {w: decompose_word(w) for w in item_words.word.unique()}
+
     # Runs of two or more consecutive consonants, as grapheme indices.
     runs = {
         w: [r for r in _consonant_runs(g) if len(r) >= 2] for w, g in graphemes.items()
     }
-    # For each syllabic run: the nasal + next grapheme a model might misread as
-    # a cluster (mt), and the whole run (mbw), both as normalised text.
-    syllabic_onsets = {
+
+    # Syllabic nasal consonant runs, as normalised text, including the nasal.
+    # e.g. mt in mtoto, mbw in mbwa. These are the clusters a model would deem
+    # required if it misread the syllabic run as gated.
+    syllabic_runs = {
         w: [
-            (
-                g[r[0]].normalised + g[r[1]].normalised,
-                "".join(g[i].normalised for i in r),
-            )
+            "".join(g[i].normalised for i in r)
             for r in runs[w]
-            if (v := _nasal_verdict(g, r)) is not None and v.value == "syllabic"
+            if _nasal_verdict(g, r) is NasalReading.SYLLABIC
         ]
         for w, g in graphemes.items()
     }
 
-    pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
+    word_profile_pairs = item_words[["word", "student_knowledge"]].drop_duplicates()
+    # Sometimes, the same word is used in the same item multiple times.
     profiles = {
         s: KiswahiliStudentKnowledge.model_validate(ast.literal_eval(s))
-        for s in pairs.student_knowledge.unique()
+        for s in word_profile_pairs.student_knowledge.unique()
     }
-    pairs["failure_mode"] = [
+    word_profile_pairs["failure_mode"] = [
         failure_mode(
-            analyse_word_kiswahili(w, profiles[s]),
-            profiles[s].all_known_clusters,
-            syllabic_onsets[w],
-            len(graphemes[w]),
-            bool(runs[w]),
-            w.lower() in SYLLABIC_NASAL_EXPECTED_CLUSTERS,
+            analysis=analyse_word_kiswahili(w, profiles[s]),
+            taught_clusters=profiles[s].all_known_clusters,
+            syllabic_runs=syllabic_runs[w],
+            n_graphemes=len(graphemes[w]),
+            has_run=bool(runs[w]),
+            on_syllabic_list=w.lower() in SYLLABIC_NASAL_EXPECTED_CLUSTERS,
         )
-        for w, s in zip(pairs.word, pairs.student_knowledge)
+        for w, s in zip(word_profile_pairs.word, word_profile_pairs.student_knowledge)
     ]
-    item_words = item_words.merge(pairs, on=["word", "student_knowledge"])
+    item_words = item_words.merge(word_profile_pairs, on=["word", "student_knowledge"])
 
-    item_words["predicted"] = [
+    item_words["flagged"] = [
         w.lower() in r for w, r in zip(item_words.word, item_words.response_parsed)
     ]
     item_words["is_nondecodable"] = [
@@ -307,7 +366,7 @@ def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
     the item-words, so it sums to 1 per model.
     """
     out = (
-        words.assign(wrong=words.predicted != words.is_nondecodable)
+        words.assign(wrong=words.flagged != words.is_nondecodable)
         .groupby(["hardware_tier", "model", "failure_mode"], observed=True)
         .agg(n=("wrong", "size"), wrong=("wrong", "sum"))
         .reset_index()
