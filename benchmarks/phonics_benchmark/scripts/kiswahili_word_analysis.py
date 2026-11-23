@@ -59,13 +59,14 @@ METRIC = "adjusted_balanced_accuracy"
 MIN_COVERAGE: float | None = None
 TOP_N = 10
 
-# The palette comes from phonics_benchmark.hardware. Tier colours are still this
-# script's own; hardware_tier_errors.TIER_COLORS uses different ones.
 TIER_ORDER = ["Cloud", "Mobile + Tablet"]
-TIER_COLORS = {"Cloud": "#1f4e79", "Mobile + Tablet": "#b5651d"}
 TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
 # Below this many item-words, a mode is faded in the chart.
 MIN_WORDS = 20
+# Footnote markers on the chart's row labels: SYLLABIC_MARK on both syllabic
+# nasal rows, FADED_MARK on any row with fewer than MIN_WORDS item-words.
+SYLLABIC_MARK = "*"
+FADED_MARK = "†"
 
 # Word length bins, in graphemes, for decodable words with no consonant run.
 GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)], closed="right")
@@ -86,7 +87,6 @@ def is_nasal(cluster: str) -> bool:
 # --------------------------------------------------------------------------
 # Rows in the order the chart draws them, grouped by the error that matters.
 class MissesFailureMode(StrEnum):
-    KNOWN_WHOLE_WORD = "known whole word"
     UNTAUGHT_UNIGRAPH = "untaught unigraph"
     UNTAUGHT_MULTIGRAPH = "untaught multigraph"
     UNTAUGHT_NASAL_CLUSTER = "untaught nasal cluster"
@@ -96,46 +96,48 @@ class MissesFailureMode(StrEnum):
 
 
 class FalseAlarmFailureMode(StrEnum):
+    KNOWN_WHOLE_WORD = "known whole word"
     SYLLABIC_NASAL_TAUGHT = "syllabic nasal, m/n+C taught"
     SYLLABIC_NASAL_UNTAUGHT = "syllabic nasal, m/n+C untaught"
     TAUGHT_CLUSTER = "taught cluster"
-    NO_CONSONANT_RUN_SHORT = f"no consonant run, {GRAPHEME_BINS[0]}"
-    NO_CONSONANT_RUN_LONG = f"no consonant run, {GRAPHEME_BINS[1]}"
+    # length_label gives "2-5", not the interval's own "(1, 5]".
+    NO_CONSONANT_RUN_SHORT = (
+        f"no consonant run, {length_label(GRAPHEME_BINS[0])} graphemes"
+    )
+    NO_CONSONANT_RUN_LONG = (
+        f"no consonant run, {length_label(GRAPHEME_BINS[1])} graphemes"
+    )
 
 
 FAILURE_ROWS = {
-    "Decodable words: share falsely flagged": [
-        (MissesFailureMode.KNOWN_WHOLE_WORD, "Known whole word"),
-        *[
-            (
-                f"no consonant run, {length_label(b)} graphemes",
-                f"No consonant run, {length_label(b)} graphemes",
-            )
-            for b in GRAPHEME_BINS
-        ],
+    "False alarm rate on decodable words": [
+        (FalseAlarmFailureMode.KNOWN_WHOLE_WORD, "Known whole word"),
+        # The footnote gives the grapheme range behind "short" and "long".
+        (FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT, "Every grapheme taught - short"),
+        (FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG, "Every grapheme taught - long"),
         (FalseAlarmFailureMode.TAUGHT_CLUSTER, "Every cluster taught"),
         (
             FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT,
-            "Syllabic nasal, m/n + C taught as a cluster",
+            f"Syllabic nasal - m/n + C taught$^{{{SYLLABIC_MARK}}}$",
         ),
         (
             FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT,
-            "Syllabic nasal, m/n + C not taught",
+            f"Syllabic nasal - m/n + C not taught$^{{{SYLLABIC_MARK}}}$",
         ),
     ],
-    "Nondecodable words: share missed": [
+    "Miss rate on nondecodable words": [
         (MissesFailureMode.UNTAUGHT_UNIGRAPH, "Untaught single-letter grapheme"),
         (MissesFailureMode.UNTAUGHT_MULTIGRAPH, "Untaught multigraph"),
         (
             MissesFailureMode.UNTAUGHT_NON_NASAL_CLUSTER,
-            "Untaught non-nasal cluster, graphemes taught",
+            "Untaught non-nasal cluster",
         ),
         (
             MissesFailureMode.UNTAUGHT_NASAL_CLUSTER,
-            "Untaught nasal cluster, graphemes taught",
+            "Untaught nasal cluster",
         ),
-        (MissesFailureMode.INVALID_GRAPHEME, "Invalid grapheme"),
-        ("several reasons", "More than one of the above"),
+        (MissesFailureMode.INVALID_GRAPHEME, "Non-Kiswahili grapheme"),
+        (MissesFailureMode.SEVERAL_REASONS, "More than one of the above"),
     ],
 }
 
@@ -182,7 +184,7 @@ def failure_mode(
     fused (gated).
     """
     if analysis.known_whole_word:
-        return MissesFailureMode.KNOWN_WHOLE_WORD
+        return FalseAlarmFailureMode.KNOWN_WHOLE_WORD
 
     untaught = {
         MissesFailureMode.UNTAUGHT_UNIGRAPH: [
@@ -358,12 +360,10 @@ def build(results: pd.DataFrame) -> pd.DataFrame:
 # Scoring
 # --------------------------------------------------------------------------
 def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
-    """One row per (model, failure mode): error rate and share of the model's errors.
+    """One row per (model, failure mode): item-words, errors and error rate.
 
     Each mode holds one label, so error_rate is the false alarm rate for a
-    decodable mode and the miss rate for a nondecodable one. share_of_errors
-    is the mode's part of everything the model got wrong; the modes partition
-    the item-words, so it sums to 1 per model.
+    decodable mode and the miss rate for a nondecodable one.
     """
     out = (
         words.assign(wrong=words.flagged != words.is_nondecodable)
@@ -372,7 +372,6 @@ def failure_mode_table(words: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
     out["error_rate"] = out.wrong / out.n
-    out["share_of_errors"] = out.wrong / out.groupby("model").wrong.transform("sum")
     return out
 
 
@@ -389,7 +388,6 @@ def tier_failure_table(failures: pd.DataFrame, selected: pd.DataFrame) -> pd.Dat
         .groupby(["hardware_tier", "failure_mode"], observed=True)
         .agg(
             error_rate=("error_rate", "mean"),
-            share_of_errors=("share_of_errors", "mean"),
             n_models=("model", "nunique"),
         )
         .reset_index()
@@ -410,13 +408,10 @@ def style(ax: Axes) -> None:
 
 
 def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> Figure:
-    """Error rate per failure mode, one dot per tier, plus each mode's share of errors.
+    """Error rate per failure mode, one dot per tier, with each mode's item-words.
 
     False alarms on decodable words sit in the top panel and misses on
     nondecodable words in the bottom, since the two are different errors.
-    Rate says how often a model slips on that kind of word; share of errors
-    says how much of the tier's total error it accounts for, which also
-    depends on how common the words are.
     """
     rates = tier_failures.set_index(["failure_mode", "hardware_tier"])
     sizes = tier_failures.drop_duplicates("failure_mode").set_index("failure_mode").n
@@ -448,7 +443,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                     rate,
                     y,
                     s=110,
-                    color=TIER_COLORS[tier],
+                    color=common.TIER_COLORS[tier],
                     edgecolors=SURFACE,
                     linewidths=1.5,
                     zorder=3,
@@ -466,7 +461,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                     fontsize=9,
                     color=MUTED if faded else INK,
                 )
-            # Right-hand columns: item-words, then each tier's share of errors.
+            # Right-hand column: how many item-words the rate rests on.
             ax.annotate(
                 f"{sizes[mode]:,}",
                 (1.02, y),
@@ -475,17 +470,13 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                 fontsize=9,
                 color=MUTED,
             )
-            for x, tier in zip((1.14, 1.23), TIER_ORDER):
-                share = rates.share_of_errors.get((mode, tier), np.nan)
-                ax.annotate(
-                    f"{share:.0%}",
-                    (x, y),
-                    xycoords=("axes fraction", "data"),
-                    va="center",
-                    fontsize=9,
-                    color=TIER_COLORS[tier],
-                )
-        ax.set_yticks(range(len(rows)), [label for _, label in rows], fontsize=10)
+        # Faded rows get FADED_MARK as a superscript (mathtext), which the
+        # footnote explains. Assumes labels contain no "$" of their own.
+        labels = [
+            label + (f"$^{{{FADED_MARK}}}$" if sizes[mode] < MIN_WORDS else "")
+            for mode, label in rows
+        ]
+        ax.set_yticks(range(len(rows)), labels, fontsize=10)
         style(ax)
         # style() greys tick labels; mode names are the content, so restore them.
         for tick, (mode, _) in zip(ax.get_yticklabels(), rows):
@@ -498,13 +489,6 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
     axes[0].annotate(
         "item-words",
         (1.02, 1.02),
-        xycoords="axes fraction",
-        fontsize=8.5,
-        color=MUTED,
-    )
-    axes[0].annotate(
-        "share of tier's errors",
-        (1.14, 1.02),
         xycoords="axes fraction",
         fontsize=8.5,
         color=MUTED,
@@ -524,7 +508,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                 marker="o",
                 linestyle="none",
                 markersize=9,
-                markerfacecolor=TIER_COLORS[tier],
+                markerfacecolor=common.TIER_COLORS[tier],
                 markeredgecolor=SURFACE,
                 label=TIER_NAMES[tier],
             )
@@ -537,22 +521,31 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
         labelcolor=SECONDARY,
     )
     fig.suptitle(
-        "What do models get wrong, given what the student has been taught?",
+        "What do models get wrong?",
         x=0.02,
         ha="left",
         fontsize=14,
         fontweight="bold",
         color=INK,
     )
+    # One footnote line per marker. The FADED_MARK line appears only when a row
+    # is actually faded, so it never explains a mark the chart does not show.
+    short, long = (length_label(b) for b in GRAPHEME_BINS)
+    notes = [
+        "Every item-word has exactly one failure mode. "
+        f"Short: {short} graphemes; long: {long} graphemes.",
+        f'{SYLLABIC_MARK} Some nasals ("m" or "n") preceding one or more consonants '
+        "are syllabic, hence decodable without knowing the m/n + consonant(s) "
+        "as a unit.\n"
+        "   Knowing when such a nasal is syllabic depends on understanding the "
+        "complexities of Kiswahili grammar.",
+    ]
+    if (sizes < MIN_WORDS).any():
+        notes.append(f"{FADED_MARK} Faded: fewer than {MIN_WORDS} item-words.")
     fig.text(
         0.01,
         -0.01,
-        "Every item-word sits in exactly one mode, judged against its item's "
-        "student profile. Untaught modes hold words with that one problem only.\n"
-        "Syllabic nasal (expert-reviewed list): a trap only when the student has "
-        "not been taught m/n + the next consonant as a cluster (mt in mtoto).\n"
-        "Nasal clusters include ambiguous boundaries, labelled as fused. "
-        f"Faded: fewer than {MIN_WORDS} item-words.",
+        "\n".join(notes),
         va="top",
         fontsize=8,
         color=SECONDARY,
@@ -608,16 +601,13 @@ def analyse_failure_modes(
         facecolor=SURFACE,
     )
 
-    # Top failure modes per tier, ranked by error rate, with share of errors.
+    # Top failure modes per tier, ranked by error rate.
     n_item_words = len(words.drop_duplicates(["benchmark_item_id", "word"]))
     typer.echo(f"models: {words.model.nunique()}   item-words: {n_item_words:,}")
     for tier, group in tier_failures.groupby("hardware_tier"):
         typer.echo(f"\n{tier}: top failure modes by error rate")
         for row in group.nlargest(5, "error_rate").itertuples():
-            typer.echo(
-                f"  {row.error_rate:6.1%}  {row.share_of_errors:5.1%} of errors"
-                f"  n={row.n:<6,} {row.failure_mode}"
-            )
+            typer.echo(f"  {row.error_rate:6.1%}  n={row.n:<6,} {row.failure_mode}")
     typer.echo(f"\nWrote to {report_dir}")
 
 
