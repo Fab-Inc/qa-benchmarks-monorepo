@@ -13,7 +13,7 @@ other hardware-tier error plots use).
 Every item-word (one word in one benchmark item) is put in exactly one failure
 mode.
 
-Outputs, in --report-dir (default: <run>/reports/kiswahili):
+Outputs, in --report-dir (default: <run>/reports/kiswahili/error_analysis):
     failure_modes.csv          one row per (model, failure mode)
     failure_modes_by_tier.csv  one row per (hardware tier, failure mode), means
                                over each tier's top TOP_N models
@@ -579,11 +579,14 @@ def analyse_failure_modes(
         None,
         "--report-dir",
         file_okay=False,
-        help="Where to write the outputs. Defaults to <run>/reports/kiswahili.",
+        help=(
+            "Where to write the outputs. "
+            "Defaults to <run>/reports/kiswahili/error_analysis."
+        ),
     ),
 ) -> None:
     """Write the Kiswahili failure-mode tables, chart and hallucination summary."""
-    report_dir = report_dir or run / "reports" / LANGUAGE
+    report_dir = report_dir or run / "reports" / LANGUAGE / "error_analysis"
     report_dir.mkdir(parents=True, exist_ok=True)
 
     results = load_results(run)
