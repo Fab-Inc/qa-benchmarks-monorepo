@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rubric-judge"
+version = "0.1.0"
+description = "LLM-as-a-judge over rubric YAML files"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.13.4",
+  "pyyaml>=6.0",
+]
