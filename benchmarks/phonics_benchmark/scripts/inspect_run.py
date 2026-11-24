@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from phonics_benchmark.utils import load_jsonl
 
 
 def configured_run_dir() -> Path:
@@ -52,15 +53,6 @@ def load_json(path: Path, *, required: bool = True) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"Expected a JSON object in {path}")
     return value
-
-
-def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Load non-empty JSONL records from one result file."""
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
 
 
 def load_run(run_dir: str | Path) -> dict[str, Any]:

@@ -43,9 +43,10 @@ class LabelledBenchmarkItem(BaseModel):
 
     content: NonEmptyStr
     student_knowledge: dict[str, Any]
-    jagged: bool
 
     nondecodable_words: list[str]
     num_nondecodable_words: int = Field(ge=0)
     num_total_words: int = Field(gt=0)
     nondecodable_ratio: float = Field(ge=0.0, le=1.0)
+
+    jagged: bool | None = None
