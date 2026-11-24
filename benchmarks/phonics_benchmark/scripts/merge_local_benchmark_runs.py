@@ -212,6 +212,22 @@ def manifest_runs(manifest: dict):
             yield group, language, run
 
 
+def manifest_excluded_models(manifest: dict) -> dict[str, str]:
+    """Read the optional {model: reason} map of models left out of the merge.
+
+    Excluded models stay in the source runs; they are only dropped here, so every
+    downstream report and selection omits them. A reason is required so the
+    exclusion is self-documenting in the committed manifest and merge audit.
+    """
+    excluded = manifest.get("excluded_models", {})
+    if not isinstance(excluded, dict) or not all(
+        isinstance(model, str) and model and isinstance(reason, str) and reason.strip()
+        for model, reason in excluded.items()
+    ):
+        raise ValueError("excluded_models must map model names to non-empty reasons")
+    return excluded
+
+
 def normalize_items(items: dict, language: str) -> dict:
     """Derive scoring counts from the scorer's actual unique-word vocabulary."""
     if not items:
@@ -397,6 +413,10 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
         raise FileExistsError(f"Preserving existing full dataset: {output}")
     manifest = json.loads(manifest_path.read_text())
     runs = list(manifest_runs(manifest))
+    excluded_models = manifest_excluded_models(manifest)
+
+    excluded_rows = Counter()
+    source_models = set()
     downloads = json.loads((root / "download_manifest.json").read_text())
     verified_paths = set()
     for entry in downloads["files"]:
@@ -451,6 +471,7 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
                     "status": "no_objects",
                     "dataset_uri": "",
                     "response_rows": 0,
+                    "excluded_model_rows": 0,
                 }
             )
             continue
@@ -485,7 +506,10 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
                         "gold_sources": [dataset_uri],
                         "gold_status": status,
                     }
-        models[language].update(config["models"])
+        source_models.update(config["models"])
+        models[language].update(
+            model for model in config["models"] if model not in excluded_models
+        )
         expected_prompt = (
             "decodability_evaluation_schwa_rule"
             if language == "en"
@@ -497,7 +521,7 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
             key: build_decodability_prompt(expected_prompt, item, language)
             for key, item in raw_items.items()
         }
-        count = 0
+        count = excluded_count = 0
         for path in sorted((run_dir / "responses").glob("*.jsonl")):
             require_verified(path)
             for line, row in enumerate(read_jsonl(path), 1):
@@ -512,6 +536,12 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
                     )
                 if row["call_status"] not in {"success", "error"}:
                     raise ValueError(f"Unknown call status: {path}:{line}")
+                source_models.add(row["model"])
+                # Validate excluded rows for same inputs
+                if row["model"] in excluded_models:
+                    excluded_rows[(language, row["model"])] += 1
+                    excluded_count += 1
+                    continue
                 entries[language].append(
                     (
                         row,
@@ -532,8 +562,27 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
                 "status": "downloaded",
                 "dataset_uri": dataset_uri,
                 "response_rows": count,
+                "excluded_model_rows": excluded_count,
             }
         )
+    unknown_exclusions = set(excluded_models) - source_models
+    if unknown_exclusions:
+        raise ValueError(
+            "Excluded models absent from every source run: "
+            f"{sorted(unknown_exclusions)}"
+        )
+    exclusion_audit = [
+        {
+            "model": model,
+            "reason": reason,
+            "response_rows_by_language": {
+                language: excluded_rows[(language, model)]
+                for language in LANGUAGE_NAMES
+                if excluded_rows[(language, model)]
+            },
+        }
+        for model, reason in sorted(excluded_models.items())
+    ]
 
     overlays = manifest.get("gold_overlays")
     if overlays is None:
@@ -609,6 +658,7 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
         "selection": (
             "all unique items in generation datasets; gold overlays do not add items"
         ),
+        "excluded_models": exclusion_audit,
         "languages": {},
     }
     with tempfile.TemporaryDirectory(prefix=".full-merge-", dir=root) as temporary:
@@ -642,6 +692,9 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
             audit["languages"][language] = {
                 **stats,
                 "raw_rows": len(entries[language]),
+                "excluded_model_rows": sum(
+                    n for (lang, _), n in excluded_rows.items() if lang == language
+                ),
                 "duplicate_rows_removed": len(entries[language]) - len(selected),
                 "responses_outside_target": 0,
                 "conflicting_success_calls": sum(
@@ -657,6 +710,7 @@ def merge_snapshot(root: Path, manifest_path: Path) -> dict:
                     "optional subsets are separate datasets."
                 ),
                 "languages": audit["languages"],
+                "excluded_models": exclusion_audit,
                 "gold_note": (
                     "English extension labels remain provisional; "
                     "see per-item provenance."
