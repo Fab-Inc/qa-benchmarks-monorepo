@@ -4,6 +4,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -91,7 +92,11 @@ def test_calibration_keeps_ratio_one_in_last_bin():
 def test_ranking_phrase():
     assert (
         common.ranking_phrase("pooled_f2", "english")
-        == "highest-pooled_f2 English models"
+        == "English models with the highest pooled F2"
+    )
+    assert (
+        common.ranking_phrase("adjusted_balanced_accuracy", "kiswahili")
+        == "Kiswahili models with the highest adjusted balanced accuracy"
     )
 
 
@@ -140,3 +145,84 @@ def test_inputs_are_read_from_the_reports_folder(tmp_path):
     # Unselected models and unparseable responses are dropped.
     assert scored.benchmark_item_id.tolist() == ["i1"]
     assert scored.tp.iloc[0] == {"jump"}
+
+
+def test_bootstrap_totals_redraw_every_item_count():
+    counts = np.ones((50, 2, 3))  # 50 items, each contributing 1 everywhere
+    totals = common.bootstrap_totals(counts, n_bootstrap=20, seed=0)
+    assert totals.shape == (20, 2, 3)
+    assert (totals == 50).all()  # a replicate draws exactly 50 items
+
+
+def test_bootstrap_totals_are_reproducible_for_a_seed():
+    counts = np.random.default_rng(1).integers(0, 5, size=(30, 2, 2)).astype(float)
+    first = common.bootstrap_totals(counts, 10, seed=3)
+    assert np.array_equal(first, common.bootstrap_totals(counts, 10, seed=3))
+    assert not np.array_equal(first, common.bootstrap_totals(counts, 10, seed=4))
+
+
+def synthetic_words(n_items=200):
+    """Cloud models flag ~25% of decodable 4-letter words, over many items."""
+    rng = np.random.default_rng(0)
+    rows = []
+    for item in range(n_items):
+        outcome = "fp" if rng.random() < 0.25 else "tn"
+        rows.append(("m", "Cloud", f"i{item}", "word", outcome, 4, "4"))
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "model",
+            "hardware_tier",
+            "benchmark_item_id",
+            "word",
+            "outcome",
+            "letters",
+            "length_bin",
+        ],
+    )
+
+
+def test_rate_interval_brackets_the_point_estimate():
+    words = synthetic_words()
+    table = by_length.rate_by_length(words, "fp", n_bootstrap=500, seed=0)
+    row = table.iloc[0]
+    assert row.rate_ci_low <= row.rate <= row.rate_ci_high
+    assert row.rate_ci_high - row.rate_ci_low < 0.2
+    assert row.n_bootstrap == 500 and row.ci_level == 0.95
+
+
+def test_no_bootstrap_columns_when_switched_off():
+    table = by_length.rate_by_length(synthetic_words(), "fp", n_bootstrap=0)
+    assert not {"rate_ci_low", "rate_ci_high", "n_bootstrap"} & set(table.columns)
+
+
+def test_calibration_interval_brackets_the_point_estimate():
+    rng = np.random.default_rng(0)
+    rows = [
+        {
+            "model": "m",
+            "hardware_tier": "Cloud",
+            "benchmark_item_id": f"i{i}",
+            "actual": 0.25,
+            "predicted": float(rng.choice([0.1, 0.2, 0.3, 0.4])),
+        }
+        for i in range(120)
+    ]
+    table = calibration.calibration_table(pd.DataFrame(rows), n_bootstrap=300, seed=0)
+    row = table.iloc[0]
+    assert row.mean_predicted_ci_low <= row.mean_predicted <= row.mean_predicted_ci_high
+    assert row.mean_actual_ci_low == row.mean_actual_ci_high == 0.25
+    plain = calibration.calibration_table(pd.DataFrame(rows))
+    assert "mean_predicted_ci_low" not in plain.columns
+
+
+def test_bootstrap_args_default_on_and_validated():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    common.add_common_args(parser)
+    args = parser.parse_args(["--root", "x"])
+    assert (args.n_bootstrap, args.ci_level, args.seed) == (1000, 0.95, 0)
+    bad = parser.parse_args(["--root", "x", "--ci-level", "1.5"])
+    with pytest.raises(SystemExit):
+        common.validate_bootstrap_args(parser, bad)
