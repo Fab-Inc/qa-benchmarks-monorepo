@@ -61,12 +61,14 @@ TOP_N = 10
 
 TIER_ORDER = ["Cloud", "Mobile + Tablet"]
 TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
+
 # Below this many item-words, a mode is faded in the chart.
 MIN_WORDS = 20
-# Footnote markers on the chart's row labels: SYLLABIC_MARK on both syllabic
-# nasal rows, FADED_MARK on any row with fewer than MIN_WORDS item-words.
-SYLLABIC_MARK = "*"
-FADED_MARK = "†"
+
+# Footnote markers
+LENGTH_MARK = "*"
+SYLLABIC_MARK = "†"
+FADED_MARK = "‡"
 
 # Word length bins, in graphemes, for decodable words with no consonant run.
 GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)], closed="right")
@@ -112,13 +114,19 @@ class FalseAlarmFailureMode(StrEnum):
 FAILURE_ROWS = {
     "False alarm rate on decodable words": [
         (FalseAlarmFailureMode.KNOWN_WHOLE_WORD, "Known whole word"),
-        # The footnote gives the grapheme range behind "short" and "long".
-        (FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT, "Every grapheme taught - short"),
-        (FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG, "Every grapheme taught - long"),
+        # The LENGTH_MARK footnote gives the grapheme counts behind short and long.
+        (
+            FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT,
+            f"Every grapheme taught - short$^{{{LENGTH_MARK}}}$",
+        ),
+        (
+            FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG,
+            f"Every grapheme taught - long$^{{{LENGTH_MARK}}}$",
+        ),
         (FalseAlarmFailureMode.TAUGHT_CLUSTER, "Every cluster taught"),
         (
             FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT,
-            f"Syllabic nasal - m/n + C taught$^{{{SYLLABIC_MARK}}}$",
+            "Syllabic nasal - m/n + C taught",
         ),
         (
             FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT,
@@ -529,10 +537,13 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
     )
     # One footnote line per marker. The FADED_MARK line appears only when a row
     # is actually faded, so it never explains a mark the chart does not show.
-    short, long = (length_label(b) for b in GRAPHEME_BINS)
+    # Grapheme counts come from GRAPHEME_BINS so the note follows the bins.
+    short_max = int(GRAPHEME_BINS[0].right)
+    long_min = int(GRAPHEME_BINS[1].left) + 1
     notes = [
-        "Every item-word has exactly one failure mode. "
-        f"Short: {short} graphemes; long: {long} graphemes.",
+        "Every item-word has exactly one failure mode.",
+        f"{LENGTH_MARK} Short: up to {short_max} graphemes, "
+        f"long: {long_min} or more graphemes.",
         f'{SYLLABIC_MARK} Some nasals ("m" or "n") preceding one or more consonants '
         "are syllabic, hence decodable without knowing the m/n + consonant(s) "
         "as a unit.\n"
