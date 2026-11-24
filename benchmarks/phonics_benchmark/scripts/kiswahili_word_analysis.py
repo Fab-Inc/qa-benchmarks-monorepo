@@ -528,7 +528,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
         labelcolor=SECONDARY,
     )
     fig.suptitle(
-        "What do models get wrong?",
+        "What kind of Kiswahili words do models get wrong?",
         x=0.02,
         ha="left",
         fontsize=14,
