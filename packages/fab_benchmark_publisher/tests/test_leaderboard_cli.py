@@ -48,8 +48,8 @@ def use_csvs(tmp_path, monkeypatch, *, provider_meta=None):
     """
     models = tmp_path / "models.csv"
     models.write_text(
-        "model_id,provider,open,url,release_date,size,input_cost,output_cost,"
-        "display_name\n"
+        "model_id,provider,open,url,release_date,size,"
+        "input_price_usd_per_mtok,output_price_usd_per_mtok,display_name\n"
         "alpha,OpenCo,true,,01/2025,1000000000,0.1,0.2,Alpha\n"
         "beta,ClosedCo,false,,01/2026,,10.0,30.0,Beta\n",
         encoding="utf-8",
