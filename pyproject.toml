@@ -26,6 +26,7 @@ members = [
   "packages/fab_benchmark_publisher",
   "packages/primerpro",
   "packages/decodability",
+  "packages/rubric_judge",
   "benchmarks/phonics_benchmark",
   "benchmarks/linguistic_knowledge_benchmark",
   "benchmarks/decodable_text_generation",
