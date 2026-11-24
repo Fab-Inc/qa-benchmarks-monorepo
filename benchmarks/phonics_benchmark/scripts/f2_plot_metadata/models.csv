@@ -62,3 +62,10 @@ hf-gemma-4-12b-it,Google,True,https://huggingface.co/google/gemma-4-12B-it,12000
 qwen3-8b-alibaba,Alibaba,True,https://huggingface.co/Qwen/Qwen3-8B,8000000000.0,Qwen-3 8B
 gpt-6-astra-medium,OpenAI,False,,,GPT-6 Astra (Medium)
 claude-opus-5-5-medium,Anthropic,False,https://platform.claude.com/docs/en/about-claude/models/overview,,Claude Opus 5.5 (Medium)
+claude-fable-5-1,Anthropic,False,https://platform.claude.com/docs/en/models/fable-5-1/overview,,Claude Fable 5.1
+claude-sonnet-5-5-medium,Anthropic,False,https://platform.claude.com/docs/en/models/sonnet-5-5/overview,,Claude Sonnet 5.5 (Medium)
+claude-haiku-5-5-medium,Anthropic,False,https://platform.claude.com/docs/en/models/haiku-5-5/overview,,Claude Haiku 5.5 (Medium)
+gpt-6.1-sol-medium,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-6.1-sol,,GPT-6.1 Sol (Medium)
+gpt-6.1-terra-medium,OpenAI,False,https://developers.openai.com/api/docs/models/gpt-6.1-terra,,GPT-6.1 Terra (Medium)
+muse-wonder-medium,Meta,False,https://dev.meta.ai/docs/models#muse-wonder,,Muse Wonder (Medium)
+deepseek-v4.1-flash-1017,DeepSeek-AI,True,https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017,763000000000.0,Deepseek V4.1 Flash 1017
