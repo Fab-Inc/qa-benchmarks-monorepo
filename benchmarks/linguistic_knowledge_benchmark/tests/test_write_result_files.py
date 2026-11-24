@@ -134,7 +134,7 @@ def test_writes_the_three_files(inputs) -> None:
 
     assert sorted(p.name for p in outdir.iterdir()) == [
         "LK-en_accuracy.csv",
-        "LK-en_accuracy_frontier.json",
+        "LK-en_accuracy_frontiers.json",
         "LK-en_accuracy_metadata.json",
     ]
     meta = json.loads((outdir / "LK-en_accuracy_metadata.json").read_text())
@@ -162,10 +162,10 @@ def test_metrics_come_from_the_judged_files(inputs, capsys) -> None:
 
 
 def test_frontier_is_built_from_the_metrics_file(inputs) -> None:
-    """The frontier file has the expected price and size frontiers and carries the
+    """The frontiers file has the expected price and size frontiers and carries the
     metrics file's experiment_slug."""
     outdir = run(*inputs)
-    frontier = json.loads((outdir / "LK-en_accuracy_frontier.json").read_text())
+    frontier = json.loads((outdir / "LK-en_accuracy_frontiers.json").read_text())
 
     by_axis = {
         f["axis"]: [p["model_slug"] for p in f["points"]] for f in frontier["frontiers"]

@@ -6,9 +6,9 @@ Output (local only -- nothing is uploaded), <out-root> defaulting to the repo's
 results/:
 
     <out-root>/linguistic-knowledge/LK-en/
-        LK-en_accuracy.csv             metrics
-        LK-en_accuracy_metadata.json   metric metadata
-        LK-en_accuracy_frontier.json   price and size frontiers
+        LK-en_accuracy.csv              metrics
+        LK-en_accuracy_metadata.json    metric metadata
+        LK-en_accuracy_frontiers.json   price and size frontiers
     <out-root>/linguistic-knowledge/LK-sw/
         ... the same for Kiswahili
 
@@ -30,7 +30,7 @@ Steps, per language:
                -> LK-<lang>_accuracy_metadata.json
   3. frontier  LK-<lang>_accuracy.csv (read back from disk) + the models CSV
                (shared_utils.MODELS_CSV)
-               -> LK-<lang>_accuracy_frontier.json
+               -> LK-<lang>_accuracy_frontiers.json
 
 Step 1 reads the judged response files directly, and only models active in the
 model list (MODELS_LIST_YAML in shared_utils.py) are published: a model dropped from
@@ -213,7 +213,7 @@ def write_result_files(
     outdir.mkdir(parents=True, exist_ok=True)
     metrics_path, metadata_path, frontier_path = (
         outdir / result_file_name(benchmark_slug, METRIC_SLUG, suffix)
-        for suffix in (".csv", "_metadata.json", "_frontier.json")
+        for suffix in (".csv", "_metadata.json", "_frontiers.json")
     )
 
     build_metrics(

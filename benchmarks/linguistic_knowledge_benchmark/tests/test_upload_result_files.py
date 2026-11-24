@@ -13,7 +13,7 @@ spec = importlib.util.spec_from_file_location("upload_result_files", SCRIPT)
 urf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(urf)
 
-SUFFIXES = (".csv", "_metadata.json", "_frontier.json")
+SUFFIXES = (".csv", "_metadata.json", "_frontiers.json")
 
 
 class FakeBlob:
@@ -80,7 +80,7 @@ def test_objects_go_to_a_dated_folder_per_benchmark_metric(results):
     assert names[:3] == [
         "metrics/LK-en_accuracy/dt=2026-11-20/LK-en_accuracy.csv",
         "metrics/LK-en_accuracy/dt=2026-11-20/LK-en_accuracy_metadata.json",
-        "metrics/LK-en_accuracy/dt=2026-11-20/LK-en_accuracy_frontier.json",
+        "metrics/LK-en_accuracy/dt=2026-11-20/LK-en_accuracy_frontiers.json",
     ]
     assert len(names) == 6
 
@@ -98,8 +98,8 @@ def test_bucket_folder_sets_the_path_inside_the_bucket(results):
 
 def test_missing_file_stops_before_any_upload(results):
     """A missing file is reported before anything is uploaded."""
-    (results / "LK-sw" / "LK-sw_accuracy_frontier.json").unlink()
-    with pytest.raises(FileNotFoundError, match="LK-sw_accuracy_frontier.json"):
+    (results / "LK-sw" / "LK-sw_accuracy_frontiers.json").unlink()
+    with pytest.raises(FileNotFoundError, match="LK-sw_accuracy_frontiers.json"):
         plan(results)
 
 

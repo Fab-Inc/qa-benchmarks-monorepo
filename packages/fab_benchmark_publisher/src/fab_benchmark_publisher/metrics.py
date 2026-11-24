@@ -1,9 +1,10 @@
 """The result files of one (benchmark, metric), all named <benchmark>_<metric><suffix>:
 
-    <benchmark>_<metric>.csv              metrics, one row per model (build_metrics)
-    <benchmark>_<metric>_metadata.json    the metric's definition, copied from the
-                                          leaderboard config (load_metric_definition)
-    <benchmark>_<metric>_frontier.json    benchmark_frontiers.build_frontier
+    <benchmark>_<metric>.csv               metrics, one row per model (build_metrics)
+    <benchmark>_<metric>_metadata.json     the metric's definition, copied from the
+                                           leaderboard config (load_metric_definition)
+    <benchmark>_<metric>_frontiers.json    every frontier, one per axis
+                                           (benchmark_frontiers.build_frontier)
 
 benchmark_slug, metric_slug and experiment_slug are the metrics file's composite key:
 every row carries the same three. Each model has at most one row per
@@ -65,8 +66,8 @@ def result_file_name(benchmark_slug: str, metric_slug: str, suffix: str) -> str:
     """Name of one result file: <benchmark>_<metric><suffix>.
 
     The single place the naming convention is defined, so every benchmark names its
-    files the same way, e.g. ("LK-en", "accuracy", "_frontier.json") ->
-    "LK-en_accuracy_frontier.json". Raises ValueError if a slug contains anything
+    files the same way, e.g. ("LK-en", "accuracy", "_frontiers.json") ->
+    "LK-en_accuracy_frontiers.json". Raises ValueError if a slug contains anything
     but letters, digits, '-' or '.', since a '_' would make the name ambiguous.
     """
     for slug in (benchmark_slug, metric_slug):
