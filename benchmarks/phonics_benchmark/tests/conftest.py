@@ -1,11 +1,18 @@
 """Shared fixtures for phonics benchmark tests."""
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 from dotenv import load_dotenv
+
+# scripts/ is not a package, and its modules import each other as siblings
+# (e.g. `import hardware_tier_errors as common`). Putting it on sys.path lets
+# tests import those scripts by name, and gives tests and scripts the same
+# module objects.
+sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 
 
 @pytest.fixture(scope="session", autouse=True)

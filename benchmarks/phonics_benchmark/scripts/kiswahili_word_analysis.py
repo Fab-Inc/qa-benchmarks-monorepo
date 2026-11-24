@@ -247,8 +247,6 @@ def load_results(run: Path) -> pd.DataFrame:
         common.tier_dir(run, METRIC, MIN_COVERAGE) / f"hardware_tiers_{LANGUAGE}.csv"
     )
     results = results.merge(tiers[["model", "hardware_tier"]], on="model", how="inner")
-    # parse_word_set reads the literal without executing it, unlike eval. The
-    # response and label columns are written as lists; they become sets here.
     results["vocab_set"] = results.vocab_set.map(common.parse_word_set)
     for col in ["response_parsed", "nondecodable_words"]:
         results[col] = results[col].map(
@@ -262,7 +260,8 @@ def hallucination_table(results: pd.DataFrame) -> pd.DataFrame:
     predicted words that are out of vocabulary."""
     frame = results.assign(
         n_hallucinated=[
-            len(r - v) for r, v in zip(results.response_parsed, results.vocab_set)
+            len(r - {w.lower() for w in v})
+            for r, v in zip(results.response_parsed, results.vocab_set)
         ],
         n_predicted=results.response_parsed.map(len),
     )
@@ -380,19 +379,19 @@ def tier_failure_table(failures: pd.DataFrame, selected: pd.DataFrame) -> pd.Dat
 
     selected is the model and hardware_tier selection from
     hardware_tier_errors.load_top_models. Each selected model counts equally.
-    n is the mode's item-word count for the best-covered model, which does not
-    depend on the tier.
+    n is the mode's item-word count for the highest-coverage, selected model, which
+    does not depend on the tier.
     """
+    chosen = failures[failures.model.isin(selected.model)]
     out = (
-        failures[failures.model.isin(selected.model)]
-        .groupby(["hardware_tier", "failure_mode"], observed=True)
+        chosen.groupby(["hardware_tier", "failure_mode"], observed=True)
         .agg(
             error_rate=("error_rate", "mean"),
             n_models=("model", "nunique"),
         )
         .reset_index()
     )
-    return out.merge(failures.groupby("failure_mode").n.max(), on="failure_mode")
+    return out.merge(chosen.groupby("failure_mode").n.max(), on="failure_mode")
 
 
 # --------------------------------------------------------------------------

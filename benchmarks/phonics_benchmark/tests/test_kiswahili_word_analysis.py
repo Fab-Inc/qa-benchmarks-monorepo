@@ -1,27 +1,12 @@
 """Check that kiswahili_word_analysis labels syllabic nasal words correctly."""
 
-import importlib.util
-import sys
-from pathlib import Path
-
+# kiswahili_word_analysis resolves via the scripts/ path that conftest.py adds.
+import kiswahili_word_analysis as analysis
 import pandas as pd
 import pytest
 from decodability.kiswahili import KiswahiliStudentKnowledge
 from decodability.kiswahili.definitions import ClusterPattern
 
-SCRIPTS = Path(__file__).parents[1] / "scripts"
-# The script imports hardware_tier_errors as a sibling module.
-sys.path.insert(0, str(SCRIPTS))
-
-
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-analysis = load("kiswahili_word_analysis")
 FalseAlarm = analysis.FalseAlarmFailureMode
 Miss = analysis.MissesFailureMode
 TAUGHT = FalseAlarm.SYLLABIC_NASAL_TAUGHT

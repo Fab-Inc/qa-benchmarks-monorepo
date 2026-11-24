@@ -1,26 +1,11 @@
 """Check word-length binning, pooled FP/FN rates and calibration binning."""
 
-import importlib.util
-import sys
-from pathlib import Path
-
+# Script modules resolve via the scripts/ path that conftest.py adds.
+import hardware_tier_errors as common
 import pandas as pd
+import plot_calibration as calibration
+import plot_error_rate_by_word_length as by_length
 import pytest
-
-SCRIPTS = Path(__file__).parents[1] / "scripts"
-sys.path.insert(0, str(SCRIPTS))
-
-
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-common = load("hardware_tier_errors")
-by_length = load("plot_error_rate_by_word_length")
-calibration = load("plot_calibration")
 
 
 @pytest.mark.parametrize(
