@@ -1,0 +1,13 @@
+# Keeps the image's build context to what `uv sync` needs.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!deploy/
+deploy/*
+!deploy/Dockerfile
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*

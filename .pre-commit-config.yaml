@@ -6,6 +6,11 @@ repos:
         entry: uv lock --check
         language: system
         pass_filenames: false
+      - id: uv-lock-runner
+        name: Check fab-benchmark-runner's uv lockfile
+        entry: uv lock --check --directory packages/fab_benchmark_runner
+        language: system
+        pass_filenames: false
       - id: ruff-format
         name: ruff format
         entry: uv run --frozen ruff format
@@ -27,6 +32,8 @@ repos:
         name: Check for added large files
         entry: uv run --frozen check-added-large-files
         language: system
+        # uv lockfiles are generated text and outgrow the 500 KB limit.
+        exclude: (^|/)uv\.lock$
       - id: check-toml
         name: Check TOML files
         entry: uv run --frozen check-toml
