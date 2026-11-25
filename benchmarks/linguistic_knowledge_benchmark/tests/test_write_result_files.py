@@ -72,6 +72,7 @@ def inputs(tmp_path, monkeypatch):
         pd.DataFrame(
             {
                 "question_id": [1, 2, 3, 4],
+                "domain": ["D1", "D1", "D2", "D2"],
                 "answer_type": ["multiple_choice"] * 2 + ["short_form"] * 2,
                 "is_correct": is_correct,
                 "is_correct_fallback": fallback,
@@ -94,6 +95,7 @@ def inputs(tmp_path, monkeypatch):
                     {
                         "benchmark_domain": "LK-en",
                         "display_name": "LK English",
+                        "benchmark_subsets": [],
                         "metrics": [ACCURACY],
                     }
                 ],
@@ -128,8 +130,8 @@ def read_metrics(outdir: Path) -> pd.DataFrame:
 
 
 def test_writes_the_three_files(inputs) -> None:
-    """Metrics, metadata and frontier files are written; the metadata is the
-    config's metric definition plus the benchmark slug."""
+    """Metrics, metadata and frontiers files are written; the metadata is the
+    config's metric definition plus the benchmark slug and subset keys."""
     outdir = run(*inputs)
 
     assert sorted(p.name for p in outdir.iterdir()) == [
@@ -138,7 +140,7 @@ def test_writes_the_three_files(inputs) -> None:
         "LK-en_accuracy_metadata.json",
     ]
     meta = json.loads((outdir / "LK-en_accuracy_metadata.json").read_text())
-    assert meta == {"benchmark_slug": "LK-en", **ACCURACY}
+    assert meta == {"benchmark_slug": "LK-en", "benchmark_subsets": [], **ACCURACY}
 
 
 def test_metrics_come_from_the_judged_files(inputs, capsys) -> None:
@@ -172,6 +174,55 @@ def test_frontier_is_built_from_the_metrics_file(inputs) -> None:
     }
     assert by_axis == {"price": ["model-b", "model-a"], "size": ["model-b"]}
     assert frontier["experiment_slug"] == "test-4-items"
+    # no benchmark_subsets: overall frontiers only
+    assert [f["benchmark_subset"] for f in frontier["frontiers"]] == [{}, {}]
+
+
+def set_subsets(config: Path, subset_keys: list[str]) -> None:
+    """Set the LK-en benchmark_subsets in the fixture's config."""
+    raw = json.loads(config.read_text())
+    raw["benchmarks"][0]["benchmark_subsets"] = subset_keys
+    config.write_text(json.dumps(raw))
+
+
+def test_config_subsets_add_rows_and_frontiers(inputs) -> None:
+    """benchmark_subsets ["domain"] adds a row per (domain, model) and a price and size
+    frontier per domain, after the overall ones."""
+    tmp_path, models, config = inputs
+    set_subsets(config, ["domain"])
+    outdir = run(tmp_path, models, config)
+
+    metrics = read_metrics(outdir)
+    d1 = metrics[metrics["benchmark_subset"] == '{"domain":"D1"}']
+    d2 = metrics[metrics["benchmark_subset"] == '{"domain":"D2"}']
+    # model-a: D1 2/2; D2 1/2 (fallback). model-b: D1 1/1 (q2 unscored); D2 0/2
+    assert dict(zip(d1["model_slug"], d1["metric_value"])) == {
+        "model-a": 100.0,
+        "model-b": 100.0,
+    }
+    assert dict(zip(d2["model_slug"], d2["metric_value"])) == {
+        "model-a": 50.0,
+        "model-b": 0.0,
+    }
+    meta = json.loads((outdir / "LK-en_accuracy_metadata.json").read_text())
+    assert meta["benchmark_subsets"] == ["domain"]
+    frontier = json.loads((outdir / "LK-en_accuracy_frontiers.json").read_text())
+    assert [(f["benchmark_subset"], f["axis"]) for f in frontier["frontiers"]] == [
+        ({}, "price"),
+        ({}, "size"),
+        ({"domain": "D1"}, "price"),
+        ({"domain": "D1"}, "size"),
+        ({"domain": "D2"}, "price"),
+        ({"domain": "D2"}, "size"),
+    ]
+
+
+def test_subset_key_that_is_not_a_column_is_an_error(inputs) -> None:
+    """A benchmark_subsets key missing from the judged files stops the run."""
+    tmp_path, models, config = inputs
+    set_subsets(config, ["country"])
+    with pytest.raises(ValueError, match="'country' is not a column"):
+        run(tmp_path, models, config)
 
 
 def test_judged_dir_override_sets_the_experiment(inputs) -> None:

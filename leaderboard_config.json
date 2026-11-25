@@ -12,6 +12,10 @@
     "  - benchmark_domain: the id the website keys on and the records filename uses",
     "    (leaderboard_records_<benchmark_domain>.json).",
     "  - display_name: the label shown in the website's selector.",
+    "  - benchmark_subsets: the subset keys the benchmark is broken down by, in order",
+    "    ([] or absent for overall only). For LK, any column of the judged files, e.g.",
+    "    'domain' or 'answer_type'. Each key gives one metrics row and one frontier per",
+    "    value, e.g. {\"domain\": \"D1\"}. Copied into each <benchmark>_<metric>_metadata.json.",
     "  - metrics: the metrics shown for that benchmark. Copied into each",
     "    <benchmark>_<metric>_metadata.json. Empty until the benchmark defines them.",
     "",
@@ -25,6 +29,7 @@
     {
       "benchmark_domain": "LK-sw",
       "display_name": "LK Kiswahili",
+      "benchmark_subsets": [],
       "metrics": [
         {
           "metric_slug": "accuracy",
@@ -49,6 +54,7 @@
     {
       "benchmark_domain": "LK-en",
       "display_name": "LK English",
+      "benchmark_subsets": [],
       "metrics": [
         {
           "metric_slug": "accuracy",

@@ -1,14 +1,20 @@
 """The result files of one (benchmark, metric), all named <benchmark>_<metric><suffix>:
 
-    <benchmark>_<metric>.csv               metrics, one row per model (build_metrics)
-    <benchmark>_<metric>_metadata.json     the metric's definition, copied from the
-                                           leaderboard config (load_metric_definition)
-    <benchmark>_<metric>_frontiers.json    every frontier, one per axis
+    <benchmark>_<metric>.csv               metrics, one row per model and subset
+                                           (build_metrics)
+    <benchmark>_<metric>_metadata.json     the metric's definition and the
+                                           benchmark's subset keys, from the
+                                           leaderboard config (load_metric_definition,
+                                           load_benchmark_subsets)
+    <benchmark>_<metric>_frontiers.json    every frontier, one per (subset, axis)
                                            (benchmark_frontiers.build_frontier)
 
 benchmark_slug, metric_slug and experiment_slug are the metrics file's composite key:
 every row carries the same three. Each model has at most one row per
-benchmark_subset; the overall result is the row with an empty benchmark_subset.
+benchmark_subset; the overall result is the row with an empty benchmark_subset, a
+subset row has the subset as compact JSON, e.g. '{"domain":"D1"}' (canonical_subset).
+Which subsets a benchmark is broken down by is set by its benchmark_subsets in the
+leaderboard config.
 
 Only the key columns, model_slug, benchmark_subset and metric_value are filled for
 now. The other columns are part of the schema but left empty until we decide how to
@@ -22,6 +28,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -76,34 +83,55 @@ def result_file_name(benchmark_slug: str, metric_slug: str, suffix: str) -> str:
     return f"{benchmark_slug}_{metric_slug}{suffix}"
 
 
+def canonical_subset(subset: Mapping[str, str] | None) -> str:
+    """benchmark_subset value of a subset: compact JSON with sorted keys.
+
+    {} or None -> "" (the overall row); {"domain": "D1"} -> '{"domain":"D1"}'. One
+    spelling per subset, so the same subset always gets the same key.
+    """
+    if not subset:
+        return OVERALL_SUBSET
+    return json.dumps(
+        dict(subset), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+
+
 def build_metrics(
     metric_value_by_model: dict[str, float],
     benchmark_slug: str,
     metric_slug: str,
     experiment_slug: str,
+    metric_value_by_subset: Mapping[str, Mapping[str, float]] | None = None,
 ) -> pd.DataFrame:
     """Build the metrics table written to <benchmark>_<metric>.csv.
 
     Args:
-        metric_value_by_model: the benchmark's score per model, {model_slug: value}.
+        metric_value_by_model: the benchmark's overall score per model,
+            {model_slug: value}.
         benchmark_slug, metric_slug, experiment_slug: the file's composite key,
             repeated on every row.
+        metric_value_by_subset: optional per-subset scores,
+            {benchmark_subset: {model_slug: value}}, benchmark_subset being a
+            canonical_subset string.
 
     Returns:
-        One overall row per model (sorted by model), with METRICS_COLUMNS as columns
-        and every PLACEHOLDER_COLUMNS cell left empty.
+        The overall row of each model, then each subset's rows, models sorted within
+        each block, with METRICS_COLUMNS as columns and every PLACEHOLDER_COLUMNS
+        cell left empty.
     """
+    blocks = {OVERALL_SUBSET: metric_value_by_model, **(metric_value_by_subset or {})}
     rows = [
         {
             "benchmark_slug": benchmark_slug,
             "metric_slug": metric_slug,
             "experiment_slug": experiment_slug,
             "model_slug": model_slug,
-            "benchmark_subset": OVERALL_SUBSET,
+            "benchmark_subset": subset,
             "metric_value": float(metric_value),
             **dict.fromkeys(PLACEHOLDER_COLUMNS),
         }
-        for model_slug, metric_value in sorted(metric_value_by_model.items())
+        for subset, values in blocks.items()
+        for model_slug, metric_value in sorted(values.items())
     ]
     return pd.DataFrame(rows, columns=list(METRICS_COLUMNS))
 
@@ -130,3 +158,17 @@ def load_metric_definition(
     raise ValueError(
         f"{config_path} defines no metric '{metric_slug}' for '{benchmark_slug}'"
     )
+
+
+def load_benchmark_subsets(config_path: str | Path, benchmark_slug: str) -> list[str]:
+    """The subset keys a benchmark is broken down by, e.g. ["domain"].
+
+    Read from the benchmark's "benchmark_subsets" in the leaderboard config; [] (the
+    overall rows only) when absent. Raises ValueError if the config has no such
+    benchmark.
+    """
+    config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    for benchmark in config["benchmarks"]:
+        if benchmark["benchmark_domain"] == benchmark_slug:
+            return list(benchmark.get("benchmark_subsets", []))
+    raise ValueError(f"{config_path} has no benchmark '{benchmark_slug}'")

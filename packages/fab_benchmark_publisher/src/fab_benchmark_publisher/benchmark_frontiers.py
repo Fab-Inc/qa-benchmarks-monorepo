@@ -1,5 +1,6 @@
 """The content of the frontiers file, <benchmark>_<metric>_frontiers.json: one frontier
-per axis over a metrics table's overall rows:
+per axis for each benchmark_subset of a metrics table (overall, then e.g. each
+domain):
 
   price   blended price in USD per million tokens, every priced model
   size    parameter count, open-weight models only
@@ -12,6 +13,7 @@ belongs to the bundle step.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -78,9 +80,9 @@ def build_frontier(
     """Build the content of <benchmark>_<metric>_frontiers.json from a metrics table.
 
     Args:
-        metrics: a metrics table (build_metrics, or the CSV read back). Only its
-            overall rows are used; an empty benchmark_subset read back as NaN counts
-            as overall.
+        metrics: a metrics table (build_metrics, or the CSV read back). Each
+            benchmark_subset gets its own frontiers, the overall rows first; an
+            empty benchmark_subset read back as NaN counts as overall.
         is_higher_better: the metric's direction, from its definition.
         models_csv: the models CSV giving each model's price, size and open weights.
 
@@ -88,25 +90,33 @@ def build_frontier(
         A dict with the metrics file's key (benchmark_slug, metric_slug,
         experiment_slug), is_higher_better, models_without_metadata (models absent
         from the models CSV, listed rather than dropped silently since they cannot
-        be placed on any axis) and frontiers: one {"axis", "x", "points"} entry per
-        X_FIELD_BY_AXIS axis.
+        be placed on any axis) and frontiers: one {"benchmark_subset", "axis", "x",
+        "points"} entry per (benchmark_subset, X_FIELD_BY_AXIS axis), with
+        benchmark_subset as an object: the metrics CSV's JSON string parsed, e.g.
+        {"domain": "D1"}, and {} for overall.
     """
     model_metadata, _ = load_models(models_csv)
-    overall_rows = metrics[
-        metrics["benchmark_subset"].fillna(OVERALL_SUBSET) == OVERALL_SUBSET
+    subset_column = metrics["benchmark_subset"].fillna(OVERALL_SUBSET)
+    # overall first, then the subsets in the order of the metrics table
+    subsets = [OVERALL_SUBSET] + [
+        s for s in pd.unique(subset_column) if s != OVERALL_SUBSET
     ]
-    metric_value_by_model = dict(
-        zip(overall_rows["model_slug"], overall_rows["metric_value"].astype(float))
-    )
+    metric_value_by_subset = {
+        subset: dict(zip(rows["model_slug"], rows["metric_value"].astype(float)))
+        for subset in subsets
+        for rows in [metrics[subset_column == subset]]
+    }
     key_row = metrics.iloc[0]
     return {
         **{column: str(key_row[column]) for column in KEY_COLUMNS},
         "is_higher_better": is_higher_better,
         "models_without_metadata": sorted(
-            set(metric_value_by_model) - set(model_metadata)
+            set(metrics["model_slug"]) - set(model_metadata)
         ),
         "frontiers": [
             {
+                # an object, e.g. {"domain": "D1"}; {} for overall
+                "benchmark_subset": json.loads(subset) if subset else {},
                 "axis": axis,
                 "x": x_field,
                 "points": _frontier_points(
@@ -116,6 +126,7 @@ def build_frontier(
                     is_higher_better=is_higher_better,
                 ),
             }
+            for subset, metric_value_by_model in metric_value_by_subset.items()
             for axis, x_field in X_FIELD_BY_AXIS.items()
         ],
     }

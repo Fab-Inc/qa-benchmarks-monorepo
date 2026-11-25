@@ -12,6 +12,8 @@ from fab_benchmark_publisher.metrics import (
     METRICS_COLUMNS,
     PLACEHOLDER_COLUMNS,
     build_metrics,
+    canonical_subset,
+    load_benchmark_subsets,
     load_metric_definition,
     result_file_name,
 )
@@ -29,13 +31,15 @@ ACCURACY = {
 METRIC_VALUE_BY_MODEL = {"cheap": 60.0, "mid": 50.0, "pricey": 90.0, "unknown": 99.0}
 
 
-def metrics() -> pd.DataFrame:
-    """A metrics table for LK-en accuracy built from METRIC_VALUE_BY_MODEL."""
+def metrics(metric_value_by_subset=None) -> pd.DataFrame:
+    """A metrics table for LK-en accuracy built from METRIC_VALUE_BY_MODEL, plus
+    `metric_value_by_subset` if given."""
     return build_metrics(
         METRIC_VALUE_BY_MODEL,
         benchmark_slug="LK-en",
         metric_slug="accuracy",
         experiment_slug="final-137-items",
+        metric_value_by_subset=metric_value_by_subset,
     )
 
 
@@ -66,6 +70,19 @@ def test_build_metrics_fills_only_key_and_value_columns() -> None:
     assert set(built["experiment_slug"]) == {"final-137-items"}
     assert built[list(PLACEHOLDER_COLUMNS)].isna().all().all()
     assert not any("cost" in c for c in METRICS_COLUMNS)
+
+
+def test_subset_rows_follow_the_overall_rows() -> None:
+    """Subset rows come after the overall block, keyed by canonical_subset."""
+    d1 = canonical_subset({"domain": "D1"})
+    assert d1 == '{"domain":"D1"}'
+    assert canonical_subset({}) == canonical_subset(None) == ""
+    built = metrics({d1: {"mid": 70.0, "cheap": 10.0}})
+    assert list(zip(built["benchmark_subset"], built["model_slug"]))[-2:] == [
+        (d1, "cheap"),
+        (d1, "mid"),
+    ]
+    assert (built["benchmark_subset"][: len(METRIC_VALUE_BY_MODEL)] == "").all()
 
 
 def test_file_names_have_no_experiment_slug() -> None:
@@ -105,14 +122,40 @@ def test_repo_config_defines_lk_accuracy() -> None:
         assert load_metric_definition(config, benchmark_slug, "accuracy")["unit"] == "%"
 
 
+def test_benchmark_subsets_come_from_the_config(tmp_path) -> None:
+    """The keys are read as listed, [] when absent; an unknown benchmark raises. The
+    repo config sets [] for LK (overall only for now)."""
+    config = tmp_path / "leaderboard_config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "benchmarks": [
+                    {"benchmark_domain": "LK-en", "benchmark_subsets": ["domain"]},
+                    {"benchmark_domain": "DA-en"},
+                ]
+            }
+        )
+    )
+    assert load_benchmark_subsets(config, "LK-en") == ["domain"]
+    assert load_benchmark_subsets(config, "DA-en") == []
+    with pytest.raises(ValueError, match="no benchmark"):
+        load_benchmark_subsets(config, "XX-zz")
+
+    repo_config = Path(__file__).resolve().parents[3] / DEFAULT_CONFIG_FILE
+    for benchmark_slug in ("LK-en", "LK-sw"):
+        assert load_benchmark_subsets(repo_config, benchmark_slug) == []
+
+
 # --------------------------------------------------------------------------- #
 # frontier
 # --------------------------------------------------------------------------- #
-def frontier_models(frontier: dict) -> dict[str, list[str]]:
-    """The models on each axis's frontier, {axis: [model_slug, ...]}."""
+def frontier_models(frontier: dict, subset: dict | None = None) -> dict[str, list[str]]:
+    """The models on each axis's frontier of one subset (overall by default),
+    {axis: [model_slug, ...]}."""
     return {
         axis_frontier["axis"]: [p["model_slug"] for p in axis_frontier["points"]]
         for axis_frontier in frontier["frontiers"]
+        if axis_frontier["benchmark_subset"] == (subset or {})
     }
 
 
@@ -139,6 +182,40 @@ def test_frontier_from_a_metrics_csv(tmp_path, models_csv) -> None:
         pd.read_csv(path), is_higher_better=True, models_csv=models_csv
     )
     assert frontier_models(frontier)["price"] == ["cheap", "pricey"]
+
+
+def test_one_frontier_per_subset_of_a_metrics_csv(tmp_path, models_csv) -> None:
+    """Overall first, then each subset in CSV order, each with a price and a size
+    frontier; benchmark_subset is an object, {} for overall."""
+    path = tmp_path / "metrics.csv"
+    metrics(
+        {
+            canonical_subset({"domain": "D1"}): {"cheap": 40.0, "mid": 80.0},
+            canonical_subset({"domain": "D2"}): {"cheap": 90.0, "pricey": 95.0},
+        }
+    ).to_csv(path, index=False)
+
+    frontier = build_frontier(
+        pd.read_csv(path), is_higher_better=True, models_csv=models_csv
+    )
+    d1, d2 = {"domain": "D1"}, {"domain": "D2"}
+    assert [(f["benchmark_subset"], f["axis"]) for f in frontier["frontiers"]] == [
+        ({}, "price"),
+        ({}, "size"),
+        (d1, "price"),
+        (d1, "size"),
+        (d2, "price"),
+        (d2, "size"),
+    ]
+    assert frontier_models(frontier)["price"] == ["cheap", "pricey"]  # unchanged
+    assert frontier_models(frontier, d1) == {
+        "price": ["cheap", "mid"],
+        "size": ["cheap", "mid"],
+    }
+    assert frontier_models(frontier, d2) == {
+        "price": ["cheap", "pricey"],
+        "size": ["cheap"],
+    }
 
 
 def test_lower_is_better_flips_the_frontier(models_csv) -> None:
