@@ -1,0 +1,33 @@
+# Prompt templates for the rcqg benchmark, rendered with str.format().
+#
+# question_generation uses exactly four placeholders: {text} (the passage), {language}
+# (the language name, such as English, that the questions and answers are written in),
+# {grade} (the grade the passage is for, as a plain number) and {num_pairs} (how many
+# question and answer pairs to ask for; the fixed constant NUM_PAIRS in prompts.py). No
+# other field may reach the prompt.
+# Literal braces are written doubled ({{ and }}) so str.format leaves them alone; braces
+# inside the passage itself are safe because the passage is substituted as a value and
+# is not parsed again.
+#
+# The blocks use YAML literal scalars (|-) so that line breaks are kept exactly.
+
+question_generation: |-
+  CONTEXT
+  You are helping a teacher check whether early primary learners understand what they
+  read. Read the passage below and write reading comprehension questions about it,
+  each with its correct answer.
+
+  TASK
+  Write exactly {num_pairs} question and answer pairs about the passage.
+  The passage is in {language} and is for grade {grade} learners; write the questions and the answers in {language}.
+
+  OUTPUT FORMAT
+  Return only a JSON array with exactly {num_pairs} objects, and nothing before or
+  after it. Each object has two string keys, "question" and "answer", like this:
+  [
+    {{"question": "...", "answer": "..."}},
+    {{"question": "...", "answer": "..."}}
+  ]
+
+  PASSAGE
+  {text}

@@ -29,6 +29,7 @@ members = [
   "benchmarks/phonics_benchmark",
   "benchmarks/linguistic_knowledge_benchmark",
   "benchmarks/decodable_text_generation",
+  "benchmarks/reading_comprehension_question_generation",
 ]
 
 [tool.uv.sources]
