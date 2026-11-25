@@ -37,6 +37,7 @@ from fab_benchmark_runner.inputs import (
     ModelInput,
     check_inputs,
     fetch_image,
+    json_lines,
     load_inputs_file,
     parse_input_row,
 )
@@ -260,9 +261,7 @@ def read_experiment(directory: str | Path) -> Experiment:
         )
     inputs = tuple(
         parse_input_row(json.loads(line), where=f"{inputs_path}:{number}", stored=True)
-        for number, line in enumerate(
-            inputs_bytes.decode("utf-8").splitlines(), start=1
-        )
+        for number, line in enumerate(json_lines(inputs_bytes.decode("utf-8")), start=1)
     )
     check_inputs(inputs, source=inputs_path)
     return Experiment(location=str(folder), record=record, inputs=inputs)

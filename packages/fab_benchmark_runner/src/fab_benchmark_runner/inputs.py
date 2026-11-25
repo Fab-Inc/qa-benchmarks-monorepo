@@ -329,12 +329,25 @@ def _read_inputs_text(
     return text, source, base, generation
 
 
+def json_lines(text: str) -> list[str]:
+    """Split JSON Lines text into its lines, which end with \\n or \\r\\n.
+
+    Unlike ``str.splitlines``, this doesn't split at other line separators, such as
+    U+2028, which JSON text holds as they are.
+    """
+
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
+
+
 def _parse_inputs(
     text: str, *, source: str, base: Path | str
 ) -> tuple[list[tuple[int, ModelInput]], list[tuple[int, str]]]:
     """Return each valid line's input and every problem, both with line numbers."""
 
-    lines = text.splitlines()
+    lines = json_lines(text)
     if not lines:
         return [], [(0, f"{source}: no inputs")]
     rows: list[tuple[int, ModelInput]] = []

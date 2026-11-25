@@ -90,6 +90,24 @@ def test_windows_line_endings_and_a_missing_final_newline_are_the_same_file(
     assert _create(bench, unix, "unix") == _create(bench, windows, "windows")
 
 
+def test_lines_end_only_at_newlines_so_text_may_hold_unicode_line_separators(
+    bench: Bench, providers: FakeProviders
+) -> None:
+    """U+2028, U+2029 and U+0085 are ordinary characters inside JSON strings, as
+    json.dumps(..., ensure_ascii=False) writes them."""
+
+    prompt = "First line\u2028second\u2029third\x85fourth"
+    row = {**ITEM, "prompt": prompt, "system_prompt": "Answer\u2028briefly."}
+    content = (json.dumps(row, ensure_ascii=False) + "\r\n").encode("utf-8")
+
+    _create(bench, content)
+    bench.run("model-a", through_fdllm=True)
+
+    [stored] = read_experiment(bench.folder()).inputs
+    assert (stored.prompt, stored.system_prompt) == (prompt, "Answer\u2028briefly.")
+    assert providers.request(prompt).user_message.Message == prompt
+
+
 @pytest.mark.parametrize(
     ("content", "message"),
     [
