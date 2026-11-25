@@ -139,6 +139,11 @@ Local paths resolve against the config file's folder. Other keys are refused, so
 misspelled setting can't be silently ignored; `max_tokens` belongs to the experiment.
 Adding a model means writing another run config; nothing shared is rewritten.
 
+A run's memory doesn't grow with the results already stored or the number of models.
+Planning reads only each stored result's ID and status. A model's full rows are loaded
+when it runs, because each checkpoint rewrites its results file from them, and released
+once its record is written. So a run holds at most `model_workers` models' rows.
+
 | Command                                       | What it does                                             |
 | --------------------------------------------- | -------------------------------------------------------- |
 | `fab-bench check-inputs inputs.jsonl`         | List every problem in an inputs file, with its line      |
@@ -343,5 +348,8 @@ Jobs running different models can share an experiment at the same time; see
   FDLLM version can get different IDs for the same model.
 - **Responses cut off mid-answer are scored as they are.** FDLLM reports no stop reason
   for a response that isn't empty, so they can't be told apart yet.
+- **Each checkpoint rewrites the model's whole results file**, and a job uploads it each
+  time. For a model with many thousands of rows, raise `chunk_size` so this happens less
+  often.
 - **Calls within a model run one at a time.** Up to `model_workers` models run in
   parallel, so a run with one or two models gets no faster.

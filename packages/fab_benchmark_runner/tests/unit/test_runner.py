@@ -27,6 +27,8 @@ from fab_benchmark_runner import (
     parse_run_config,
     plan_run,
 )
+from fab_benchmark_runner.experiment import read_experiment
+from fab_benchmark_runner.runner import _ModelState, _plan_models
 
 ITEMS = [
     {"benchmark_item_id": f"item-{n}", "prompt": f"Prompt {n}?"} for n in (1, 2, 3)
@@ -86,6 +88,127 @@ def test_checkpoints_fire_after_each_chunk_then_the_record(experiment: Path) -> 
         "write:responses_model-a.jsonl",
         "write:model-a.json",
     ]
+
+
+def test_planning_keeps_only_the_status_of_each_stored_result(
+    experiment: Path,
+) -> None:
+    def call(model, model_input, _max_tokens):
+        if model_input.benchmark_item_id == "item-2":
+            raise MistralConnectionException("down")
+        return {"output": f"STORED ANSWER {model}"}
+
+    config = _config(experiment, "model-a", "model-b")
+    execute_run(config, experiment, model_configs={}, call_model=call, registry={})
+
+    states = _plan_models(config, read_experiment(experiment), experiment, {})
+
+    assert [state.rows_by_id for state in states.values()] == [None, None]
+    assert [sorted(state.statuses.values()) for state in states.values()] == [
+        ["error", "success", "success"],
+        ["error", "success", "success"],
+    ]
+    assert "STORED ANSWER" not in repr(states)
+
+
+def _track_loaded_rows(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Record which models have their rows loaded, and the most at once."""
+
+    tracked: dict[str, Any] = {"loaded": set(), "most": 0, "loads": []}
+    load, release = _ModelState.load_rows, _ModelState.release_rows
+
+    def load_rows(self: _ModelState, *, force: bool) -> None:
+        load(self, force=force)
+        tracked["loads"].append(self.model)
+        tracked["loaded"].add(self.model)
+        tracked["most"] = max(tracked["most"], len(tracked["loaded"]))
+
+    def release_rows(self: _ModelState) -> None:
+        release(self)
+        tracked["loaded"].discard(self.model)
+
+    monkeypatch.setattr(_ModelState, "load_rows", load_rows)
+    monkeypatch.setattr(_ModelState, "release_rows", release_rows)
+    return tracked
+
+
+def test_one_worker_holds_one_models_rows_at_a_time(
+    experiment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tracked = _track_loaded_rows(monkeypatch)
+
+    execute_run(
+        _config(experiment, "model-a", "model-b", "model-c"),
+        experiment,
+        model_configs={},
+        call_model=_echo,
+        registry={},
+    )
+
+    assert tracked["loads"] == ["model-a", "model-b", "model-c"]
+    assert (tracked["most"], tracked["loaded"]) == (1, set())
+
+
+def test_only_a_model_that_writes_loads_its_rows(
+    experiment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """model-a is done; model-b has a row to retry; model-c has a stale row."""
+
+    def call(model, model_input, _max_tokens):
+        if (model, model_input.benchmark_item_id) == ("model-b", "item-2"):
+            raise MistralConnectionException("down")
+        return {"output": "x"}
+
+    models = ("model-a", "model-b", "model-c")
+    execute_run(
+        _config(experiment, *models),
+        experiment,
+        model_configs={},
+        call_model=call,
+        registry={},
+    )
+    stale = experiment / "responses" / "responses_model-c.jsonl"
+    stale.write_text(stale.read_text() + '{"result_id": "gone"}\n')
+    tracked = _track_loaded_rows(monkeypatch)
+
+    result = execute_run(
+        _config(experiment, *models, retry_errors=True),
+        experiment,
+        model_configs={},
+        call_model=_echo,
+        registry={},
+    )
+
+    assert tracked["loads"] == ["model-b", "model-c"]
+    assert (result.executed, result.errors) == (1, 0)
+    assert "gone" not in stale.read_text()
+
+
+def test_errors_count_every_models_rows_whether_or_not_it_ran(
+    experiment: Path,
+) -> None:
+    def call(model, model_input, _max_tokens):
+        if model_input.benchmark_item_id == "item-2":
+            raise MistralConnectionException("down")
+        return {"output": "x"}
+
+    execute_run(
+        _config(experiment, "model-a"),
+        experiment,
+        model_configs={},
+        call_model=call,
+        registry={},
+    )
+
+    result = execute_run(
+        _config(experiment, "model-a", "model-b"),
+        experiment,
+        model_configs={},
+        call_model=call,
+        registry={},
+    )
+
+    assert (result.executed, result.reused, result.errors) == (3, 3, 2)
 
 
 def test_a_null_chunk_size_saves_once_per_model(experiment: Path) -> None:

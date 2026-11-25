@@ -82,6 +82,7 @@ class FakeModels:
         self.inputs: list[ModelInput] = []
         self._behaviours: dict[tuple[str | None, str], Behaviour] = {}
         self.before_call: Callable[[str, ModelInput], None] | None = None
+        self.answer_length = 0
 
     def __call__(
         self, model: str, model_input: ModelInput, max_tokens: int | None
@@ -96,12 +97,17 @@ class FakeModels:
         )
         if behaviour is not None:
             return behaviour(model_input, max_tokens)
-        return {"output": f"{model} answers {item_id}"}
+        return {"output": f"{model} answers {item_id}".ljust(self.answer_length, ".")}
 
     def called(self, model: str | None = None) -> list[str]:
         """Return the items called, in order, for one model or all of them."""
 
         return [item for name, item, _ in self.calls if model in (None, name)]
+
+    def answer_at_length(self, characters: int) -> None:
+        """Every default answer is padded to this many characters."""
+
+        self.answer_length = characters
 
     def forget_calls(self) -> None:
         self.calls.clear()

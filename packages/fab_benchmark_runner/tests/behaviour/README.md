@@ -5,15 +5,15 @@ people use: `create_experiment`, `check_inputs_file`, and a job running a run co
 (what `fab-bench run` calls). Only model calls and GCS are faked. Each module starts
 with the decisions it describes; each test name states one behaviour.
 
-| Module                      | Describes                                                     |
-| --------------------------- | ------------------------------------------------------------- |
-| `test_inputs_file.py`       | The inputs file format, rule by rule, as `INPUTS.md` gives it |
-| `test_experiments.py`       | Inputs stored once: what models get, IDs, images              |
-| `test_images.py`            | Images: what models are sent, checked before any call         |
-| `test_running_models.py`    | Results per model, reuse, resuming, errors, run configs       |
-| `test_token_limits.py`      | `max_tokens`: fixed per experiment, recorded per row          |
-| `test_jobs_on_gcs.py`       | Many jobs on one experiment on GCS, without overwrites        |
-| `test_recorded_versions.py` | What each run records, and when dry runs warn                 |
+| Module                      | Describes                                                       |
+| --------------------------- | --------------------------------------------------------------- |
+| `test_inputs_file.py`       | The inputs file format, rule by rule, as `INPUTS.md` gives it   |
+| `test_experiments.py`       | Inputs stored once: what models get, IDs, images                |
+| `test_images.py`            | Images: what models are sent, checked before any call           |
+| `test_running_models.py`    | Results per model, reuse, resuming, errors, run configs, memory |
+| `test_token_limits.py`      | `max_tokens`: fixed per experiment, recorded per row            |
+| `test_jobs_on_gcs.py`       | Many jobs on one experiment on GCS, without overwrites          |
+| `test_recorded_versions.py` | What each run records, and when dry runs warn                   |
 
 `conftest.py` holds the harness: a `Bench` with a model registry, a fake GCS, and
 `FakeModels`, which answer every call unless a test makes one fail, crash or depend on

@@ -12,9 +12,17 @@ Decisions this file describes:
   and never makes new calls. Any other exception stops the run, keeping what was
   already saved.
 - Rows repeat the whole input, so each row can be read on its own.
+- Memory doesn't grow with the results stored or the number of models. Planning
+  reads only each stored result's ID and status. A model's rows are loaded only
+  while it runs, because each checkpoint rewrites its file from them, and released
+  once its record is written. So a run holds at most ``model_workers`` models'
+  rows, and a large experiment with many models fits a Cloud Run job.
 """
 
 from __future__ import annotations
+
+import tracemalloc
+from collections.abc import Callable
 
 import pytest
 
@@ -198,3 +206,44 @@ def test_a_run_config_names_only_the_experiment_models_and_how_to_run(
 
     with pytest.raises(ConfigError, match=hint):
         parse_run_config(raw, base_dir=bench.root)
+
+
+MANY_ITEMS = [
+    {"benchmark_item_id": f"item-{n}", "prompt": f"Question {n}?"} for n in range(20)
+]
+
+
+def _peak_bytes(action: Callable[[], object]) -> int:
+    tracemalloc.start()
+    try:
+        action()
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_planning_holds_none_of_the_stored_answers(bench: Bench) -> None:
+    bench.create(MANY_ITEMS)
+    bench.models.answer_at_length(100_000)
+    models = ("model-a", "model-b", "model-c")
+    bench.run(*models)
+    one_model = sum(len(row["output"]) for row in bench.rows("model-a"))
+
+    planning = _peak_bytes(lambda: bench.plan(*models))
+
+    assert planning < one_model
+
+
+def test_a_run_holds_only_the_running_models_answers(bench: Bench) -> None:
+    """With one model at a time, as here, a run that redoes every model needs
+    memory for one model's answers, not three."""
+
+    bench.create(MANY_ITEMS)
+    bench.models.answer_at_length(100_000)
+    models = ("model-a", "model-b", "model-c")
+    bench.run(*models)
+    one_model = sum(len(row["output"]) for row in bench.rows("model-a"))
+
+    running = _peak_bytes(lambda: bench.run(*models, force=True))
+
+    assert running < 2 * one_model

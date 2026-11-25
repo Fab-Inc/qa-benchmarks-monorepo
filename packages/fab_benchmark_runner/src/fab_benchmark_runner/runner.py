@@ -37,8 +37,8 @@ from fab_benchmark_runner.registry import sanitize_model_config
 from fab_benchmark_runner.results import (
     CALL_STATUS_ERROR,
     CALL_STATUS_SUCCESS,
-    error_count,
-    load_results,
+    iter_results,
+    read_result_statuses,
     save_results,
     utc_now,
 )
@@ -130,24 +130,66 @@ class _PlannedCall:
 
 @dataclass
 class _ModelState:
+    """One model's plan, and its result rows while it runs.
+
+    Planning keeps only the ``call_status`` of each stored result of a planned
+    call, by result ID: what to reuse, retry or run needs nothing more. The full
+    rows are loaded when the model runs, because each checkpoint rewrites its
+    results file from them, and released once its record is written. So a run
+    holds at most ``model_workers`` models' rows, whatever their number.
+    """
+
     model: str
     model_config: dict[str, Any]
     results_path: Path
     results_file_exists: bool
     calls: list[_PlannedCall]
-    rows_by_id: dict[str, dict[str, Any]]
+    statuses: dict[str, Any]
     pending: list[_PlannedCall] = field(default_factory=list)
     stale_count: int = 0
     retry_count: int = 0
     missing_cached_count: int = 0
     invalid_status_count: int = 0
+    rows_by_id: dict[str, dict[str, Any]] | None = None
+
+    def load_rows(self, *, force: bool) -> None:
+        """Load the stored rows of planned calls; stale rows are left out."""
+
+        expected = {call.result_id for call in self.calls}
+        rows: dict[str, dict[str, Any]] = {}
+        if not force and self.results_path.exists():
+            for row in iter_results(self.results_path):
+                result_id = str(row["result_id"])
+                if result_id in expected:
+                    rows[result_id] = row
+        self.rows_by_id = rows
+
+    def release_rows(self) -> None:
+        """Keep only each row's status, as planning does."""
+
+        if self.rows_by_id is None:
+            return
+        self.statuses = {
+            result_id: row.get("call_status")
+            for result_id, row in self.rows_by_id.items()
+        }
+        self.rows_by_id = None
 
     def ordered_rows(self) -> list[dict[str, Any]]:
+        if self.rows_by_id is None:
+            raise RuntimeError(f"The rows of {self.model} are not loaded")
         return [
             self.rows_by_id[call.result_id]
             for call in self.calls
             if call.result_id in self.rows_by_id
         ]
+
+    def error_count(self) -> int:
+        if self.rows_by_id is not None:
+            statuses = (row.get("call_status") for row in self.rows_by_id.values())
+        else:
+            statuses = iter(self.statuses.values())
+        return sum(status == CALL_STATUS_ERROR for status in statuses)
 
     def summary(self) -> ModelPlan:
         return ModelPlan(
@@ -203,8 +245,8 @@ def execute_run(
 ) -> RunResult:
     """Run every planned call without a reusable result, checkpointing as it goes.
 
-    Each model gets the experiment's stored inputs and its current ``max_tokens``,
-    which every row records. Before any call, ``image_files`` fetches and checks
+    Each model gets the experiment's stored inputs and its ``max_tokens``, which
+    every row records. Before any call, ``image_files`` fetches and checks
     the images of the calls to make; it is needed only when there are some. A
     model's results and record are written only by the job running it;
     ``on_artifact_write`` sees each file as it is written.
@@ -257,7 +299,6 @@ def execute_run(
         on_artifact_write=on_artifact_write,
         after_model=record_model,
     )
-    rows = [row for state in states.values() for row in state.ordered_rows()]
     return RunResult(
         experiment_id=experiment.experiment_id,
         experiment_dir=experiment_dir,
@@ -265,7 +306,7 @@ def execute_run(
         planned=sum(len(state.calls) for state in states.values()),
         executed=sum(executed.values()),
         reused=sum(len(state.calls) - len(state.pending) for state in states.values()),
-        errors=error_count(rows),
+        errors=sum(state.error_count() for state in states.values()),
         version_warnings=warnings,
     )
 
@@ -342,10 +383,7 @@ def _plan_model(
     model_config: dict[str, Any],
 ) -> _ModelState:
     results_path = records.results_path(experiment_dir, model_name)
-    existing_rows = {
-        str(row["result_id"]): row
-        for row in load_results(results_path, force=config.force)
-    }
+    stored = {} if config.force else read_result_statuses(results_path)
     calls = []
     for model_input in experiment.inputs:
         model_call_id = ids.model_call_id(
@@ -374,27 +412,27 @@ def _plan_model(
         results_path=results_path,
         results_file_exists=results_path.exists(),
         calls=calls,
-        rows_by_id={
-            call.result_id: existing_rows[call.result_id]
+        statuses={
+            call.result_id: stored[call.result_id]
             for call in calls
-            if call.result_id in existing_rows
+            if call.result_id in stored
         },
-        stale_count=len(set(existing_rows) - expected_ids),
+        stale_count=len(stored.keys() - expected_ids),
     )
     for call in calls:
-        existing = state.rows_by_id.get(call.result_id)
-        if existing is None:
+        if call.result_id not in state.statuses:
             if config.retry_errors:
                 state.missing_cached_count += 1
                 continue
             state.pending.append(call)
             continue
-        if config.retry_errors and existing.get("call_status") not in {
+        status = state.statuses[call.result_id]
+        if config.retry_errors and status not in {
             CALL_STATUS_ERROR,
             CALL_STATUS_SUCCESS,
         }:
             state.invalid_status_count += 1
-        if config.retry_errors and existing.get("call_status") == CALL_STATUS_ERROR:
+        if config.retry_errors and status == CALL_STATUS_ERROR:
             state.retry_count += 1
             state.pending.append(call)
     return state
@@ -459,15 +497,18 @@ def _run_models_in_parallel(
 
     def run(model_name: str) -> int:
         state = states[model_name]
-        executed, written = _run_model(
-            config=config,
-            experiment=experiment,
-            state=state,
-            call_model=call_model,
-            image_files=image_files,
-            on_artifact_write=on_artifact_write,
-        )
-        after_model(state, executed, written)
+        try:
+            executed, written = _run_model(
+                config=config,
+                experiment=experiment,
+                state=state,
+                call_model=call_model,
+                image_files=image_files,
+                on_artifact_write=on_artifact_write,
+            )
+            after_model(state, executed, written)
+        finally:
+            state.release_rows()
         return executed
 
     waiting = list(config.models)
@@ -506,8 +547,14 @@ def _run_model(
 ) -> tuple[int, bool]:
     """Run one model's pending calls in item order, checkpointing each chunk.
 
-    Returns how many calls were made and whether the results file was written.
+    Returns how many calls were made and whether the results file was written. The
+    file is written only for calls to make or stale rows to drop, so only then are
+    the model's stored rows loaded.
     """
+
+    if not state.pending and not state.stale_count:
+        return 0, False
+    state.load_rows(force=config.force)
 
     def checkpoint() -> None:
         save_results(state.ordered_rows(), state.results_path)

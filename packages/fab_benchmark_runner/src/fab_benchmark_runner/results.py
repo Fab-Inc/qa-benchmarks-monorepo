@@ -6,7 +6,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -25,34 +25,56 @@ def load_results(path: str | Path, *, force: bool = False) -> list[dict[str, Any
     results_path = Path(path)
     if force or not results_path.exists():
         return []
+    return list(iter_results(results_path))
 
-    rows: list[dict[str, Any]] = []
-    for line_number, line in enumerate(
-        results_path.read_text(encoding="utf-8").splitlines(), start=1
-    ):
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError as e:
-            raise ConfigError(
-                f"{results_path}:{line_number}: invalid JSON in results: {e}"
-            ) from e
-        if not isinstance(row, dict) or "result_id" not in row:
-            raise ConfigError(
-                f"{results_path}:{line_number}: existing result lacks result_id"
-            )
-        rows.append(row)
-    return rows
+
+def iter_results(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield a results file's rows, reading one line at a time.
+
+    Lines end at a newline only: JSON text keeps other line separators, such as
+    U+2028, as they are. Raises ConfigError naming the line of invalid JSON or of
+    a row without a ``result_id``.
+    """
+
+    with path.open("rb") as lines:
+        for line_number, raw_line in enumerate(lines, start=1):
+            line = raw_line.decode("utf-8")
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise ConfigError(
+                    f"{path}:{line_number}: invalid JSON in results: {e}"
+                ) from e
+            if not isinstance(row, dict) or "result_id" not in row:
+                raise ConfigError(
+                    f"{path}:{line_number}: existing result lacks result_id"
+                )
+            yield row
+
+
+def read_result_statuses(path: Path) -> dict[str, Any]:
+    """Map each result ID in a results file to its ``call_status``, and nothing more.
+
+    Planning needs only these; a row's prompt and output stay on disk. As when
+    loading rows, the last row with an ID wins.
+    """
+
+    if not path.exists():
+        return {}
+    return {str(row["result_id"]): row.get("call_status") for row in iter_results(path)}
 
 
 def save_results(rows: Iterable[Mapping[str, Any]], path: str | Path) -> Path:
-    """Atomically write result rows as JSONL with sorted keys."""
+    """Atomically write result rows as JSONL with sorted keys, one row at a time."""
 
     results_path = Path(path)
     results_path.parent.mkdir(parents=True, exist_ok=True)
-    content = "".join(canonical_json(dict(row)) + "\n" for row in rows)
-    write_text_atomic(results_path, content)
+    _write_chunks_atomic(
+        results_path,
+        ((canonical_json(dict(row)) + "\n").encode("utf-8") for row in rows),
+    )
     return results_path
 
 
@@ -94,6 +116,12 @@ def write_text_atomic(path: Path, content: str) -> None:
 def write_bytes_atomic(path: Path, content: bytes) -> None:
     """Write through a temporary file and a rename, so readers never see half."""
 
+    _write_chunks_atomic(path, [content])
+
+
+def _write_chunks_atomic(path: Path, chunks: Iterable[bytes]) -> None:
+    """Write chunks as they come through a temporary file, then rename it."""
+
     fd, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -102,7 +130,8 @@ def write_bytes_atomic(path: Path, content: bytes) -> None:
     temporary_path = Path(temporary_name)
     try:
         with os.fdopen(fd, "wb") as temporary_file:
-            temporary_file.write(content)
+            for chunk in chunks:
+                temporary_file.write(chunk)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
         os.replace(temporary_path, path)
