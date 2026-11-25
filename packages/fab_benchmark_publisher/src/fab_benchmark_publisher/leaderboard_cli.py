@@ -52,7 +52,7 @@ from fab_benchmark_publisher.publisher import (
     fetch_providermeta,
 )
 
-DEFAULT_PAIRS_FILE = "leaderboard_pairs.json"
+DEFAULT_CONFIG_FILE = "leaderboard_config.json"
 MANIFEST_NAME = "manifest.json"
 
 # Model and provider metadata always comes from the shared-config bucket, kept at the
@@ -65,7 +65,7 @@ PROVIDERS_CSV = "providers.csv"
 
 @dataclass(frozen=True)
 class ClusterConfig:
-    """The leaderboard's columns and their order, from leaderboard_pairs.json."""
+    """The leaderboard's columns and their order, from leaderboard_config.json."""
 
     cluster_name: str
     pairs: list[BenchmarkPair]
@@ -85,7 +85,7 @@ def load_cluster_config(path: str | Path) -> ClusterConfig:
             BenchmarkPair(
                 benchmark_domain=p["benchmark_domain"], display_name=p["display_name"]
             )
-            for p in payload["pairs"]
+            for p in payload["benchmarks"]
         ]
     except (KeyError, TypeError) as e:
         raise SystemExit(f"ERROR: {path} is malformed: {e}") from e
@@ -204,9 +204,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     publish.add_argument(
         "--pairs",
-        default=DEFAULT_PAIRS_FILE,
+        default=DEFAULT_CONFIG_FILE,
         help=f"pairs config defining the columns and their order "
-        f"(default {DEFAULT_PAIRS_FILE})",
+        f"(default {DEFAULT_CONFIG_FILE})",
     )
     publish.add_argument(
         "--outdir",
