@@ -25,12 +25,14 @@ def _load_prompts() -> dict[str, str]:
     return yaml.safe_load(text)
 
 
-def build_generation_prompt(prompt_name: str, text: str, language: str) -> str:
-    """Render the named prompt from the passage and the language name.
+def build_generation_prompt(
+    prompt_name: str, text: str, language: str, grade: int
+) -> str:
+    """Render the named prompt from the passage, the language name, and the grade.
 
-    The signature is deliberately just these two values: nothing else about a text
-    (title, source, grade, and so on) can reach the prompt. The pair count comes from
-    the constant ``NUM_PAIRS``.
+    The signature is deliberately just these three values: nothing else about a text
+    (title, source, and so on) can reach the prompt. The grade is shown as the number.
+    The pair count comes from the constant ``NUM_PAIRS``.
     """
     prompts = _load_prompts()
     try:
@@ -40,7 +42,9 @@ def build_generation_prompt(prompt_name: str, text: str, language: str) -> str:
             f"Unknown prompt '{prompt_name}'; available: {sorted(prompts)}"
         ) from None
     try:
-        return template.format(text=text, language=language, num_pairs=NUM_PAIRS)
+        return template.format(
+            text=text, language=language, grade=grade, num_pairs=NUM_PAIRS
+        )
     except KeyError as exc:
         # A template that asks for a placeholder this renderer does not supply.
         raise ConfigError(
@@ -56,6 +60,9 @@ def prompt_for_item(
     """Render the prompt for one item; the harness's ``prompt_builder``.
 
     The harness passes the run config's language, which is one value for the whole run.
-    The prompt needs each item's own language name, so it is read from the item.
+    The prompt needs each item's own language name, so it is read from the item, along
+    with the passage and the grade.
     """
-    return build_generation_prompt(prompt_name, item["text_content"], item["language"])
+    return build_generation_prompt(
+        prompt_name, item["text_content"], item["language"], item["grade"]
+    )

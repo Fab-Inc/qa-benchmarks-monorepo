@@ -13,10 +13,11 @@ column header, so column order does not matter and extra columns are ignored.
 
 Ingestion is strict about structure and relaxed about content. It fails, naming the
 rows or values, on a duplicate ``text_id``, a populated row missing ``text_id``,
-``text_content`` or ``language_iso_code``, or more than one language code. It never
-checks or changes any other field.
+``text_content``, ``language_iso_code`` or ``grade``, or more than one language code.
 """
 
+import re
+from collections.abc import Hashable
 from pathlib import Path
 
 import pandas as pd
@@ -30,9 +31,15 @@ DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 TEXTS_SHEET = "Texts"
 TEXTS_FILENAME = "texts.jsonl"
 
-# The three fields the pipeline depends on; a populated row must have all of them.
-REQUIRED_FIELDS = ("text_id", "text_content", "language_iso_code")
+# The four fields the pipeline depends on; a populated row must have all of them.
+REQUIRED_FIELDS = ("text_id", "text_content", "language_iso_code", "grade")
 FIELD_NAMES = tuple(TextRecord.model_fields)
+
+
+# Plain digits with an optional fractional part of zeros only: 3, 03, 3.0. Anything else
+# (3.5, +3, 1e1, 3,5, Grade 3) is rejected. [0-9] is explicit so that digits from other
+# scripts are not accepted.
+_GRADE_PATTERN = re.compile(r"([0-9]+)(\.0+)?")
 
 
 class TextIngestError(ValueError):
@@ -56,6 +63,18 @@ def validate_language_folder(language: str) -> str:
             "'english', without path separators."
         )
     return language
+
+
+def parse_grade(value: str) -> int | None:
+    """Return ``value`` as a positive whole number, or None if it is not one.
+
+    ``value`` is a trimmed, non-blank workbook cell.
+    """
+    match = _GRADE_PATTERN.fullmatch(value)
+    if match is None:
+        return None
+    grade = int(match.group(1))
+    return grade if grade >= 1 else None
 
 
 def read_texts_workbook(workbook: Path) -> list[TextRecord]:
@@ -98,6 +117,18 @@ def read_texts_workbook(workbook: Path) -> list[TextRecord]:
         for index in rows.index[rows[field] == ""]:
             problems.append(f"row {index + 2}: missing {field}")
 
+    # Grade is parsed once, here. A blank grade is already reported as missing above.
+    grades: dict[Hashable, int] = {}  # keyed by the DataFrame row index
+    for index in rows.index[rows["grade"] != ""]:
+        value = str(rows.at[index, "grade"])  # cells are strings (dtype=str)
+        grade = parse_grade(value)
+        if grade is None:
+            problems.append(
+                f"row {index + 2}: grade '{value}' is not a positive whole number"
+            )
+        else:
+            grades[index] = grade
+
     with_id = rows[rows["text_id"] != ""]
     repeated = with_id[with_id["text_id"].duplicated(keep=False)]
     for text_id, group in repeated.groupby("text_id", sort=False):
@@ -119,13 +150,16 @@ def read_texts_workbook(workbook: Path) -> list[TextRecord]:
             f"Cannot ingest {workbook.name}:\n  - " + "\n  - ".join(problems)
         )
 
-    # Keep only the fields in the model; blank optional values become None. The three
-    # required fields are non-blank here (checked above). model_validate takes a plain
-    # dict, so the type checker does not see "None" going into a required argument.
-    return [
-        TextRecord.model_validate({name: row.get(name) or None for name in FIELD_NAMES})
-        for row in rows.to_dict(orient="records")
-    ]
+    # Keep only the fields in the model; blank optional values become None. The four
+    # required fields are valid here (checked above), and grade is the parsed integer.
+    # model_validate takes a plain dict, so the type checker does not see "None" going
+    # into a required argument.
+    records = []
+    for index, row in rows.to_dict(orient="index").items():
+        values = {name: row.get(name) or None for name in FIELD_NAMES}
+        values["grade"] = grades[index]
+        records.append(TextRecord.model_validate(values))
+    return records
 
 
 def ingest_workbook(workbook: Path, language: str, data_root: Path) -> tuple[Path, int]:

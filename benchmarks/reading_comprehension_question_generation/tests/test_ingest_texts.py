@@ -15,9 +15,10 @@ EXPECTED_KEYS = [
     "language_iso_code",
     "grade",
     "source",
-    "location",
+    "source_url",
+    "word_count",
+    "page_count",
     "source_grade_label",
-    "is_target",
     "is_adaptation",
     "adaptation_source",
     "has_images",
@@ -70,6 +71,7 @@ def test_columns_in_any_order_and_extra_columns_are_ignored(
     for record in records_a:
         assert list(record) == EXPECTED_KEYS
         assert not NOT_CARRIED & set(record)
+        assert record["grade"] == 2 and type(record["grade"]) is int  # not "2"
 
 
 def test_values_are_kept_exactly_as_typed(
@@ -81,11 +83,12 @@ def test_values_are_kept_exactly_as_typed(
         text_content="\n  First line.\nSecond line.  \n",
         text_type="None",
         country_code="XX",
-        grade="zz",
+        grade=" 03.0 ",
         source="maybe",
-        location="NA",
+        source_url="  https://example.org/x?a=1  ",
+        word_count="about 120",
+        page_count="0012",
         source_grade_label="   ",
-        is_target="TRUE",
         is_adaptation="yes",
         adaptation_source=None,
         has_images="0",
@@ -101,11 +104,12 @@ def test_values_are_kept_exactly_as_typed(
         "text_type": "None",
         "country_code": "XX",
         "language_iso_code": "en",
-        "grade": "zz",
+        "grade": 3,
         "source": "maybe",
-        "location": "NA",
+        "source_url": "https://example.org/x?a=1",
+        "word_count": "about 120",
+        "page_count": "0012",
         "source_grade_label": None,
-        "is_target": "TRUE",
         "is_adaptation": "yes",
         "adaptation_source": None,
         "has_images": "0",
@@ -214,3 +218,30 @@ def test_missing_required_column_is_an_error(
         match=r"missing required column\(s\): language_iso_code",
     ):
         ingest_script.read_texts_workbook(path)
+
+
+@pytest.mark.parametrize(
+    ("grade", "shown"),
+    [
+        (None, ""),
+        ("0", "0"),
+        ("-2", "-2"),
+        ("3.5", "3.5"),
+        ("Grade 3", "Grade 3"),
+    ],
+)
+def test_grade_that_is_blank_or_not_a_positive_whole_number_is_an_error(
+    tmp_path, ingest_script, text_row, write_workbook, grade, shown
+) -> None:
+    rows = [text_row(text_id="A"), text_row(text_id="B", grade=grade)]
+    path = write_workbook(tmp_path / "w.xlsx", rows)
+
+    with pytest.raises(ingest_script.TextIngestError) as error:
+        ingest_script.read_texts_workbook(path)
+
+    message = str(error.value)
+    if grade is None:
+        assert "row 3: missing grade" in message
+    else:
+        assert f"row 3: grade '{shown}' is not a positive whole number" in message
+    assert "row 2" not in message

@@ -17,8 +17,8 @@ from openpyxl import Workbook
 BENCHMARK_ROOT = Path(__file__).parents[1]
 SCRIPTS_DIR = BENCHMARK_ROOT / "scripts"
 
-# The 16 columns of the workbook's ``Texts`` sheet, in workbook order. Transcribed by
-# hand from the workbook, not derived from the code under test.
+# The 17 columns of the workbook's ``Texts`` sheet, in workbook order. Transcribed by
+# hand from the template, not derived from the code under test.
 WORKBOOK_COLUMNS = [
     "text_id",
     "text_title",
@@ -28,9 +28,10 @@ WORKBOOK_COLUMNS = [
     "language_iso_code",
     "grade",
     "source",
-    "location",
+    "source_url",
+    "word_count",
+    "page_count",
     "source_grade_label",
-    "is_target",
     "is_adaptation",
     "adaptation_source",
     "has_images",
@@ -38,7 +39,7 @@ WORKBOOK_COLUMNS = [
     "notes",
 ]
 
-# The 14 fields a text record carries: the workbook columns minus the two that are
+# The 15 fields a text record carries: the workbook columns minus the two that are
 # deliberately not carried.
 CARRIED_FIELDS = [
     name
@@ -72,13 +73,13 @@ def build_script() -> ModuleType:
 
 @pytest.fixture()
 def workbook_columns() -> list[str]:
-    """The 16 workbook columns in order (a copy, so a test may reorder it)."""
+    """The 17 workbook columns in order (a copy, so a test may reorder it)."""
     return list(WORKBOOK_COLUMNS)
 
 
 @pytest.fixture()
 def text_row() -> Callable[..., dict[str, Any]]:
-    """Return a factory for one synthetic workbook row (all 16 columns)."""
+    """Return a factory for one synthetic workbook row (all 17 columns)."""
 
     def make(**overrides: Any) -> dict[str, Any]:
         row: dict[str, Any] = {
@@ -90,9 +91,10 @@ def text_row() -> Callable[..., dict[str, Any]]:
             "language_iso_code": "en",
             "grade": "2",
             "source": "Synthetic source",
-            "location": None,
+            "source_url": "https://example.org/hen",
+            "word_count": "9",
+            "page_count": None,
             "source_grade_label": "Grade 2",
-            "is_target": "TRUE",
             "is_adaptation": "FALSE",
             "adaptation_source": None,
             "has_images": "TRUE",
@@ -109,11 +111,14 @@ def text_row() -> Callable[..., dict[str, Any]]:
 def text_record(
     text_row: Callable[..., dict[str, Any]],
 ) -> Callable[..., dict[str, Any]]:
-    """Return a factory for one synthetic ``texts.jsonl`` record (the 14 fields)."""
+    """Return a factory for one synthetic ``texts.jsonl`` record (the 15 fields)."""
 
     def make(**overrides: Any) -> dict[str, Any]:
         row = text_row(**overrides)
-        return {name: row[name] for name in CARRIED_FIELDS}
+        record = {name: row[name] for name in CARRIED_FIELDS}
+        # texts.jsonl holds grade as an integer; the workbook cell is typed text.
+        record["grade"] = int(record["grade"])
+        return record
 
     return make
 

@@ -21,11 +21,17 @@ from typer.testing import CliRunner
 
 THREE = json.dumps([{"question": f"Q{i}?", "answer": f"A{i}"} for i in (1, 2, 3)])
 ITEMS = [
-    {"benchmark_item_id": "en-1", "text_content": "A hen sat.", "language": "English"},
+    {
+        "benchmark_item_id": "en-1",
+        "text_content": "A hen sat.",
+        "language": "English",
+        "grade": 2,
+    },
     {
         "benchmark_item_id": "sw-1",
         "text_content": "Pili aliona paka.",
         "language": "Kiswahili",
+        "grade": 4,
     },
 ]
 
@@ -181,9 +187,10 @@ def test_run_from_options_writes_the_standard_layout_with_run_time_prompts(
         assert row["task"] == "question-generation"
         assert row["language"] == "english"  # the run's data folder, not the item's
         assert row["prompt"] == build_generation_prompt(
-            DEFAULT_PROMPT_NAME, item["text_content"], item["language"]
+            DEFAULT_PROMPT_NAME, item["text_content"], item["language"], item["grade"]
         )
     assert "Kiswahili" in rows["sw-1"]["prompt"]
+    assert "grade 4 learners" in rows["sw-1"]["prompt"]
     assert "prompt" not in items_file.read_text(encoding="utf-8")
 
 

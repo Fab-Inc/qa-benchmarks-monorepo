@@ -19,11 +19,18 @@ def test_a_clean_array_of_three_pairs_is_ok() -> None:
     ]
 
 
-def test_preamble_code_fence_and_trailing_text_are_skipped() -> None:
+@pytest.mark.parametrize(
+    "trailer",
+    ["\n```\nHope this helps.", "\n```\nSee note [1]."],
+    ids=["trailing_text", "trailing_footnote_array"],
+)
+def test_preamble_code_fence_and_trailing_text_are_skipped(trailer: str) -> None:
+    # A trailing "[1]" is itself a valid JSON array but holds no pair, so it must not
+    # hide the real pairs (the design's "last array that holds a valid pair").
     response = (
         "Here are the pairs [as requested]:\n```json\n"
         + json.dumps(_pairs(3))
-        + "\n```\nHope this helps."
+        + trailer
     )
 
     pairs, status = parse_qa_pairs(response)

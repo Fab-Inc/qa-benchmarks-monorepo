@@ -2,7 +2,7 @@ r"""Build benchmark items from ingested text records.
 
 Reads ``data/<language>/texts.jsonl`` (written by ``ingest_texts.py``) and writes
 ``data/<language>/benchmark_items.jsonl`` next to it: one item per text, in the same
-order, with exactly three keys:
+order, with exactly four keys:
 
 - ``benchmark_item_id``: the text's ``text_id``. The shared run harness needs this key,
   which ``texts.jsonl`` does not have.
@@ -10,11 +10,12 @@ order, with exactly three keys:
 - ``language``: the language name used in the prompt, mapped from the text's
   ``language_iso_code`` (``en`` to English, ``sw`` to Kiswahili; any other code is
   written as typed).
+- ``grade``: the text's grade.
 
-No descriptive metadata is copied onto items; analysis joins back to ``texts.jsonl`` by
-``text_id``. Every text becomes an item: this script filters nothing. It is also where
-any future filtering would be added. The prompt is not built here; it is rendered at run
-time.
+No other descriptive metadata is copied onto items; analysis joins back to
+``texts.jsonl`` by ``text_id``. Every text becomes an item: this script filters nothing.
+It is also where any future filtering would be added. The prompt is not built here; it
+is rendered at run time.
 
 Run from the benchmark folder with (as an example):
 
@@ -110,6 +111,7 @@ def build_items(records: list[TextRecord]) -> list[BenchmarkItem]:
             benchmark_item_id=record.text_id,
             text_content=record.text_content,
             language=language_name(record.language_iso_code),
+            grade=record.grade,
         )
         for record in records
     ]

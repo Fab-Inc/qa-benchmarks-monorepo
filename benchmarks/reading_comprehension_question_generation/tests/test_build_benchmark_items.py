@@ -31,17 +31,21 @@ def _read_jsonl(path: Path) -> list[dict]:
     ]
 
 
-def test_builds_one_three_field_item_per_record_in_order(
+def test_builds_one_four_field_item_per_record_in_order(
     tmp_path, build_script, text_record
 ) -> None:
     records = [
         text_record(
-            text_id="A-1", text_content="First passage.", language_iso_code="en"
+            text_id="A-1",
+            text_content="First passage.",
+            language_iso_code="en",
+            grade=2,
         ),
         text_record(
             text_id="B-2",
             text_content="Pili aliona paka.",
             language_iso_code="sw",
+            grade=5,
             source="Some Book",
         ),
     ]
@@ -61,11 +65,13 @@ def test_builds_one_three_field_item_per_record_in_order(
             "benchmark_item_id": "A-1",
             "text_content": "First passage.",
             "language": "English",
+            "grade": 2,
         },
         {
             "benchmark_item_id": "B-2",
             "text_content": "Pili aliona paka.",
             "language": "Kiswahili",
+            "grade": 5,
         },
     ]
     assert texts_path.read_bytes() == before

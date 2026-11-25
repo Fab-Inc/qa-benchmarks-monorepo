@@ -39,7 +39,7 @@ flowchart LR
    uv run python scripts/build_benchmark_items.py --language english
    ```
 
-1. **Run** the models (see [Choosing models](#choosing-models)):
+1. **Run** the models:
 
    ```bash
    uv run rcqg run-generation --language english --models <model-name> \
@@ -56,15 +56,16 @@ flowchart LR
 
 ## Data
 
-Data is kept per language, one workbook per language. See
-[data/README.md](data/README.md) for the workbook fields.
+Data is kept per language, one workbook per language. Four workbook fields drive the
+pipeline (`text_id`, `text_content`, `language_iso_code`, and `grade`); the rest are
+descriptive. See [data/README.md](data/README.md) for the fields.
 
 ```text
 data/<language>/
 ├── raw/<workbook>.xlsx       the filled-in workbook (not in git)
 ├── templates/                the blank-format data-entry workbook
-├── texts.jsonl               one record per text, 14 fields (not in git)
-└── benchmark_items.jsonl     one item per text, 3 fields (not in git)
+├── texts.jsonl               one record per text, 15 fields (not in git)
+└── benchmark_items.jsonl     one item per text, 4 fields (not in git)
 ```
 
 **Nothing under `data/` is committed except `data/README.md` and the workbook in
@@ -75,13 +76,16 @@ repository.
 
 The prompt template is `question_generation` in
 `src/reading_comprehension_question_generation/prompts.yaml`. It is rendered at run time
-from only the passage and the language name, and the rendered prompt is saved in every
-result row. Editing the template changes the prompt and so the cache identity: earlier
-cached responses are not reused for the new prompt. Use `--prompt-name` to pick another
-template key.
+from only the passage, the language name, and the grade, and the rendered prompt is
+saved in every result row. Editing the template changes the prompt and so the cache
+identity: earlier cached responses are not reused for the new prompt. Use
+`--prompt-name` to pick another template key.
 
-The prompt asks for **exactly 3** pairs, returned as a JSON array of objects with
-`question` and `answer` keys, written in the item's language. Three is a single constant
+The prompt opens with a short context paragraph (a teacher checking whether early
+primary learners understand what they read), then one sentence that states the passage's
+language and grade and asks for the questions and answers to be written in that
+language, then the output format. It asks for **exactly 3** pairs, returned as a JSON
+array of objects with `question` and `answer` keys. Three is a single constant
 (`NUM_PAIRS` in `prompts.py`). It is not configurable per run or per text, and no config
 key or option sets it. Extraction compares each response against the same constant.
 Making the count configurable per text is a decision to revisit.
