@@ -124,6 +124,23 @@ analyses. (TODO: consolidate into the main report generation step)
    `--language` can be `kiswahili` or `english`. `--metric` is used to select the top
    models in each hardware tier.
 
+1. Kiswahili only: break down each hardware tier's errors by failure mode, i.e. what
+   kind of word the models get wrong given the item's student profile (untaught
+   graphemes or clusters, syllabic nasals, and so on). Like the plots above, it takes
+   the top models per hardware tier from the run folder, here ranked by adjusted
+   balanced accuracy, so the run folder needs
+   `reports/hardware_tiers/adjusted_balanced_accuracy/hardware_tiers_kiswahili.csv` and
+   `hardware_tiers_top10_models.csv` in the same folder.
+
+   ```shell
+   uv run --frozen --package phonics-benchmark python \
+     benchmarks/phonics_benchmark/scripts/kiswahili_word_analysis.py \
+     --run outputs/phonics-relabelled-20261116
+   ```
+
+   The outputs go to `<run>/reports/kiswahili/error_analysis/` (change this with
+   `--report-dir`):
+
 ## Updating labels for existing benchmark items
 
 If you updated your decodability logic and hence need to update the labels for a
