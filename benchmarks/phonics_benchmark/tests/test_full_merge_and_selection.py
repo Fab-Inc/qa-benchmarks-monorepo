@@ -148,6 +148,53 @@ def test_full_pool_includes_unanswered_items_and_keeps_errors(tmp_path):
         merge.merge_snapshot(root, manifest)
 
 
+def with_exclusions(manifest, excluded):
+    """Rewrite the fixture manifest with an excluded_models map."""
+    value = json.loads(manifest.read_text())
+    merge.write_json(manifest, {**value, "excluded_models": excluded})
+
+
+def test_excluded_model_is_dropped_from_responses_configs_and_coverage(tmp_path):
+    root, manifest = snapshot(tmp_path)
+    with_exclusions(manifest, {"m": "ran with a higher reasoning setting"})
+    result = merge.merge_snapshot(root, manifest)
+    full = root / "full"
+    # The fixture has 2 "old" rows and 2 "extension" rows for model m.
+    assert result["languages"]["en"]["excluded_model_rows"] == 4
+    assert result["languages"]["en"]["retained_rows"] == 0
+    assert result["excluded_models"] == [
+        {
+            "model": "m",
+            "reason": "ran with a higher reasoning setting",
+            "response_rows_by_language": {"en": 4},
+        }
+    ]
+    assert merge.read_jsonl(full / "english/responses/merged.jsonl") == []
+    config = json.loads((full / "english/config.json").read_text())
+    assert config["resolved_config"]["models"] == ["no-responses"]
+    coverage = pd.read_csv(full / "english/coverage_by_model.csv")
+    assert coverage.model.tolist() == ["no-responses"]
+    sources = pd.read_csv(full / "audit/sources.csv")
+    assert sources.excluded_model_rows.sum() == 4
+    assert json.loads((full / "README.json").read_text())["excluded_models"]
+
+
+@pytest.mark.parametrize(
+    "excluded, match",
+    [
+        ({"typo-model": "reason"}, "absent from every source run"),
+        ({"m": ""}, "non-empty reasons"),
+        (["m"], "non-empty reasons"),
+    ],
+)
+def test_invalid_exclusions_refused_before_full_publication(tmp_path, excluded, match):
+    root, manifest = snapshot(tmp_path)
+    with_exclusions(manifest, excluded)
+    with pytest.raises(ValueError, match=match):
+        merge.merge_snapshot(root, manifest)
+    assert not (root / "full").exists()
+
+
 def test_subset_preserves_full_responses_and_uses_subset_denominator(tmp_path):
     root, manifest = snapshot(tmp_path)
     merge.merge_snapshot(root, manifest)

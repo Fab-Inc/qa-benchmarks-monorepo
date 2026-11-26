@@ -60,6 +60,15 @@ download-only when `gold_overlays` is present. Correcting English labels later r
 a new version of the full dataset and a fresh subset selection because ratio bins can
 change.
 
+`excluded_models` optionally maps model names to the reason they are left out. Excluded
+responses are still validated against their prompts, then dropped before deduplication.
+The models are removed from the merged configs and coverage tables, so reports and
+subset selections never see them. The GCS source runs are untouched. Each model needs a
+non-empty reason, and a name that matches no source model fails the merge. Counts of
+dropped rows by language appear in `audit/merge_summary.json`, `README.json` and the
+`excluded_model_rows` column of `audit/sources.csv`. Changing exclusions needs a fresh
+merge (a `full/` directory that doesn't exist yet), but not a new download.
+
 Each language directory contains:
 
 - `benchmark_items.jsonl`, `responses/merged.jsonl`, and a report-compatible config.

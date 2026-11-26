@@ -20,8 +20,12 @@
       "gs://phonics-benchmark/phonics/datasets/kiswahili-with-clusters/syllabic-nasals-corrected/benchmark_items_relabelled_20261110.jsonl"
     ]
   },
+  "excluded_models": {
+    "deepseek-v4.1-flash-1017": "ran with a higher reasoning setting so it's confounded"
+  },
   "notes": [
     "2026-11-10: Kiswahili gold overlay replaced by benchmark_items_relabelled_20261110.jsonl (covers the 1,000 gold-leaderboard items only; other pool items keep source labels).",
-    "2026-11-16: English gold overlay added with benchmark_items_relabelled_20261116.jsonl."
+    "2026-11-16: English gold overlay added with benchmark_items_relabelled_20261116.jsonl.",
+    "2026-11-24: deepseek-v4.1-flash-1017 excluded at merge time; its responses remain in the GCS runs."
   ]
 }
