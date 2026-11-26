@@ -17,14 +17,20 @@ Outputs, in --report-dir (default: <run>/reports/kiswahili/error_analysis):
     failure_modes.csv          one row per (model, failure mode)
     failure_modes_by_tier.csv  one row per (hardware tier, failure mode), means
                                over each tier's top TOP_N models
+    failure_modes_by_tier.md   the same tier means as two Markdown tables (false
+                               alarms, misses), with an example word per mode
     failure_modes.png          the tier table as a dot chart
     hallucination_summary.csv  one row per model: how often it predicts words
                                that are not in the item's vocabulary
+
+The CSVs keep every failure mode. The chart and the Markdown tables leave out
+modes with fewer than MIN_WORDS item-words, and say which ones.
 """
 
 from __future__ import annotations
 
 import ast
+import re
 from enum import StrEnum
 from pathlib import Path
 
@@ -40,7 +46,9 @@ from decodability.kiswahili import (
 )
 from decodability.kiswahili.segment import (
     SYLLABIC_NASAL_EXPECTED_CLUSTERS,
+    GraphemeSpan,
     NasalReading,
+    Span,
     _consonant_runs,
     _nasal_verdict,
     decompose_word,
@@ -62,13 +70,13 @@ TOP_N = 10
 TIER_ORDER = ["Cloud", "Mobile + Tablet"]
 TIER_NAMES = {"Cloud": "Cloud", "Mobile + Tablet": "Mobile + tablet"}
 
-# Below this many item-words, a mode is faded in the chart.
+# Below this many item-words, a mode is left out of the chart and the Markdown
+# table. It stays in the CSVs.
 MIN_WORDS = 20
 
 # Footnote markers
 LENGTH_MARK = "*"
 SYLLABIC_MARK = "†"
-FADED_MARK = "‡"
 
 # Word length bins, in graphemes, for decodable words with no consonant run.
 GRAPHEME_BINS = pd.IntervalIndex.from_tuples([(1, 5), (5, 14)], closed="right")
@@ -79,11 +87,6 @@ def length_label(span: pd.Interval) -> str:
     return f"{int(span.left) + 1}-{int(span.right)}"
 
 
-def is_nasal(cluster: str) -> bool:
-    """Nasal-initial cluster, excluding ng/ng'/ny, which are single sounds."""
-    return cluster[:1] in "mn" and not cluster.startswith(("ng", "ng'", "ny"))
-
-
 # --------------------------------------------------------------------------
 # Failure modes
 # --------------------------------------------------------------------------
@@ -91,17 +94,21 @@ def is_nasal(cluster: str) -> bool:
 class MissesFailureMode(StrEnum):
     UNTAUGHT_UNIGRAPH = "untaught unigraph"
     UNTAUGHT_MULTIGRAPH = "untaught multigraph"
-    UNTAUGHT_NASAL_CLUSTER = "untaught nasal cluster"
-    UNTAUGHT_NON_NASAL_CLUSTER = "untaught non-nasal cluster"
+    # A cluster of 3+ graphemes not taught as a unit, though a smaller run
+    # inside it is (mb taught, mbw not).
+    UNTAUGHT_COMPOUND_CLUSTER = "untaught compound cluster, part taught"
+    # Every other untaught cluster.
+    UNTAUGHT_CLUSTER = "untaught cluster"
     INVALID_GRAPHEME = "invalid grapheme"
     SEVERAL_REASONS = "several reasons"  # TODO: split?
 
 
 class FalseAlarmFailureMode(StrEnum):
     KNOWN_WHOLE_WORD = "known whole word"
-    SYLLABIC_NASAL_TAUGHT = "syllabic nasal, m/n+C taught"
-    SYLLABIC_NASAL_UNTAUGHT = "syllabic nasal, m/n+C untaught"
+    # Holds syllabic nasal words whose fused reading is taught too (mt taught
+    # in mtoto), since the fused misreading cannot cause an error there.
     TAUGHT_CLUSTER = "taught cluster"
+    SYLLABIC_NASAL_UNTAUGHT = "syllabic nasal, m/n+C untaught"
     # length_label gives "2-5", not the interval's own "(1, 5]".
     NO_CONSONANT_RUN_SHORT = (
         f"no consonant run, {length_label(GRAPHEME_BINS[0])} graphemes"
@@ -117,32 +124,25 @@ FAILURE_ROWS = {
         # The LENGTH_MARK footnote gives the grapheme counts behind short and long.
         (
             FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT,
-            f"Every grapheme taught - short$^{{{LENGTH_MARK}}}$",
+            f"Short word$^{{{LENGTH_MARK}}}$",
         ),
         (
             FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG,
-            f"Every grapheme taught - long$^{{{LENGTH_MARK}}}$",
+            f"Long word$^{{{LENGTH_MARK}}}$",
         ),
-        (FalseAlarmFailureMode.TAUGHT_CLUSTER, "Every cluster taught"),
-        (
-            FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT,
-            "Syllabic nasal - m/n + C taught",
-        ),
+        (FalseAlarmFailureMode.TAUGHT_CLUSTER, "Word with consonant cluster"),
         (
             FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT,
-            f"Syllabic nasal - m/n + C not taught$^{{{SYLLABIC_MARK}}}$",
+            f"Word with a syllabic nasal$^{{{SYLLABIC_MARK}}}$",
         ),
     ],
     "Miss rate on nondecodable words": [
         (MissesFailureMode.UNTAUGHT_UNIGRAPH, "Untaught single-letter grapheme"),
         (MissesFailureMode.UNTAUGHT_MULTIGRAPH, "Untaught multigraph"),
+        (MissesFailureMode.UNTAUGHT_CLUSTER, "Untaught cluster"),
         (
-            MissesFailureMode.UNTAUGHT_NON_NASAL_CLUSTER,
-            "Untaught non-nasal cluster",
-        ),
-        (
-            MissesFailureMode.UNTAUGHT_NASAL_CLUSTER,
-            "Untaught nasal cluster",
+            MissesFailureMode.UNTAUGHT_COMPOUND_CLUSTER,
+            "Untaught compound cluster",
         ),
         (MissesFailureMode.INVALID_GRAPHEME, "Non-Kiswahili grapheme"),
         (MissesFailureMode.SEVERAL_REASONS, "More than one of the above"),
@@ -150,11 +150,74 @@ FAILURE_ROWS = {
 }
 
 
+def is_compound_with_taught_part(
+    cluster: Span, graphemes: list[GraphemeSpan], taught_clusters: set[str]
+) -> bool:
+    """Whether an untaught cluster has 3+ graphemes and a smaller run inside
+    it is taught: mb or bw for mbw, nj or jw for njw.
+
+    Graphemes are counted, not letters: nch is n + ch, two graphemes. The
+    smaller runs are the contiguous ones of 2 graphemes up to one short of
+    the whole cluster.
+    """
+    inside = [g.normalised for g in graphemes if cluster.start <= g.start < cluster.end]
+    return any(
+        "".join(inside[i : i + size]) in taught_clusters
+        for size in range(2, len(inside))
+        for i in range(len(inside) - size + 1)
+    )
+
+
+def untaught_spans(
+    analysis: KiswahiliWordAnalysis,
+    graphemes: list[GraphemeSpan],
+    taught_clusters: set[str],
+) -> dict[MissesFailureMode, list[Span]]:
+    """The parts of a word the student has not been taught, by miss mode.
+
+    Every mode except SEVERAL_REASONS is a key; a word with spans under more
+    than one key is a SEVERAL_REASONS word. Untaught clusters come from the
+    strict view (ambiguous nasal boundaries fused), so mbw in mbwea is one
+    cluster.
+    """
+    compound = [
+        c
+        for c in analysis.unknown_clusters
+        if is_compound_with_taught_part(c, graphemes, taught_clusters)
+    ]
+    return {
+        MissesFailureMode.UNTAUGHT_UNIGRAPH: [
+            g for g in analysis.unknown_graphemes if len(g.normalised) == 1
+        ],
+        MissesFailureMode.UNTAUGHT_MULTIGRAPH: [
+            g for g in analysis.unknown_graphemes if len(g.normalised) > 1
+        ],
+        MissesFailureMode.UNTAUGHT_COMPOUND_CLUSTER: compound,
+        MissesFailureMode.UNTAUGHT_CLUSTER: [
+            c for c in analysis.unknown_clusters if c not in compound
+        ],
+        MissesFailureMode.INVALID_GRAPHEME: analysis.invalid_graphemes,
+    }
+
+
+def find_syllabic_runs(graphemes: list[GraphemeSpan]) -> list[list[GraphemeSpan]]:
+    """Consonant runs whose leading nasal is syllabic, nasal included.
+
+    e.g. [m, t] in mtoto and [m, b, w] in mbwa. Runs read as fused or ambiguous
+    are left out; they are ordinary clusters.
+    """
+    return [
+        [graphemes[i] for i in run]
+        for run in _consonant_runs(graphemes)
+        if len(run) >= 2 and _nasal_verdict(graphemes, run) is NasalReading.SYLLABIC
+    ]
+
+
 def failure_mode(
     analysis: KiswahiliWordAnalysis,
+    graphemes: list[GraphemeSpan],
     taught_clusters: set[str],
     syllabic_runs: list[str],
-    n_graphemes: int,
     has_run: bool,
     on_syllabic_list: bool,
 ) -> MissesFailureMode | FalseAlarmFailureMode:
@@ -165,15 +228,14 @@ def failure_mode(
     2. False alarms: falsely flagged decodable words
 
     Failure modes for missed non-decodable words are split by what the
-    student has not been taught. (Currently, words with multiple untaught
-    reasons are grouped under "several reasons")
+    student has not been taught (see untaught_spans). Words untaught on more
+    than one count are grouped under "several reasons".
 
     Failure modes for falsely flagged decodable words are split by what
     could still trip a model:
     - being a known whole word
-    - a syllabic nasal, split into cases where the nasal + the following
-      grapheme/cluster as a unit is taught or untaught
-    - a taught cluster
+    - a syllabic nasal whose fused reading is untaught (the trap below)
+    - a consonant cluster, every one of them taught
     - or else only their length.
 
     A syllabic nasal is a trap when the student has been taught the nasal and
@@ -181,35 +243,19 @@ def failure_mode(
     plus that run as one cluster (mt, mbw). A model that misreads the nasal
     as fused needs that cluster, finds it untaught, and wrongly flags the
     word. The package treats a consonant run as one cluster that cannot be
-    split, so knowing mb does not make mbw readable.
+    split, so knowing mb does not make mbw readable. When the fused reading
+    is taught too, the misreading cannot cause an error, so the word is an
+    ordinary taught-cluster word.
 
     `syllabic_runs` lists the whole run, nasal included, for each syllabic
     run in the word. A word is a trap if any of them is untaught. Other
     nasal runs in the word (the fused mb in mjomba) are ordinary clusters,
     already checked by the untaught modes above.
-
-    Nasal clusters include ambiguous boundaries, which the dataset labels as
-    fused (gated).
     """
     if analysis.known_whole_word:
         return FalseAlarmFailureMode.KNOWN_WHOLE_WORD
 
-    untaught = {
-        MissesFailureMode.UNTAUGHT_UNIGRAPH: [
-            g for g in analysis.unknown_graphemes if len(g.normalised) == 1
-        ],
-        MissesFailureMode.UNTAUGHT_MULTIGRAPH: [
-            g for g in analysis.unknown_graphemes if len(g.normalised) > 1
-        ],
-        MissesFailureMode.UNTAUGHT_NASAL_CLUSTER: [
-            c for c in analysis.unknown_clusters if is_nasal(c.normalised)
-        ],
-        MissesFailureMode.UNTAUGHT_NON_NASAL_CLUSTER: [
-            c for c in analysis.unknown_clusters if not is_nasal(c.normalised)
-        ],
-        MissesFailureMode.INVALID_GRAPHEME: analysis.invalid_graphemes,
-    }
-
+    untaught = untaught_spans(analysis, graphemes, taught_clusters)
     reasons = [mode for mode, spans in untaught.items() if spans]
 
     if len(reasons) > 1:
@@ -222,17 +268,15 @@ def failure_mode(
 
     # Every grapheme and cluster is taught from here on, so the word is decodable.
     if on_syllabic_list and syllabic_runs:
-        # i.e. word contains a syllabic nasal
-        fused_reading_taught = all(run in taught_clusters for run in syllabic_runs)
-        if fused_reading_taught:
-            return FalseAlarmFailureMode.SYLLABIC_NASAL_TAUGHT
-        else:
+        # The word has a syllabic nasal. Its fused reading is harmless when
+        # every syllabic run is taught as a cluster too.
+        if not all(run in taught_clusters for run in syllabic_runs):
             return FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT
 
     if has_run:
         return FalseAlarmFailureMode.TAUGHT_CLUSTER
 
-    (span,) = [b for b in GRAPHEME_BINS if n_graphemes in b]
+    (span,) = [b for b in GRAPHEME_BINS if len(graphemes) in b]
     if span == GRAPHEME_BINS[0]:
         return FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT
     return FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG
@@ -325,11 +369,7 @@ def build(results: pd.DataFrame) -> pd.DataFrame:
     # e.g. mt in mtoto, mbw in mbwa. These are the clusters a model would deem
     # required if it misread the syllabic run as gated.
     syllabic_runs = {
-        w: [
-            "".join(g[i].normalised for i in r)
-            for r in runs[w]
-            if _nasal_verdict(g, r) is NasalReading.SYLLABIC
-        ]
+        w: ["".join(s.normalised for s in run) for run in find_syllabic_runs(g)]
         for w, g in graphemes.items()
     }
 
@@ -342,9 +382,9 @@ def build(results: pd.DataFrame) -> pd.DataFrame:
     word_profile_pairs["failure_mode"] = [
         failure_mode(
             analysis=analyse_word_kiswahili(w, profiles[s]),
+            graphemes=graphemes[w],
             taught_clusters=profiles[s].all_known_clusters,
             syllabic_runs=syllabic_runs[w],
-            n_graphemes=len(graphemes[w]),
             has_run=bool(runs[w]),
             on_syllabic_list=w.lower() in SYLLABIC_NASAL_EXPECTED_CLUSTERS,
         )
@@ -403,6 +443,213 @@ def tier_failure_table(failures: pd.DataFrame, selected: pd.DataFrame) -> pd.Dat
 
 
 # --------------------------------------------------------------------------
+# Tier table as Markdown, with an example per failure mode
+# --------------------------------------------------------------------------
+# Keyed by failure mode, values are a tuple of (word, taught, untaught,
+# explanation, chart line). Taught and untaught are cut down to what matters
+# for the word and use KiswahiliStudentKnowledge's field names, so the tests
+# can build each profile and check that the example lands in its mode.
+# untaught is None when the student knows everything the word needs.
+#
+# The chart line is the short example drawn under the mode's name in
+# failure_modes.png, written by hand since the profiles above are too long
+# for a chart: "word: knows ..., not ...", with the part of the word that
+# matters in mathtext bold ($\mathbf{...}$).
+EXAMPLE_WORDS: dict[
+    str, tuple[str, dict[str, list[str]], dict[str, list[str]] | None, str, str]
+] = {
+    FalseAlarmFailureMode.KNOWN_WHOLE_WORD: (
+        "paka",
+        {"whole_words": ["paka"], "graphemes": ["a", "k"]},
+        {"graphemes": ["p"]},
+        "The student doesn't know 'p' but they can decode by sight.",
+        r"$\mathbf{p}$aka: knows paka as a whole word, not p",
+    ),
+    FalseAlarmFailureMode.NO_CONSONANT_RUN_SHORT: (
+        "sana",
+        {"graphemes": ["s", "a", "n"]},
+        None,
+        "A short word requiring no cluster knowledge, and the student knows every "
+        "grapheme.",
+        "sana: knows s, a, n",
+    ),
+    FalseAlarmFailureMode.NO_CONSONANT_RUN_LONG: (
+        "watoto",
+        {"graphemes": ["w", "a", "t", "o"]},
+        None,
+        "A longer word requiring no cluster knowledge, and the student knows every "
+        "grapheme.",
+        "watoto: knows w, a, t, o",
+    ),
+    FalseAlarmFailureMode.TAUGHT_CLUSTER: (
+        "kwa",
+        {"graphemes": ["k", "w", "a"], "clusters": ["kw"]},
+        None,
+        "The student knows every grapheme and consonant cluster in the word.",
+        r"$\mathbf{kw}$a: knows k, w, a and kw",
+    ),
+    FalseAlarmFailureMode.SYLLABIC_NASAL_UNTAUGHT: (
+        "mtoto",
+        {"graphemes": ["m", "t", "o"]},
+        {"clusters": ["mt"]},
+        "The 'm' is syllabic, so knowing 'm', 't' and 'o' is enough to decode "
+        "'mtoto'. 'mt' is not needed as a cluster, though a model that reads it "
+        "as one finds it untaught.",
+        # Same pattern as the untaught cluster line (njia), on purpose: the
+        # only difference is that mt is not needed.
+        r"$\mathbf{mt}$oto: knows m, t, o, not mt (not needed)",
+    ),
+    MissesFailureMode.UNTAUGHT_UNIGRAPH: (
+        "maji",
+        {"graphemes": ["m", "a", "i"]},
+        {"graphemes": ["j"]},
+        "The student doesn't know 'j' hence can't decode 'maji'.",
+        r"ma$\mathbf{j}$i: knows m, a, i, not j",
+    ),
+    MissesFailureMode.UNTAUGHT_MULTIGRAPH: (
+        "lenye",
+        {"graphemes": ["l", "e", "n", "y"]},
+        {"graphemes": ["ny"]},
+        "Knowing 'n' and 'y' doesn't automatically grant the knowledge of 'ny', "
+        "which is a digraph (two-letter grapheme) in Kiswahili whose sound is "
+        "distinct from a simple blend of 'n' and 'y'.",
+        r"le$\mathbf{ny}$e: knows n, y, not ny",
+    ),
+    MissesFailureMode.UNTAUGHT_COMPOUND_CLUSTER: (
+        "magonjwa",
+        {"graphemes": ["m", "a", "g", "o", "n", "j", "w"], "clusters": ["nj", "jw"]},
+        {"clusters": ["njw"]},
+        "The student knows 'nj' and 'jw' but not 'njw'. A consonant run is read as "
+        "one unit, so knowing parts of it isn't enough to decode 'magonjwa'.",
+        r"mago$\mathbf{njw}$a: knows nj, jw, not njw",
+    ),
+    MissesFailureMode.UNTAUGHT_CLUSTER: (
+        "njia",
+        {"graphemes": ["n", "j", "i", "a"]},
+        {"clusters": ["nj"]},
+        "The student knows 'n' and 'j' but not the prenasalised 'nj' sound, hence "
+        "can't decode 'njia' properly.",
+        r"$\mathbf{nj}$ia: knows n, j, not nj",
+    ),
+    MissesFailureMode.INVALID_GRAPHEME: (
+        "taxi",
+        {"graphemes": ["t", "a", "i"]},
+        {"graphemes": ["x"]},
+        "'x' is not in the Kiswahili grapheme inventory, hence 'taxi' should not "
+        "be decodable to any student.",
+        r"ta$\mathbf{x}$i: x is not a Kiswahili grapheme",
+    ),
+    MissesFailureMode.SEVERAL_REASONS: (
+        "nyumbani",
+        {"graphemes": ["u", "m", "b", "a", "n", "i"]},
+        {"graphemes": ["ny"], "clusters": ["mb"]},
+        "The student knows neither the digraph 'ny' nor the cluster 'mb', so "
+        "'nyumbani' is untaught on more than one count.",
+        r"$\mathbf{ny}$u$\mathbf{mb}$ani: knows neither ny nor mb",
+    ),
+}
+
+
+def format_knowledge(knowledge: dict[str, list[str]] | None) -> str:
+    """'whole words: paka; graphemes: a, k', or '–' when there is nothing."""
+    if not knowledge:
+        return "–"
+    return "; ".join(
+        f"{field.replace('_', ' ')}: {', '.join(items)}"
+        for field, items in knowledge.items()
+    )
+
+
+def plain_label(label: str) -> str:
+    """A FAILURE_ROWS label without its mathtext footnote marker."""
+    return re.sub(r"\$\^\{[^}]*\}\$", "", label)
+
+
+def reported_rows(
+    tier_failures: pd.DataFrame,
+) -> tuple[dict[str, list[tuple[str, str]]], list[str]]:
+    """FAILURE_ROWS cut down to the modes the chart and Markdown table report.
+
+    A mode is reported when it has at least MIN_WORDS item-words. Returns the
+    reported rows by panel (empty panels dropped) and the plain labels of the
+    modes left out for having too few. Modes with no item-words at all are
+    left out silently.
+    """
+    sizes = tier_failures.drop_duplicates("failure_mode").set_index("failure_mode").n
+    shown: dict[str, list[tuple[str, str]]] = {}
+    too_few: list[str] = []
+    for title, rows in FAILURE_ROWS.items():
+        present = [(mode, label) for mode, label in rows if mode in sizes.index]
+        kept = [(mode, label) for mode, label in present if sizes[mode] >= MIN_WORDS]
+        too_few += [
+            plain_label(label) for mode, label in present if sizes[mode] < MIN_WORDS
+        ]
+        if kept:
+            shown[title] = kept
+    return shown, too_few
+
+
+def too_few_note(too_few: list[str]) -> str:
+    """The note naming the modes left out of the chart and Markdown table."""
+    return f"Not shown, with fewer than {MIN_WORDS} item-words: {', '.join(too_few)}"
+
+
+def tier_failure_markdown(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> str:
+    """tier_failure_table as Markdown: one table per FAILURE_ROWS panel, with
+    an EXAMPLE_WORDS example and each tier's mean rate on every row.
+
+    Only the reported_rows modes appear. Markdown has no two-level headers, so
+    the grouped columns (the example, the per-tier rates) carry their group in
+    the column name.
+    """
+    rates = tier_failures.set_index(["failure_mode", "hardware_tier"]).error_rate
+    shown, too_few = reported_rows(tier_failures)
+    lines = [
+        "# Failure modes by hardware tier",
+        "",
+        f"Rates are means over each tier's models {common.tier_title(selected)}. "
+        "Example profiles are cut down to what matters for the example word.",
+    ]
+    if too_few:
+        lines += ["", too_few_note(too_few)]
+    for title, rows in shown.items():
+        # The panel's error type decides the wording: misses are of
+        # nondecodable words, false alarms of decodable ones.
+        misses = isinstance(rows[0][0], MissesFailureMode)
+        rate_name = "Mean miss rate" if misses else "Mean false alarm rate"
+        header = [
+            "Failure mode",
+            "Example: word",
+            "Example: student knowledge profile",
+            "Example: missing knowledge",
+            f"Why the word is {'not ' if misses else ''}decodable to the student",
+            *[f"{rate_name}: {TIER_NAMES[tier]}" for tier in TIER_ORDER],
+        ]
+        lines += [
+            "",
+            f"## {title}",
+            "",
+            "| " + " | ".join(header) + " |",
+            "|" + " --- |" * len(header),
+        ]
+        for mode, label in rows:
+            word, taught, untaught, why, _ = EXAMPLE_WORDS[mode]
+            cells = [
+                plain_label(label),
+                word,
+                format_knowledge(taught),
+                format_knowledge(untaught),
+                why,
+                *[
+                    f"{rates[(mode, tier)]:.0%}" if (mode, tier) in rates.index else "–"
+                    for tier in TIER_ORDER
+                ],
+            ]
+            lines.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
+# --------------------------------------------------------------------------
 # Plot
 # --------------------------------------------------------------------------
 def style(ax: Axes) -> None:
@@ -419,30 +666,34 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
 
     False alarms on decodable words sit in the top panel and misses on
     nondecodable words in the bottom, since the two are different errors.
+    Only the reported_rows modes are drawn; a footnote names the ones left
+    out for having too few item-words.
     """
     rates = tier_failures.set_index(["failure_mode", "hardware_tier"])
     sizes = tier_failures.drop_duplicates("failure_mode").set_index("failure_mode").n
-    groups = list(FAILURE_ROWS.items())
+    shown, too_few = reported_rows(tier_failures)
+    groups = list(shown.items())
     fig, axes = plt.subplots(
         len(groups),
         1,
         sharex=True,
+        squeeze=False,  # an array of axes even if only one panel has rows
         figsize=(11.5, 8.2),
         height_ratios=[len(rows) for _, rows in groups],
         layout="constrained",
     )
+    axes = axes[:, 0]
     fig.set_facecolor(SURFACE)
 
     for ax, (title, rows) in zip(axes, groups):
         # y grows upward, so reverse to keep FAILURE_ROWS order top to bottom.
-        rows = [row for row in rows[::-1] if row[0] in sizes.index]
+        rows = rows[::-1]
         for y, (mode, _) in enumerate(rows):
             points = {
                 tier: rates.error_rate[(mode, tier)] * 100
                 for tier in TIER_ORDER
                 if (mode, tier) in rates.index
             }
-            faded = sizes[mode] < MIN_WORDS
             low, high = min(points.values()), max(points.values())
             ax.plot([low, high], [y, y], color=CONNECTOR, lw=2, zorder=1)
             for tier, rate in points.items():
@@ -454,7 +705,6 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                     edgecolors=SURFACE,
                     linewidths=1.5,
                     zorder=3,
-                    alpha=0.4 if faded else 1,
                 )
                 # Lower value labelled on its left, higher on its right.
                 left = rate == low and len(points) > 1
@@ -466,7 +716,7 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                     ha="right" if left else "left",
                     va="center",
                     fontsize=9,
-                    color=MUTED if faded else INK,
+                    color=INK,
                 )
             # Right-hand column: how many item-words the rate rests on.
             ax.annotate(
@@ -477,17 +727,29 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
                 fontsize=9,
                 color=MUTED,
             )
-        # Faded rows get FADED_MARK as a superscript (mathtext), which the
-        # footnote explains. Assumes labels contain no "$" of their own.
-        labels = [
-            label + (f"$^{{{FADED_MARK}}}$" if sizes[mode] < MIN_WORDS else "")
-            for mode, label in rows
-        ]
-        ax.set_yticks(range(len(rows)), labels, fontsize=10)
+        # Each row is labelled in two lines: the mode's name just above the
+        # row, and its EXAMPLE_WORDS chart line just below in smaller grey
+        # text. A tick label has a single size and colour, so both lines are
+        # annotations and the tick labels are left empty.
+        ax.set_yticks(range(len(rows)), [""] * len(rows))
         style(ax)
-        # style() greys tick labels; mode names are the content, so restore them.
-        for tick, (mode, _) in zip(ax.get_yticklabels(), rows):
-            tick.set_color(MUTED if sizes[mode] < MIN_WORDS else INK)
+        for y, (mode, label) in enumerate(rows):
+            for text, offset, va, size, color in (
+                (label, 2, "bottom", 10, INK),
+                (EXAMPLE_WORDS[mode][4], -2, "top", 8.5, MUTED),
+            ):
+                ax.annotate(
+                    text,
+                    (0, y),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(-8, offset),
+                    textcoords="offset points",
+                    ha="right",
+                    va=va,
+                    fontsize=size,
+                    color=color,
+                    annotation_clip=False,  # drawn left of the axes
+                )
         ax.set_ylim(-0.6, len(rows) - 0.4)
         ax.grid(axis="x", color=GRID, lw=0.8)
         ax.set_axisbelow(True)
@@ -535,8 +797,8 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
         fontweight="bold",
         color=INK,
     )
-    # One footnote line per marker. The FADED_MARK line appears only when a row
-    # is actually faded, so it never explains a mark the chart does not show.
+    # One footnote line per marker, then a line naming any mode left out for
+    # having too few item-words (only when there is one).
     # Grapheme counts come from GRAPHEME_BINS so the note follows the bins.
     short_max = int(GRAPHEME_BINS[0].right)
     long_min = int(GRAPHEME_BINS[1].left) + 1
@@ -550,8 +812,8 @@ def plot_failure_modes(tier_failures: pd.DataFrame, selected: pd.DataFrame) -> F
         "   Knowing when such a nasal is syllabic depends on understanding the "
         "complexities of Kiswahili grammar.",
     ]
-    if (sizes < MIN_WORDS).any():
-        notes.append(f"{FADED_MARK} Faded: fewer than {MIN_WORDS} item-words.")
+    if too_few:
+        notes.append(too_few_note(too_few))
     fig.text(
         0.01,
         -0.01,
@@ -604,6 +866,9 @@ def analyse_failure_modes(
     tier_failures = tier_failure_table(failures, selected)
     failures.to_csv(report_dir / "failure_modes.csv", index=False)
     tier_failures.to_csv(report_dir / "failure_modes_by_tier.csv", index=False)
+    (report_dir / "failure_modes_by_tier.md").write_text(
+        tier_failure_markdown(tier_failures, selected)
+    )
     plot_failure_modes(tier_failures, selected).savefig(
         report_dir / "failure_modes.png",
         dpi=300,
