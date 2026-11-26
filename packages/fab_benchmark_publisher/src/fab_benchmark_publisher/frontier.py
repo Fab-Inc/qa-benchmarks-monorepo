@@ -107,11 +107,11 @@ PROVIDER_FAMILY_FILTERS = {
 }
 
 
-def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=None):
+def compute_frontier(data, sorting_col, acc_col="accuracy", smooth=None):
     """
     Computes the value frontier from a set of models.
 
-    1. Sorts models by cost.
+    1. Sorts models by sorting_col.
     2. Finds the Pareto frontier (models where accuracy is the highest seen so far).
     3. If smooth=True, filters this frontier to find the concave hull, ensuring
        the slope (Accuracy vs. log(sorting_col)) is always decreasing.
@@ -119,7 +119,7 @@ def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=
     Args:
         data: DataFrame containing model data
         acc_col: Column name for accuracy metric (default: 'accuracy')
-        sorting_col: Column name for cost/size variable (default: 'input_cost')
+        sorting_col: Column name for the independent variable
         smooth: If True, enforces concavity (decreasing slope) (default: None)
 
     Returns:
@@ -138,7 +138,7 @@ def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=
 
     df_return = pd.DataFrame(frontier)
 
-    # if rows have same input cost, keep the one with highest accuracy
+    # if rows have the same sorting_col value, keep the one with highest accuracy
     df_return = df_return.sort_values(sorting_col).drop_duplicates(
         sorting_col, keep="last"
     )
@@ -212,7 +212,11 @@ def compute_frontier(data, acc_col="accuracy", sorting_col="input_cost", smooth=
 
 
 def compute_layers(
-    df, frontier_var="input_cost", acc_col="accuracy", smooth=True, max_models=None
+    df,
+    frontier_var,
+    acc_col="accuracy",
+    smooth=True,
+    max_models=None,
 ):
     """
     Computes successive concave frontier layers ("peeling").
@@ -224,7 +228,7 @@ def compute_layers(
 
     Args:
         df: DataFrame containing model data
-        frontier_var: Variable for x-axis (e.g., 'cost' or 'size')
+        frontier_var: Column name for the independent variable
         acc_col: Variable for y-axis (e.g., 'accuracy')
         smooth: Whether to enforce concavity (default: True)
         max_models: Maximum models to collect across layers (default: None)
